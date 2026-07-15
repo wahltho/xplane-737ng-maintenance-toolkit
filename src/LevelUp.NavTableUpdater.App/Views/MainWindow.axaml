@@ -1,0 +1,214 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:LevelUp.NavTableUpdater.App.ViewModels"
+        xmlns:core="using:LevelUp.NavTableUpdater.Core"
+        xmlns:analysis="using:LevelUp.NavTableUpdater.Core.Analysis"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="1180" d:DesignHeight="780"
+        x:Class="LevelUp.NavTableUpdater.App.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Icon="/Assets/avalonia-logo.ico"
+        Title="LevelUp Updater Prototype"
+        Width="1180"
+        Height="780"
+        MinWidth="980"
+        MinHeight="680">
+
+    <Design.DataContext>
+        <vm:MainWindowViewModel/>
+    </Design.DataContext>
+
+    <Window.Styles>
+        <Style Selector="Border.card">
+            <Setter Property="Background" Value="#FFFFFFFF"/>
+            <Setter Property="BorderBrush" Value="#D8DEE8"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="14"/>
+        </Style>
+        <Style Selector="TextBlock.label">
+            <Setter Property="Foreground" Value="#667085"/>
+            <Setter Property="FontSize" Value="12"/>
+        </Style>
+        <Style Selector="TextBlock.value">
+            <Setter Property="Foreground" Value="#111827"/>
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+        <Style Selector="Button.primary">
+            <Setter Property="Background" Value="#2563EB"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+    </Window.Styles>
+
+    <Grid RowDefinitions="Auto,Auto,*" Background="#F3F6FA">
+        <Border Grid.Row="0" Background="#111827" Padding="18,14">
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Spacing="2">
+                    <TextBlock Text="LevelUp Updater Prototype" Foreground="White" FontSize="20" FontWeight="SemiBold"/>
+                    <TextBlock Text="VNAV descent tables installer flow - read-only prototype build" Foreground="#CBD5E1"/>
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <TextBlock Text="App update: VeloPack" Foreground="#D1FAE5" VerticalAlignment="Center"/>
+                    <TextBlock Text="Content: manifest-driven" Foreground="#DBEAFE" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="1"
+                Background="#FFF7ED"
+                BorderBrush="#FDBA74"
+                BorderThickness="0,0,0,1"
+                Padding="14,10"
+                IsVisible="{Binding RestartNoticeVisible}">
+            <TextBlock Text="{Binding RestartNotice}" Foreground="#9A3412" FontWeight="SemiBold"/>
+        </Border>
+
+        <Grid Grid.Row="2" ColumnDefinitions="320,*" Margin="16" ColumnSpacing="16">
+            <Border Classes="card">
+                <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="14">
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Aircraft Target" FontSize="18" FontWeight="SemiBold"/>
+                        <TextBlock Text="Detection is structural. Folder names are not trusted." Foreground="#667085" TextWrapping="Wrap"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="1" Spacing="8">
+                        <TextBlock Classes="label" Text="Selected folder"/>
+                        <TextBox Text="{Binding SelectedAircraftPath}" PlaceholderText="/path/to/LevelUp aircraft folder"/>
+                        <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                            <Button Grid.Column="0" Content="Auto-detect" Command="{Binding AutoDetectCommand}" HorizontalAlignment="Stretch"/>
+                            <Button Grid.Column="1" Content="Browse" Click="BrowseAircraft_Click" HorizontalAlignment="Stretch"/>
+                        </Grid>
+                        <Button Content="Scan selected folder" Command="{Binding ScanCommand}" Classes="primary" HorizontalAlignment="Stretch"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="2" Spacing="4">
+                        <TextBlock Classes="label" Text="Detected candidates"/>
+                        <ListBox ItemsSource="{Binding DetectedTargets}"
+                                 SelectedItem="{Binding SelectedCandidate}"
+                                 MinHeight="120"
+                                 MaxHeight="180">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate x:DataType="core:AircraftCandidate">
+                                    <StackPanel Spacing="2" Margin="0,4">
+                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
+                                        <TextBlock Text="{Binding Path}" Foreground="#667085" FontSize="11" TextWrapping="Wrap"/>
+                                        <TextBlock Text="{Binding Reason}" Foreground="#475467" FontSize="11"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="3" Spacing="6">
+                        <TextBlock Classes="label" Text="Package source"/>
+                        <TextBlock Text="{Binding PackageId}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                        <TextBlock Text="{Binding PackageSource}" Foreground="#667085"/>
+                        <TextBlock Text="{Binding RepositoryUrl}" Foreground="#2563EB" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <ScrollViewer Grid.Column="1">
+                <StackPanel Spacing="16">
+                    <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="12">
+                        <Border Classes="card">
+                            <StackPanel Spacing="4">
+                                <TextBlock Classes="label" Text="Aircraft status"/>
+                                <TextBlock Classes="value" Text="{Binding AircraftStatus}" TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Grid.Column="1" Classes="card">
+                            <StackPanel Spacing="4">
+                                <TextBlock Classes="label" Text="Installed package"/>
+                                <TextBlock Classes="value" Text="{Binding LocalPackageVersion}"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Grid.Column="2" Classes="card">
+                            <StackPanel Spacing="4">
+                                <TextBlock Classes="label" Text="Available package"/>
+                                <TextBlock Classes="value" Text="{Binding AvailablePackageVersion}"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Grid.Column="3" Classes="card">
+                            <StackPanel Spacing="4">
+                                <TextBlock Classes="label" Text="Line endings"/>
+                                <TextBlock Classes="value" Text="{Binding LineEnding}"/>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+
+                    <Border Classes="card">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Scan Summary" FontSize="16" FontWeight="SemiBold"/>
+                            <TextBlock Text="{Binding StatusSummary}" TextWrapping="Wrap"/>
+                            <TextBlock Classes="label" Text="Target script"/>
+                            <TextBlock Text="{Binding TargetScriptPath}" FontFamily="Menlo,Consolas,monospace" FontSize="12" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Classes="card">
+                        <StackPanel Spacing="10">
+                            <TextBlock Text="Components" FontSize="16" FontWeight="SemiBold"/>
+                            <ItemsControl ItemsSource="{Binding Components}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="analysis:ComponentStatus">
+                                        <Grid ColumnDefinitions="220,100,90,*" ColumnSpacing="10" Margin="0,4">
+                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding State}"/>
+                                            <TextBlock Grid.Column="2" Text="{Binding Version}"/>
+                                            <TextBlock Grid.Column="3" Text="{Binding Detail}" Foreground="#667085" TextWrapping="Wrap"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
+                        <Border Classes="card">
+                            <StackPanel Spacing="10">
+                                <TextBlock Text="Planned Changes" FontSize="16" FontWeight="SemiBold"/>
+                                <ItemsControl ItemsSource="{Binding PlannedChanges}"/>
+                                <TextBlock Text="Actions below are prototype simulations only." Foreground="#B45309" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                <WrapPanel ItemSpacing="8" LineSpacing="8">
+                                    <Button Content="Dry-run" Command="{Binding DryRunCommand}"/>
+                                    <Button Content="Install" Command="{Binding RunPrototypeActionCommand}" CommandParameter="Install"/>
+                                    <Button Content="Update" Command="{Binding RunPrototypeActionCommand}" CommandParameter="Update"/>
+                                    <Button Content="Repair" Command="{Binding RunPrototypeActionCommand}" CommandParameter="Repair"/>
+                                    <Button Content="Restore" Command="{Binding RunPrototypeActionCommand}" CommandParameter="Restore"/>
+                                    <Button Content="Uninstall" Command="{Binding RunPrototypeActionCommand}" CommandParameter="Uninstall"/>
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Grid.Column="1" Classes="card">
+                            <StackPanel Spacing="10">
+                                <TextBlock Text="Findings" FontSize="16" FontWeight="SemiBold"/>
+                                <ItemsControl ItemsSource="{Binding Findings}"/>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+
+                    <Border Classes="card">
+                        <Grid RowDefinitions="Auto,*" RowSpacing="8">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Text="Install Log" FontSize="16" FontWeight="SemiBold"/>
+                                <Button Grid.Column="1" Content="Clear" Command="{Binding ClearLogCommand}"/>
+                            </Grid>
+                            <TextBox Grid.Row="1"
+                                     Text="{Binding InstallLog}"
+                                     IsReadOnly="True"
+                                     AcceptsReturn="True"
+                                     TextWrapping="Wrap"
+                                     FontFamily="Menlo,Consolas,monospace"
+                                     MinHeight="160"/>
+                        </Grid>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+    </Grid>
+
+</Window>

@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/LevelUp.NavTableUpdater.App/LevelUp.NavTableUpdater.App.csproj" />
+    <Project Path="src/LevelUp.NavTableUpdater.Core/LevelUp.NavTableUpdater.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/LevelUp.NavTableUpdater.Core.Tests/LevelUp.NavTableUpdater.Core.Tests.csproj" />
+  </Folder>
+</Solution>
