@@ -64,3 +64,7 @@ lifecycle handling.
 Packaging and publishing are intentionally not active in this prototype yet.
 The next VeloPack step is a release workflow around `dotnet publish` plus `vpk`
 for beta/stable channels and signed platform artifacts.
+
+## License
+
+This updater prototype is licensed under the MIT License. See [LICENSE](LICENSE).
