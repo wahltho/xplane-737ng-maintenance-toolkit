@@ -1,0 +1,107 @@
+name: VeloPack Preview Packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_version:
+        description: App version to pack.
+        required: true
+        default: 0.1.0-preview.1
+      channel:
+        description: VeloPack channel prefix.
+        required: true
+        default: beta
+
+permissions:
+  contents: read
+
+env:
+  APP_PROJECT: src/LevelUp.NavTableUpdater.App/LevelUp.NavTableUpdater.App.csproj
+  APP_ID: LevelUp.NavTableUpdater
+  APP_TITLE: LevelUp Nav Table Updater
+  APP_AUTHORS: LevelUp Nav Table Updater contributors
+
+jobs:
+  preview-package:
+    name: Preview package (${{ matrix.rid }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+            main_exe: LevelUp.NavTableUpdater.exe
+            pack_icon_args: --icon "src/LevelUp.NavTableUpdater.App/Assets/avalonia-logo.ico"
+          - os: macos-latest
+            rid: osx-arm64
+            main_exe: LevelUp.NavTableUpdater
+            pack_icon_args: ""
+          - os: ubuntu-latest
+            rid: linux-x64
+            main_exe: LevelUp.NavTableUpdater
+            pack_icon_args: --icon "src/LevelUp.NavTableUpdater.App/Assets/app-icon.png"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Install Linux packaging dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y squashfs-tools
+
+      - name: Restore
+        run: dotnet restore LevelUp.NavTableUpdater.slnx
+
+      - name: Build
+        run: dotnet build LevelUp.NavTableUpdater.slnx --configuration Release --no-restore -p:Version=${{ inputs.app_version }}
+
+      - name: Test
+        run: dotnet test tests/LevelUp.NavTableUpdater.Core.Tests/LevelUp.NavTableUpdater.Core.Tests.csproj --configuration Release --no-build --verbosity normal
+
+      - name: Publish self-contained app
+        run: >
+          dotnet publish ${{ env.APP_PROJECT }}
+          --configuration Release
+          --runtime ${{ matrix.rid }}
+          --self-contained true
+          -p:Version=${{ inputs.app_version }}
+          --output artifacts/publish/${{ matrix.rid }}
+
+      - name: Restore VeloPack CLI
+        run: dotnet tool restore
+
+      - name: Pack VeloPack preview
+        run: >
+          dotnet tool run vpk -- pack
+          --packId "${{ env.APP_ID }}"
+          --packVersion "${{ inputs.app_version }}"
+          --packDir "artifacts/publish/${{ matrix.rid }}"
+          --mainExe "${{ matrix.main_exe }}"
+          --packTitle "${{ env.APP_TITLE }}"
+          --packAuthors "${{ env.APP_AUTHORS }}"
+          --runtime "${{ matrix.rid }}"
+          --channel "${{ inputs.channel }}-${{ matrix.rid }}"
+          ${{ matrix.pack_icon_args }}
+          --outputDir "artifacts/velopack/${{ matrix.rid }}"
+
+      - name: Upload publish output
+        uses: actions/upload-artifact@v4
+        with:
+          name: publish-${{ matrix.rid }}
+          path: artifacts/publish/${{ matrix.rid }}
+          if-no-files-found: error
+
+      - name: Upload VeloPack output
+        uses: actions/upload-artifact@v4
+        with:
+          name: velopack-${{ matrix.rid }}
+          path: artifacts/velopack/${{ matrix.rid }}
+          if-no-files-found: error

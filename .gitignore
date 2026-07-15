@@ -4,6 +4,9 @@ obj/
 .vscode/
 .idea/
 TestResults/
+artifacts/
+publish/
+Releases/
 *.user
 *.suo
 *.nupkg
