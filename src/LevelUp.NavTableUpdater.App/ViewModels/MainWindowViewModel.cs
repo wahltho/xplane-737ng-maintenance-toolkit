@@ -1,4 +1,5 @@
 ﻿using System.Collections.ObjectModel;
+using System.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LevelUp.NavTableUpdater.Core;
@@ -52,6 +53,36 @@ public partial class MainWindowViewModel : ViewModelBase
 
     [ObservableProperty]
     private string installLog = "";
+
+    [ObservableProperty]
+    private bool actionsEnabled = true;
+
+    [ObservableProperty]
+    private bool operationPanelVisible;
+
+    [ObservableProperty]
+    private bool isOperationRunning;
+
+    [ObservableProperty]
+    private string operationTitle = "Ready";
+
+    [ObservableProperty]
+    private string operationSubtitle = "No transaction is running.";
+
+    [ObservableProperty]
+    private string operationElapsed = "00:00s";
+
+    [ObservableProperty]
+    private double operationProgress;
+
+    [ObservableProperty]
+    private string operationProgressText = "No manifest operation has started.";
+
+    [ObservableProperty]
+    private string operationStatus = "Idle";
+
+    [ObservableProperty]
+    private string operationLog = "";
 
     public string PackageId => _manifest.PackageId;
 
@@ -128,30 +159,37 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void RunPrototypeAction(string action)
+    private async Task RunPrototypeAction(string action)
     {
+        if (IsOperationRunning)
+        {
+            return;
+        }
+
         var result = _analyzer.Analyze(SelectedAircraftPath, _manifest);
         ApplyAnalysis(result);
 
         if (!result.IsSafeToPatch)
         {
             AppendLog($"{action}: blocked by current target state ({result.StateLabel}). No files changed.");
+            ShowBlockedOperation(action, result);
             return;
         }
 
-        AppendLog($"{action}: prototype simulation only. No files changed.");
+        await SimulateTransactionAsync(action, result);
+
+        AppendLog($"{action}: prototype transaction complete. No files changed.");
         foreach (var plannedChange in result.PlannedChanges)
         {
             AppendLog($"  would: {plannedChange}");
         }
-
-        RestartNoticeVisible = true;
     }
 
     [RelayCommand]
     private void ClearLog()
     {
         InstallLog = "";
+        OperationLog = "";
     }
 
     private void ApplyAnalysis(AircraftAnalysisResult result)
@@ -175,6 +213,132 @@ public partial class MainWindowViewModel : ViewModelBase
         InstallLog += $"[{timestamp}] {message}{Environment.NewLine}";
     }
 
+    private void ShowBlockedOperation(string action, AircraftAnalysisResult result)
+    {
+        OperationPanelVisible = true;
+        OperationTitle = $"{action} blocked";
+        OperationSubtitle = "The selected target state must be reviewed before any patch transaction can run.";
+        OperationElapsed = "00:00s";
+        OperationProgress = 0;
+        OperationProgressText = "0% - Transaction did not start";
+        OperationStatus = "Review required";
+        OperationLog = "";
+        AppendOperationLog($"[BLOCKED] {action} blocked by target state: {result.StateLabel}");
+        AppendOperationLog("[BLOCKED] No files changed.");
+        RestartNoticeVisible = false;
+    }
+
+    private async Task SimulateTransactionAsync(string action, AircraftAnalysisResult result)
+    {
+        var steps = BuildPrototypeSteps(action, result).ToArray();
+        var stopwatch = Stopwatch.StartNew();
+
+        OperationPanelVisible = true;
+        IsOperationRunning = true;
+        ActionsEnabled = false;
+        OperationLog = "";
+        OperationProgress = 0;
+        OperationElapsed = "00:00s";
+        OperationStatus = "Transaction in progress";
+        OperationTitle = $"{action} - Preparing transaction...";
+        OperationSubtitle = "Prototype simulation only. No aircraft files are modified in this build.";
+        OperationProgressText = "0% - Preparing manifest-defined transaction";
+        RestartNoticeVisible = false;
+
+        try
+        {
+            for (var index = 0; index < steps.Length; index++)
+            {
+                var step = steps[index];
+                OperationTitle = $"{action} - {step.Title}...";
+                OperationSubtitle = step.Detail;
+                OperationElapsed = FormatElapsed(stopwatch.Elapsed);
+                AppendOperationLog($"[STEP {index + 1}/{steps.Length}] {step.Title}... IN_PROGRESS");
+
+                await Task.Delay(step.DelayMs);
+
+                OperationProgress = step.ProgressPercent;
+                OperationProgressText = $"{step.ProgressPercent:0}% - {step.ProgressText}";
+                OperationElapsed = FormatElapsed(stopwatch.Elapsed);
+                AppendOperationLog($"[STEP {index + 1}/{steps.Length}] {step.Title}... OK");
+            }
+
+            OperationTitle = $"{action} complete - Restart required";
+            OperationSubtitle = "Prototype transaction finished. A real operation would require a full X-Plane restart.";
+            OperationProgress = 100;
+            OperationProgressText = "100% - Prototype transaction completed without writing files";
+            OperationStatus = "Prototype transaction complete";
+            OperationElapsed = FormatElapsed(stopwatch.Elapsed);
+            AppendOperationLog("[RESULT] Prototype transaction complete. No files changed.");
+            AppendOperationLog("[RESULT] Restart-required notice would be shown after a real operation.");
+            RestartNoticeVisible = true;
+        }
+        finally
+        {
+            IsOperationRunning = false;
+            ActionsEnabled = true;
+        }
+    }
+
+    private static IEnumerable<PrototypeOperationStep> BuildPrototypeSteps(string action, AircraftAnalysisResult result)
+    {
+        var safeTarget = string.IsNullOrWhiteSpace(result.TargetScriptPath) ? "selected target" : Path.GetFileName(result.TargetScriptPath);
+
+        yield return new PrototypeOperationStep(
+            "Validating target directory",
+            "Checking structural LevelUp signatures and selected aircraft state.",
+            "Target directory validated",
+            14,
+            260);
+
+        yield return new PrototypeOperationStep(
+            "Preparing transaction backup",
+            $"Would create an exact backup for manifest-defined target files, including {safeTarget}.",
+            "Prepared backup plan for target files",
+            30,
+            360);
+
+        yield return new PrototypeOperationStep(
+            "Checking markers and anchors",
+            "Verifying that patch markers, anchors, and legacy signatures are unambiguous.",
+            "Markers and anchors verified",
+            48,
+            320);
+
+        yield return new PrototypeOperationStep(
+            "Generating temporary output",
+            $"Would apply {action.ToLowerInvariant()} operations to temporary files before replacement.",
+            "Temporary output generated",
+            66,
+            360);
+
+        yield return new PrototypeOperationStep(
+            "Validating transaction result",
+            "Would verify hashes, line-ending policy, marker uniqueness, and manifest rules.",
+            "Transaction result validated",
+            84,
+            320);
+
+        yield return new PrototypeOperationStep(
+            "Finalizing prototype transaction",
+            "Recording simulated install state and leaving the aircraft installation untouched.",
+            "Prototype transaction finalized",
+            100,
+            260);
+    }
+
+    private void AppendOperationLog(string message)
+    {
+        OperationLog += $"{message}{Environment.NewLine}";
+    }
+
+    private static string FormatElapsed(TimeSpan elapsed)
+    {
+        return elapsed.TotalHours >= 1
+            ? elapsed.ToString(@"hh\:mm\:ss")
+            : elapsed.ToString(@"mm\:ss") + "s";
+    }
+
     private static PackageManifest LoadManifest()
     {
         var manifestPath = Path.Combine(AppContext.BaseDirectory, "Content", "package-manifest-preview.txt");
@@ -191,6 +355,13 @@ public partial class MainWindowViewModel : ViewModelBase
         return ManifestParser.ParsePipeManifest(File.ReadAllText(manifestPath));
     }
 }
+
+internal sealed record PrototypeOperationStep(
+    string Title,
+    string Detail,
+    string ProgressText,
+    double ProgressPercent,
+    int DelayMs);
 
 internal static class ObservableCollectionExtensions
 {

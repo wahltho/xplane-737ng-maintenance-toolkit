@@ -40,6 +40,16 @@
             <Setter Property="Background" Value="#2563EB"/>
             <Setter Property="Foreground" Value="White"/>
         </Style>
+        <Style Selector="Border.operation-card">
+            <Setter Property="Background" Value="#160A3D"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="18"/>
+        </Style>
+        <Style Selector="Border.console-card">
+            <Setter Property="Background" Value="#10072C"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="14"/>
+        </Style>
     </Window.Styles>
 
     <Grid RowDefinitions="Auto,Auto,*" Background="#F3F6FA">
@@ -148,6 +158,72 @@
                         </StackPanel>
                     </Border>
 
+                    <Border Classes="operation-card" IsVisible="{Binding OperationPanelVisible}">
+                        <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="16">
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                <StackPanel Spacing="4">
+                                    <TextBlock Text="{Binding OperationTitle}"
+                                               Foreground="#F8FAFC"
+                                               FontSize="24"
+                                               FontWeight="SemiBold"
+                                               TextWrapping="Wrap"/>
+                                    <TextBlock Text="{Binding OperationSubtitle}"
+                                               Foreground="#C4B5FD"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
+                                    <TextBlock Text="Elapsed" Foreground="#C4B5FD" FontSize="18" FontWeight="SemiBold"/>
+                                    <TextBlock Text="{Binding OperationElapsed}" Foreground="#F8FAFC" FontSize="18" FontWeight="SemiBold"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <Grid Grid.Row="1" RowDefinitions="Auto,Auto" RowSpacing="8">
+                                <ProgressBar Minimum="0"
+                                             Maximum="100"
+                                             Value="{Binding OperationProgress}"
+                                             Height="14"
+                                             Background="#2E1065"
+                                             Foreground="#BDEB73"
+                                             CornerRadius="6"/>
+                                <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                                    <TextBlock Text="{Binding OperationProgressText}"
+                                               Foreground="#DDD6FE"
+                                               FontFamily="Menlo,Consolas,monospace"
+                                               FontSize="12"
+                                               TextWrapping="Wrap"/>
+                                    <TextBlock Grid.Column="1"
+                                               Text="{Binding OperationStatus}"
+                                               Foreground="#BDEB73"
+                                               FontWeight="SemiBold"/>
+                                </Grid>
+                            </Grid>
+
+                            <Border Grid.Row="2" Classes="console-card">
+                                <Grid RowDefinitions="Auto,*" RowSpacing="10">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <TextBlock Text="Console" Foreground="#F8FAFC" FontWeight="SemiBold"/>
+                                        <TextBlock Grid.Column="1"
+                                                   Text="{Binding OperationStatus}"
+                                                   Foreground="#BDEB73"
+                                                   FontFamily="Menlo,Consolas,monospace"
+                                                   FontSize="12"
+                                                   FontWeight="SemiBold"/>
+                                    </Grid>
+                                    <TextBox Grid.Row="1"
+                                             Text="{Binding OperationLog}"
+                                             IsReadOnly="True"
+                                             AcceptsReturn="True"
+                                             TextWrapping="Wrap"
+                                             FontFamily="Menlo,Consolas,monospace"
+                                             Foreground="#E9D5FF"
+                                             Background="#10072C"
+                                             BorderThickness="0"
+                                             MinHeight="96"/>
+                                </Grid>
+                            </Border>
+                        </Grid>
+                    </Border>
+
                     <Border Classes="card">
                         <StackPanel Spacing="10">
                             <TextBlock Text="Components" FontSize="16" FontWeight="SemiBold"/>
@@ -173,12 +249,12 @@
                                 <ItemsControl ItemsSource="{Binding PlannedChanges}"/>
                                 <TextBlock Text="Actions below are prototype simulations only." Foreground="#B45309" FontWeight="SemiBold" TextWrapping="Wrap"/>
                                 <WrapPanel ItemSpacing="8" LineSpacing="8">
-                                    <Button Content="Dry-run" Command="{Binding DryRunCommand}"/>
-                                    <Button Content="Install" Command="{Binding RunPrototypeActionCommand}" CommandParameter="Install"/>
-                                    <Button Content="Update" Command="{Binding RunPrototypeActionCommand}" CommandParameter="Update"/>
-                                    <Button Content="Repair" Command="{Binding RunPrototypeActionCommand}" CommandParameter="Repair"/>
-                                    <Button Content="Restore" Command="{Binding RunPrototypeActionCommand}" CommandParameter="Restore"/>
-                                    <Button Content="Uninstall" Command="{Binding RunPrototypeActionCommand}" CommandParameter="Uninstall"/>
+                                    <Button Content="Dry-run" Command="{Binding DryRunCommand}" IsEnabled="{Binding ActionsEnabled}"/>
+                                    <Button Content="Install" Command="{Binding RunPrototypeActionCommand}" CommandParameter="Install" IsEnabled="{Binding ActionsEnabled}"/>
+                                    <Button Content="Update" Command="{Binding RunPrototypeActionCommand}" CommandParameter="Update" IsEnabled="{Binding ActionsEnabled}"/>
+                                    <Button Content="Repair" Command="{Binding RunPrototypeActionCommand}" CommandParameter="Repair" IsEnabled="{Binding ActionsEnabled}"/>
+                                    <Button Content="Restore" Command="{Binding RunPrototypeActionCommand}" CommandParameter="Restore" IsEnabled="{Binding ActionsEnabled}"/>
+                                    <Button Content="Uninstall" Command="{Binding RunPrototypeActionCommand}" CommandParameter="Uninstall" IsEnabled="{Binding ActionsEnabled}"/>
                                 </WrapPanel>
                             </StackPanel>
                         </Border>
