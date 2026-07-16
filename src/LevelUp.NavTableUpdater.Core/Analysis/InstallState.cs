@@ -7,6 +7,7 @@ public enum InstallState
     PortNoLuaInstallation,
     NotInstalled,
     CorrectlyInstalled,
+    RepairRequired,
     OutdatedMarkedInstallation,
     KnownLegacyInstallation,
     PartiallyInstalled,

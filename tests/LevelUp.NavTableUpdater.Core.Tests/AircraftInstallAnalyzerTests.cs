@@ -20,11 +20,34 @@ public sealed class AircraftInstallAnalyzerTests
     [Fact]
     public void Analyze_WhenMarkedBlocksAreCurrent_ReturnsCorrectlyInstalled()
     {
-        using var fixture = AircraftFixture.Create(TestFixtures.CurrentMarkedLua);
+        using var fixture = AircraftFixture.Create(TestFixtures.CurrentMarkedLua, PayloadFixtureState.Current);
         var result = Analyze(fixture.Path);
 
         Assert.Equal(InstallState.CorrectlyInstalled, result.State);
         Assert.Equal("v0.2.0", result.LocalPackageVersion);
+    }
+
+    [Fact]
+    public void Analyze_WhenMarkedBlocksAreCurrentButPayloadsAreMissing_ReturnsRepairRequired()
+    {
+        using var fixture = AircraftFixture.Create(TestFixtures.CurrentMarkedLua);
+        var result = Analyze(fixture.Path);
+
+        Assert.Equal(InstallState.RepairRequired, result.State);
+        Assert.True(result.IsSafeToPatch);
+        Assert.Contains(result.Components, component => component.Name == "B738.a_fms_levelup_tables.lua" && component.State == "Missing");
+        Assert.Contains(result.PlannedChanges, change => change.Contains("refresh missing", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Analyze_WhenMarkedBlocksAreCurrentButPayloadIsChanged_ReturnsRepairRequired()
+    {
+        using var fixture = AircraftFixture.Create(TestFixtures.CurrentMarkedLua, PayloadFixtureState.ChangedTablePayload);
+        var result = Analyze(fixture.Path);
+
+        Assert.Equal(InstallState.RepairRequired, result.State);
+        Assert.True(result.IsSafeToPatch);
+        Assert.Contains(result.Components, component => component.Name == "B738.a_fms_levelup_tables.lua" && component.State == "Changed");
     }
 
     [Fact]
@@ -73,12 +96,13 @@ public sealed class AircraftInstallAnalyzerTests
 
         public string Path { get; }
 
-        public static AircraftFixture Create(string luaText)
+        public static AircraftFixture Create(string luaText, PayloadFixtureState payloadState = PayloadFixtureState.None)
         {
             var root = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"levelup-updater-tests-{Guid.NewGuid():N}");
             var scriptFolder = System.IO.Path.Combine(root, "plugins", "xlua", "scripts", "B738.a_fms");
             Directory.CreateDirectory(scriptFolder);
             File.WriteAllText(System.IO.Path.Combine(scriptFolder, "B738.a_fms.lua"), luaText, new UTF8Encoding(false));
+            WritePayloads(scriptFolder, payloadState);
             return new AircraftFixture(root);
         }
 
@@ -90,6 +114,27 @@ public sealed class AircraftInstallAnalyzerTests
             return new AircraftFixture(root);
         }
 
+        private static void WritePayloads(string scriptFolder, PayloadFixtureState payloadState)
+        {
+            if (payloadState is PayloadFixtureState.None)
+            {
+                return;
+            }
+
+            foreach (var (fileName, content) in TestFixtures.PayloadFiles)
+            {
+                File.WriteAllText(System.IO.Path.Combine(scriptFolder, fileName), content, new UTF8Encoding(false));
+            }
+
+            if (payloadState is PayloadFixtureState.ChangedTablePayload)
+            {
+                File.WriteAllText(
+                    System.IO.Path.Combine(scriptFolder, "B738.a_fms_levelup_tables.lua"),
+                    "corrupted table payload\n",
+                    new UTF8Encoding(false));
+            }
+        }
+
         public void Dispose()
         {
             if (Directory.Exists(Path))
@@ -97,5 +142,12 @@ public sealed class AircraftInstallAnalyzerTests
                 Directory.Delete(Path, recursive: true);
             }
         }
+    }
+
+    private enum PayloadFixtureState
+    {
+        None,
+        Current,
+        ChangedTablePayload
     }
 }

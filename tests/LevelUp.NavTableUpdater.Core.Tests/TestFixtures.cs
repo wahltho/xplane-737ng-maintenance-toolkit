@@ -10,10 +10,10 @@ internal static class TestFixtures
         aircraft|family|levelup_737ng
         repository|url|https://github.com/JT8D-17/X-Plane-LevelUp-737NG-Descent-Tables
         target|relative_path|plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua
-        payload|table|B738.a_fms_levelup_tables.lua|size|22051|sha256|d79ef7c2c7c613ae51547a44dbefb6667cdce47d238cc595a4c34d66a643b516
-        payload|dofile|Add_dofile.txt|size|208|sha256|1b7e76e0530a6a54153ad17a54db18aa83e19746f8cacea03aa1caadce45e313
-        payload|kias|Add_to_take_alt_dist.txt|size|382|sha256|18d311823f15790f2a9b2b42b48180d79ff8721a59d7b1899feedf9570a5b0db
-        payload|mach|Add_to_take_alt_dist_mach.txt|size|379|sha256|2502f24b03a045e7bd22653f9372a2a1a6fa7e60d4e7f7c3e6365b03d672fac5
+        payload|table|B738.a_fms_levelup_tables.lua|size|22|sha256|10b27c84399c8b46dd74f49384eadd0fdb8ceed8a7f9a8b21655ca11ac258f7b
+        payload|dofile|Add_dofile.txt|size|24|sha256|a6b464c8d37c9a2383953821ceb0affe127805952a54eb8b81036b452c136aef
+        payload|kias|Add_to_take_alt_dist.txt|size|22|sha256|c15b590c32ff54a2553a5d3190e032e1f080efb2999a6cf21c0969182a677e54
+        payload|mach|Add_to_take_alt_dist_mach.txt|size|22|sha256|054068d7ae7dd653b29d37a317653a922aec891437a1ef1e7dbf002d48b4d618
         anchor|dofile|jit.off()
         anchor|kias|function take_alt_dist(x_idx_alt, x_spd_alt, x_spd_wnd_alt, x_flap)
         anchor|mach|function take_alt_dist_mach(x_idx_alt, x_spd_alt, x_spd_wnd_alt)
@@ -28,6 +28,14 @@ internal static class TestFixtures
         legacy|v0.1.0|mach|pcall(B738_variant_test_take_alt_dist_mach,
         hash_binding|upstream_b738_a_fms_lua|none
         """;
+
+    public static readonly IReadOnlyList<(string FileName, string Content)> PayloadFiles =
+    [
+        ("B738.a_fms_levelup_tables.lua", "levelup table payload\n"),
+        ("Add_dofile.txt", "dofile fragment payload\n"),
+        ("Add_to_take_alt_dist.txt", "kias fragment payload\n"),
+        ("Add_to_take_alt_dist_mach.txt", "mach fragment payload\n")
+    ];
 
     public const string UnpatchedLua = """
         jit.off()

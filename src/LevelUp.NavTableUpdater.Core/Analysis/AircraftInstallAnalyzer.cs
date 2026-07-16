@@ -99,18 +99,28 @@ public sealed class AircraftInstallAnalyzer
                 Detail: finding.Detail));
         }
 
-        AddPayloadComponents(Path.GetDirectoryName(targetScriptPath)!, manifest, components);
+        var payloadFindings = AnalyzePayloads(Path.GetDirectoryName(targetScriptPath)!, manifest);
+        foreach (var finding in payloadFindings)
+        {
+            components.Add(new ComponentStatus(
+                Name: finding.FileName,
+                State: finding.ComponentState,
+                Version: manifest.PackageVersion,
+                Detail: finding.Detail));
+        }
 
         var localPackageVersion = ExtractPackageVersion(lines) ?? "-";
-        var state = Classify(operationFindings, manifest.PackageVersion);
+        var state = Classify(operationFindings, payloadFindings, manifest.PackageVersion);
         var isSafeToPatch = state is InstallState.NotInstalled
             or InstallState.CorrectlyInstalled
+            or InstallState.RepairRequired
             or InstallState.OutdatedMarkedInstallation
             or InstallState.KnownLegacyInstallation;
 
         findings.Add($"Target script line ending: {lineEnding}.");
         findings.Add($"Target script size: {bytes.Length:N0} bytes.");
         findings.AddRange(operationFindings.Select(f => f.Detail));
+        findings.AddRange(payloadFindings.Select(f => f.Detail));
         AddPlan(state, plannedChanges);
 
         return Result(
@@ -241,7 +251,10 @@ public sealed class AircraftInstallAnalyzer
             $"{operation.Id}: required anchor found {anchorCount} times.");
     }
 
-    private static InstallState Classify(IReadOnlyList<OperationFinding> findings, string availablePackageVersion)
+    private static InstallState Classify(
+        IReadOnlyList<OperationFinding> findings,
+        IReadOnlyList<PayloadFinding> payloadFindings,
+        string availablePackageVersion)
     {
         if (findings.Any(f => f.State is OperationState.PartialOrDuplicateMarker))
         {
@@ -261,9 +274,14 @@ public sealed class AircraftInstallAnalyzer
         if (findings.All(f => f.State is OperationState.Marked))
         {
             var versions = findings.Select(f => f.LocalPackageVersion).Where(v => !string.IsNullOrWhiteSpace(v)).Distinct().ToArray();
-            return versions.Length == 1 && versions[0] == availablePackageVersion
+            if (versions.Length != 1 || versions[0] != availablePackageVersion)
+            {
+                return InstallState.OutdatedMarkedInstallation;
+            }
+
+            return payloadFindings.All(f => f.State is PayloadState.Current)
                 ? InstallState.CorrectlyInstalled
-                : InstallState.OutdatedMarkedInstallation;
+                : InstallState.RepairRequired;
         }
 
         if (findings.Any(f => f.State is OperationState.Legacy))
@@ -274,14 +292,19 @@ public sealed class AircraftInstallAnalyzer
         return InstallState.NotInstalled;
     }
 
-    private static void AddPayloadComponents(string scriptFolder, PackageManifest manifest, List<ComponentStatus> components)
+    private static IReadOnlyList<PayloadFinding> AnalyzePayloads(string scriptFolder, PackageManifest manifest)
     {
+        var findings = new List<PayloadFinding>();
         foreach (var payload in manifest.Payloads)
         {
             var payloadPath = Path.Combine(scriptFolder, payload.FileName);
             if (!File.Exists(payloadPath))
             {
-                components.Add(new ComponentStatus(payload.FileName, "Missing", manifest.PackageVersion, "Payload file is not present."));
+                findings.Add(new PayloadFinding(
+                    payload.FileName,
+                    PayloadState.Missing,
+                    "Missing",
+                    $"{payload.FileName}: payload file is not present."));
                 continue;
             }
 
@@ -289,13 +312,16 @@ public sealed class AircraftInstallAnalyzer
             var hash = ComputeSha256(payloadPath);
             var hashMatches = hash.Equals(payload.Sha256, StringComparison.OrdinalIgnoreCase);
             var sizeMatches = fileInfo.Length == payload.Size;
-            var state = hashMatches && sizeMatches ? "Current" : "Changed";
+            var state = hashMatches && sizeMatches ? PayloadState.Current : PayloadState.Changed;
+            var componentState = state is PayloadState.Current ? "Current" : "Changed";
             var detail = hashMatches && sizeMatches
-                ? "Payload size and SHA-256 match the manifest."
-                : $"Expected {payload.Size} bytes / {payload.Sha256}; found {fileInfo.Length} bytes / {hash}.";
+                ? $"{payload.FileName}: payload size and SHA-256 match the manifest."
+                : $"{payload.FileName}: expected {payload.Size} bytes / {payload.Sha256}; found {fileInfo.Length} bytes / {hash}.";
 
-            components.Add(new ComponentStatus(payload.FileName, state, manifest.PackageVersion, detail));
+            findings.Add(new PayloadFinding(payload.FileName, state, componentState, detail));
         }
+
+        return findings;
     }
 
     private static string? ExtractPackageVersion(IReadOnlyList<string> lines) =>
@@ -406,6 +432,10 @@ public sealed class AircraftInstallAnalyzer
             case InstallState.CorrectlyInstalled:
                 plannedChanges.Add("No patch required. Repair would verify and refresh installer-owned files only.");
                 break;
+            case InstallState.RepairRequired:
+                plannedChanges.Add("Would refresh missing or changed manifest payload files.");
+                plannedChanges.Add("Would keep current marked hook blocks unless verification finds a newer manifest block.");
+                break;
             case InstallState.OutdatedMarkedInstallation:
             case InstallState.KnownLegacyInstallation:
                 plannedChanges.Add("Would create a generation backup before migration.");
@@ -433,6 +463,7 @@ public sealed class AircraftInstallAnalyzer
             InstallState.PortNoLuaInstallation => "Port / no-Lua install",
             InstallState.NotInstalled => "Not installed",
             InstallState.CorrectlyInstalled => "Installed",
+            InstallState.RepairRequired => "Repair required",
             InstallState.OutdatedMarkedInstallation => "Installed, update available",
             InstallState.KnownLegacyInstallation => "Legacy installation",
             InstallState.PartiallyInstalled => "Partial or damaged installation",
@@ -445,7 +476,8 @@ public sealed class AircraftInstallAnalyzer
         state switch
         {
             InstallState.NotInstalled => "The aircraft appears patchable and the VNAV table hooks are not installed.",
-            InstallState.CorrectlyInstalled => "The manifest-owned hooks are present. Verify payload status before repair.",
+            InstallState.CorrectlyInstalled => "The manifest-owned hooks and all required payload files match the current manifest.",
+            InstallState.RepairRequired => "The manifest-owned hooks are current, but one or more required payload files are missing or changed.",
             InstallState.OutdatedMarkedInstallation => "Marked hooks exist but should be migrated to the current package.",
             InstallState.KnownLegacyInstallation => "Known legacy hook signatures were found and can be migrated.",
             InstallState.PartiallyInstalled => "Installer markers are incomplete or duplicated; automatic patching is blocked.",
@@ -472,6 +504,12 @@ public sealed class AircraftInstallAnalyzer
         string ComponentState,
         string Detail);
 
+    private sealed record PayloadFinding(
+        string FileName,
+        PayloadState State,
+        string ComponentState,
+        string Detail);
+
     private enum OperationState
     {
         NotInstalled,
@@ -480,5 +518,12 @@ public sealed class AircraftInstallAnalyzer
         MissingAnchor,
         DuplicateAnchor,
         PartialOrDuplicateMarker
+    }
+
+    private enum PayloadState
+    {
+        Current,
+        Missing,
+        Changed
     }
 }
