@@ -14,7 +14,7 @@ public partial class MainWindow : Window
     {
         var folders = await StorageProvider.OpenFolderPickerAsync(new Avalonia.Platform.Storage.FolderPickerOpenOptions
         {
-            Title = "Select LevelUp aircraft folder",
+            Title = "Select Zibo or LevelUp aircraft folder",
             AllowMultiple = false
         });
 

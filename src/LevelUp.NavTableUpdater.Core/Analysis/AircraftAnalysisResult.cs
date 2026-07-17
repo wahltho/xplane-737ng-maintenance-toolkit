@@ -25,7 +25,7 @@ public sealed record AircraftAnalysisResult(
             LocalPackageVersion: "-",
             AvailablePackageVersion: availableVersion,
             LineEnding: "-",
-            Summary: "Select or detect a LevelUp aircraft folder to start.",
+            Summary: "Select or detect a Zibo or LevelUp aircraft folder to start.",
             IsSafeToPatch: false,
             Components: Array.Empty<ComponentStatus>(),
             PlannedChanges: Array.Empty<string>(),

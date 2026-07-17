@@ -57,7 +57,7 @@ public sealed class AircraftInstallAnalyzer
                 localPackageVersion: "-",
                 manifest.PackageVersion,
                 lineEnding: "-",
-                "The selected folder does not look like a supported LevelUp v2 aircraft.",
+                "The selected folder does not look like a supported Zibo or LevelUp 737NG aircraft for this package.",
                 isSafeToPatch: false,
                 components,
                 plannedChanges,
@@ -450,7 +450,7 @@ public sealed class AircraftInstallAnalyzer
             case InstallState.UnsupportedTarget:
             case InstallState.NoTargetSelected:
             default:
-                plannedChanges.Add("Select a supported LevelUp aircraft folder before planning changes.");
+                plannedChanges.Add("Select a supported Zibo or LevelUp aircraft folder before planning changes.");
                 break;
         }
     }
@@ -483,7 +483,7 @@ public sealed class AircraftInstallAnalyzer
             InstallState.PartiallyInstalled => "Installer markers are incomplete or duplicated; automatic patching is blocked.",
             InstallState.AircraftUpdateOverwroteInstallation => "Required anchors were not found; the target script may have changed.",
             InstallState.UnknownThirdPartyModification => "The target has an unsafe state and should not be overwritten automatically.",
-            InstallState.UnsupportedTarget => "The selected folder is missing required LevelUp v2 structure.",
+            InstallState.UnsupportedTarget => "The selected folder is missing required Zibo or LevelUp 737NG structure for this package.",
             InstallState.PortNoLuaInstallation => "The selected LevelUp aircraft uses the port/no-Lua layout. The Lua patch package cannot be installed here.",
             _ => "Select or scan a target aircraft folder."
         };

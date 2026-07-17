@@ -1,0 +1,192 @@
+using System.Text;
+using LevelUp.NavTableUpdater.Core.Aircraft;
+
+namespace LevelUp.NavTableUpdater.Core.Tests;
+
+public sealed class AircraftViewAnalyzerTests
+{
+    [Fact]
+    public void ReferenceCatalog_ContainsZiboAndAllLevelUpBaselines()
+    {
+        var references = AircraftReferenceCatalog.All;
+
+        Assert.Contains(references, reference => reference.AircraftId == "zibo-737-800-2k"
+            && reference.ReferenceCgYFeet == -2.000000000
+            && reference.ReferenceCgZFeet == 60.340000153);
+        Assert.Contains(references, reference => reference.AircraftId == "zibo-737-800-4k"
+            && reference.ReferenceCgYFeet == -2.000000000
+            && reference.ReferenceCgZFeet == 60.340000153);
+        Assert.Contains(references, reference => reference.AircraftId == "levelup-737-600"
+            && reference.ReferenceCgZFeet == 46.040000916);
+        Assert.Contains(references, reference => reference.AircraftId == "levelup-737-700"
+            && reference.ReferenceCgZFeet == 49.740001678);
+        Assert.Contains(references, reference => reference.AircraftId == "levelup-737-800"
+            && reference.ReferenceCgZFeet == 60.220001221);
+        Assert.Contains(references, reference => reference.AircraftId == "levelup-737-900"
+            && reference.ReferenceCgZFeet == 65.800003052);
+        Assert.Contains(references, reference => reference.AircraftId == "levelup-737-900er"
+            && reference.ReferenceCgZFeet == 65.800003052);
+    }
+
+    [Fact]
+    public void Analyze_WhenReferenceCgAndQv0Match_ReturnsReferenceCgAndDefaultViewMatch()
+    {
+        using var fixture = AircraftViewFixture.CreateLevelUp700(
+            cgY: -2.049999952,
+            cgZ: 49.740001678,
+            defaultViewMatchesQv0: true);
+
+        var result = new AircraftViewAnalyzer().Analyze(fixture.Path);
+        var variant = Assert.Single(result.Variants);
+
+        Assert.Equal("Reference CG", result.StateLabel);
+        Assert.Equal("levelup-737-700", variant.AircraftId);
+        Assert.Equal("Reference CG", variant.Status);
+        Assert.Equal("Expected metadata", variant.IdentityStatus);
+        Assert.Equal("QV0 readable", variant.QuickViewStatus);
+        Assert.Equal("Default view matches QV0", variant.DefaultViewStatus);
+        Assert.InRange(variant.DeltaZFeet!.Value, -0.000001, 0.000001);
+    }
+
+    [Fact]
+    public void Analyze_WhenCustomAcfCgDiffers_ReturnsCgDeltaWithoutHashGating()
+    {
+        using var fixture = AircraftViewFixture.CreateLevelUp700(
+            cgY: -2.049999952,
+            cgZ: 49.840001678,
+            defaultViewMatchesQv0: true);
+
+        var result = new AircraftViewAnalyzer().Analyze(fixture.Path);
+        var variant = Assert.Single(result.Variants);
+
+        Assert.Equal("CG delta detected", result.StateLabel);
+        Assert.Equal("CG delta detected", variant.Status);
+        Assert.Equal(0.100000000, variant.DeltaZFeet!.Value, precision: 6);
+        Assert.Equal(0.030480000, variant.DeltaZMeters!.Value, precision: 6);
+        Assert.Contains(result.Findings, finding => finding.Contains("CG differs from reference baseline", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Analyze_WhenZiboVersionTxtIsPresent_UsesZiboReferenceMetadata()
+    {
+        using var fixture = AircraftViewFixture.CreateZibo2K();
+
+        var result = new AircraftViewAnalyzer().Analyze(fixture.Path);
+        var variant = Assert.Single(result.Variants);
+
+        Assert.Equal("zibo-737-800-2k", variant.AircraftId);
+        Assert.Equal("4.05.35", variant.LocalVersion);
+        Assert.Equal("ver 4.05", variant.AcfVersion);
+        Assert.Equal("Expected metadata", variant.IdentityStatus);
+        Assert.Equal("Reference CG", variant.Status);
+    }
+
+    private sealed class AircraftViewFixture : IDisposable
+    {
+        private AircraftViewFixture(string path)
+        {
+            Path = path;
+        }
+
+        public string Path { get; }
+
+        public static AircraftViewFixture CreateLevelUp700(double cgY, double cgZ, bool defaultViewMatchesQv0)
+        {
+            var root = CreateRoot();
+            var qv0 = new QuickView0(XMeters: 1.0, YMeters: 2.0, ZMeters: -3.0, PitchDegrees: -2.5);
+            var defaultView = defaultViewMatchesQv0
+                ? AircraftFileParser.CalculateDefaultViewFromQuickView(new AircraftCg(cgY, cgZ), qv0)
+                : new DefaultView(0.0, 0.0, 0.0, 0.0);
+
+            WriteText(
+                System.IO.Path.Combine(root, "737_70NG.acf"),
+                BuildAcf(
+                    name: "Boeing 737-700NG",
+                    description: "Boeing 737-700NG",
+                    studio: "LevelUp, Laminar Research, ZiboMod, flight tuned by Aeroguitarist",
+                    version: "XP12 2.S1.50B (20260709-2031 SAO)",
+                    writer: "124311",
+                    cgY,
+                    cgZ,
+                    defaultView));
+            WritePrefs(System.IO.Path.Combine(root, "737_70NG_prefs.txt"), qv0);
+            return new AircraftViewFixture(root);
+        }
+
+        public static AircraftViewFixture CreateZibo2K()
+        {
+            var root = CreateRoot();
+            WriteText(System.IO.Path.Combine(root, "version.txt"), "4.05.35\n");
+            WriteText(
+                System.IO.Path.Combine(root, "b738.acf"),
+                BuildAcf(
+                    name: "Boeing 737-800X",
+                    description: "Boeing 737-800X",
+                    studio: "Laminar Research modified by Zibo and Twkster",
+                    version: "ver 4.05",
+                    writer: "124201",
+                    cgY: -2.000000000,
+                    cgZ: 60.340000153,
+                    defaultView: new DefaultView(0.0, 0.0, 0.0, 0.0)));
+            return new AircraftViewFixture(root);
+        }
+
+        private static string CreateRoot()
+        {
+            var root = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"xplane-737ng-view-tests-{Guid.NewGuid():N}");
+            Directory.CreateDirectory(root);
+            return root;
+        }
+
+        private static string BuildAcf(
+            string name,
+            string description,
+            string studio,
+            string version,
+            string writer,
+            double cgY,
+            double cgZ,
+            DefaultView defaultView)
+        {
+            return FormattableString.Invariant($"""
+                1200 Version
+                P acf/_descrip {description}
+                P acf/_file_writer_version {writer}
+                P acf/_name {name}
+                P acf/_studio {studio}
+                P acf/_version {version}
+                P acf/_cgY {cgY:0.000000000}
+                P acf/_cgZ {cgZ:0.000000000}
+                P acf/_pe_xyz/0 {defaultView.XFeet:0.000000000}
+                P acf/_pe_xyz/1 {defaultView.YFeet:0.000000000}
+                P acf/_pe_xyz/2 {defaultView.ZFeet:0.000000000}
+                P acf/_ang_offset/0,1 {defaultView.PitchDegrees:0.000000000}
+                """);
+        }
+
+        private static void WritePrefs(string path, QuickView0 qv0)
+        {
+            WriteText(
+                path,
+                FormattableString.Invariant($"""
+                _iql_pe_x_0 {qv0.XMeters:0.000000}
+                _iql_pe_y_0 {qv0.YMeters:0.000000}
+                _iql_pe_z_0 {qv0.ZMeters:0.000000}
+                _iql_look_os_the_0 {qv0.PitchDegrees:0.000000}
+                """));
+        }
+
+        private static void WriteText(string path, string text)
+        {
+            File.WriteAllText(path, text, new UTF8Encoding(false));
+        }
+
+        public void Dispose()
+        {
+            if (Directory.Exists(Path))
+            {
+                Directory.Delete(Path, recursive: true);
+            }
+        }
+    }
+}

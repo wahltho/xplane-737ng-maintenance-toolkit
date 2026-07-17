@@ -1,3 +1,5 @@
+using LevelUp.NavTableUpdater.Core.Aircraft;
+
 namespace LevelUp.NavTableUpdater.Core.Detection;
 
 public sealed class AircraftDetector
@@ -20,20 +22,24 @@ public sealed class AircraftDetector
                 var targetScript = Path.Combine(directory, TargetRelativePath);
                 var hasLuaTarget = File.Exists(targetScript);
                 var hasPortNoLuaLayout = LooksLikePortNoLuaLevelUp(directory);
-                if (!hasLuaTarget && !hasPortNoLuaLayout)
+                var recognizedReferences = FindRecognizedReferences(directory);
+                if (!hasLuaTarget && !hasPortNoLuaLayout && recognizedReferences.Length == 0)
                 {
                     continue;
                 }
 
                 var fullPath = Path.GetFullPath(directory);
+                var reason = hasLuaTarget
+                    ? "Found XLua B738.a_fms target script."
+                    : hasPortNoLuaLayout
+                        ? "Found LevelUp port/no-Lua layout; Lua package is not applicable."
+                        : $"Found supported 737NG aircraft: {string.Join(", ", recognizedReferences)}.";
                 candidates.TryAdd(
                     fullPath,
                     new AircraftCandidate(
                         Name: Path.GetFileName(fullPath),
                         Path: fullPath,
-                        Reason: hasLuaTarget
-                            ? "Found XLua B738.a_fms target script."
-                            : "Found LevelUp port/no-Lua layout; Lua package is not applicable."));
+                        Reason: reason));
             }
         }
 
@@ -100,5 +106,13 @@ public sealed class AircraftDetector
         var hasPortPlugin = Directory.Exists(Path.Combine(aircraftPath, "plugins", "zibomod"));
 
         return hasLevelUpAcfs && hasPortPlugin;
+    }
+
+    private static string[] FindRecognizedReferences(string aircraftPath)
+    {
+        return AircraftReferenceCatalog.All
+            .Where(reference => File.Exists(Path.Combine(aircraftPath, reference.AcfFileName)))
+            .Select(reference => reference.DisplayName)
+            .ToArray();
     }
 }

@@ -1,9 +1,9 @@
 # CI/CD Preparation
 
 This repository is currently a temporary public development home under a
-personal account. The workflows are prepared so the prototype can build and
-package early, but official distribution should wait until the repository is
-owned by LevelUp/Monsoon.
+personal account. The workflows are prepared so the X-Plane 737NG Maintenance
+Toolkit prototype can build and package early, but official distribution should
+wait until final repository ownership and signing policy are settled.
 
 ## Active Workflows
 
@@ -48,8 +48,8 @@ secrets.
 
 The current macOS preview package intentionally omits an icon argument because
 VeloPack expects a `.icns` file there. Linux/AppImage uses the temporary PNG
-placeholder. Official LevelUp branding should replace both placeholder assets
-before public distribution.
+placeholder. Final branding should replace both placeholder assets before
+public distribution.
 
 ## VeloPack Tooling
 
@@ -63,7 +63,7 @@ then passing the publish output to `vpk pack`.
 
 ## Official Release Work Still Needed
 
-Colin/LevelUp can extend the preview workflow after repository ownership is
+The maintainers can extend the preview workflow after repository ownership is
 settled.
 
 Recommended additions:

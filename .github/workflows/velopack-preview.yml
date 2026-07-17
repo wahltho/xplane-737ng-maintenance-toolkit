@@ -6,7 +6,7 @@ on:
       app_version:
         description: App version to pack.
         required: true
-        default: 0.1.0-preview.1
+        default: 0.1.0-beta.3
       channel:
         description: VeloPack channel prefix.
         required: true
@@ -17,9 +17,9 @@ permissions:
 
 env:
   APP_PROJECT: src/LevelUp.NavTableUpdater.App/LevelUp.NavTableUpdater.App.csproj
-  APP_ID: LevelUp.NavTableUpdater
-  APP_TITLE: LevelUp Nav Table Updater
-  APP_AUTHORS: LevelUp Nav Table Updater contributors
+  APP_ID: XPlane737NGMaintenanceToolkit
+  APP_TITLE: X-Plane 737NG Maintenance Toolkit
+  APP_AUTHORS: X-Plane 737NG Maintenance Toolkit contributors
 
 jobs:
   preview-package:
@@ -31,15 +31,15 @@ jobs:
         include:
           - os: windows-latest
             rid: win-x64
-            main_exe: LevelUp.NavTableUpdater.exe
+            main_exe: XPlane737NGMaintenanceToolkit.exe
             pack_icon_args: --icon "src/LevelUp.NavTableUpdater.App/Assets/avalonia-logo.ico"
           - os: macos-latest
             rid: osx-arm64
-            main_exe: LevelUp.NavTableUpdater
+            main_exe: XPlane737NGMaintenanceToolkit
             pack_icon_args: ""
           - os: ubuntu-latest
             rid: linux-x64
-            main_exe: LevelUp.NavTableUpdater
+            main_exe: XPlane737NGMaintenanceToolkit
             pack_icon_args: --icon "src/LevelUp.NavTableUpdater.App/Assets/app-icon.png"
 
     steps:

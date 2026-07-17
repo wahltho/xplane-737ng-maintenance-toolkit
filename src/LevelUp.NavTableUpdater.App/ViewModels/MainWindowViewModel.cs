@@ -3,9 +3,12 @@ using System.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LevelUp.NavTableUpdater.Core;
+using LevelUp.NavTableUpdater.Core.Aircraft;
 using LevelUp.NavTableUpdater.Core.Analysis;
+using LevelUp.NavTableUpdater.Core.Content;
 using LevelUp.NavTableUpdater.Core.Detection;
 using LevelUp.NavTableUpdater.Core.Manifest;
+using LevelUp.NavTableUpdater.Core.State;
 
 namespace LevelUp.NavTableUpdater.App.ViewModels;
 
@@ -13,7 +16,15 @@ public partial class MainWindowViewModel : ViewModelBase
 {
     private readonly AircraftDetector _detector = new();
     private readonly AircraftInstallAnalyzer _analyzer = new();
-    private readonly PackageManifest _manifest;
+    private readonly AircraftViewAnalyzer _viewAnalyzer = new();
+    private readonly ToolStateStore _stateStore = ToolStateStore.CreateDefault();
+    private readonly ApplyDefaultViewFromQv0Operation _applyDefaultViewOperation;
+    private readonly ApplyQuickViewCgAdaptOperation _applyQuickViewCgAdaptOperation;
+    private readonly RestoreLatestBackupOperation _restoreLatestBackupOperation;
+    private readonly VnavContentOperation _vnavContentOperation;
+    private readonly IPackageManifestSource _packageManifestSource = new GitHubReleasePackageManifestSource();
+    private readonly IReadOnlyList<PackageManifest> _manifests;
+    private PackageManifest _manifest;
 
     [ObservableProperty]
     private string selectedAircraftPath = "";
@@ -25,7 +36,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private string aircraftStatus = "No aircraft selected";
 
     [ObservableProperty]
-    private string statusSummary = "Select or detect a LevelUp aircraft folder to start.";
+    private string statusSummary = "Select or detect a Zibo or LevelUp aircraft folder to start.";
 
     [ObservableProperty]
     private string targetScriptPath = "-";
@@ -41,6 +52,12 @@ public partial class MainWindowViewModel : ViewModelBase
 
     [ObservableProperty]
     private string packageSource = "Local preview manifest";
+
+    [ObservableProperty]
+    private string packageId = "-";
+
+    [ObservableProperty]
+    private string repositoryUrl = "-";
 
     [ObservableProperty]
     private bool isSafeToPatch;
@@ -84,9 +101,17 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private string operationLog = "";
 
-    public string PackageId => _manifest.PackageId;
+    [ObservableProperty]
+    private string viewUtilityStatus = "No aircraft selected";
 
-    public string RepositoryUrl => _manifest.RepositoryUrl;
+    [ObservableProperty]
+    private string viewUtilitySummary = "Select a Zibo or LevelUp aircraft folder to inspect CG, quick-view, and default-view state.";
+
+    [ObservableProperty]
+    private string xPlaneProcessStatus = "Not checked";
+
+    [ObservableProperty]
+    private AircraftVariantViewAnalysis? selectedViewVariant;
 
     public ObservableCollection<AircraftCandidate> DetectedTargets { get; } = [];
 
@@ -96,13 +121,23 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public ObservableCollection<string> Findings { get; } = [];
 
+    public ObservableCollection<AircraftVariantViewAnalysis> ViewVariants { get; } = [];
+
+    public ObservableCollection<string> ViewFindings { get; } = [];
+
     public MainWindowViewModel()
     {
-        _manifest = LoadManifest();
-        AvailablePackageVersion = _manifest.PackageVersion;
+        _manifests = LoadManifests();
+        _manifest = _manifests[0];
+        _applyDefaultViewOperation = new ApplyDefaultViewFromQv0Operation(_stateStore);
+        _applyQuickViewCgAdaptOperation = new ApplyQuickViewCgAdaptOperation(_stateStore);
+        _restoreLatestBackupOperation = new RestoreLatestBackupOperation(_stateStore);
+        _vnavContentOperation = new VnavContentOperation(_stateStore, CreatePayloadSource());
+        ApplyManifest(_manifest);
         ApplyAnalysis(AircraftAnalysisResult.Empty(_manifest.PackageVersion));
-        AppendLog("Prototype started. No install, update, repair, restore or uninstall action writes files in this build.");
-        AppendLog($"Loaded preview manifest {_manifest.PackageId} {_manifest.PackageVersion}.");
+        ApplyViewAnalysis(AircraftViewAnalysisResult.Empty());
+        AppendLog("Toolkit started. VNAV package and view-maintenance actions can write after validation and backup.");
+        AppendLog($"Loaded {_manifests.Count} local preview manifest(s). Active: {_manifest.PackageId} {_manifest.PackageVersion}.");
     }
 
     public void SetAircraftPathFromBrowse(string path)
@@ -145,44 +180,66 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private void Scan()
     {
+        var viewResult = _viewAnalyzer.Analyze(SelectedAircraftPath);
+        ApplyManifest(SelectManifest(viewResult));
         var result = _analyzer.Analyze(SelectedAircraftPath, _manifest);
         ApplyAnalysis(result);
-        AppendLog($"Scan complete: {result.StateLabel}.");
+        ApplyViewAnalysis(viewResult);
+        AppendLog($"Scan complete using {_manifest.PackageId}: {result.StateLabel}.");
+        AppendLog($"View utility scan complete: {viewResult.StateLabel}.");
     }
 
     [RelayCommand]
     private void DryRun()
     {
+        var viewResult = _viewAnalyzer.Analyze(SelectedAircraftPath);
+        ApplyManifest(SelectManifest(viewResult));
         var result = _analyzer.Analyze(SelectedAircraftPath, _manifest);
         ApplyAnalysis(result);
+        ApplyViewAnalysis(viewResult);
         AppendLog("Dry-run complete. Planned changes were calculated without writing files.");
     }
 
     [RelayCommand]
-    private async Task RunPrototypeAction(string action)
+    private async Task RunPackageAction(string action)
     {
         if (IsOperationRunning)
         {
             return;
         }
 
+        var viewResult = _viewAnalyzer.Analyze(SelectedAircraftPath);
+        ApplyManifest(SelectManifest(viewResult));
         var result = _analyzer.Analyze(SelectedAircraftPath, _manifest);
         ApplyAnalysis(result);
+        ApplyViewAnalysis(viewResult);
 
-        if (!result.IsSafeToPatch)
+        var selectedVariant = SelectedViewVariant;
+        if (selectedVariant is null)
         {
-            AppendLog($"{action}: blocked by current target state ({result.StateLabel}). No files changed.");
-            ShowBlockedOperation(action, result);
+            AppendLog($"{action}: blocked because no aircraft variant is selected.");
             return;
         }
 
-        await SimulateTransactionAsync(action, result);
-
-        AppendLog($"{action}: prototype transaction complete. No files changed.");
-        foreach (var plannedChange in result.PlannedChanges)
+        if (string.Equals(action, "Restore", StringComparison.OrdinalIgnoreCase))
         {
-            AppendLog($"  would: {plannedChange}");
+            RunViewMaintenanceAction(
+                "Restore latest backup",
+                "Preparing restore transaction",
+                "Backup restored",
+                "Restore blocked",
+                selectedVariant,
+                () => _restoreLatestBackupOperation.Restore(selectedVariant));
+            return;
         }
+
+        if (!TryParseContentAction(action, out var contentAction))
+        {
+            AppendLog($"{action}: unknown VNAV action.");
+            return;
+        }
+
+        await RunVnavContentAction(contentAction, selectedVariant);
     }
 
     [RelayCommand]
@@ -190,6 +247,268 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         InstallLog = "";
         OperationLog = "";
+    }
+
+    [RelayCommand]
+    private void ApplyQv0ToDefaultView()
+    {
+        if (IsOperationRunning)
+        {
+            return;
+        }
+
+        var selectedVariant = SelectedViewVariant;
+        if (selectedVariant is null)
+        {
+            AppendLog("Apply QV0 to Default View: blocked because no view variant is selected.");
+            return;
+        }
+
+        OperationPanelVisible = true;
+        OperationLog = "";
+        OperationElapsed = "00:00s";
+        OperationProgress = 0;
+        OperationStatus = "Transaction in progress";
+        OperationTitle = "Apply QV0 to Default View";
+        OperationSubtitle = $"Preparing default-view transaction for {selectedVariant.DisplayName}.";
+        OperationProgressText = "0% - Validating target and X-Plane process state";
+        RestartNoticeVisible = false;
+
+        IsOperationRunning = true;
+        ActionsEnabled = false;
+        var stopwatch = Stopwatch.StartNew();
+        try
+        {
+            var result = _applyDefaultViewOperation.Apply(selectedVariant);
+            foreach (var line in result.Log)
+            {
+                AppendOperationLog(line);
+            }
+
+            OperationElapsed = FormatElapsed(stopwatch.Elapsed);
+            OperationStatus = result.Status;
+            OperationTitle = result.Succeeded
+                ? result.Changed ? "Default View updated" : "Default View unchanged"
+                : "Default View update blocked";
+            OperationSubtitle = result.Message;
+            OperationProgress = result.Succeeded ? 100 : 0;
+            OperationProgressText = result.Succeeded
+                ? result.Changed ? "100% - ACF updated and backup recorded" : "100% - No file change required"
+                : "0% - Transaction did not start";
+            RestartNoticeVisible = result.Changed;
+
+            if (result.BackupPath is not null)
+            {
+                AppendLog($"Apply QV0 to Default View: backup created at {result.BackupPath}");
+            }
+
+            AppendLog($"Apply QV0 to Default View: {result.Message}");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            OperationElapsed = FormatElapsed(stopwatch.Elapsed);
+            OperationStatus = "Failed";
+            OperationTitle = "Default View update failed";
+            OperationSubtitle = ex.Message;
+            OperationProgress = 0;
+            OperationProgressText = "0% - Transaction failed before completion";
+            AppendOperationLog($"[FAILED] {ex.Message}");
+            AppendLog($"Apply QV0 to Default View failed: {ex.Message}");
+        }
+        finally
+        {
+            IsOperationRunning = false;
+            ActionsEnabled = true;
+            var selectedPath = selectedVariant.AcfPath;
+            ApplyAnalysis(_analyzer.Analyze(SelectedAircraftPath, _manifest));
+            ApplyViewAnalysis(_viewAnalyzer.Analyze(SelectedAircraftPath), selectedPath);
+        }
+    }
+
+    [RelayCommand]
+    private void AdaptQuickViewsForCg()
+    {
+        if (IsOperationRunning)
+        {
+            return;
+        }
+
+        var selectedVariant = SelectedViewVariant;
+        if (selectedVariant is null)
+        {
+            AppendLog("Adapt Quick Views after CG change: blocked because no view variant is selected.");
+            return;
+        }
+
+        RunViewMaintenanceAction(
+            "Adapt Quick Views after CG change",
+            "Preparing quick-view CG transaction",
+            "Quick Views adjusted",
+            "Quick View adaptation blocked",
+            selectedVariant,
+            () => _applyQuickViewCgAdaptOperation.Apply(selectedVariant));
+    }
+
+    [RelayCommand]
+    private void RestoreLatestBackup()
+    {
+        if (IsOperationRunning)
+        {
+            return;
+        }
+
+        var selectedVariant = SelectedViewVariant;
+        if (selectedVariant is null)
+        {
+            AppendLog("Restore latest backup: blocked because no view variant is selected.");
+            return;
+        }
+
+        RunViewMaintenanceAction(
+            "Restore latest backup",
+            "Preparing restore transaction",
+            "Backup restored",
+            "Restore blocked",
+            selectedVariant,
+            () => _restoreLatestBackupOperation.Restore(selectedVariant));
+    }
+
+    private void RunViewMaintenanceAction(
+        string actionName,
+        string preparingTitle,
+        string successTitle,
+        string blockedTitle,
+        AircraftVariantViewAnalysis selectedVariant,
+        Func<MaintenanceOperationResult> action)
+    {
+        OperationPanelVisible = true;
+        OperationLog = "";
+        OperationElapsed = "00:00s";
+        OperationProgress = 0;
+        OperationStatus = "Transaction in progress";
+        OperationTitle = preparingTitle;
+        OperationSubtitle = $"Preparing transaction for {selectedVariant.DisplayName}.";
+        OperationProgressText = "0% - Validating target and X-Plane process state";
+        RestartNoticeVisible = false;
+
+        IsOperationRunning = true;
+        ActionsEnabled = false;
+        var stopwatch = Stopwatch.StartNew();
+        try
+        {
+            var result = action();
+            foreach (var line in result.Log)
+            {
+                AppendOperationLog(line);
+            }
+
+            OperationElapsed = FormatElapsed(stopwatch.Elapsed);
+            OperationStatus = result.Status;
+            OperationTitle = result.Succeeded
+                ? result.Changed ? successTitle : $"{actionName} unchanged"
+                : blockedTitle;
+            OperationSubtitle = result.Message;
+            OperationProgress = result.Succeeded ? 100 : 0;
+            OperationProgressText = result.Succeeded
+                ? result.Changed ? "100% - Transaction completed and backup state recorded" : "100% - No file change required"
+                : "0% - Transaction did not start";
+            RestartNoticeVisible = result.Changed;
+
+            foreach (var backupPath in result.BackupPaths)
+            {
+                AppendLog($"{actionName}: backup created at {backupPath}");
+            }
+
+            AppendLog($"{actionName}: {result.Message}");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or FileNotFoundException)
+        {
+            OperationElapsed = FormatElapsed(stopwatch.Elapsed);
+            OperationStatus = "Failed";
+            OperationTitle = $"{actionName} failed";
+            OperationSubtitle = ex.Message;
+            OperationProgress = 0;
+            OperationProgressText = "0% - Transaction failed before completion";
+            AppendOperationLog($"[FAILED] {ex.Message}");
+            AppendLog($"{actionName} failed: {ex.Message}");
+        }
+        finally
+        {
+            IsOperationRunning = false;
+            ActionsEnabled = true;
+            var selectedPath = selectedVariant.AcfPath;
+            var viewResult = _viewAnalyzer.Analyze(SelectedAircraftPath);
+            ApplyManifest(SelectManifest(viewResult));
+            ApplyAnalysis(_analyzer.Analyze(SelectedAircraftPath, _manifest));
+            ApplyViewAnalysis(viewResult, selectedPath);
+        }
+    }
+
+    private async Task RunVnavContentAction(VnavContentAction action, AircraftVariantViewAnalysis selectedVariant)
+    {
+        OperationPanelVisible = true;
+        OperationLog = "";
+        OperationElapsed = "00:00s";
+        OperationProgress = 0;
+        OperationStatus = "Transaction in progress";
+        OperationTitle = $"VNAV {action} - Preparing transaction";
+        OperationSubtitle = $"Preparing manifest transaction for {selectedVariant.DisplayName}.";
+        OperationProgressText = "0% - Validating target, X-Plane process state, manifest and payload source";
+        RestartNoticeVisible = false;
+
+        IsOperationRunning = true;
+        ActionsEnabled = false;
+        var stopwatch = Stopwatch.StartNew();
+        try
+        {
+            var manifest = await ResolveManifestForActionAsync(_manifest);
+            ApplyManifest(manifest);
+            var result = await _vnavContentOperation.RunAsync(action, selectedVariant, manifest);
+            foreach (var line in result.Log)
+            {
+                AppendOperationLog(line);
+            }
+
+            OperationElapsed = FormatElapsed(stopwatch.Elapsed);
+            OperationStatus = result.Status;
+            OperationTitle = result.Succeeded
+                ? result.Changed ? $"VNAV {action} complete" : $"VNAV {action} unchanged"
+                : $"VNAV {action} blocked";
+            OperationSubtitle = result.Message;
+            OperationProgress = result.Succeeded ? 100 : 0;
+            OperationProgressText = result.Succeeded
+                ? result.Changed ? "100% - VNAV transaction completed and backup state recorded" : "100% - No file change required"
+                : "0% - Transaction did not start";
+            RestartNoticeVisible = result.Changed;
+
+            foreach (var backupPath in result.BackupPaths)
+            {
+                AppendLog($"VNAV {action}: backup created at {backupPath}");
+            }
+
+            AppendLog($"VNAV {action}: {result.Message}");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or HttpRequestException)
+        {
+            OperationElapsed = FormatElapsed(stopwatch.Elapsed);
+            OperationStatus = "Failed";
+            OperationTitle = $"VNAV {action} failed";
+            OperationSubtitle = ex.Message;
+            OperationProgress = 0;
+            OperationProgressText = "0% - Transaction failed before completion";
+            AppendOperationLog($"[FAILED] {ex.Message}");
+            AppendLog($"VNAV {action} failed: {ex.Message}");
+        }
+        finally
+        {
+            IsOperationRunning = false;
+            ActionsEnabled = true;
+            var selectedPath = selectedVariant.AcfPath;
+            var viewResult = _viewAnalyzer.Analyze(SelectedAircraftPath);
+            ApplyManifest(SelectManifest(viewResult));
+            ApplyAnalysis(_analyzer.Analyze(SelectedAircraftPath, _manifest));
+            ApplyViewAnalysis(viewResult, selectedPath);
+        }
     }
 
     private void ApplyAnalysis(AircraftAnalysisResult result)
@@ -205,6 +524,18 @@ public partial class MainWindowViewModel : ViewModelBase
         Components.ReplaceWith(result.Components);
         PlannedChanges.ReplaceWith(result.PlannedChanges);
         Findings.ReplaceWith(result.Findings);
+    }
+
+    private void ApplyViewAnalysis(AircraftViewAnalysisResult result, string? preferredAcfPath = null)
+    {
+        var currentSelection = preferredAcfPath ?? SelectedViewVariant?.AcfPath;
+        ViewUtilityStatus = result.StateLabel;
+        ViewUtilitySummary = result.Summary;
+        XPlaneProcessStatus = result.IsXPlaneRunning ? "Running - write actions blocked" : "Not running";
+        ViewVariants.ReplaceWith(result.Variants);
+        ViewFindings.ReplaceWith(result.Findings);
+        SelectedViewVariant = ViewVariants.FirstOrDefault(variant => string.Equals(variant.AcfPath, currentSelection, StringComparison.Ordinal))
+            ?? ViewVariants.FirstOrDefault();
     }
 
     private void AppendLog(string message)
@@ -228,105 +559,6 @@ public partial class MainWindowViewModel : ViewModelBase
         RestartNoticeVisible = false;
     }
 
-    private async Task SimulateTransactionAsync(string action, AircraftAnalysisResult result)
-    {
-        var steps = BuildPrototypeSteps(action, result).ToArray();
-        var stopwatch = Stopwatch.StartNew();
-
-        OperationPanelVisible = true;
-        IsOperationRunning = true;
-        ActionsEnabled = false;
-        OperationLog = "";
-        OperationProgress = 0;
-        OperationElapsed = "00:00s";
-        OperationStatus = "Transaction in progress";
-        OperationTitle = $"{action} - Preparing transaction...";
-        OperationSubtitle = "Prototype simulation only. No aircraft files are modified in this build.";
-        OperationProgressText = "0% - Preparing manifest-defined transaction";
-        RestartNoticeVisible = false;
-
-        try
-        {
-            for (var index = 0; index < steps.Length; index++)
-            {
-                var step = steps[index];
-                OperationTitle = $"{action} - {step.Title}...";
-                OperationSubtitle = step.Detail;
-                OperationElapsed = FormatElapsed(stopwatch.Elapsed);
-                AppendOperationLog($"[STEP {index + 1}/{steps.Length}] {step.Title}... IN_PROGRESS");
-
-                await Task.Delay(step.DelayMs);
-
-                OperationProgress = step.ProgressPercent;
-                OperationProgressText = $"{step.ProgressPercent:0}% - {step.ProgressText}";
-                OperationElapsed = FormatElapsed(stopwatch.Elapsed);
-                AppendOperationLog($"[STEP {index + 1}/{steps.Length}] {step.Title}... OK");
-            }
-
-            OperationTitle = $"{action} complete - Restart required";
-            OperationSubtitle = "Prototype transaction finished. A real operation would require a full X-Plane restart.";
-            OperationProgress = 100;
-            OperationProgressText = "100% - Prototype transaction completed without writing files";
-            OperationStatus = "Prototype transaction complete";
-            OperationElapsed = FormatElapsed(stopwatch.Elapsed);
-            AppendOperationLog("[RESULT] Prototype transaction complete. No files changed.");
-            AppendOperationLog("[RESULT] Restart-required notice would be shown after a real operation.");
-            RestartNoticeVisible = true;
-        }
-        finally
-        {
-            IsOperationRunning = false;
-            ActionsEnabled = true;
-        }
-    }
-
-    private static IEnumerable<PrototypeOperationStep> BuildPrototypeSteps(string action, AircraftAnalysisResult result)
-    {
-        var safeTarget = string.IsNullOrWhiteSpace(result.TargetScriptPath) ? "selected target" : Path.GetFileName(result.TargetScriptPath);
-
-        yield return new PrototypeOperationStep(
-            "Validating target directory",
-            "Checking structural LevelUp signatures and selected aircraft state.",
-            "Target directory validated",
-            14,
-            260);
-
-        yield return new PrototypeOperationStep(
-            "Preparing transaction backup",
-            $"Would create an exact backup for manifest-defined target files, including {safeTarget}.",
-            "Prepared backup plan for target files",
-            30,
-            360);
-
-        yield return new PrototypeOperationStep(
-            "Checking markers and anchors",
-            "Verifying that patch markers, anchors, and legacy signatures are unambiguous.",
-            "Markers and anchors verified",
-            48,
-            320);
-
-        yield return new PrototypeOperationStep(
-            "Generating temporary output",
-            $"Would apply {action.ToLowerInvariant()} operations to temporary files before replacement.",
-            "Temporary output generated",
-            66,
-            360);
-
-        yield return new PrototypeOperationStep(
-            "Validating transaction result",
-            "Would verify hashes, line-ending policy, marker uniqueness, and manifest rules.",
-            "Transaction result validated",
-            84,
-            320);
-
-        yield return new PrototypeOperationStep(
-            "Finalizing prototype transaction",
-            "Recording simulated install state and leaving the aircraft installation untouched.",
-            "Prototype transaction finalized",
-            100,
-            260);
-    }
-
     private void AppendOperationLog(string message)
     {
         OperationLog += $"{message}{Environment.NewLine}";
@@ -339,29 +571,124 @@ public partial class MainWindowViewModel : ViewModelBase
             : elapsed.ToString(@"mm\:ss") + "s";
     }
 
-    private static PackageManifest LoadManifest()
+    private void ApplyManifest(PackageManifest manifest)
     {
-        var manifestPath = Path.Combine(AppContext.BaseDirectory, "Content", "package-manifest-preview.txt");
-        if (!File.Exists(manifestPath))
+        _manifest = manifest;
+        PackageId = manifest.PackageId;
+        RepositoryUrl = manifest.RepositoryUrl;
+        AvailablePackageVersion = manifest.PackageVersion;
+        PackageSource = manifest.PackageId.Contains("zibo", StringComparison.OrdinalIgnoreCase)
+            ? "Zibo GitHub Release package with local/offline fallback"
+            : "LevelUp GitHub Release package with local/offline fallback";
+    }
+
+    private PackageManifest SelectManifest(AircraftViewAnalysisResult viewResult)
+    {
+        var family = viewResult.Variants.FirstOrDefault()?.Family;
+        if (string.Equals(family, "zibo-737ng", StringComparison.OrdinalIgnoreCase))
         {
-            manifestPath = Path.Combine(Environment.CurrentDirectory, "src", "LevelUp.NavTableUpdater.App", "Content", "package-manifest-preview.txt");
+            if (_manifest.PackageId.Contains("zibo", StringComparison.OrdinalIgnoreCase))
+            {
+                return _manifest;
+            }
+
+            return _manifests.FirstOrDefault(manifest => manifest.PackageId.Contains("zibo", StringComparison.OrdinalIgnoreCase))
+                ?? _manifest;
         }
 
-        if (!File.Exists(manifestPath))
+        if (string.Equals(family, "levelup-737ng", StringComparison.OrdinalIgnoreCase))
         {
-            throw new FileNotFoundException("Preview manifest is missing.", manifestPath);
+            if (_manifest.PackageId.Contains("levelup", StringComparison.OrdinalIgnoreCase))
+            {
+                return _manifest;
+            }
+
+            return _manifests.FirstOrDefault(manifest => manifest.PackageId.Contains("levelup", StringComparison.OrdinalIgnoreCase))
+                ?? _manifest;
         }
 
-        return ManifestParser.ParsePipeManifest(File.ReadAllText(manifestPath));
+        return _manifest;
+    }
+
+    private static IReadOnlyList<PackageManifest> LoadManifests()
+    {
+        var contentDir = Path.Combine(AppContext.BaseDirectory, "Content");
+        if (!Directory.Exists(contentDir))
+        {
+            contentDir = Path.Combine(Environment.CurrentDirectory, "src", "LevelUp.NavTableUpdater.App", "Content");
+        }
+
+        if (!Directory.Exists(contentDir))
+        {
+            throw new DirectoryNotFoundException($"Preview manifest directory is missing: {contentDir}");
+        }
+
+        var manifests = Directory.EnumerateFiles(contentDir, "*manifest*.txt")
+            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .Select(path => ManifestParser.ParsePipeManifest(File.ReadAllText(path)))
+            .Where(manifest => !string.IsNullOrWhiteSpace(manifest.PackageId))
+            .OrderBy(manifest => manifest.PackageId.Contains("levelup", StringComparison.OrdinalIgnoreCase) ? 0 : 1)
+            .ToArray();
+
+        if (manifests.Length == 0)
+        {
+            throw new FileNotFoundException("No preview manifests were found.", contentDir);
+        }
+
+        return manifests;
+    }
+
+    private static IPackagePayloadSource CreatePayloadSource() =>
+        new CompositePackagePayloadSource(
+            new GitHubReleasePackagePayloadSource(),
+            new LocalDirectoryPackagePayloadSource(BuildLocalPackageDirectories()));
+
+    private async Task<PackageManifest> ResolveManifestForActionAsync(PackageManifest seedManifest)
+    {
+        try
+        {
+            var refreshed = await _packageManifestSource.RefreshAsync(seedManifest);
+            AppendLog($"Loaded release manifest {refreshed.PackageId} {refreshed.PackageVersion} from GitHub Releases.");
+            return refreshed;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or IOException)
+        {
+            AppendLog($"Using embedded preview manifest for {seedManifest.PackageId}: {ex.Message}");
+            return seedManifest;
+        }
+    }
+
+    private static IEnumerable<string> BuildLocalPackageDirectories()
+    {
+        var explicitDirectory = Environment.GetEnvironmentVariable("XPLANE_737NG_PACKAGE_DIR");
+        if (!string.IsNullOrWhiteSpace(explicitDirectory))
+        {
+            yield return explicitDirectory;
+        }
+
+        var contentDir = Path.Combine(AppContext.BaseDirectory, "Content");
+        yield return contentDir;
+
+        var sourceContentDir = Path.Combine(Environment.CurrentDirectory, "src", "LevelUp.NavTableUpdater.App", "Content");
+        yield return sourceContentDir;
+
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        if (!string.IsNullOrWhiteSpace(home))
+        {
+            yield return Path.Combine(home, "Documents", "Projects", "X-Plane-ZIBO-Descent-Tables");
+            yield return Path.Combine(home, "Documents", "Projects", "X-Plane-LevelUp-737NG-Descent-Tables");
+        }
+    }
+
+    private static bool TryParseContentAction(string action, out VnavContentAction contentAction)
+    {
+        return Enum.TryParse(action, ignoreCase: true, out contentAction)
+            && contentAction is VnavContentAction.Install
+                or VnavContentAction.Update
+                or VnavContentAction.Repair
+                or VnavContentAction.Uninstall;
     }
 }
-
-internal sealed record PrototypeOperationStep(
-    string Title,
-    string Detail,
-    string ProgressText,
-    double ProgressPercent,
-    int DelayMs);
 
 internal static class ObservableCollectionExtensions
 {

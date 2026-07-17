@@ -1,11 +1,13 @@
-# LevelUp Updater / VNAV Descent Tables Installer
+# X-Plane 737NG Maintenance Toolkit / VNAV Descent Tables Installer
 
-Draft specification for the first beta.
+Draft specification for the first beta. The original LevelUp VNAV updater scope
+has been widened into a neutral Zibo/LevelUp 737NG maintenance toolkit while
+keeping VNAV content packages manifest-driven and separately versioned.
 
 ## Goal
 
-Build a small cross-platform installer/updater for the LevelUp 737NG VNAV
-descent table package.
+Build a small cross-platform installer/updater and maintenance tool for 737NG
+VNAV descent table packages and conservative view-maintenance utilities.
 
 The updater should allow users to safely install, update, verify, repair,
 restore and uninstall the VNAV descent table hooks without manually editing
@@ -52,7 +54,7 @@ separated.
 The first beta should stay deliberately small:
 
 - Single-page desktop app.
-- Auto-detect LevelUp aircraft folders.
+- Auto-detect Zibo and LevelUp aircraft folders.
 - Manual aircraft folder override.
 - Detect current install state.
 - Show installed and available package/component versions.
@@ -99,7 +101,7 @@ The UI can move through these states:
 
 ### 1. Locate Aircraft
 
-- Show detected X-Plane / LevelUp installations.
+- Show detected X-Plane / Zibo / LevelUp installations.
 - Provide a Browse button for manual aircraft folder selection.
 - Validate the selected folder structurally, not by name only.
 

@@ -1,6 +1,8 @@
-# LevelUp Nav Table Updater
+# X-Plane 737NG Maintenance Toolkit
 
-Prototype for a VeloPack-based LevelUp 737NG VNAV descent table installer.
+Beta prototype for a VeloPack-based X-Plane 737NG maintenance tool covering
+VNAV table package analysis and conservative view-maintenance utilities for
+Zibo and LevelUp aircraft.
 
 This repository is a temporary public development home for the prototype. It is
 intended to transfer to LevelUp/Monsoon ownership once the final GitHub
@@ -9,19 +11,31 @@ organization/repository decision is settled.
 No official releases, installer signing credentials or distribution secrets
 should live here while the repository remains under a personal account.
 
-This first build is intentionally read-only for real aircraft installations:
+Current capabilities:
 
-- It can detect likely LevelUp aircraft folders.
+- It can detect likely Zibo and LevelUp aircraft folders.
 - It can scan a manually selected folder.
 - It explicitly detects LevelUp port/no-Lua installs as not applicable to the
   Lua patch package.
-- It parses the current v1 package manifest format.
+- It parses the current v1 package manifest format for LevelUp and Zibo VNAV
+  table packages.
 - It classifies hook state in `B738.a_fms.lua`.
 - It shows component status, findings and planned changes.
-- Install, Update, Repair, Restore and Uninstall buttons only simulate actions
-  and write to the UI log.
+- It can apply Quick View 0 to the ACF default view after creating a backup.
+- It can adapt X-Plane quick views after an ACF CG change after creating a
+  backup.
+- It can optionally adapt a matching `X-Camera_<acf-stem>.csv` file when one is
+  present.
+- It can install, update, repair and uninstall manifest-owned VNAV Lua hooks and
+  payload files after validation and backup.
+- It can restore the latest recorded backup generation for the selected
+  aircraft variant.
+- Before a VNAV write action it tries to refresh `package-manifest.txt` and
+  payload files from the package GitHub Release assets. The embedded preview
+  manifest and local/offline package directories are fallback sources.
 
-No aircraft files are changed by this prototype.
+Dry-run remains available as a preview action. Real write actions are limited
+to manifest-owned VNAV content and view-maintenance files.
 
 ## Build
 
@@ -43,16 +57,22 @@ dotnet run --project src/LevelUp.NavTableUpdater.App/LevelUp.NavTableUpdater.App
 
 The app requires a usable desktop GUI session.
 
+For offline or development package testing, set `XPLANE_737NG_PACKAGE_DIR` to a
+folder containing `package-manifest.txt` and all manifest payload files. GitHub
+Release assets remain the preferred package source for normal use.
+
 ## Current Scope
 
 - .NET 10.
 - Avalonia UI.
 - VeloPack SDK startup hook via `VelopackApp.Build().Run()`.
-- Manifest-driven package preview.
-- Read-only aircraft detection and install-state analysis.
-- No VeloPack packaging yet.
+- Manifest-driven package preview for LevelUp and Zibo VNAV content.
+- Aircraft detection and install-state analysis.
+- Real backup-backed View Utility operations.
+- Preview VeloPack packaging workflow.
 - No GitHub Release publishing yet.
-- No real patch writes yet.
+- Real VNAV Lua patch writes for manifest-owned hooks and payloads.
+- GitHub Release manifest/payload loading with local/offline fallback.
 
 ## VeloPack Integration
 
@@ -61,9 +81,9 @@ The app references the `Velopack` NuGet package and calls
 initialized. That is the required application-side hook for install/update
 lifecycle handling.
 
-Packaging and publishing are intentionally not active in this prototype yet.
-The next VeloPack step is a release workflow around `dotnet publish` plus `vpk`
-for beta/stable channels and signed platform artifacts.
+Preview packaging is available through the manual VeloPack GitHub Actions
+workflow. Official beta/stable publishing still needs final repository
+ownership, signing, notarization and release-channel policy.
 
 ## License
 

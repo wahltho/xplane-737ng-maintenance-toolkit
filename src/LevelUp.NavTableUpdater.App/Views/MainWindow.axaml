@@ -3,13 +3,14 @@
         xmlns:vm="using:LevelUp.NavTableUpdater.App.ViewModels"
         xmlns:core="using:LevelUp.NavTableUpdater.Core"
         xmlns:analysis="using:LevelUp.NavTableUpdater.Core.Analysis"
+        xmlns:aircraft="using:LevelUp.NavTableUpdater.Core.Aircraft"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DesignWidth="1180" d:DesignHeight="780"
         x:Class="LevelUp.NavTableUpdater.App.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Icon="/Assets/avalonia-logo.ico"
-        Title="LevelUp Updater Prototype"
+        Title="X-Plane 737NG Maintenance Toolkit"
         Width="1180"
         Height="780"
         MinWidth="980"
@@ -56,8 +57,8 @@
         <Border Grid.Row="0" Background="#111827" Padding="18,14">
             <Grid ColumnDefinitions="*,Auto">
                 <StackPanel Spacing="2">
-                    <TextBlock Text="LevelUp Updater Prototype" Foreground="White" FontSize="20" FontWeight="SemiBold"/>
-                    <TextBlock Text="VNAV descent tables installer flow - read-only prototype build" Foreground="#CBD5E1"/>
+                    <TextBlock Text="X-Plane 737NG Maintenance Toolkit" Foreground="White" FontSize="20" FontWeight="SemiBold"/>
+                    <TextBlock Text="VNAV tables and 737NG view maintenance - beta build" Foreground="#CBD5E1"/>
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                     <TextBlock Text="App update: VeloPack" Foreground="#D1FAE5" VerticalAlignment="Center"/>
@@ -85,7 +86,7 @@
 
                     <StackPanel Grid.Row="1" Spacing="8">
                         <TextBlock Classes="label" Text="Selected folder"/>
-                        <TextBox Text="{Binding SelectedAircraftPath}" PlaceholderText="/path/to/LevelUp aircraft folder"/>
+                        <TextBox Text="{Binding SelectedAircraftPath}" PlaceholderText="/path/to/Zibo or LevelUp aircraft folder"/>
                         <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
                             <Button Grid.Column="0" Content="Auto-detect" Command="{Binding AutoDetectCommand}" HorizontalAlignment="Stretch"/>
                             <Button Grid.Column="1" Content="Browse" Click="BrowseAircraft_Click" HorizontalAlignment="Stretch"/>
@@ -155,6 +156,84 @@
                             <TextBlock Text="{Binding StatusSummary}" TextWrapping="Wrap"/>
                             <TextBlock Classes="label" Text="Target script"/>
                             <TextBlock Text="{Binding TargetScriptPath}" FontFamily="Menlo,Consolas,monospace" FontSize="12" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Classes="card">
+                        <StackPanel Spacing="10">
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                                <StackPanel Spacing="4">
+                                    <TextBlock Text="View Utilities" FontSize="16" FontWeight="SemiBold"/>
+                                    <TextBlock Text="{Binding ViewUtilitySummary}" TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Spacing="4" MinWidth="170">
+                                    <TextBlock Classes="label" Text="X-Plane process"/>
+                                    <TextBlock Text="{Binding XPlaneProcessStatus}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                                <StackPanel Spacing="4">
+                                    <TextBlock Classes="label" Text="View status"/>
+                                    <TextBlock Text="{Binding ViewUtilityStatus}" FontSize="16" FontWeight="SemiBold"/>
+                                </StackPanel>
+                                <WrapPanel Grid.Column="1" ItemSpacing="8" LineSpacing="8" HorizontalAlignment="Right">
+                                    <Button Content="Adapt Quick Views"
+                                            Command="{Binding AdaptQuickViewsForCgCommand}"
+                                            IsEnabled="{Binding ActionsEnabled}"/>
+                                    <Button Content="Apply QV0 to Default View"
+                                            Command="{Binding ApplyQv0ToDefaultViewCommand}"
+                                            IsEnabled="{Binding ActionsEnabled}"/>
+                                    <Button Content="Restore Latest Backup"
+                                            Command="{Binding RestoreLatestBackupCommand}"
+                                            IsEnabled="{Binding ActionsEnabled}"/>
+                                </WrapPanel>
+                            </Grid>
+
+                            <ListBox ItemsSource="{Binding ViewVariants}"
+                                     SelectedItem="{Binding SelectedViewVariant}"
+                                     MaxHeight="430">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate x:DataType="aircraft:AircraftVariantViewAnalysis">
+                                        <Border BorderBrush="#E5E7EB"
+                                                BorderThickness="1"
+                                                CornerRadius="6"
+                                                Padding="10"
+                                                Margin="0,4">
+                                            <StackPanel Spacing="7">
+                                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                                                    <StackPanel Spacing="2">
+                                                        <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold"/>
+                                                        <TextBlock Text="{Binding SourceRef}" Foreground="#667085" FontSize="12"/>
+                                                    </StackPanel>
+                                                    <TextBlock Grid.Column="1" Text="{Binding Status}" FontWeight="SemiBold"/>
+                                                </Grid>
+                                                <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                                                    <StackPanel Spacing="2">
+                                                        <TextBlock Classes="label" Text="Current CG"/>
+                                                        <TextBlock Text="{Binding CurrentCgDisplay}" FontFamily="Menlo,Consolas,monospace" FontSize="12" TextWrapping="Wrap"/>
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Column="1" Spacing="2">
+                                                        <TextBlock Classes="label" Text="Reference CG"/>
+                                                        <TextBlock Text="{Binding ReferenceCgDisplay}" FontFamily="Menlo,Consolas,monospace" FontSize="12" TextWrapping="Wrap"/>
+                                                    </StackPanel>
+                                                </Grid>
+                                                <StackPanel Spacing="2">
+                                                    <TextBlock Classes="label" Text="Detected delta"/>
+                                                    <TextBlock Text="{Binding DeltaDisplay}" FontFamily="Menlo,Consolas,monospace" FontSize="12" TextWrapping="Wrap"/>
+                                                </StackPanel>
+                                                <Grid ColumnDefinitions="*,*,*" ColumnSpacing="10">
+                                                    <TextBlock Text="{Binding IdentityStatus}" Foreground="#667085" TextWrapping="Wrap"/>
+                                                    <TextBlock Grid.Column="1" Text="{Binding QuickViewStatus}" Foreground="#667085" TextWrapping="Wrap"/>
+                                                    <TextBlock Grid.Column="2" Text="{Binding DefaultViewStatus}" Foreground="#667085" TextWrapping="Wrap"/>
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+
+                            <ItemsControl ItemsSource="{Binding ViewFindings}"/>
                         </StackPanel>
                     </Border>
 
@@ -247,14 +326,14 @@
                             <StackPanel Spacing="10">
                                 <TextBlock Text="Planned Changes" FontSize="16" FontWeight="SemiBold"/>
                                 <ItemsControl ItemsSource="{Binding PlannedChanges}"/>
-                                <TextBlock Text="Actions below are prototype simulations only." Foreground="#B45309" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                <TextBlock Text="Package actions below modify manifest-owned VNAV content only after validation and backup. Dry-run only previews planned changes." Foreground="#B45309" FontWeight="SemiBold" TextWrapping="Wrap"/>
                                 <WrapPanel ItemSpacing="8" LineSpacing="8">
                                     <Button Content="Dry-run" Command="{Binding DryRunCommand}" IsEnabled="{Binding ActionsEnabled}"/>
-                                    <Button Content="Install" Command="{Binding RunPrototypeActionCommand}" CommandParameter="Install" IsEnabled="{Binding ActionsEnabled}"/>
-                                    <Button Content="Update" Command="{Binding RunPrototypeActionCommand}" CommandParameter="Update" IsEnabled="{Binding ActionsEnabled}"/>
-                                    <Button Content="Repair" Command="{Binding RunPrototypeActionCommand}" CommandParameter="Repair" IsEnabled="{Binding ActionsEnabled}"/>
-                                    <Button Content="Restore" Command="{Binding RunPrototypeActionCommand}" CommandParameter="Restore" IsEnabled="{Binding ActionsEnabled}"/>
-                                    <Button Content="Uninstall" Command="{Binding RunPrototypeActionCommand}" CommandParameter="Uninstall" IsEnabled="{Binding ActionsEnabled}"/>
+                                    <Button Content="Install" Command="{Binding RunPackageActionCommand}" CommandParameter="Install" IsEnabled="{Binding ActionsEnabled}"/>
+                                    <Button Content="Update" Command="{Binding RunPackageActionCommand}" CommandParameter="Update" IsEnabled="{Binding ActionsEnabled}"/>
+                                    <Button Content="Repair" Command="{Binding RunPackageActionCommand}" CommandParameter="Repair" IsEnabled="{Binding ActionsEnabled}"/>
+                                    <Button Content="Restore" Command="{Binding RunPackageActionCommand}" CommandParameter="Restore" IsEnabled="{Binding ActionsEnabled}"/>
+                                    <Button Content="Uninstall" Command="{Binding RunPackageActionCommand}" CommandParameter="Uninstall" IsEnabled="{Binding ActionsEnabled}"/>
                                 </WrapPanel>
                             </StackPanel>
                         </Border>
