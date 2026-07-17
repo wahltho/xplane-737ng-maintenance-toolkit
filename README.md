@@ -4,12 +4,11 @@ Cross-platform desktop app for Zibo and LevelUp 737NG maintenance tasks. It
 installs and maintains VNAV descent table packages and provides conservative
 view-maintenance utilities for supported aircraft variants.
 
-This repository is the public development home for the app. The repository can
-be transferred later if project ownership changes, while the app architecture
+This repository is the public development home for the app. The architecture
 keeps package content, aircraft patching, and application updates separate.
 
-Signing credentials and distribution secrets must only be added to a repository
-that is authorized to publish signed public releases.
+Current CI packages are unsigned development builds. Platform signing and
+notarization belong to the release policy for signed public distribution.
 
 Current capabilities:
 
@@ -70,8 +69,7 @@ Release assets remain the preferred package source for normal use.
 - Aircraft detection and install-state analysis.
 - Real backup-backed View Utility operations.
 - VeloPack packaging workflow.
-- GitHub Release publishing can be enabled once repository ownership and
-  signing policy are settled.
+- GitHub Release publishing path for VeloPack app artifacts.
 - Real VNAV Lua patch writes for manifest-owned hooks and payloads.
 - GitHub Release manifest/payload loading with local/offline fallback.
 
@@ -83,8 +81,8 @@ initialized. That is the required application-side hook for install/update
 lifecycle handling.
 
 Packaging is available through the manual VeloPack GitHub Actions workflow.
-Signed public publishing still needs final repository ownership, signing,
-notarization and release-channel policy.
+The workflow produces Windows, macOS and Linux VeloPack artifacts for the
+selected release channel.
 
 ## License
 
