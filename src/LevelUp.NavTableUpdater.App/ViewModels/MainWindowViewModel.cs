@@ -9,6 +9,7 @@ using LevelUp.NavTableUpdater.Core.Content;
 using LevelUp.NavTableUpdater.Core.Detection;
 using LevelUp.NavTableUpdater.Core.Manifest;
 using LevelUp.NavTableUpdater.Core.State;
+using LevelUp.NavTableUpdater.Core.Upstream;
 
 namespace LevelUp.NavTableUpdater.App.ViewModels;
 
@@ -22,6 +23,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly ApplyQuickViewCgAdaptOperation _applyQuickViewCgAdaptOperation;
     private readonly RestoreLatestBackupOperation _restoreLatestBackupOperation;
     private readonly VnavContentOperation _vnavContentOperation;
+    private readonly AircraftUpstreamUpdateChecker _ziboUpdateChecker;
     private readonly IPackageManifestSource _packageManifestSource = new GitHubReleasePackageManifestSource();
     private readonly IReadOnlyList<PackageManifest> _manifests;
     private PackageManifest _manifest;
@@ -113,6 +115,30 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private AircraftVariantViewAnalysis? selectedViewVariant;
 
+    [ObservableProperty]
+    private string upstreamUpdateStatus = "No Zibo aircraft selected";
+
+    [ObservableProperty]
+    private string upstreamUpdateSummary = "Select a Zibo aircraft folder to check upstream aircraft packages.";
+
+    [ObservableProperty]
+    private string upstreamLocalVersion = "-";
+
+    [ObservableProperty]
+    private string upstreamAvailableVersion = "-";
+
+    [ObservableProperty]
+    private string upstreamPlanAction = "Not checked";
+
+    [ObservableProperty]
+    private string upstreamSource = ZiboUpstreamFeedParser.DefaultFeedUrl;
+
+    [ObservableProperty]
+    private string upstreamLastChecked = "Not checked";
+
+    [ObservableProperty]
+    private bool isUpstreamCheckRunning;
+
     public ObservableCollection<AircraftCandidate> DetectedTargets { get; } = [];
 
     public ObservableCollection<ComponentStatus> Components { get; } = [];
@@ -125,6 +151,10 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public ObservableCollection<string> ViewFindings { get; } = [];
 
+    public ObservableCollection<AircraftUpdatePackage> UpstreamRequiredPackages { get; } = [];
+
+    public ObservableCollection<string> UpstreamFindings { get; } = [];
+
     public MainWindowViewModel()
     {
         _manifests = LoadManifests();
@@ -133,6 +163,8 @@ public partial class MainWindowViewModel : ViewModelBase
         _applyQuickViewCgAdaptOperation = new ApplyQuickViewCgAdaptOperation(_stateStore);
         _restoreLatestBackupOperation = new RestoreLatestBackupOperation(_stateStore);
         _vnavContentOperation = new VnavContentOperation(_stateStore, CreatePayloadSource());
+        _ziboUpdateChecker = new AircraftUpstreamUpdateChecker(
+            new ZiboFeedAircraftUpdateIndexSource(new HttpClient()));
         ApplyManifest(_manifest);
         ApplyAnalysis(AircraftAnalysisResult.Empty(_manifest.PackageVersion));
         ApplyViewAnalysis(AircraftViewAnalysisResult.Empty());
@@ -247,6 +279,55 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         InstallLog = "";
         OperationLog = "";
+    }
+
+    [RelayCommand]
+    private async Task RefreshZiboUpdateCheck()
+    {
+        if (IsUpstreamCheckRunning)
+        {
+            return;
+        }
+
+        var viewResult = _viewAnalyzer.Analyze(SelectedAircraftPath);
+        ApplyManifest(SelectManifest(viewResult));
+        ApplyAnalysis(_analyzer.Analyze(SelectedAircraftPath, _manifest));
+        ApplyViewAnalysis(viewResult);
+
+        var selectedVariant = SelectedViewVariant;
+        IsUpstreamCheckRunning = true;
+        ActionsEnabled = false;
+        UpstreamUpdateStatus = "Checking Zibo feed";
+        UpstreamUpdateSummary = "Reading upstream index and planning baseline/cumulative package requirements.";
+        UpstreamPlanAction = "Checking";
+        UpstreamRequiredPackages.Clear();
+        UpstreamFindings.ReplaceWith(["Read-only check in progress. No aircraft files will be changed."]);
+
+        try
+        {
+            var result = await _ziboUpdateChecker.CheckZiboAsync(selectedVariant);
+            ApplyUpstreamUpdateCheck(result);
+            AppendLog($"Zibo upstream check: {result.StateLabel} - {result.Summary}");
+        }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or IOException or TaskCanceledException or System.Xml.XmlException)
+        {
+            UpstreamUpdateStatus = "Feed check failed";
+            UpstreamUpdateSummary = ex.Message;
+            UpstreamAvailableVersion = "-";
+            UpstreamPlanAction = "Not checked";
+            UpstreamLastChecked = DateTimeOffset.Now.ToString("HH:mm:ss");
+            UpstreamRequiredPackages.Clear();
+            UpstreamFindings.ReplaceWith([
+                "Read-only check failed before a package plan could be built.",
+                ex.Message
+            ]);
+            AppendLog($"Zibo upstream check failed: {ex.Message}");
+        }
+        finally
+        {
+            IsUpstreamCheckRunning = false;
+            ActionsEnabled = true;
+        }
     }
 
     [RelayCommand]
@@ -536,6 +617,52 @@ public partial class MainWindowViewModel : ViewModelBase
         ViewFindings.ReplaceWith(result.Findings);
         SelectedViewVariant = ViewVariants.FirstOrDefault(variant => string.Equals(variant.AcfPath, currentSelection, StringComparison.Ordinal))
             ?? ViewVariants.FirstOrDefault();
+        ApplyUpstreamReadiness(SelectedViewVariant);
+    }
+
+    private void ApplyUpstreamReadiness(AircraftVariantViewAnalysis? variant)
+    {
+        UpstreamSource = ZiboUpstreamFeedParser.DefaultFeedUrl;
+        UpstreamAvailableVersion = "-";
+        UpstreamPlanAction = "Not checked";
+        UpstreamLastChecked = "Not checked";
+        UpstreamRequiredPackages.Clear();
+
+        if (variant is null)
+        {
+            UpstreamUpdateStatus = "No Zibo aircraft selected";
+            UpstreamUpdateSummary = "Select a Zibo aircraft folder to check upstream aircraft packages.";
+            UpstreamLocalVersion = "-";
+            UpstreamFindings.ReplaceWith(["The upstream aircraft package check is read-only."]);
+            return;
+        }
+
+        UpstreamLocalVersion = variant.LocalVersion ?? "-";
+
+        if (!string.Equals(variant.Family, "zibo-737ng", StringComparison.OrdinalIgnoreCase))
+        {
+            UpstreamUpdateStatus = "Not applicable";
+            UpstreamUpdateSummary = "Aircraft upstream update checks are currently implemented for Zibo only.";
+            UpstreamFindings.ReplaceWith(["LevelUp can use the same planner later when an authorized index source is available."]);
+            return;
+        }
+
+        UpstreamUpdateStatus = "Ready to check";
+        UpstreamUpdateSummary = "Refresh reads the Zibo feed and plans full-baseline/cumulative-patch requirements without changing files.";
+        UpstreamFindings.ReplaceWith(["No aircraft files will be downloaded, backed up, or changed by this check."]);
+    }
+
+    private void ApplyUpstreamUpdateCheck(AircraftUpstreamUpdateCheckResult result)
+    {
+        UpstreamUpdateStatus = result.StateLabel;
+        UpstreamUpdateSummary = result.Summary;
+        UpstreamLocalVersion = result.LocalVersionDisplay;
+        UpstreamAvailableVersion = result.AvailableVersionDisplay;
+        UpstreamPlanAction = result.ActionDisplay;
+        UpstreamSource = string.IsNullOrWhiteSpace(result.SourceUrl) ? ZiboUpstreamFeedParser.DefaultFeedUrl : result.SourceUrl;
+        UpstreamLastChecked = DateTimeOffset.Now.ToString("HH:mm:ss");
+        UpstreamRequiredPackages.ReplaceWith(result.RequiredPackages);
+        UpstreamFindings.ReplaceWith(result.Findings);
     }
 
     private void AppendLog(string message)

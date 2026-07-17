@@ -1,3 +1,4 @@
+using LevelUp.NavTableUpdater.Core.Aircraft;
 using LevelUp.NavTableUpdater.Core.Upstream;
 
 namespace LevelUp.NavTableUpdater.Core.Tests;
@@ -179,6 +180,40 @@ public sealed class ZiboUpstreamUpdateTests
             plan.RequiredPackages.Select(package => package.FileName).ToArray());
     }
 
+    [Fact]
+    public async Task CheckZiboAsync_WhenLocalSameBaselineOutdated_ReturnsReadOnlyPatchPlan()
+    {
+        var index = new ZiboUpstreamFeedParser().Parse(FeedXml);
+        var source = new FakeUpdateIndexSource(index);
+        var checker = new AircraftUpstreamUpdateChecker(source);
+
+        var result = await checker.CheckZiboAsync(BuildVariant("zibo-737ng", "4.05.34"));
+
+        Assert.Equal(1, source.LoadCount);
+        Assert.Equal("Patch available", result.StateLabel);
+        Assert.Equal("4.05.34", result.LocalVersionDisplay);
+        Assert.Equal("4.05.35", result.AvailableVersionDisplay);
+        Assert.Equal(AircraftUpdatePlanAction.ApplyCumulativePatch, result.Action);
+        Assert.Contains("Read-only check", result.Findings[0]);
+        var package = Assert.Single(result.RequiredPackages);
+        Assert.Equal("B738X_XP12_4_05_35.zip", package.FileName);
+    }
+
+    [Fact]
+    public async Task CheckZiboAsync_WhenVariantIsNotZibo_ReturnsNotApplicableWithoutLoadingIndex()
+    {
+        var index = new ZiboUpstreamFeedParser().Parse(FeedXml);
+        var source = new FakeUpdateIndexSource(index);
+        var checker = new AircraftUpstreamUpdateChecker(source);
+
+        var result = await checker.CheckZiboAsync(BuildVariant("levelup-737ng", "2.S1.50B"));
+
+        Assert.Equal(0, source.LoadCount);
+        Assert.Equal("Not applicable", result.StateLabel);
+        Assert.Equal(AircraftUpdatePlanAction.Unknown, result.Action);
+        Assert.Empty(result.RequiredPackages);
+    }
+
     [Theory]
     [InlineData("4.05.35", 4, 5, 35)]
     [InlineData("Zibo 4.05", 4, 5, 0)]
@@ -195,5 +230,42 @@ public sealed class ZiboUpstreamUpdateTests
 
         Assert.True(ok);
         Assert.Equal(new AircraftUpstreamVersion(major, minor, patch), version);
+    }
+
+    private static AircraftVariantViewAnalysis BuildVariant(string family, string? localVersion) =>
+        new(
+            AircraftId: family == "zibo-737ng" ? "zibo-737-800-4k" : "levelup-737-800",
+            DisplayName: family == "zibo-737ng" ? "Zibo 737-800 4K" : "LevelUp 737-800",
+            Family: family,
+            AcfPath: "/tmp/test.acf",
+            PrefsPath: "/tmp/test_prefs.txt",
+            Source: "test",
+            SourceRef: "test",
+            SourceVersion: localVersion ?? "",
+            LocalVersion: localVersion,
+            AcfVersion: null,
+            FileWriterVersion: null,
+            CurrentCgYFeet: null,
+            CurrentCgZFeet: null,
+            ReferenceCgYFeet: 0,
+            ReferenceCgZFeet: 0,
+            DeltaYFeet: null,
+            DeltaZFeet: null,
+            DeltaYMeters: null,
+            DeltaZMeters: null,
+            Status: "test",
+            IdentityStatus: "Expected metadata",
+            QuickViewStatus: "test",
+            DefaultViewStatus: "test");
+
+    private sealed class FakeUpdateIndexSource(AircraftUpdateIndex index) : IAircraftUpdateIndexSource
+    {
+        public int LoadCount { get; private set; }
+
+        public Task<AircraftUpdateIndex> LoadAsync(CancellationToken cancellationToken = default)
+        {
+            LoadCount++;
+            return Task.FromResult(index);
+        }
     }
 }

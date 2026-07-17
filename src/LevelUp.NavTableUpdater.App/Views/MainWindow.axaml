@@ -4,6 +4,7 @@
         xmlns:core="using:LevelUp.NavTableUpdater.Core"
         xmlns:analysis="using:LevelUp.NavTableUpdater.Core.Analysis"
         xmlns:aircraft="using:LevelUp.NavTableUpdater.Core.Aircraft"
+        xmlns:upstream="using:LevelUp.NavTableUpdater.Core.Upstream"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DesignWidth="1180" d:DesignHeight="780"
@@ -234,6 +235,65 @@
                             </ListBox>
 
                             <ItemsControl ItemsSource="{Binding ViewFindings}"/>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Classes="card">
+                        <StackPanel Spacing="10">
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                                <StackPanel Spacing="4">
+                                    <TextBlock Text="Zibo Upstream Packages" FontSize="16" FontWeight="SemiBold"/>
+                                    <TextBlock Text="{Binding UpstreamUpdateSummary}" TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <Button Grid.Column="1"
+                                        Content="Refresh"
+                                        Command="{Binding RefreshZiboUpdateCheckCommand}"
+                                        IsEnabled="{Binding ActionsEnabled}"
+                                        VerticalAlignment="Top"/>
+                            </Grid>
+
+                            <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="12">
+                                <StackPanel Spacing="2">
+                                    <TextBlock Classes="label" Text="Status"/>
+                                    <TextBlock Text="{Binding UpstreamUpdateStatus}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Classes="label" Text="Installed"/>
+                                    <TextBlock Text="{Binding UpstreamLocalVersion}" FontFamily="Menlo,Consolas,monospace"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Spacing="2">
+                                    <TextBlock Classes="label" Text="Available"/>
+                                    <TextBlock Text="{Binding UpstreamAvailableVersion}" FontFamily="Menlo,Consolas,monospace"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="3" Spacing="2">
+                                    <TextBlock Classes="label" Text="Plan"/>
+                                    <TextBlock Text="{Binding UpstreamPlanAction}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <StackPanel Spacing="4">
+                                <TextBlock Classes="label" Text="Source"/>
+                                <TextBlock Text="{Binding UpstreamSource}" Foreground="#2563EB" TextWrapping="Wrap"/>
+                                <TextBlock Text="{Binding UpstreamLastChecked}" Foreground="#667085" FontSize="12"/>
+                            </StackPanel>
+
+                            <StackPanel Spacing="6">
+                                <TextBlock Classes="label" Text="Required packages"/>
+                                <ItemsControl ItemsSource="{Binding UpstreamRequiredPackages}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="upstream:AircraftUpdatePackage">
+                                            <Grid ColumnDefinitions="150,90,*,*" ColumnSpacing="10" Margin="0,3">
+                                                <TextBlock Text="{Binding Kind}" FontWeight="SemiBold"/>
+                                                <TextBlock Grid.Column="1" Text="{Binding Version}" FontFamily="Menlo,Consolas,monospace"/>
+                                                <TextBlock Grid.Column="2" Text="{Binding FileName}" TextWrapping="Wrap"/>
+                                                <TextBlock Grid.Column="3" Text="{Binding SourceUrl}" Foreground="#667085" TextWrapping="Wrap"/>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+
+                            <ItemsControl ItemsSource="{Binding UpstreamFindings}"/>
                         </StackPanel>
                     </Border>
 

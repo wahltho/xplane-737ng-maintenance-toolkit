@@ -339,6 +339,10 @@ changed. The first implementation should support local ZIP selection/import
 against the planned package list. Direct Google Drive or torrent download can
 be added later behind the same source interface.
 
+The first UI slice is read-only: it reads the local Zibo version, refreshes the
+feed, displays the available version and required baseline/cumulative packages,
+and performs no download, extraction, backup or file write.
+
 The update planner is intentionally family-agnostic. LevelUp can later provide
 a different index source, package naming parser or release API while reusing the
 same baseline/cumulative planning and transaction layers if that distribution
