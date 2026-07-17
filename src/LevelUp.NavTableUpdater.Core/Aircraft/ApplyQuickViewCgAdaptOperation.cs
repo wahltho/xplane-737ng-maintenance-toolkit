@@ -8,6 +8,7 @@ public sealed class ApplyQuickViewCgAdaptOperation
 {
     private const double FeetToMeters = 0.3048;
     private const double CgToleranceFeet = 0.001;
+    private const string ExpectedIdentityStatus = "Expected metadata";
 
     private readonly ToolStateStore _stateStore;
     private readonly Func<bool> _isXPlaneRunning;
@@ -51,16 +52,36 @@ public sealed class ApplyQuickViewCgAdaptOperation
         }
 
         var previousState = _stateStore.TryGetTarget(variant);
-        var baselineYFeet = previousState?.LastQuickViewCgYFeet ?? variant.ReferenceCgYFeet;
-        var baselineZFeet = previousState?.LastQuickViewCgZFeet ?? variant.ReferenceCgZFeet;
+        var hasStoredQuickViewBaseline = previousState?.LastQuickViewCgYFeet is not null
+            && previousState.LastQuickViewCgZFeet is not null;
+        var baselineYFeet = hasStoredQuickViewBaseline
+            ? previousState!.LastQuickViewCgYFeet!.Value
+            : variant.ReferenceCgYFeet;
+        var baselineZFeet = hasStoredQuickViewBaseline
+            ? previousState!.LastQuickViewCgZFeet!.Value
+            : variant.ReferenceCgZFeet;
         var deltaYFeet = metadata.Cg.YFeet - baselineYFeet;
         var deltaZFeet = metadata.Cg.ZFeet - baselineZFeet;
+        var hasCgDelta = Math.Abs(deltaYFeet) > CgToleranceFeet || Math.Abs(deltaZFeet) > CgToleranceFeet;
+        var hasExpectedIdentity = string.Equals(variant.IdentityStatus, ExpectedIdentityStatus, StringComparison.Ordinal);
 
+        log.Add(hasStoredQuickViewBaseline
+            ? "[CG] Baseline source: stored toolkit state."
+            : "[CG] Baseline source: aircraft reference catalog.");
+        log.Add($"[CG] Aircraft identity: {variant.IdentityStatus}.");
         log.Add($"[CG] Baseline Y {baselineYFeet:0.000000000} ft, Z {baselineZFeet:0.000000000} ft.");
         log.Add($"[CG] Current  Y {metadata.Cg.YFeet:0.000000000} ft, Z {metadata.Cg.ZFeet:0.000000000} ft.");
         log.Add($"[CG] Delta    Y {deltaYFeet:+0.000000;-0.000000;0.000000} ft, Z {deltaZFeet:+0.000000;-0.000000;0.000000} ft.");
 
-        if (Math.Abs(deltaYFeet) <= CgToleranceFeet && Math.Abs(deltaZFeet) <= CgToleranceFeet)
+        if (hasCgDelta && !hasStoredQuickViewBaseline && !hasExpectedIdentity)
+        {
+            log.Add("[BLOCKED] Aircraft metadata differs and no stored quick-view CG baseline exists.");
+            return MaintenanceOperationResult.Blocked(
+                "Aircraft metadata differs and no stored quick-view CG baseline exists. Review or recalibrate the baseline before adapting Quick Views.",
+                log);
+        }
+
+        if (!hasCgDelta)
         {
             UpdateState(variant, metadata.Cg, backups: [], changed: false);
             log.Add("[NO-CHANGE] Quick Views already use the current CG baseline.");

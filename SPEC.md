@@ -310,6 +310,40 @@ Content packages should be published as explicit GitHub Release assets:
 The updater app should consume only authorized release assets matching the
 selected channel.
 
+## Aircraft Upstream Updates
+
+Aircraft upstream updates are separate from VNAV content updates and VeloPack
+app updates. They should use the same validation, dry-run, staging, backup and
+transaction concepts, but must not be mixed with the manifest-owned VNAV patch
+state.
+
+The first supported upstream-update source is Zibo. Zibo packages are modeled as
+baseline plus cumulative patch:
+
+- A full package establishes the current baseline, for example
+  `B737-800X_XP12_4_05_full.zip`.
+- A patch package is cumulative within that baseline, for example
+  `B738X_XP12_4_05_35.zip`.
+- The app must not apply an incremental chain such as `.31 -> .32 -> .33 ->
+  .34 -> .35`.
+- If the local install is already on the current baseline, only the latest
+  cumulative patch is required.
+- If the local install is on an older baseline, or no reliable local version is
+  available, the full baseline package plus the latest cumulative patch are
+  required.
+
+The Zibo RSS feed is an update index, not an aircraft payload manifest. It can
+identify available full and cumulative packages and their source links, but the
+actual aircraft ZIPs still need staging and validation before any live file is
+changed. The first implementation should support local ZIP selection/import
+against the planned package list. Direct Google Drive or torrent download can
+be added later behind the same source interface.
+
+The update planner is intentionally family-agnostic. LevelUp can later provide
+a different index source, package naming parser or release API while reusing the
+same baseline/cumulative planning and transaction layers if that distribution
+model fits.
+
 ## VeloPack Releases
 
 VeloPack handles app installation and app auto-update only.

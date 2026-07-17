@@ -90,6 +90,51 @@ public sealed class ApplyQuickViewCgAdaptOperationTests
         Assert.Contains("_iql_pe_z_0 3.000000\n", File.ReadAllText(fixture.PrefsPath));
     }
 
+    [Fact]
+    public void Apply_WhenIdentityDiffersAndNoStoredBaselineAndCgDiffers_BlocksWithoutWritingState()
+    {
+        using var fixture = QuickViewCgFixture.Create(cgZ: 49.840001678, lineEnding: "\n", includeXCamera: false);
+        var variant = fixture.SingleVariant() with
+        {
+            IdentityStatus = "Metadata differs (version.txt differs)"
+        };
+        var store = new ToolStateStore(Path.Combine(fixture.Path, ".tool-state"));
+        var operation = new ApplyQuickViewCgAdaptOperation(store, isXPlaneRunning: () => false);
+
+        var result = operation.Apply(variant);
+
+        Assert.False(result.Succeeded);
+        Assert.False(result.Changed);
+        Assert.Equal("Blocked", result.Status);
+        Assert.Empty(result.BackupPaths);
+        Assert.False(File.Exists(store.StatePath));
+        Assert.Contains("no stored quick-view CG baseline", result.Message);
+        Assert.Contains("_iql_pe_z_0 3.000000\n", File.ReadAllText(fixture.PrefsPath));
+    }
+
+    [Fact]
+    public void Apply_WhenIdentityDiffersAndNoCgDelta_RecordsBaselineWithoutChange()
+    {
+        using var fixture = QuickViewCgFixture.Create(cgZ: 49.740001678, lineEnding: "\n", includeXCamera: false);
+        var variant = fixture.SingleVariant() with
+        {
+            IdentityStatus = "Metadata differs (version.txt differs)"
+        };
+        var store = new ToolStateStore(Path.Combine(fixture.Path, ".tool-state"));
+        var operation = new ApplyQuickViewCgAdaptOperation(store, isXPlaneRunning: () => false);
+
+        var result = operation.Apply(variant);
+
+        Assert.True(result.Succeeded);
+        Assert.False(result.Changed);
+        Assert.Equal("No change", result.Status);
+        Assert.Empty(result.BackupPaths);
+        var target = Assert.Single(store.Load().Aircraft.Values);
+        Assert.Equal("ApplyQuickViewCgAdaptNoChange", target.LastOperation);
+        Assert.Equal(49.740001678, target.LastQuickViewCgZFeet);
+        Assert.Contains("_iql_pe_z_0 3.000000\n", File.ReadAllText(fixture.PrefsPath));
+    }
+
     private sealed class QuickViewCgFixture : IDisposable
     {
         private QuickViewCgFixture(string path)
