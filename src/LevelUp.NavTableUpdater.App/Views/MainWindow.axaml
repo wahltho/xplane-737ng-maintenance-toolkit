@@ -245,11 +245,17 @@
                                     <TextBlock Text="Zibo Upstream Packages" FontSize="16" FontWeight="SemiBold"/>
                                     <TextBlock Text="{Binding UpstreamUpdateSummary}" TextWrapping="Wrap"/>
                                 </StackPanel>
-                                <Button Grid.Column="1"
-                                        Content="Refresh"
-                                        Command="{Binding RefreshZiboUpdateCheckCommand}"
-                                        IsEnabled="{Binding ActionsEnabled}"
-                                        VerticalAlignment="Top"/>
+                                <WrapPanel Grid.Column="1" ItemSpacing="8" LineSpacing="8" VerticalAlignment="Top">
+                                    <Button Content="Refresh"
+                                            Command="{Binding RefreshZiboUpdateCheckCommand}"
+                                            IsEnabled="{Binding ActionsEnabled}"/>
+                                    <Button Content="Import ZIP"
+                                            Click="ImportAircraftUpdateZip_Click"
+                                            IsEnabled="{Binding ActionsEnabled}"/>
+                                    <Button Content="Dry-run ZIPs"
+                                            Command="{Binding DryRunAircraftUpdateCommand}"
+                                            IsEnabled="{Binding ActionsEnabled}"/>
+                                </WrapPanel>
                             </Grid>
 
                             <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="12">
@@ -275,6 +281,8 @@
                                 <TextBlock Classes="label" Text="Source"/>
                                 <TextBlock Text="{Binding UpstreamSource}" Foreground="#2563EB" TextWrapping="Wrap"/>
                                 <TextBlock Text="{Binding UpstreamLastChecked}" Foreground="#667085" FontSize="12"/>
+                                <TextBlock Classes="label" Text="Cache"/>
+                                <TextBlock Text="{Binding UpstreamCacheRoot}" Foreground="#667085" TextWrapping="Wrap"/>
                             </StackPanel>
 
                             <StackPanel Spacing="6">
@@ -287,6 +295,40 @@
                                                 <TextBlock Grid.Column="1" Text="{Binding Version}" FontFamily="Menlo,Consolas,monospace"/>
                                                 <TextBlock Grid.Column="2" Text="{Binding FileName}" TextWrapping="Wrap"/>
                                                 <TextBlock Grid.Column="3" Text="{Binding SourceUrl}" Foreground="#667085" TextWrapping="Wrap"/>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+
+                            <StackPanel Spacing="6">
+                                <TextBlock Classes="label" Text="Cache status"/>
+                                <ItemsControl ItemsSource="{Binding UpstreamPackageCacheEntries}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="upstream:AircraftUpdatePackageCacheEntry">
+                                            <Grid ColumnDefinitions="140,*,90,90,*" ColumnSpacing="10" Margin="0,3">
+                                                <TextBlock Text="{Binding State}" FontWeight="SemiBold"/>
+                                                <TextBlock Grid.Column="1" Text="{Binding Package.FileName}" TextWrapping="Wrap"/>
+                                                <TextBlock Grid.Column="2" Text="{Binding Package.Version}" FontFamily="Menlo,Consolas,monospace"/>
+                                                <TextBlock Grid.Column="3" Text="{Binding SizeBytes}" FontFamily="Menlo,Consolas,monospace"/>
+                                                <TextBlock Grid.Column="4" Text="{Binding Sha256}" Foreground="#667085" TextWrapping="Wrap"/>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+
+                            <StackPanel Spacing="6">
+                                <TextBlock Classes="label" Text="Aircraft update dry-run"/>
+                                <TextBlock Text="{Binding UpstreamDryRunSummary}" TextWrapping="Wrap"/>
+                                <ItemsControl ItemsSource="{Binding UpstreamDryRunEntries}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="upstream:AircraftUpdateDryRunEntry">
+                                            <Grid ColumnDefinitions="150,*,90,*" ColumnSpacing="10" Margin="0,3">
+                                                <TextBlock Text="{Binding Action}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                                <TextBlock Grid.Column="1" Text="{Binding RelativePath}" TextWrapping="Wrap"/>
+                                                <TextBlock Grid.Column="2" Text="{Binding SizeBytes}" FontFamily="Menlo,Consolas,monospace"/>
+                                                <TextBlock Grid.Column="3" Text="{Binding Detail}" Foreground="#667085" TextWrapping="Wrap"/>
                                             </Grid>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>

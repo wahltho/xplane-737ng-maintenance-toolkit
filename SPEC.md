@@ -341,7 +341,15 @@ be added later behind the same source interface.
 
 The first UI slice is read-only: it reads the local Zibo version, refreshes the
 feed, displays the available version and required baseline/cumulative packages,
-and performs no download, extraction, backup or file write.
+and performs no automatic download, extraction, backup or aircraft file write.
+The next supported slice imports user-selected ZIP files only when their file
+names exactly match the current package plan, copies them into a local package
+cache, and records size plus SHA-256 for review.
+
+Cached aircraft update ZIPs can be opened for a dry-run before any install
+support exists. The dry-run reports planned add/replace operations, preserves
+local preference/config files and toolkit metadata, blocks unsafe or
+path-traversing ZIP entries, and still does not write into the aircraft folder.
 
 Custom no-Lua ports should declare their own distribution state in
 `xplane-737ng-maintenance.json` at the aircraft root. This metadata takes
@@ -349,6 +357,8 @@ precedence over upstream `version.txt` or legacy Lua version fallbacks and
 applies to both Zibo- and LevelUp-based ports. The upstream base version remains
 separate from the custom distribution version so official upstream packages are
 not treated as automatically installable over a custom port.
+For custom distributions, official upstream package information is review-only
+unless a dedicated custom-port update source is defined.
 
 The update planner is intentionally family-agnostic. LevelUp can later provide
 a different index source, package naming parser or release API while reusing the

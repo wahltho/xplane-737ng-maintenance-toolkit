@@ -43,27 +43,56 @@ public sealed class AircraftUpstreamUpdateChecker
             "Read-only check. No aircraft files are downloaded, extracted, backed up, or changed."
         };
 
+        var maintenanceMetadata = ReadMaintenanceMetadata(variant, findings);
+        var isCustomDistribution = maintenanceMetadata is not null
+            && !string.IsNullOrWhiteSpace(maintenanceMetadata.Distribution);
         var localVersion = ResolveLocalZiboVersion(variant, findings);
 
         var index = await _indexSource.LoadAsync(cancellationToken);
         var plan = _planner.Plan(index, localVersion);
+        var requiredPackages = isCustomDistribution ? [] : plan.RequiredPackages;
 
         findings.Add($"Index packages recognized: {index.Packages.Count}.");
-        findings.Add(plan.RequiredPackages.Count == 0
+        if (isCustomDistribution)
+        {
+            findings.Add("Custom distribution detected. Official upstream packages are review-only and will not be treated as directly installable for this target.");
+        }
+
+        findings.Add(requiredPackages.Count == 0
             ? "No upstream package is required by this plan."
             : "Required package list is a plan only; package download and install are not implemented in this read-only step.");
 
         return new AircraftUpstreamUpdateCheckResult(
-            BuildStateLabel(plan.Action),
-            plan.Summary,
+            isCustomDistribution ? "Custom port detected" : BuildStateLabel(plan.Action),
+            isCustomDistribution ? BuildCustomDistributionSummary(maintenanceMetadata!, plan) : plan.Summary,
             index.Family,
             index.SourceUrl,
             localVersion?.ToString() ?? "-",
             plan.AvailableVersion?.ToString() ?? "-",
-            plan.Action,
-            BuildActionDisplay(plan.Action),
-            plan.RequiredPackages,
+            isCustomDistribution ? AircraftUpdatePlanAction.LocalNewerThanIndex : plan.Action,
+            isCustomDistribution ? "Review-only upstream information" : BuildActionDisplay(plan.Action),
+            isCustomDistribution,
+            requiredPackages,
             findings);
+    }
+
+    private static AircraftMaintenanceMetadata? ReadMaintenanceMetadata(
+        AircraftVariantViewAnalysis variant,
+        ICollection<string> findings)
+    {
+        var aircraftFolder = Path.GetDirectoryName(variant.AcfPath);
+        if (string.IsNullOrWhiteSpace(aircraftFolder))
+        {
+            return null;
+        }
+
+        var metadata = AircraftFileParser.ReadMaintenanceMetadata(aircraftFolder, out var error);
+        if (error is not null)
+        {
+            findings.Add(error);
+        }
+
+        return metadata;
     }
 
     private static AircraftUpstreamVersion? ResolveLocalZiboVersion(
@@ -114,6 +143,24 @@ public sealed class AircraftUpstreamUpdateChecker
 
         findings.Add("Local Zibo version could not be parsed from version.txt or B738.a_fms.lua.");
         return null;
+    }
+
+    private static string BuildCustomDistributionSummary(
+        AircraftMaintenanceMetadata metadata,
+        AircraftUpdatePlan plan)
+    {
+        var distribution = string.IsNullOrWhiteSpace(metadata.Distribution)
+            ? "custom distribution"
+            : metadata.Distribution;
+        var distributionVersion = string.IsNullOrWhiteSpace(metadata.DistributionVersion)
+            ? "unknown version"
+            : metadata.DistributionVersion;
+        var upstreamBase = string.IsNullOrWhiteSpace(metadata.UpstreamBaseVersion)
+            ? "unknown upstream base"
+            : metadata.UpstreamBaseVersion;
+        var available = plan.AvailableVersion?.ToString() ?? "-";
+
+        return $"{distribution} {distributionVersion} is based on {upstreamBase}. Official upstream index currently offers {available}; review only.";
     }
 
     private static string BuildStateLabel(AircraftUpdatePlanAction action) =>

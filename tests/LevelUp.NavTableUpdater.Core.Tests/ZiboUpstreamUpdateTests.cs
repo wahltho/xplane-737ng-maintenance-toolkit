@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using LevelUp.NavTableUpdater.Core.Aircraft;
 using LevelUp.NavTableUpdater.Core.Upstream;
 
@@ -251,6 +252,108 @@ public sealed class ZiboUpstreamUpdateTests
         Assert.Empty(result.RequiredPackages);
     }
 
+    [Fact]
+    public async Task CheckZiboAsync_WhenMaintenanceMetadataMarksCustomPort_ReturnsReviewOnlyWithoutRequiredPackages()
+    {
+        using var fixture = AircraftUpdateFixture.Create();
+        await File.WriteAllTextAsync(
+            Path.Combine(fixture.AircraftPath, AircraftMaintenanceMetadata.FileName),
+            """
+            {
+              "schemaVersion": 1,
+              "aircraftFamily": "zibo-737ng",
+              "distribution": "wahltho-no-lua-port",
+              "distributionVersion": "5.00.00",
+              "upstreamFamily": "zibo-737ng",
+              "upstreamBaseVersion": "4.05.35",
+              "runtime": "no-lua-cpp"
+            }
+            """);
+        var index = new ZiboUpstreamFeedParser().Parse(FeedXml);
+        var source = new FakeUpdateIndexSource(index);
+        var checker = new AircraftUpstreamUpdateChecker(source);
+
+        var result = await checker.CheckZiboAsync(BuildVariant("zibo-737ng", "5.00.00", fixture.AcfPath));
+
+        Assert.Equal(1, source.LoadCount);
+        Assert.True(result.IsCustomDistribution);
+        Assert.Equal("Custom port detected", result.StateLabel);
+        Assert.Equal("Review-only upstream information", result.ActionDisplay);
+        Assert.Equal("5.00.00", result.LocalVersionDisplay);
+        Assert.Equal("4.05.35", result.AvailableVersionDisplay);
+        Assert.Empty(result.RequiredPackages);
+        Assert.Contains(result.Findings, finding => finding.Contains("Official upstream packages are review-only", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Cache_ImportZipCopiesExpectedPackageAndComputesHash()
+    {
+        using var fixture = AircraftUpdateFixture.Create();
+        var package = BuildPatchPackage();
+        var sourceZip = Path.Combine(fixture.Path, package.FileName);
+        CreateZip(sourceZip, ("README.txt", "test package"));
+        var cache = new AircraftUpdatePackageCache(Path.Combine(fixture.Path, "cache"));
+
+        var imported = cache.ImportZip(sourceZip, package);
+        var inspected = cache.Inspect(package);
+
+        Assert.Equal(AircraftUpdatePackageCacheState.Imported, imported.State);
+        Assert.True(File.Exists(imported.CachePath));
+        Assert.Equal(64, imported.Sha256!.Length);
+        Assert.Equal(AircraftUpdatePackageCacheState.Cached, inspected.State);
+        Assert.Equal(imported.Sha256, inspected.Sha256);
+        Assert.True(inspected.SizeBytes > 0);
+    }
+
+    [Fact]
+    public void Cache_ImportZipWhenFilenameDiffers_ThrowsBeforeCopy()
+    {
+        using var fixture = AircraftUpdateFixture.Create();
+        var package = BuildPatchPackage();
+        var sourceZip = Path.Combine(fixture.Path, "wrong.zip");
+        CreateZip(sourceZip, ("README.txt", "test package"));
+        var cache = new AircraftUpdatePackageCache(Path.Combine(fixture.Path, "cache"));
+
+        var ex = Assert.Throws<InvalidOperationException>(() => cache.ImportZip(sourceZip, package));
+
+        Assert.Contains("does not match expected package", ex.Message);
+        Assert.False(File.Exists(cache.GetPackagePath(package)));
+    }
+
+    [Fact]
+    public void DryRun_ReadsZipEntriesProtectsLocalFilesAndBlocksUnsafePaths()
+    {
+        using var fixture = AircraftUpdateFixture.Create();
+        var existingFile = Path.Combine(fixture.AircraftPath, "plugins", "xlua", "scripts", "B738.a_fms", "B738.a_fms.lua");
+        Directory.CreateDirectory(Path.GetDirectoryName(existingFile)!);
+        File.WriteAllText(existingFile, "existing");
+        File.WriteAllText(Path.Combine(fixture.AircraftPath, "b738_4k_prefs.txt"), "prefs");
+
+        var package = BuildPatchPackage();
+        var zipPath = Path.Combine(fixture.Path, package.FileName);
+        CreateZip(
+            zipPath,
+            ("new-file.txt", "new"),
+            ("plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua", "replacement"),
+            ("b738_4k_prefs.txt", "prefs from package"),
+            (AircraftMaintenanceMetadata.FileName, "{}"),
+            ("../escape.txt", "unsafe"));
+        var cache = new AircraftUpdatePackageCache(Path.Combine(fixture.Path, "cache"));
+        var imported = cache.ImportZip(zipPath, package);
+
+        var result = new AircraftUpdateDryRunAnalyzer().Analyze(fixture.AircraftPath, [imported]);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(1, result.AddCount);
+        Assert.Equal(1, result.ReplaceCount);
+        Assert.Equal(2, result.ProtectedCount);
+        Assert.Equal(1, result.BlockedCount);
+        Assert.Contains(result.Entries, entry => entry.RelativePath == "new-file.txt" && entry.Action == AircraftUpdateDryRunEntryAction.Add);
+        Assert.Contains(result.Entries, entry => entry.RelativePath.EndsWith("B738.a_fms.lua", StringComparison.Ordinal) && entry.Action == AircraftUpdateDryRunEntryAction.Replace);
+        Assert.Contains(result.Entries, entry => entry.RelativePath.EndsWith("b738_4k_prefs.txt", StringComparison.Ordinal) && entry.Action == AircraftUpdateDryRunEntryAction.PreserveProtectedLocalFile);
+        Assert.Contains(result.Entries, entry => entry.RelativePath == "../escape.txt" && entry.Action == AircraftUpdateDryRunEntryAction.BlockedUnsafePath);
+    }
+
     [Theory]
     [InlineData("4.05.35", 4, 5, 35)]
     [InlineData("Zibo 4.05", 4, 5, 0)]
@@ -267,6 +370,25 @@ public sealed class ZiboUpstreamUpdateTests
 
         Assert.True(ok);
         Assert.Equal(new AircraftUpstreamVersion(major, minor, patch), version);
+    }
+
+    private static AircraftUpdatePackage BuildPatchPackage() =>
+        new(
+            ZiboUpstreamFeedParser.Family,
+            AircraftUpdatePackageKind.CumulativePatch,
+            new AircraftUpstreamVersion(4, 5, 35),
+            "B738X_XP12_4_05_35.zip",
+            "https://skymatixva.com/tfiles/B738X_XP12_4_05_35.zip.torrent");
+
+    private static void CreateZip(string path, params (string Name, string Content)[] entries)
+    {
+        using var archive = ZipFile.Open(path, ZipArchiveMode.Create);
+        foreach (var (name, content) in entries)
+        {
+            var entry = archive.CreateEntry(name);
+            using var writer = new StreamWriter(entry.Open());
+            writer.Write(content);
+        }
     }
 
     private static AircraftVariantViewAnalysis BuildVariant(string family, string? localVersion, string acfPath = "/tmp/test.acf") =>
@@ -303,6 +425,35 @@ public sealed class ZiboUpstreamUpdateTests
         {
             LoadCount++;
             return Task.FromResult(index);
+        }
+    }
+
+    private sealed class AircraftUpdateFixture : IDisposable
+    {
+        private AircraftUpdateFixture(string path)
+        {
+            Path = path;
+            AircraftPath = System.IO.Path.Combine(path, "Aircraft", "B737-800X");
+            AcfPath = System.IO.Path.Combine(AircraftPath, "b738_4k.acf");
+            Directory.CreateDirectory(AircraftPath);
+            File.WriteAllText(AcfPath, "");
+        }
+
+        public string Path { get; }
+
+        public string AircraftPath { get; }
+
+        public string AcfPath { get; }
+
+        public static AircraftUpdateFixture Create() =>
+            new(System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"xplane-737ng-update-tests-{Guid.NewGuid():N}"));
+
+        public void Dispose()
+        {
+            if (Directory.Exists(Path))
+            {
+                Directory.Delete(Path, recursive: true);
+            }
         }
     }
 }

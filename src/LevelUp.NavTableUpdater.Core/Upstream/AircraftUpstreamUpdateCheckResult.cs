@@ -9,6 +9,7 @@ public sealed record AircraftUpstreamUpdateCheckResult(
     string AvailableVersionDisplay,
     AircraftUpdatePlanAction Action,
     string ActionDisplay,
+    bool IsCustomDistribution,
     IReadOnlyList<AircraftUpdatePackage> RequiredPackages,
     IReadOnlyList<string> Findings)
 {
@@ -22,6 +23,7 @@ public sealed record AircraftUpstreamUpdateCheckResult(
             AvailableVersionDisplay: "-",
             AircraftUpdatePlanAction.Unknown,
             ActionDisplay: "Not checked",
+            IsCustomDistribution: false,
             RequiredPackages: [],
             Findings: []);
 }

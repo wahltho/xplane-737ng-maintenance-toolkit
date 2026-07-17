@@ -32,6 +32,9 @@ Current capabilities:
 - Before a VNAV write action it tries to refresh `package-manifest.txt` and
   payload files from the package GitHub Release assets. The bundled manifest
   and local/offline package directories are fallback sources.
+- It can review Zibo upstream baseline/cumulative package plans, import exact
+  matching aircraft update ZIPs into a local cache, and dry-run cached ZIP
+  contents without writing aircraft files.
 
 Dry-run remains available for reviewing planned changes. Real write actions are
 limited to manifest-owned VNAV content and view-maintenance files.
