@@ -81,6 +81,35 @@ public sealed class AircraftViewAnalyzerTests
         Assert.Equal("Reference CG", variant.Status);
     }
 
+    [Fact]
+    public void Analyze_WhenMaintenanceMetadataIsPresent_UsesDistributionVersionBeforeVersionTxt()
+    {
+        using var fixture = AircraftViewFixture.CreateZibo2K();
+        File.WriteAllText(
+            System.IO.Path.Combine(fixture.Path, "xplane-737ng-maintenance.json"),
+            """
+            {
+              "schemaVersion": 1,
+              "aircraftFamily": "zibo-737ng",
+              "variant": "zibo-737-800-2k",
+              "distribution": "wahltho-no-lua-port",
+              "distributionVersion": "5.00.00",
+              "upstreamFamily": "zibo-737ng",
+              "upstreamBaseVersion": "4.05.35",
+              "runtime": "no-lua-cpp"
+            }
+            """,
+            new UTF8Encoding(false));
+
+        var result = new AircraftViewAnalyzer().Analyze(fixture.Path);
+        var variant = Assert.Single(result.Variants);
+
+        Assert.Equal("5.00.00", variant.LocalVersion);
+        Assert.Equal("Custom distribution (wahltho-no-lua-port 5.00.00)", variant.IdentityStatus);
+        Assert.Contains(result.Findings, finding => finding.Contains("xplane-737ng-maintenance.json", StringComparison.Ordinal));
+        Assert.Contains(result.Findings, finding => finding.Contains("wahltho-no-lua-port", StringComparison.Ordinal));
+    }
+
     private sealed class AircraftViewFixture : IDisposable
     {
         private AircraftViewFixture(string path)

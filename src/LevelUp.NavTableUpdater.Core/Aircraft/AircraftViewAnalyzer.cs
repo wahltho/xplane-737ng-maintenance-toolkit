@@ -91,7 +91,14 @@ public sealed class AircraftViewAnalyzer
         }
 
         var versionTxt = AircraftFileParser.ReadVersionTxt(aircraftFolder);
-        var identityStatus = BuildIdentityStatus(reference, metadata, versionTxt);
+        var maintenanceMetadata = AircraftFileParser.ReadMaintenanceMetadata(aircraftFolder, out var metadataError);
+        if (metadataError is not null)
+        {
+            findings.Add($"{reference.DisplayName}: {metadataError}");
+        }
+
+        var localVersion = ResolveLocalVersion(reference, maintenanceMetadata, versionTxt, findings);
+        var identityStatus = BuildIdentityStatus(reference, metadata, versionTxt, maintenanceMetadata);
         var prefsPath = Path.Combine(aircraftFolder, reference.PrefsFileName);
         var quickViewStatus = "Prefs missing";
         var defaultViewStatus = metadata.DefaultView is null ? "Default view incomplete" : "QV0 missing";
@@ -143,7 +150,7 @@ public sealed class AircraftViewAnalyzer
             reference.Source,
             reference.SourceRef,
             reference.SourceVersion,
-            versionTxt,
+            localVersion,
             metadata.AcfVersion,
             metadata.FileWriterVersion,
             metadata.Cg?.YFeet,
@@ -158,6 +165,40 @@ public sealed class AircraftViewAnalyzer
             identityStatus,
             quickViewStatus,
             defaultViewStatus);
+    }
+
+    private static string? ResolveLocalVersion(
+        AircraftReference reference,
+        AircraftMaintenanceMetadata? maintenanceMetadata,
+        string? versionTxt,
+        ICollection<string> findings)
+    {
+        if (maintenanceMetadata is null)
+        {
+            return versionTxt;
+        }
+
+        if (!string.IsNullOrWhiteSpace(maintenanceMetadata.AircraftFamily)
+            && !string.Equals(maintenanceMetadata.AircraftFamily, reference.Family, StringComparison.OrdinalIgnoreCase))
+        {
+            findings.Add(
+                $"{reference.DisplayName}: {AircraftMaintenanceMetadata.FileName} aircraftFamily '{maintenanceMetadata.AircraftFamily}' does not match detected family '{reference.Family}'.");
+        }
+
+        if (string.IsNullOrWhiteSpace(maintenanceMetadata.DistributionVersion))
+        {
+            findings.Add($"{reference.DisplayName}: {AircraftMaintenanceMetadata.FileName} has no distributionVersion; falling back to version.txt.");
+            return versionTxt;
+        }
+
+        var distribution = string.IsNullOrWhiteSpace(maintenanceMetadata.Distribution)
+            ? "custom distribution"
+            : maintenanceMetadata.Distribution;
+        var runtime = string.IsNullOrWhiteSpace(maintenanceMetadata.Runtime)
+            ? ""
+            : $" ({maintenanceMetadata.Runtime})";
+        findings.Add($"{reference.DisplayName}: local version {maintenanceMetadata.DistributionVersion} read from {AircraftMaintenanceMetadata.FileName} for {distribution}{runtime}.");
+        return maintenanceMetadata.DistributionVersion;
     }
 
     private static AircraftVariantViewAnalysis BuildUnreadableVariant(AircraftReference reference, string acfPath, string status)
@@ -189,7 +230,11 @@ public sealed class AircraftViewAnalyzer
             DefaultViewStatus: "Not checked");
     }
 
-    private static string BuildIdentityStatus(AircraftReference reference, AcfMetadata metadata, string? versionTxt)
+    private static string BuildIdentityStatus(
+        AircraftReference reference,
+        AcfMetadata metadata,
+        string? versionTxt,
+        AircraftMaintenanceMetadata? maintenanceMetadata)
     {
         var issues = new List<string>();
 
@@ -208,7 +253,7 @@ public sealed class AircraftViewAnalyzer
             issues.Add("studio differs");
         }
 
-        if (reference.ExpectedVersionTxt is not null && !StringEquals(versionTxt, reference.ExpectedVersionTxt))
+        if (maintenanceMetadata is null && reference.ExpectedVersionTxt is not null && !StringEquals(versionTxt, reference.ExpectedVersionTxt))
         {
             issues.Add("version.txt differs");
         }
@@ -221,6 +266,20 @@ public sealed class AircraftViewAnalyzer
         if (reference.ExpectedFileWriterVersion is not null && !StringEquals(metadata.FileWriterVersion, reference.ExpectedFileWriterVersion))
         {
             issues.Add("writer version differs");
+        }
+
+        if (maintenanceMetadata is not null)
+        {
+            var distribution = string.IsNullOrWhiteSpace(maintenanceMetadata.Distribution)
+                ? "custom distribution"
+                : maintenanceMetadata.Distribution;
+            var version = string.IsNullOrWhiteSpace(maintenanceMetadata.DistributionVersion)
+                ? ""
+                : $" {maintenanceMetadata.DistributionVersion}";
+
+            return issues.Count == 0
+                ? $"Custom distribution ({distribution}{version})"
+                : $"Custom distribution ({distribution}{version}; metadata differs: {string.Join(", ", issues)})";
         }
 
         return issues.Count == 0 ? "Expected metadata" : $"Metadata differs ({string.Join(", ", issues)})";

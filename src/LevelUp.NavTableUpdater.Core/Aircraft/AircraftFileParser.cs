@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 
 namespace LevelUp.NavTableUpdater.Core.Aircraft;
 
@@ -126,6 +127,49 @@ public static class AircraftFileParser
 
         var version = File.ReadLines(versionPath).FirstOrDefault();
         return string.IsNullOrWhiteSpace(version) ? null : version.Trim();
+    }
+
+    public static AircraftMaintenanceMetadata? ReadMaintenanceMetadata(string aircraftFolder, out string? error)
+    {
+        error = null;
+        var metadataPath = Path.Combine(aircraftFolder, AircraftMaintenanceMetadata.FileName);
+        if (!File.Exists(metadataPath))
+        {
+            return null;
+        }
+
+        try
+        {
+            var metadata = JsonSerializer.Deserialize<AircraftMaintenanceMetadata>(
+                File.ReadAllText(metadataPath),
+                new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+
+            if (metadata is null)
+            {
+                error = $"{AircraftMaintenanceMetadata.FileName} is empty.";
+                return null;
+            }
+
+            return metadata;
+        }
+        catch (JsonException ex)
+        {
+            error = $"{AircraftMaintenanceMetadata.FileName} is invalid JSON: {ex.Message}";
+            return null;
+        }
+        catch (IOException ex)
+        {
+            error = $"{AircraftMaintenanceMetadata.FileName} could not be read: {ex.Message}";
+            return null;
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            error = $"{AircraftMaintenanceMetadata.FileName} could not be read: {ex.Message}";
+            return null;
+        }
     }
 
     public static DefaultView CalculateDefaultViewFromQuickView(AircraftCg cg, QuickView0 quickView)
