@@ -1,15 +1,15 @@
 # X-Plane 737NG Maintenance Toolkit
 
-Beta prototype for a VeloPack-based X-Plane 737NG maintenance tool covering
-VNAV table package analysis and conservative view-maintenance utilities for
-Zibo and LevelUp aircraft.
+Cross-platform desktop app for Zibo and LevelUp 737NG maintenance tasks. It
+installs and maintains VNAV descent table packages and provides conservative
+view-maintenance utilities for supported aircraft variants.
 
-This repository is a temporary public development home for the prototype. It is
-intended to transfer to LevelUp/Monsoon ownership once the final GitHub
-organization/repository decision is settled.
+This repository is the public development home for the app. The repository can
+be transferred later if project ownership changes, while the app architecture
+keeps package content, aircraft patching, and application updates separate.
 
-No official releases, installer signing credentials or distribution secrets
-should live here while the repository remains under a personal account.
+Signing credentials and distribution secrets must only be added to a repository
+that is authorized to publish signed public releases.
 
 Current capabilities:
 
@@ -31,11 +31,11 @@ Current capabilities:
 - It can restore the latest recorded backup generation for the selected
   aircraft variant.
 - Before a VNAV write action it tries to refresh `package-manifest.txt` and
-  payload files from the package GitHub Release assets. The embedded preview
-  manifest and local/offline package directories are fallback sources.
+  payload files from the package GitHub Release assets. The bundled manifest
+  and local/offline package directories are fallback sources.
 
-Dry-run remains available as a preview action. Real write actions are limited
-to manifest-owned VNAV content and view-maintenance files.
+Dry-run remains available for reviewing planned changes. Real write actions are
+limited to manifest-owned VNAV content and view-maintenance files.
 
 ## Build
 
@@ -66,11 +66,12 @@ Release assets remain the preferred package source for normal use.
 - .NET 10.
 - Avalonia UI.
 - VeloPack SDK startup hook via `VelopackApp.Build().Run()`.
-- Manifest-driven package preview for LevelUp and Zibo VNAV content.
+- Manifest-driven package support for LevelUp and Zibo VNAV content.
 - Aircraft detection and install-state analysis.
 - Real backup-backed View Utility operations.
-- Preview VeloPack packaging workflow.
-- No GitHub Release publishing yet.
+- VeloPack packaging workflow.
+- GitHub Release publishing can be enabled once repository ownership and
+  signing policy are settled.
 - Real VNAV Lua patch writes for manifest-owned hooks and payloads.
 - GitHub Release manifest/payload loading with local/offline fallback.
 
@@ -81,10 +82,10 @@ The app references the `Velopack` NuGet package and calls
 initialized. That is the required application-side hook for install/update
 lifecycle handling.
 
-Preview packaging is available through the manual VeloPack GitHub Actions
-workflow. Official beta/stable publishing still needs final repository
-ownership, signing, notarization and release-channel policy.
+Packaging is available through the manual VeloPack GitHub Actions workflow.
+Signed public publishing still needs final repository ownership, signing,
+notarization and release-channel policy.
 
 ## License
 
-This updater prototype is licensed under the MIT License. See [LICENSE](LICENSE).
+This app is licensed under the MIT License. See [LICENSE](LICENSE).

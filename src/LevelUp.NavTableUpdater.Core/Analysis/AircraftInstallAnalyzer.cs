@@ -45,7 +45,7 @@ public sealed class AircraftInstallAnalyzer
             }
 
             findings.Add($"Required target script was not found: {manifest.TargetRelativePath}");
-            findings.Add("This prototype does not accept a target based on folder name only.");
+            findings.Add("This tool does not accept a target based on folder name only.");
             AddPlan(InstallState.UnsupportedTarget, plannedChanges);
 
             return Result(

@@ -58,7 +58,7 @@
             <Grid ColumnDefinitions="*,Auto">
                 <StackPanel Spacing="2">
                     <TextBlock Text="X-Plane 737NG Maintenance Toolkit" Foreground="White" FontSize="20" FontWeight="SemiBold"/>
-                    <TextBlock Text="VNAV tables and 737NG view maintenance - beta build" Foreground="#CBD5E1"/>
+                    <TextBlock Text="VNAV tables and 737NG view maintenance" Foreground="#CBD5E1"/>
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                     <TextBlock Text="App update: VeloPack" Foreground="#D1FAE5" VerticalAlignment="Center"/>
@@ -326,7 +326,7 @@
                             <StackPanel Spacing="10">
                                 <TextBlock Text="Planned Changes" FontSize="16" FontWeight="SemiBold"/>
                                 <ItemsControl ItemsSource="{Binding PlannedChanges}"/>
-                                <TextBlock Text="Package actions below modify manifest-owned VNAV content only after validation and backup. Dry-run only previews planned changes." Foreground="#B45309" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                <TextBlock Text="Package actions below modify manifest-owned VNAV content only after validation and backup. Dry-run reviews planned changes without writing files." Foreground="#B45309" FontWeight="SemiBold" TextWrapping="Wrap"/>
                                 <WrapPanel ItemSpacing="8" LineSpacing="8">
                                     <Button Content="Dry-run" Command="{Binding DryRunCommand}" IsEnabled="{Binding ActionsEnabled}"/>
                                     <Button Content="Install" Command="{Binding RunPackageActionCommand}" CommandParameter="Install" IsEnabled="{Binding ActionsEnabled}"/>

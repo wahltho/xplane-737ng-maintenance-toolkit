@@ -98,7 +98,7 @@ public static class ManifestParser
             PackageId: packageId,
             PackageVersion: packageVersion,
             ReleaseTag: releaseTag,
-            ReleaseChannel: "preview",
+            ReleaseChannel: "bundled",
             RepositoryUrl: repositoryUrl,
             AircraftFamily: aircraftFamily,
             TargetRelativePath: targetRelativePath,

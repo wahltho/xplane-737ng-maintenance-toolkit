@@ -1,9 +1,9 @@
 # CI/CD Preparation
 
-This repository is currently a temporary public development home under a
-personal account. The workflows are prepared so the X-Plane 737NG Maintenance
-Toolkit prototype can build and package early, but official distribution should
-wait until final repository ownership and signing policy are settled.
+This repository is the public development home for the X-Plane 737NG
+Maintenance Toolkit. The workflows build, test and package the app. Signed
+public distribution should only be enabled once repository ownership and
+signing policy are settled.
 
 ## Active Workflows
 
@@ -27,9 +27,9 @@ It runs on:
 - `macos-latest`
 - `windows-latest`
 
-### `VeloPack Preview Packages`
+### `VeloPack Packages`
 
-File: `.github/workflows/velopack-preview.yml`
+File: `.github/workflows/velopack-packages.yml`
 
 Runs only by manual dispatch.
 
@@ -38,18 +38,17 @@ The workflow:
 - builds and tests in `Release`
 - publishes self-contained app output
 - restores the pinned local `vpk` tool
-- creates unsigned VeloPack preview packages
-- uses a temporary placeholder icon for packaging
+- creates unsigned VeloPack packages
+- uses the current app icon assets for packaging
 - installs `squashfs-tools` on Linux so VeloPack can create AppImage output
 - uploads GitHub Actions artifacts
 
 It does not create GitHub Releases and does not use signing or notarization
 secrets.
 
-The current macOS preview package intentionally omits an icon argument because
-VeloPack expects a `.icns` file there. Linux/AppImage uses the temporary PNG
-placeholder. Final branding should replace both placeholder assets before
-public distribution.
+The current macOS package intentionally omits an icon argument because VeloPack
+expects a `.icns` file there. Final branding should provide platform-native
+icon assets before signed public distribution.
 
 ## VeloPack Tooling
 
@@ -63,14 +62,14 @@ then passing the publish output to `vpk pack`.
 
 ## Official Release Work Still Needed
 
-The maintainers can extend the preview workflow after repository ownership is
+The maintainers can extend the packaging workflow after repository ownership is
 settled.
 
 Recommended additions:
 
 - official LevelUp/Monsoon app icon and branding
 - protected `release` environment
-- beta/stable channel policy
+- release-channel policy
 - official app version source
 - Windows code signing
 - Apple Developer ID signing
@@ -83,8 +82,8 @@ Recommended additions:
 
 ## Secrets To Add Later
 
-Do not add these to the temporary personal repository unless LevelUp explicitly
-decides to publish from it.
+Do not add these to a repository unless the maintainers explicitly decide to
+publish signed public releases from it.
 
 Likely future secrets:
 
@@ -98,13 +97,13 @@ Likely future secrets:
 
 Exact secret names may change depending on Colin's signing implementation.
 
-## Temporary Repository Rule
+## Repository Publishing Rule
 
-While this repository remains under a personal account:
+Until signed public distribution is explicitly approved:
 
 - build/test CI is allowed
-- unsigned preview packaging is allowed
-- official releases are not allowed
+- unsigned packaging is allowed
+- signed public releases are not allowed
 - signing secrets are not allowed
 - notarization secrets are not allowed
 - production VeloPack channels are not allowed

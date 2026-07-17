@@ -51,7 +51,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private string lineEnding = "-";
 
     [ObservableProperty]
-    private string packageSource = "Local preview manifest";
+    private string packageSource = "Bundled manifest";
 
     [ObservableProperty]
     private string packageId = "-";
@@ -137,7 +137,7 @@ public partial class MainWindowViewModel : ViewModelBase
         ApplyAnalysis(AircraftAnalysisResult.Empty(_manifest.PackageVersion));
         ApplyViewAnalysis(AircraftViewAnalysisResult.Empty());
         AppendLog("Toolkit started. VNAV package and view-maintenance actions can write after validation and backup.");
-        AppendLog($"Loaded {_manifests.Count} local preview manifest(s). Active: {_manifest.PackageId} {_manifest.PackageVersion}.");
+        AppendLog($"Loaded {_manifests.Count} bundled manifest(s). Active: {_manifest.PackageId} {_manifest.PackageVersion}.");
     }
 
     public void SetAircraftPathFromBrowse(string path)
@@ -620,7 +620,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
         if (!Directory.Exists(contentDir))
         {
-            throw new DirectoryNotFoundException($"Preview manifest directory is missing: {contentDir}");
+            throw new DirectoryNotFoundException($"Bundled manifest directory is missing: {contentDir}");
         }
 
         var manifests = Directory.EnumerateFiles(contentDir, "*manifest*.txt")
@@ -632,7 +632,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
         if (manifests.Length == 0)
         {
-            throw new FileNotFoundException("No preview manifests were found.", contentDir);
+            throw new FileNotFoundException("No bundled manifests were found.", contentDir);
         }
 
         return manifests;
@@ -653,7 +653,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
         catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or IOException)
         {
-            AppendLog($"Using embedded preview manifest for {seedManifest.PackageId}: {ex.Message}");
+            AppendLog($"Using bundled manifest for {seedManifest.PackageId}: {ex.Message}");
             return seedManifest;
         }
     }

@@ -1,4 +1,4 @@
-name: VeloPack Preview Packages
+name: VeloPack Packages
 
 on:
   workflow_dispatch:
@@ -6,11 +6,11 @@ on:
       app_version:
         description: App version to pack.
         required: true
-        default: 0.1.0-beta.3
+        default: 0.1.0
       channel:
         description: VeloPack channel prefix.
         required: true
-        default: beta
+        default: stable
 
 permissions:
   contents: read
@@ -22,8 +22,8 @@ env:
   APP_AUTHORS: X-Plane 737NG Maintenance Toolkit contributors
 
 jobs:
-  preview-package:
-    name: Preview package (${{ matrix.rid }})
+  package:
+    name: Package (${{ matrix.rid }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -78,7 +78,7 @@ jobs:
       - name: Restore VeloPack CLI
         run: dotnet tool restore
 
-      - name: Pack VeloPack preview
+      - name: Pack VeloPack package
         run: >
           dotnet tool run vpk -- pack
           --packId "${{ env.APP_ID }}"

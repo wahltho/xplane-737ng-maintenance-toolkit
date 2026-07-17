@@ -1,8 +1,9 @@
 # X-Plane 737NG Maintenance Toolkit / VNAV Descent Tables Installer
 
-Draft specification for the first beta. The original LevelUp VNAV updater scope
-has been widened into a neutral Zibo/LevelUp 737NG maintenance toolkit while
-keeping VNAV content packages manifest-driven and separately versioned.
+Product specification for the initial public app. The original LevelUp VNAV
+updater scope has been widened into a neutral Zibo/LevelUp 737NG maintenance
+toolkit while keeping VNAV content packages manifest-driven and separately
+versioned.
 
 ## Goal
 
@@ -49,9 +50,9 @@ There are two separate update layers.
 A shared release process is possible, but technical ownership must remain
 separated.
 
-## First Beta Scope
+## Initial Scope
 
-The first beta should stay deliberately small:
+The first public app should stay deliberately small:
 
 - Single-page desktop app.
 - Auto-detect Zibo and LevelUp aircraft folders.
@@ -71,7 +72,7 @@ The first beta should stay deliberately small:
 - Exportable diagnostic report without sensitive data.
 - Clear "X-Plane restart required" message.
 
-Beta 1 should not attempt to restart X-Plane automatically.
+The app should not attempt to restart X-Plane automatically.
 
 ## Application Stack
 
@@ -315,8 +316,8 @@ VeloPack handles app installation and app auto-update only.
 
 Expected app release channels:
 
-- Beta.
-- Stable.
+- Stable public channel.
+- Optional review/testing channel when needed.
 
 Expected platform artifacts:
 
@@ -367,7 +368,7 @@ Required tests:
 - Windows/macOS/Linux path behavior.
 - App update separate from content update.
 
-## Out Of Scope For Beta 1
+## Out Of Scope For Initial Release
 
 - Full aircraft/package manager.
 - Auto-restarting X-Plane.
@@ -385,7 +386,7 @@ Required tests:
 - License for updater app.
 - License/status of VNAV content package.
 - Supported LevelUp versions.
-- Supported platforms and CPU architectures for beta 1.
+- Supported platforms and CPU architectures for the initial release.
 - Signing and notarization budget.
 - Release channel naming.
 - Support/issue workflow.
