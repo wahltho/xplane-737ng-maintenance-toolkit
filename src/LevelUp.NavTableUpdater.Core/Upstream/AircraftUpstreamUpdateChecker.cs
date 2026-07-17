@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using LevelUp.NavTableUpdater.Core.Aircraft;
 
 namespace LevelUp.NavTableUpdater.Core.Upstream;
@@ -5,6 +6,8 @@ namespace LevelUp.NavTableUpdater.Core.Upstream;
 public sealed class AircraftUpstreamUpdateChecker
 {
     private const string ZiboViewFamily = "zibo-737ng";
+    private static readonly Regex ZiboLuaVersionPattern =
+        new(@"\bversion\s*=\s*[""']v?(\d+\.\d+(?:\.\d+)?)[""']", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
     private readonly IAircraftUpdateIndexSource _indexSource;
     private readonly BaselineCumulativeUpdatePlanner _planner;
@@ -40,15 +43,7 @@ public sealed class AircraftUpstreamUpdateChecker
             "Read-only check. No aircraft files are downloaded, extracted, backed up, or changed."
         };
 
-        AircraftUpstreamVersion? localVersion = null;
-        if (AircraftUpstreamVersion.TryParse(variant.LocalVersion, out var parsedLocalVersion))
-        {
-            localVersion = parsedLocalVersion;
-        }
-        else
-        {
-            findings.Add("Local Zibo version could not be parsed from version.txt; planner will require a full baseline package.");
-        }
+        var localVersion = ResolveLocalZiboVersion(variant, findings);
 
         var index = await _indexSource.LoadAsync(cancellationToken);
         var plan = _planner.Plan(index, localVersion);
@@ -69,6 +64,56 @@ public sealed class AircraftUpstreamUpdateChecker
             BuildActionDisplay(plan.Action),
             plan.RequiredPackages,
             findings);
+    }
+
+    private static AircraftUpstreamVersion? ResolveLocalZiboVersion(
+        AircraftVariantViewAnalysis variant,
+        ICollection<string> findings)
+    {
+        if (AircraftUpstreamVersion.TryParse(variant.LocalVersion, out var versionTxtVersion))
+        {
+            findings.Add("Local Zibo version read from version.txt.");
+            return versionTxtVersion;
+        }
+
+        var aircraftFolder = Path.GetDirectoryName(variant.AcfPath);
+        if (string.IsNullOrWhiteSpace(aircraftFolder))
+        {
+            findings.Add("Local Zibo version could not be parsed and the aircraft folder could not be resolved.");
+            return null;
+        }
+
+        var fmsLuaPath = Path.Combine(
+            aircraftFolder,
+            "plugins",
+            "xlua",
+            "scripts",
+            "B738.a_fms",
+            "B738.a_fms.lua");
+
+        if (!File.Exists(fmsLuaPath))
+        {
+            findings.Add("Local Zibo version could not be parsed from version.txt and B738.a_fms.lua was not found.");
+            return null;
+        }
+
+        foreach (var line in File.ReadLines(fmsLuaPath))
+        {
+            var match = ZiboLuaVersionPattern.Match(line);
+            if (!match.Success)
+            {
+                continue;
+            }
+
+            if (AircraftUpstreamVersion.TryParse(match.Groups[1].Value, out var luaVersion))
+            {
+                findings.Add("Local Zibo version read from plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua.");
+                return luaVersion;
+            }
+        }
+
+        findings.Add("Local Zibo version could not be parsed from version.txt or B738.a_fms.lua.");
+        return null;
     }
 
     private static string BuildStateLabel(AircraftUpdatePlanAction action) =>

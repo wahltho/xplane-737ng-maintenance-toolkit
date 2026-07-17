@@ -200,6 +200,43 @@ public sealed class ZiboUpstreamUpdateTests
     }
 
     [Fact]
+    public async Task CheckZiboAsync_WhenVersionTxtIsMissing_ReadsVersionFromLuaFms()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"xplane-737ng-zibo-version-tests-{Guid.NewGuid():N}");
+        var fmsDir = Path.Combine(root, "plugins", "xlua", "scripts", "B738.a_fms");
+        Directory.CreateDirectory(fmsDir);
+        await File.WriteAllTextAsync(
+            Path.Combine(fmsDir, "B738.a_fms.lua"),
+            "version = \"v4.05.35\"\n");
+        var acfPath = Path.Combine(root, "b738_4k.acf");
+        await File.WriteAllTextAsync(acfPath, "");
+
+        try
+        {
+            var index = new ZiboUpstreamFeedParser().Parse(FeedXml);
+            var source = new FakeUpdateIndexSource(index);
+            var checker = new AircraftUpstreamUpdateChecker(source);
+
+            var result = await checker.CheckZiboAsync(BuildVariant("zibo-737ng", localVersion: null, acfPath));
+
+            Assert.Equal(1, source.LoadCount);
+            Assert.Equal("Up to date", result.StateLabel);
+            Assert.Equal("4.05.35", result.LocalVersionDisplay);
+            Assert.Equal("4.05.35", result.AvailableVersionDisplay);
+            Assert.Equal(AircraftUpdatePlanAction.UpToDate, result.Action);
+            Assert.Empty(result.RequiredPackages);
+            Assert.Contains(result.Findings, finding => finding.Contains("B738.a_fms.lua", StringComparison.Ordinal));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public async Task CheckZiboAsync_WhenVariantIsNotZibo_ReturnsNotApplicableWithoutLoadingIndex()
     {
         var index = new ZiboUpstreamFeedParser().Parse(FeedXml);
@@ -232,12 +269,12 @@ public sealed class ZiboUpstreamUpdateTests
         Assert.Equal(new AircraftUpstreamVersion(major, minor, patch), version);
     }
 
-    private static AircraftVariantViewAnalysis BuildVariant(string family, string? localVersion) =>
+    private static AircraftVariantViewAnalysis BuildVariant(string family, string? localVersion, string acfPath = "/tmp/test.acf") =>
         new(
             AircraftId: family == "zibo-737ng" ? "zibo-737-800-4k" : "levelup-737-800",
             DisplayName: family == "zibo-737ng" ? "Zibo 737-800 4K" : "LevelUp 737-800",
             Family: family,
-            AcfPath: "/tmp/test.acf",
+            AcfPath: acfPath,
             PrefsPath: "/tmp/test_prefs.txt",
             Source: "test",
             SourceRef: "test",
