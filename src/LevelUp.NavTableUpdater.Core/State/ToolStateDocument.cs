@@ -25,6 +25,12 @@ public sealed class AircraftToolState
 
     public double? LastQuickViewCgZFeet { get; set; }
 
+    public string? LastQuickViewBaselineSource { get; set; }
+
+    public string? LastQuickViewPrefsSha256 { get; set; }
+
+    public string? LastQuickViewXCameraSha256 { get; set; }
+
     public DateTimeOffset? LastQuickViewAppliedUtc { get; set; }
 
     public double? LastDefaultViewCgYFeet { get; set; }

@@ -1,6 +1,6 @@
 # X-Plane 737NG Maintenance Toolkit User Manual
 
-This manual describes the current public beta of the X-Plane 737NG Maintenance
+This manual describes the current public release of the X-Plane 737NG Maintenance
 Toolkit.
 
 The toolkit is a desktop app for selected Zibo and LevelUp 737NG maintenance
@@ -24,7 +24,7 @@ After every real install, update, repair, restore or uninstall, restart
 X-Plane fully. Reloading Lua, reloading the aircraft or reloading plugins is
 not treated as enough.
 
-Current beta builds are unsigned development builds:
+Current release builds are unsigned:
 
 - Windows may show a SmartScreen warning.
 - macOS builds are not notarized.
@@ -288,7 +288,7 @@ distributions unless a dedicated update source is defined.
 
 ## Current Limitations
 
-- App builds are unsigned development releases.
+- App builds are unsigned releases.
 - macOS builds are not notarized.
 - Zibo upstream ZIPs are verified against the local cache snapshot, not an
   official upstream hash manifest.

@@ -7,8 +7,8 @@ view-maintenance utilities for supported aircraft variants.
 This repository is the public development home for the app. The architecture
 keeps package content, aircraft patching, and application updates separate.
 
-Current CI packages are unsigned development builds. Platform signing and
-notarization belong to the release policy for signed public distribution.
+Current public packages are unsigned. Platform signing and notarization belong
+to the release policy for later signed distribution.
 
 Current capabilities:
 

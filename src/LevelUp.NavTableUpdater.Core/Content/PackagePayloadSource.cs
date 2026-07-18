@@ -113,7 +113,7 @@ public sealed class GitHubReleasePackagePayloadSource : IPackagePayloadSource
         _httpClient = httpClient ?? new HttpClient();
         if (!_httpClient.DefaultRequestHeaders.UserAgent.Any())
         {
-            _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("XPlane737NGMaintenanceToolkit/0.1");
+            _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("XPlane737NGMaintenanceToolkit/0.2");
         }
     }
 

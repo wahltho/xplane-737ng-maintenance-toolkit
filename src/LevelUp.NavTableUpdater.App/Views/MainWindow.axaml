@@ -185,7 +185,10 @@
                                 <WrapPanel Grid.Column="1" ItemSpacing="8" LineSpacing="8" HorizontalAlignment="Right">
                                     <Button Content="Adapt Quick Views"
                                             Command="{Binding AdaptQuickViewsForCgCommand}"
-                                            IsEnabled="{Binding ActionsEnabled}"/>
+                                            IsEnabled="{Binding CanAdaptQuickViewsForCg}"/>
+                                    <Button Content="Adopt Current Baseline"
+                                            Command="{Binding AdoptQuickViewBaselineCommand}"
+                                            IsEnabled="{Binding CanAdoptQuickViewBaseline}"/>
                                     <Button Content="Apply QV0 to Default View"
                                             Command="{Binding ApplyQv0ToDefaultViewCommand}"
                                             IsEnabled="{Binding ActionsEnabled}"/>
@@ -200,6 +203,35 @@
                                             IsEnabled="{Binding ActionsEnabled}"/>
                                 </WrapPanel>
                             </Grid>
+
+                            <Border Background="#F8FAFC"
+                                    BorderBrush="#E2E8F0"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Padding="10,8">
+                                <StackPanel Spacing="8">
+                                    <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="12">
+                                        <StackPanel Spacing="2">
+                                            <TextBlock Classes="label" Text="Quick View baseline"/>
+                                            <TextBlock Text="{Binding QuickViewBaselineStatus}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Spacing="2">
+                                            <TextBlock Classes="label" Text="Source"/>
+                                            <TextBlock Text="{Binding QuickViewBaselineSource}" TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2" Spacing="2">
+                                            <TextBlock Classes="label" Text="Confidence"/>
+                                            <TextBlock Text="{Binding QuickViewBaselineConfidence}" FontWeight="SemiBold"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="3" Spacing="2">
+                                            <TextBlock Classes="label" Text="Delta"/>
+                                            <TextBlock Text="{Binding QuickViewBaselineDelta}" FontFamily="Menlo,Consolas,monospace" FontSize="12" TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                    </Grid>
+                                    <TextBlock Text="{Binding QuickViewBaselineRecommendation}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                    <TextBlock Text="{Binding QuickViewBaselineDetail}" Foreground="#667085" TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </Border>
 
                             <ListBox ItemsSource="{Binding ViewVariants}"
                                      SelectedItem="{Binding SelectedViewVariant}"

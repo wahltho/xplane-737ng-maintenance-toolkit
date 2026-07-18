@@ -22,8 +22,10 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly ToolkitSettingsStore _settingsStore = ToolkitSettingsStore.CreateDefault();
     private readonly ToolkitSettingsDocument _settings;
     private readonly ToolStateStore _stateStore;
+    private readonly QuickViewBaselineAnalyzer _quickViewBaselineAnalyzer;
     private readonly ApplyDefaultViewFromQv0Operation _applyDefaultViewOperation;
     private readonly ApplyQuickViewCgAdaptOperation _applyQuickViewCgAdaptOperation;
+    private readonly AdoptQuickViewBaselineOperation _adoptQuickViewBaselineOperation;
     private readonly ConfigBackupOperation _configBackupOperation;
     private readonly RestoreLatestBackupOperation _restoreLatestBackupOperation;
     private readonly VnavContentOperation _vnavContentOperation;
@@ -123,6 +125,30 @@ public partial class MainWindowViewModel : ViewModelBase
 
     [ObservableProperty]
     private AircraftVariantViewAnalysis? selectedViewVariant;
+
+    [ObservableProperty]
+    private string quickViewBaselineStatus = "No aircraft selected";
+
+    [ObservableProperty]
+    private string quickViewBaselineSource = "-";
+
+    [ObservableProperty]
+    private string quickViewBaselineConfidence = "-";
+
+    [ObservableProperty]
+    private string quickViewBaselineDelta = "-";
+
+    [ObservableProperty]
+    private string quickViewBaselineRecommendation = "Select a supported aircraft variant.";
+
+    [ObservableProperty]
+    private string quickViewBaselineDetail = "";
+
+    [ObservableProperty]
+    private bool canAdoptQuickViewBaseline;
+
+    [ObservableProperty]
+    private bool canAdaptQuickViewsForCg;
 
     [ObservableProperty]
     private string upstreamUpdateStatus = "No Zibo aircraft selected";
@@ -250,8 +276,10 @@ public partial class MainWindowViewModel : ViewModelBase
         ToolkitSettingsPath = _settingsStore.SettingsPath;
         _manifests = LoadManifests();
         _manifest = _manifests[0];
+        _quickViewBaselineAnalyzer = new QuickViewBaselineAnalyzer(_stateStore);
         _applyDefaultViewOperation = new ApplyDefaultViewFromQv0Operation(_stateStore);
-        _applyQuickViewCgAdaptOperation = new ApplyQuickViewCgAdaptOperation(_stateStore);
+        _applyQuickViewCgAdaptOperation = new ApplyQuickViewCgAdaptOperation(_stateStore, _quickViewBaselineAnalyzer);
+        _adoptQuickViewBaselineOperation = new AdoptQuickViewBaselineOperation(_stateStore);
         _configBackupOperation = new ConfigBackupOperation(_stateStore);
         _restoreLatestBackupOperation = new RestoreLatestBackupOperation(_stateStore);
         _vnavContentOperation = new VnavContentOperation(_stateStore, CreatePayloadSource());
@@ -820,6 +848,31 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private void AdoptQuickViewBaseline()
+    {
+        if (IsOperationRunning)
+        {
+            return;
+        }
+
+        var selectedVariant = SelectedViewVariant;
+        if (selectedVariant is null)
+        {
+            AppendLog("Adopt current Quick View baseline: blocked because no view variant is selected.");
+            return;
+        }
+
+        RunViewMaintenanceAction(
+            "Adopt current Quick View baseline",
+            "Recording Quick View baseline",
+            "Quick View baseline recorded",
+            "Quick View baseline blocked",
+            selectedVariant,
+            () => _adoptQuickViewBaselineOperation.Adopt(selectedVariant),
+            showRestartNoticeOnChanged: false);
+    }
+
+    [RelayCommand]
     private void RestoreLatestBackup()
     {
         if (IsOperationRunning)
@@ -1137,9 +1190,38 @@ public partial class MainWindowViewModel : ViewModelBase
         XPlaneProcessStatus = result.IsXPlaneRunning ? "Running - write actions blocked" : "Not running";
         ViewVariants.ReplaceWith(result.Variants);
         ViewFindings.ReplaceWith(result.Findings);
-        SelectedViewVariant = ViewVariants.FirstOrDefault(variant => string.Equals(variant.AcfPath, currentSelection, StringComparison.Ordinal))
+        var nextSelection = ViewVariants.FirstOrDefault(variant => string.Equals(variant.AcfPath, currentSelection, StringComparison.Ordinal))
             ?? ViewVariants.FirstOrDefault();
-        ApplyUpstreamReadiness(SelectedViewVariant);
+        if (!ReferenceEquals(SelectedViewVariant, nextSelection))
+        {
+            SelectedViewVariant = nextSelection;
+        }
+        else
+        {
+            ApplySelectedVariantReadiness(nextSelection);
+        }
+    }
+
+    partial void OnSelectedViewVariantChanged(AircraftVariantViewAnalysis? value) =>
+        ApplySelectedVariantReadiness(value);
+
+    private void ApplySelectedVariantReadiness(AircraftVariantViewAnalysis? variant)
+    {
+        ApplyQuickViewBaselineAssessment(variant);
+        ApplyUpstreamReadiness(variant);
+    }
+
+    private void ApplyQuickViewBaselineAssessment(AircraftVariantViewAnalysis? variant)
+    {
+        var assessment = _quickViewBaselineAnalyzer.Assess(variant);
+        QuickViewBaselineStatus = assessment.Status;
+        QuickViewBaselineSource = FormatQuickViewBaselineSource(assessment.Source);
+        QuickViewBaselineConfidence = assessment.Confidence.ToString();
+        QuickViewBaselineDelta = FormatQuickViewBaselineDelta(assessment);
+        QuickViewBaselineRecommendation = assessment.Recommendation;
+        QuickViewBaselineDetail = assessment.Detail;
+        CanAdoptQuickViewBaseline = ActionsEnabled && variant is not null && assessment.CanAdoptCurrent;
+        CanAdaptQuickViewsForCg = ActionsEnabled && variant is not null && assessment.CanAdapt;
     }
 
     private void ApplyUpstreamReadiness(AircraftVariantViewAnalysis? variant)
@@ -1211,7 +1293,11 @@ public partial class MainWindowViewModel : ViewModelBase
         RefreshUpstreamActionAvailability();
     }
 
-    partial void OnActionsEnabledChanged(bool value) => RefreshUpstreamActionAvailability();
+    partial void OnActionsEnabledChanged(bool value)
+    {
+        RefreshUpstreamActionAvailability();
+        ApplyQuickViewBaselineAssessment(SelectedViewVariant);
+    }
 
     private void RefreshUpstreamActionAvailability(string? statusOverride = null)
     {
@@ -1304,6 +1390,31 @@ public partial class MainWindowViewModel : ViewModelBase
             AircraftUpdateMode.Incremental => "Incremental",
             _ => "-"
         };
+
+    private static string FormatQuickViewBaselineSource(QuickViewBaselineSource source) =>
+        source switch
+        {
+            LevelUp.NavTableUpdater.Core.Aircraft.QuickViewBaselineSource.StoredToolkitState => "Stored toolkit state",
+            LevelUp.NavTableUpdater.Core.Aircraft.QuickViewBaselineSource.ReferenceCatalog => "Reference catalog",
+            LevelUp.NavTableUpdater.Core.Aircraft.QuickViewBaselineSource.InferredCurrentDefaultView => "Current Default View/QV0",
+            _ => "Unknown"
+        };
+
+    private static string FormatQuickViewBaselineDelta(QuickViewBaselineAssessment assessment)
+    {
+        if (assessment.BaselineYFeet is null
+            || assessment.BaselineZFeet is null
+            || assessment.DeltaYFeet is null
+            || assessment.DeltaZFeet is null)
+        {
+            return "-";
+        }
+
+        const double feetToMeters = 0.3048;
+        var deltaYMeters = assessment.DeltaYFeet.Value * feetToMeters;
+        var deltaZMeters = assessment.DeltaZFeet.Value * feetToMeters;
+        return $"Y {assessment.DeltaYFeet.Value:+0.000000;-0.000000;0.000000} ft / {deltaYMeters:+0.000000;-0.000000;0.000000} m, Z {assessment.DeltaZFeet.Value:+0.000000;-0.000000;0.000000} ft / {deltaZMeters:+0.000000;-0.000000;0.000000} m";
+    }
 
     [RelayCommand]
     private void SaveBackupSettings()

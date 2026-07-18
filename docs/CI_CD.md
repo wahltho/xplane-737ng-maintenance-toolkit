@@ -1,9 +1,9 @@
 # CI/CD Preparation
 
-This repository is the public development home for the X-Plane 737NG
-Maintenance Toolkit. The workflows build, test and package the app. Signed
-public distribution should only be enabled once repository ownership and
-signing policy are settled.
+This repository is the public home for the X-Plane 737NG Maintenance Toolkit.
+The workflows build, test and package the app. Current public packages are
+unsigned. Signed distribution should only be enabled once signing policy and
+credentials are settled.
 
 ## Active Workflows
 
@@ -60,10 +60,10 @@ The VeloPack app package reference and CLI are intentionally pinned together:
 The workflow follows the VeloPack model of compiling with `dotnet publish` and
 then passing the publish output to `vpk pack`.
 
-## Official Release Work Still Needed
+## Signed Release Work Still Needed
 
-The maintainers can extend the packaging workflow after repository ownership is
-settled.
+The maintainers can extend the packaging workflow when signed distribution is
+ready.
 
 Recommended additions:
 
@@ -99,11 +99,12 @@ Exact secret names may change depending on Colin's signing implementation.
 
 ## Repository Publishing Rule
 
-Until signed public distribution is explicitly approved:
+Until signed distribution is explicitly approved:
 
 - build/test CI is allowed
 - unsigned packaging is allowed
-- signed public releases are not allowed
+- unsigned public releases are allowed when the release notes clearly state the
+  signing limitations
+- signed releases are not allowed
 - signing secrets are not allowed
 - notarization secrets are not allowed
-- production VeloPack channels are not allowed
