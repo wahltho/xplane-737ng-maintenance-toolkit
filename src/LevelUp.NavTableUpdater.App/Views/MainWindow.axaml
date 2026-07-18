@@ -269,9 +269,18 @@
                                     <Button Content="Import ZIP"
                                             Click="ImportAircraftUpdateZip_Click"
                                             IsEnabled="{Binding CanImportAircraftUpdateZip}"/>
+                                    <Button Content="Download ZIPs"
+                                            Command="{Binding DownloadAircraftUpdateZipsCommand}"
+                                            IsEnabled="{Binding CanDownloadAircraftUpdateZip}"/>
                                     <Button Content="Dry-run ZIPs"
                                             Command="{Binding DryRunAircraftUpdateCommand}"
                                             IsEnabled="{Binding CanDryRunAircraftUpdateZip}"/>
+                                    <Button Content="Apply cached ZIPs"
+                                            Command="{Binding ApplyAircraftUpdateCommand}"
+                                            IsEnabled="{Binding CanApplyAircraftUpdateZip}"/>
+                                    <Button Content="Restore update"
+                                            Command="{Binding RestoreAircraftUpdateCommand}"
+                                            IsEnabled="{Binding CanRestoreAircraftUpdate}"/>
                                 </WrapPanel>
                             </Grid>
 
@@ -283,7 +292,7 @@
                                 <TextBlock Text="{Binding UpstreamActionStatus}" Foreground="#475467" TextWrapping="Wrap"/>
                             </Border>
 
-                            <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="12">
+                            <Grid ColumnDefinitions="*,*,*,*,*" ColumnSpacing="12">
                                 <StackPanel Spacing="2">
                                     <TextBlock Classes="label" Text="Status"/>
                                     <TextBlock Text="{Binding UpstreamUpdateStatus}" FontWeight="SemiBold" TextWrapping="Wrap"/>
@@ -297,6 +306,10 @@
                                     <TextBlock Text="{Binding UpstreamAvailableVersion}" FontFamily="Menlo,Consolas,monospace"/>
                                 </StackPanel>
                                 <StackPanel Grid.Column="3" Spacing="2">
+                                    <TextBlock Classes="label" Text="Mode"/>
+                                    <TextBlock Text="{Binding UpstreamUpdateMode}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="4" Spacing="2">
                                     <TextBlock Classes="label" Text="Plan"/>
                                     <TextBlock Text="{Binding UpstreamPlanAction}" FontWeight="SemiBold" TextWrapping="Wrap"/>
                                 </StackPanel>

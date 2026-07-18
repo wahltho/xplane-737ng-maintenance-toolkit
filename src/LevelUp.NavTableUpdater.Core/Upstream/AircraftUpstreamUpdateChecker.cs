@@ -60,11 +60,11 @@ public sealed class AircraftUpstreamUpdateChecker
 
         findings.Add(requiredPackages.Count == 0
             ? "No upstream package is required by this plan."
-            : "Required package list is a plan only; package download and install are not implemented in this read-only step.");
+            : "Required package list is a plan from the feed. Refresh does not download or write files; cached ZIPs can be imported, dry-run and applied separately.");
 
         return new AircraftUpstreamUpdateCheckResult(
             isCustomDistribution ? "Custom port detected" : BuildStateLabel(plan.Action),
-            isCustomDistribution ? BuildCustomDistributionSummary(maintenanceMetadata!, plan) : plan.Summary,
+            isCustomDistribution ? BuildCustomDistributionSummary(maintenanceMetadata!, plan) : BuildSummaryWithMode(plan),
             index.Family,
             index.SourceUrl,
             localVersion?.ToString() ?? "-",
@@ -167,8 +167,8 @@ public sealed class AircraftUpstreamUpdateChecker
         action switch
         {
             AircraftUpdatePlanAction.UpToDate => "Up to date",
-            AircraftUpdatePlanAction.ApplyCumulativePatch => "Patch available",
-            AircraftUpdatePlanAction.InstallBaselineAndCumulativePatch => "Baseline update required",
+            AircraftUpdatePlanAction.ApplyCumulativePatch => "Incremental update available",
+            AircraftUpdatePlanAction.InstallBaselineAndCumulativePatch => "Full update required",
             AircraftUpdatePlanAction.LocalNewerThanIndex => "Local newer than index",
             AircraftUpdatePlanAction.MissingRequiredPackage => "Package missing",
             _ => "Not checked"
@@ -178,10 +178,18 @@ public sealed class AircraftUpstreamUpdateChecker
         action switch
         {
             AircraftUpdatePlanAction.UpToDate => "No action",
-            AircraftUpdatePlanAction.ApplyCumulativePatch => "Apply latest cumulative patch",
-            AircraftUpdatePlanAction.InstallBaselineAndCumulativePatch => "Install full baseline plus latest cumulative patch",
+            AircraftUpdatePlanAction.ApplyCumulativePatch => "Incremental: apply latest cumulative patch",
+            AircraftUpdatePlanAction.InstallBaselineAndCumulativePatch => "Full: install baseline plus latest cumulative patch",
             AircraftUpdatePlanAction.LocalNewerThanIndex => "Review manually",
             AircraftUpdatePlanAction.MissingRequiredPackage => "Blocked by incomplete index",
             _ => "Not checked"
+        };
+
+    private static string BuildSummaryWithMode(AircraftUpdatePlan plan) =>
+        plan.UpdateMode switch
+        {
+            AircraftUpdateMode.Full => $"Full update. {plan.Summary}",
+            AircraftUpdateMode.Incremental => $"Incremental update. {plan.Summary}",
+            _ => plan.Summary
         };
 }

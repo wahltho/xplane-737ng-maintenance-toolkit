@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Net;
 using LevelUp.NavTableUpdater.Core.Aircraft;
 using LevelUp.NavTableUpdater.Core.Upstream;
 
@@ -61,6 +62,7 @@ public sealed class ZiboUpstreamUpdateTests
         var plan = new BaselineCumulativeUpdatePlanner().Plan(index, new AircraftUpstreamVersion(4, 5, 31));
 
         Assert.Equal(AircraftUpdatePlanAction.ApplyCumulativePatch, plan.Action);
+        Assert.Equal(AircraftUpdateMode.Incremental, plan.UpdateMode);
         Assert.True(plan.HasUpdate);
         Assert.Equal(new AircraftUpstreamVersion(4, 5, 35), plan.AvailableVersion);
         var package = Assert.Single(plan.RequiredPackages);
@@ -75,6 +77,7 @@ public sealed class ZiboUpstreamUpdateTests
         var plan = new BaselineCumulativeUpdatePlanner().Plan(index, new AircraftUpstreamVersion(4, 4, 12));
 
         Assert.Equal(AircraftUpdatePlanAction.InstallBaselineAndCumulativePatch, plan.Action);
+        Assert.Equal(AircraftUpdateMode.Full, plan.UpdateMode);
         Assert.True(plan.HasUpdate);
         Assert.Equal(new AircraftUpstreamVersion(4, 5, 0), plan.TargetBaseline);
         Assert.Equal(
@@ -191,7 +194,8 @@ public sealed class ZiboUpstreamUpdateTests
         var result = await checker.CheckZiboAsync(BuildVariant("zibo-737ng", "4.05.34"));
 
         Assert.Equal(1, source.LoadCount);
-        Assert.Equal("Patch available", result.StateLabel);
+        Assert.Equal("Incremental update available", result.StateLabel);
+        Assert.Equal(AircraftUpdateMode.Incremental, result.UpdateMode);
         Assert.Equal("4.05.34", result.LocalVersionDisplay);
         Assert.Equal("4.05.35", result.AvailableVersionDisplay);
         Assert.Equal(AircraftUpdatePlanAction.ApplyCumulativePatch, result.Action);
@@ -321,6 +325,35 @@ public sealed class ZiboUpstreamUpdateTests
     }
 
     [Fact]
+    public async Task Cache_DownloadAsync_WhenSourceIsTorrentLink_TriesDirectZipCandidateAndValidatesZip()
+    {
+        using var fixture = AircraftUpdateFixture.Create();
+        var package = BuildPatchPackage();
+        var zipBytes = CreateZipBytes(("README.txt", "downloaded package"));
+        var handler = new FakePackageDownloadHandler(request =>
+        {
+            if (request.RequestUri?.AbsoluteUri == "https://skymatixva.com/tfiles/B738X_XP12_4_05_35.zip")
+            {
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new ByteArrayContent(zipBytes)
+                };
+            }
+
+            return new HttpResponseMessage(HttpStatusCode.NotFound);
+        });
+        using var client = new HttpClient(handler);
+        var cache = new AircraftUpdatePackageCache(Path.Combine(fixture.Path, "cache"));
+
+        var downloaded = await cache.DownloadAsync(package, client);
+
+        Assert.Equal(AircraftUpdatePackageCacheState.Imported, downloaded.State);
+        Assert.True(File.Exists(downloaded.CachePath));
+        Assert.Equal(64, downloaded.Sha256!.Length);
+        Assert.Equal(["https://skymatixva.com/tfiles/B738X_XP12_4_05_35.zip"], handler.RequestedUrls);
+    }
+
+    [Fact]
     public void DryRun_ReadsZipEntriesProtectsLocalFilesAndBlocksUnsafePaths()
     {
         using var fixture = AircraftUpdateFixture.Create();
@@ -354,6 +387,158 @@ public sealed class ZiboUpstreamUpdateTests
         Assert.Contains(result.Entries, entry => entry.RelativePath == "../escape.txt" && entry.Action == AircraftUpdateDryRunEntryAction.BlockedUnsafePath);
     }
 
+    [Fact]
+    public void Apply_AppliesCachedPackagesSequentiallyCreatesBackupsStateAndMetadata()
+    {
+        using var fixture = AircraftUpdateFixture.Create();
+        var existingPath = Path.Combine(fixture.AircraftPath, "existing.txt");
+        var protectedPrefsPath = Path.Combine(fixture.AircraftPath, "b738_4k_prefs.txt");
+        File.WriteAllText(existingPath, "original");
+        File.WriteAllText(protectedPrefsPath, "local prefs");
+        File.WriteAllText(Path.Combine(fixture.AircraftPath, "version.txt"), "4.04.12");
+        var fullPackage = BuildFullPackage();
+        var patchPackage = BuildPatchPackage();
+        var fullZip = Path.Combine(fixture.Path, fullPackage.FileName);
+        var patchZip = Path.Combine(fixture.Path, patchPackage.FileName);
+        CreateZip(
+            fullZip,
+            ("existing.txt", "from full"),
+            ("baseline-only.txt", "baseline"),
+            ("b738_4k_prefs.txt", "package prefs"));
+        CreateZip(
+            patchZip,
+            ("existing.txt", "from patch"),
+            ("patch-only.txt", "patch"));
+        var cache = new AircraftUpdatePackageCache(Path.Combine(fixture.Path, "cache"));
+        var cachedFull = cache.ImportZip(fullZip, fullPackage);
+        var cachedPatch = cache.ImportZip(patchZip, patchPackage);
+        var store = TestToolStateStore.Create(fixture.Path);
+        var operation = new AircraftUpdateOperation(store, isXPlaneRunning: () => false);
+        var check = BuildUpdateCheck(
+            AircraftUpdatePlanAction.InstallBaselineAndCumulativePatch,
+            "Install full baseline plus latest cumulative patch",
+            [fullPackage, patchPackage]);
+
+        var result = operation.Apply(BuildVariant("zibo-737ng", "4.04.12", fixture.AcfPath), check, [cachedFull, cachedPatch]);
+
+        Assert.True(result.Succeeded);
+        Assert.True(result.Changed);
+        Assert.Equal("from patch", File.ReadAllText(existingPath));
+        Assert.Equal("baseline", File.ReadAllText(Path.Combine(fixture.AircraftPath, "baseline-only.txt")));
+        Assert.Equal("patch", File.ReadAllText(Path.Combine(fixture.AircraftPath, "patch-only.txt")));
+        Assert.Equal("local prefs", File.ReadAllText(protectedPrefsPath));
+        Assert.True(File.Exists(Path.Combine(fixture.AircraftPath, AircraftMaintenanceMetadata.FileName)));
+
+        var state = Assert.Single(store.Load().Aircraft.Values);
+        Assert.Equal("AircraftUpdateFullApply", state.LastOperation);
+        Assert.Equal("Full", state.LastAircraftUpdateMode);
+        Assert.Equal("4.05.35", state.InstalledAircraftUpdateVersion);
+        Assert.Equal([fullPackage.FileName, patchPackage.FileName], state.LastAircraftUpdatePackages);
+        Assert.Contains(state.Backups, record => record.SourcePath == existingPath && record.SourceExisted);
+        Assert.Contains(state.Backups, record => record.SourcePath.EndsWith("baseline-only.txt", StringComparison.Ordinal) && !record.SourceExisted);
+        Assert.Contains(state.Backups, record => record.SourcePath.EndsWith(AircraftMaintenanceMetadata.FileName, StringComparison.Ordinal) && !record.SourceExisted);
+    }
+
+    [Fact]
+    public void RestoreLatest_RestoresLatestAircraftUpdateGenerationAndDeletesAddedFiles()
+    {
+        using var fixture = AircraftUpdateFixture.Create();
+        var existingPath = Path.Combine(fixture.AircraftPath, "existing.txt");
+        File.WriteAllText(existingPath, "original");
+        var patchPackage = BuildPatchPackage();
+        var patchZip = Path.Combine(fixture.Path, patchPackage.FileName);
+        CreateZip(
+            patchZip,
+            ("existing.txt", "updated"),
+            ("new-file.txt", "new"));
+        var cache = new AircraftUpdatePackageCache(Path.Combine(fixture.Path, "cache"));
+        var cachedPatch = cache.ImportZip(patchZip, patchPackage);
+        var store = TestToolStateStore.Create(fixture.Path);
+        var operation = new AircraftUpdateOperation(store, isXPlaneRunning: () => false);
+        var variant = BuildVariant("zibo-737ng", "4.05.34", fixture.AcfPath);
+        var check = BuildUpdateCheck(
+            AircraftUpdatePlanAction.ApplyCumulativePatch,
+            "Apply latest cumulative patch",
+            [patchPackage]);
+
+        operation.Apply(variant, check, [cachedPatch]);
+        var appliedState = Assert.Single(store.Load().Aircraft.Values);
+        Assert.Equal("AircraftUpdateIncrementalApply", appliedState.LastOperation);
+        Assert.Equal("Incremental", appliedState.LastAircraftUpdateMode);
+        File.AppendAllText(existingPath, " local edit");
+        File.AppendAllText(Path.Combine(fixture.AircraftPath, "new-file.txt"), " local edit");
+
+        var result = operation.RestoreLatest(variant);
+
+        Assert.True(result.Succeeded);
+        Assert.True(result.Changed);
+        Assert.Equal("original", File.ReadAllText(existingPath));
+        Assert.False(File.Exists(Path.Combine(fixture.AircraftPath, "new-file.txt")));
+        Assert.False(File.Exists(Path.Combine(fixture.AircraftPath, AircraftMaintenanceMetadata.FileName)));
+
+        var state = Assert.Single(store.Load().Aircraft.Values);
+        Assert.Equal("AircraftUpdateRestore", state.LastOperation);
+        Assert.Null(state.InstalledAircraftUpdateVersion);
+        Assert.Null(state.LastAircraftUpdateMode);
+        Assert.Contains(state.Backups, record => record.Operation == "AircraftUpdateRestorePreImage");
+    }
+
+    [Fact]
+    public void Apply_WhenCachedPackageHashChanged_BlocksBeforeWriting()
+    {
+        using var fixture = AircraftUpdateFixture.Create();
+        var existingPath = Path.Combine(fixture.AircraftPath, "existing.txt");
+        File.WriteAllText(existingPath, "original");
+        var patchPackage = BuildPatchPackage();
+        var patchZip = Path.Combine(fixture.Path, patchPackage.FileName);
+        CreateZip(patchZip, ("existing.txt", "updated"));
+        var cache = new AircraftUpdatePackageCache(Path.Combine(fixture.Path, "cache"));
+        var cachedPatch = cache.ImportZip(patchZip, patchPackage);
+        File.AppendAllText(cachedPatch.CachePath, "tamper");
+        var operation = new AircraftUpdateOperation(TestToolStateStore.Create(fixture.Path), isXPlaneRunning: () => false);
+        var check = BuildUpdateCheck(
+            AircraftUpdatePlanAction.ApplyCumulativePatch,
+            "Apply latest cumulative patch",
+            [patchPackage]);
+
+        var result = operation.Apply(BuildVariant("zibo-737ng", "4.05.34", fixture.AcfPath), check, [cachedPatch]);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("original", File.ReadAllText(existingPath));
+        Assert.Contains(result.Log, line => line.Contains("hash changed", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Apply_WhenWriteFails_RollsBackEarlierFiles()
+    {
+        using var fixture = AircraftUpdateFixture.Create();
+        var existingPath = Path.Combine(fixture.AircraftPath, "existing.txt");
+        var blockedTargetPath = Path.Combine(fixture.AircraftPath, "blocked-target");
+        File.WriteAllText(existingPath, "original");
+        Directory.CreateDirectory(blockedTargetPath);
+        var fullPackage = BuildFullPackage();
+        var patchPackage = BuildPatchPackage();
+        var fullZip = Path.Combine(fixture.Path, fullPackage.FileName);
+        var patchZip = Path.Combine(fixture.Path, patchPackage.FileName);
+        CreateZip(fullZip, ("existing.txt", "from full"));
+        CreateZip(patchZip, ("blocked-target", "cannot replace directory with file"));
+        var cache = new AircraftUpdatePackageCache(Path.Combine(fixture.Path, "cache"));
+        var cachedFull = cache.ImportZip(fullZip, fullPackage);
+        var cachedPatch = cache.ImportZip(patchZip, patchPackage);
+        var operation = new AircraftUpdateOperation(TestToolStateStore.Create(fixture.Path), isXPlaneRunning: () => false);
+        var check = BuildUpdateCheck(
+            AircraftUpdatePlanAction.InstallBaselineAndCumulativePatch,
+            "Install full baseline plus latest cumulative patch",
+            [fullPackage, patchPackage]);
+
+        var result = operation.Apply(BuildVariant("zibo-737ng", "4.04.12", fixture.AcfPath), check, [cachedFull, cachedPatch]);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("original", File.ReadAllText(existingPath));
+        Assert.True(Directory.Exists(blockedTargetPath));
+        Assert.Contains(result.Log, line => line.Contains("ROLLBACK", StringComparison.Ordinal));
+    }
+
     [Theory]
     [InlineData("4.05.35", 4, 5, 35)]
     [InlineData("Zibo 4.05", 4, 5, 0)]
@@ -380,6 +565,31 @@ public sealed class ZiboUpstreamUpdateTests
             "B738X_XP12_4_05_35.zip",
             "https://skymatixva.com/tfiles/B738X_XP12_4_05_35.zip.torrent");
 
+    private static AircraftUpdatePackage BuildFullPackage() =>
+        new(
+            ZiboUpstreamFeedParser.Family,
+            AircraftUpdatePackageKind.FullBaseline,
+            new AircraftUpstreamVersion(4, 5, 0),
+            "B737-800X_XP12_4_05_full.zip",
+            "https://skymatixva.com/tfiles/B737-800X_XP12_4_05_full.zip.torrent");
+
+    private static AircraftUpstreamUpdateCheckResult BuildUpdateCheck(
+        AircraftUpdatePlanAction action,
+        string actionDisplay,
+        IReadOnlyList<AircraftUpdatePackage> requiredPackages) =>
+        new(
+            StateLabel: action == AircraftUpdatePlanAction.ApplyCumulativePatch ? "Patch available" : "Baseline update required",
+            Summary: actionDisplay,
+            Family: ZiboUpstreamFeedParser.Family,
+            SourceUrl: ZiboUpstreamFeedParser.DefaultFeedUrl,
+            LocalVersionDisplay: "4.05.34",
+            AvailableVersionDisplay: "4.05.35",
+            Action: action,
+            ActionDisplay: actionDisplay,
+            IsCustomDistribution: false,
+            RequiredPackages: requiredPackages,
+            Findings: []);
+
     private static void CreateZip(string path, params (string Name, string Content)[] entries)
     {
         using var archive = ZipFile.Open(path, ZipArchiveMode.Create);
@@ -389,6 +599,22 @@ public sealed class ZiboUpstreamUpdateTests
             using var writer = new StreamWriter(entry.Open());
             writer.Write(content);
         }
+    }
+
+    private static byte[] CreateZipBytes(params (string Name, string Content)[] entries)
+    {
+        using var stream = new MemoryStream();
+        using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            foreach (var (name, content) in entries)
+            {
+                var entry = archive.CreateEntry(name);
+                using var writer = new StreamWriter(entry.Open());
+                writer.Write(content);
+            }
+        }
+
+        return stream.ToArray();
     }
 
     private static AircraftVariantViewAnalysis BuildVariant(string family, string? localVersion, string acfPath = "/tmp/test.acf") =>
@@ -425,6 +651,17 @@ public sealed class ZiboUpstreamUpdateTests
         {
             LoadCount++;
             return Task.FromResult(index);
+        }
+    }
+
+    private sealed class FakePackageDownloadHandler(Func<HttpRequestMessage, HttpResponseMessage> respond) : HttpMessageHandler
+    {
+        public List<string> RequestedUrls { get; } = [];
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            RequestedUrls.Add(request.RequestUri?.AbsoluteUri ?? "");
+            return Task.FromResult(respond(request));
         }
     }
 

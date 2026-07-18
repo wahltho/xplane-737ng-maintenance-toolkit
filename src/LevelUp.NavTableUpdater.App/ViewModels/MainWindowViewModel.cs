@@ -28,8 +28,10 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly RestoreLatestBackupOperation _restoreLatestBackupOperation;
     private readonly VnavContentOperation _vnavContentOperation;
     private readonly AircraftUpstreamUpdateChecker _ziboUpdateChecker;
+    private readonly AircraftUpdateOperation _aircraftUpdateOperation;
     private AircraftUpdatePackageCache _aircraftUpdatePackageCache;
     private readonly AircraftUpdateDryRunAnalyzer _aircraftUpdateDryRunAnalyzer = new();
+    private readonly HttpClient _aircraftUpdateHttpClient = new();
     private readonly IPackageManifestSource _packageManifestSource = new GitHubReleasePackageManifestSource();
     private readonly IReadOnlyList<PackageManifest> _manifests;
     private PackageManifest _manifest;
@@ -138,6 +140,9 @@ public partial class MainWindowViewModel : ViewModelBase
     private string upstreamPlanAction = "Not checked";
 
     [ObservableProperty]
+    private string upstreamUpdateMode = "-";
+
+    [ObservableProperty]
     private string upstreamSource = ZiboUpstreamFeedParser.DefaultFeedUrl;
 
     [ObservableProperty]
@@ -159,7 +164,16 @@ public partial class MainWindowViewModel : ViewModelBase
     private bool canImportAircraftUpdateZip;
 
     [ObservableProperty]
+    private bool canDownloadAircraftUpdateZip;
+
+    [ObservableProperty]
     private bool canDryRunAircraftUpdateZip;
+
+    [ObservableProperty]
+    private bool canApplyAircraftUpdateZip;
+
+    [ObservableProperty]
+    private bool canRestoreAircraftUpdate;
 
     [ObservableProperty]
     private string backupRootPath = "";
@@ -242,7 +256,8 @@ public partial class MainWindowViewModel : ViewModelBase
         _restoreLatestBackupOperation = new RestoreLatestBackupOperation(_stateStore);
         _vnavContentOperation = new VnavContentOperation(_stateStore, CreatePayloadSource());
         _ziboUpdateChecker = new AircraftUpstreamUpdateChecker(
-            new ZiboFeedAircraftUpdateIndexSource(new HttpClient()));
+            new ZiboFeedAircraftUpdateIndexSource(_aircraftUpdateHttpClient));
+        _aircraftUpdateOperation = new AircraftUpdateOperation(_stateStore, _aircraftUpdateDryRunAnalyzer);
         ApplyManifest(_manifest);
         ApplyAnalysis(AircraftAnalysisResult.Empty(_manifest.PackageVersion));
         ApplyViewAnalysis(AircraftViewAnalysisResult.Empty());
@@ -357,6 +372,78 @@ public partial class MainWindowViewModel : ViewModelBase
             RefreshUpstreamActionAvailability($"Import failed. {ex.Message}");
             AppendLog($"Aircraft update ZIP import failed: {ex.Message}");
             UpstreamFindings.ReplaceWith(["Aircraft update ZIP import failed.", ex.Message]);
+        }
+    }
+
+    [RelayCommand]
+    private async Task DownloadAircraftUpdateZips()
+    {
+        if (IsUpstreamCheckRunning || IsOperationRunning)
+        {
+            return;
+        }
+
+        if (_lastUpstreamUpdateCheck is null || _lastUpstreamUpdateCheck.RequiredPackages.Count == 0)
+        {
+            RefreshUpstreamActionAvailability("Download blocked. Refresh a non-custom upstream package plan first.");
+            AppendLog("Aircraft update ZIP download blocked: refresh upstream package plan first.");
+            return;
+        }
+
+        if (_lastUpstreamUpdateCheck.IsCustomDistribution)
+        {
+            RefreshUpstreamActionAvailability("Download blocked. Custom distributions use upstream package information as review-only.");
+            AppendLog("Aircraft update ZIP download blocked: selected target is a custom distribution.");
+            return;
+        }
+
+        RefreshUpstreamCacheEntries();
+        var missingPackages = UpstreamPackageCacheEntries
+            .Where(entry => !entry.IsCached)
+            .Select(entry => entry.Package)
+            .ToArray();
+        if (missingPackages.Length == 0)
+        {
+            RefreshUpstreamActionAvailability("All required ZIPs are already cached.");
+            AppendLog("Aircraft update ZIP download skipped: all required packages are cached.");
+            return;
+        }
+
+        IsUpstreamCheckRunning = true;
+        ActionsEnabled = false;
+        RefreshUpstreamActionAvailability($"Downloading {missingPackages.Length} required package(s) into the aircraft update cache.");
+        UpstreamFindings.ReplaceWith(["Downloading required aircraft update ZIPs. No aircraft files are changed."]);
+
+        try
+        {
+            foreach (var package in missingPackages)
+            {
+                AppendLog($"Downloading aircraft update ZIP: {package.FileName}");
+                var downloaded = await _aircraftUpdatePackageCache.DownloadAsync(package, _aircraftUpdateHttpClient);
+                AppendLog($"Downloaded aircraft update ZIP into cache: {downloaded.Package.FileName} ({downloaded.SizeBytes} bytes, sha256 {downloaded.Sha256}).");
+            }
+
+            RefreshUpstreamCacheEntries();
+            UpstreamDryRunEntries.Clear();
+            UpstreamDryRunSummary = "Package cache changed. Run dry-run to inspect planned aircraft file changes.";
+            RefreshUpstreamActionAvailability("Download complete. Run dry-run or apply cached ZIPs.");
+            UpstreamFindings.ReplaceWith(["Required ZIP download completed. No aircraft files were changed."]);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidOperationException or TaskCanceledException)
+        {
+            RefreshUpstreamActionAvailability($"Download failed. Import the exact ZIP manually if the source does not expose a direct ZIP URL. {ex.Message}");
+            UpstreamFindings.ReplaceWith([
+                "Aircraft update ZIP download failed.",
+                "The feed may expose torrent links or a Google Drive flow instead of direct ZIP downloads.",
+                ex.Message
+            ]);
+            AppendLog($"Aircraft update ZIP download failed: {ex.Message}");
+        }
+        finally
+        {
+            IsUpstreamCheckRunning = false;
+            ActionsEnabled = true;
+            RefreshUpstreamCacheEntries();
         }
     }
 
@@ -502,6 +589,7 @@ public partial class MainWindowViewModel : ViewModelBase
             UpstreamUpdateSummary = ex.Message;
             UpstreamAvailableVersion = "-";
             UpstreamPlanAction = "Not checked";
+            UpstreamUpdateMode = "-";
             UpstreamLastChecked = DateTimeOffset.Now.ToString("HH:mm:ss");
             UpstreamRequiredPackages.Clear();
             UpstreamPackageCacheEntries.Clear();
@@ -571,6 +659,64 @@ public partial class MainWindowViewModel : ViewModelBase
         UpstreamFindings.ReplaceWith(result.Findings);
         RefreshUpstreamActionAvailability("Dry-run complete. No aircraft files were changed.");
         AppendLog($"Aircraft update dry-run: {result.Summary}");
+    }
+
+    [RelayCommand]
+    private void ApplyAircraftUpdate()
+    {
+        if (IsOperationRunning)
+        {
+            return;
+        }
+
+        var selectedVariant = SelectedViewVariant;
+        if (selectedVariant is null)
+        {
+            AppendLog("Apply aircraft update: blocked because no view variant is selected.");
+            return;
+        }
+
+        if (_lastUpstreamUpdateCheck is null)
+        {
+            AppendLog("Apply aircraft update: blocked because no upstream package plan is available.");
+            RefreshUpstreamActionAvailability("Apply blocked. Refresh upstream packages before applying cached ZIPs.");
+            return;
+        }
+
+        RefreshUpstreamCacheEntries();
+        var updateCheck = _lastUpstreamUpdateCheck;
+        var cacheEntries = UpstreamPackageCacheEntries.ToArray();
+        RunAircraftUpdateAction(
+            "Apply aircraft update",
+            "Preparing aircraft update transaction",
+            "Aircraft update applied",
+            "Aircraft update blocked",
+            selectedVariant,
+            () => _aircraftUpdateOperation.Apply(selectedVariant, updateCheck, cacheEntries));
+    }
+
+    [RelayCommand]
+    private void RestoreAircraftUpdate()
+    {
+        if (IsOperationRunning)
+        {
+            return;
+        }
+
+        var selectedVariant = SelectedViewVariant;
+        if (selectedVariant is null)
+        {
+            AppendLog("Restore aircraft update: blocked because no view variant is selected.");
+            return;
+        }
+
+        RunAircraftUpdateAction(
+            "Restore aircraft update",
+            "Preparing aircraft update restore",
+            "Aircraft update restored",
+            "Aircraft update restore blocked",
+            selectedVariant,
+            () => _aircraftUpdateOperation.RestoreLatest(selectedVariant));
     }
 
     [RelayCommand]
@@ -818,6 +964,89 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
+    private void RunAircraftUpdateAction(
+        string actionName,
+        string preparingTitle,
+        string successTitle,
+        string blockedTitle,
+        AircraftVariantViewAnalysis selectedVariant,
+        Func<MaintenanceOperationResult> action)
+    {
+        OperationPanelVisible = true;
+        OperationLog = "";
+        OperationElapsed = "00:00s";
+        OperationProgress = 0;
+        OperationStatus = "Transaction in progress";
+        OperationTitle = preparingTitle;
+        OperationSubtitle = $"Preparing aircraft package transaction for {selectedVariant.DisplayName}.";
+        OperationProgressText = "0% - Validating target, cache, dry-run and X-Plane process state";
+        RestartNoticeVisible = false;
+
+        IsOperationRunning = true;
+        ActionsEnabled = false;
+        var stopwatch = Stopwatch.StartNew();
+        MaintenanceOperationResult? operationResult = null;
+        try
+        {
+            var result = action();
+            operationResult = result;
+            foreach (var line in result.Log)
+            {
+                AppendOperationLog(line);
+            }
+
+            OperationElapsed = FormatElapsed(stopwatch.Elapsed);
+            OperationStatus = result.Status;
+            OperationTitle = result.Succeeded
+                ? result.Changed ? successTitle : $"{actionName} unchanged"
+                : blockedTitle;
+            OperationSubtitle = result.Message;
+            OperationProgress = result.Succeeded ? 100 : 0;
+            OperationProgressText = result.Succeeded
+                ? result.Changed ? "100% - Aircraft update transaction completed and state recorded" : "100% - No file change required"
+                : "0% - Transaction did not start or was rolled back";
+            RestartNoticeVisible = result.Changed;
+
+            foreach (var backupPath in result.BackupPaths)
+            {
+                AppendLog($"{actionName}: backup created at {backupPath}");
+            }
+
+            AppendLog($"{actionName}: {result.Message}");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or FileNotFoundException)
+        {
+            OperationElapsed = FormatElapsed(stopwatch.Elapsed);
+            OperationStatus = "Failed";
+            OperationTitle = $"{actionName} failed";
+            OperationSubtitle = ex.Message;
+            OperationProgress = 0;
+            OperationProgressText = "0% - Transaction failed before completion";
+            AppendOperationLog($"[FAILED] {ex.Message}");
+            AppendLog($"{actionName} failed: {ex.Message}");
+        }
+        finally
+        {
+            IsOperationRunning = false;
+            ActionsEnabled = true;
+            var selectedPath = selectedVariant.AcfPath;
+            var viewResult = _viewAnalyzer.Analyze(SelectedAircraftPath);
+            ApplyManifest(SelectManifest(viewResult));
+            ApplyAnalysis(_analyzer.Analyze(SelectedAircraftPath, _manifest));
+            ApplyViewAnalysis(viewResult, selectedPath);
+            if (operationResult is not null)
+            {
+                UpstreamDryRunEntries.Clear();
+                UpstreamDryRunSummary = operationResult.Changed
+                    ? "Aircraft files changed. Refresh upstream packages to re-check the installed version."
+                    : "No aircraft update file changes were applied.";
+                RefreshUpstreamActionAvailability(operationResult.Changed
+                    ? "Aircraft files changed. Refresh upstream packages to re-check the installed version."
+                    : "No aircraft update file changes were applied.");
+            }
+        }
+    }
+
     private async Task RunVnavContentAction(VnavContentAction action, AircraftVariantViewAnalysis selectedVariant)
     {
         OperationPanelVisible = true;
@@ -918,6 +1147,7 @@ public partial class MainWindowViewModel : ViewModelBase
         UpstreamSource = ZiboUpstreamFeedParser.DefaultFeedUrl;
         UpstreamAvailableVersion = "-";
         UpstreamPlanAction = "Not checked";
+        UpstreamUpdateMode = "-";
         UpstreamLastChecked = "Not checked";
         _lastUpstreamUpdateCheck = null;
         UpstreamRequiredPackages.Clear();
@@ -961,6 +1191,7 @@ public partial class MainWindowViewModel : ViewModelBase
         UpstreamLocalVersion = result.LocalVersionDisplay;
         UpstreamAvailableVersion = result.AvailableVersionDisplay;
         UpstreamPlanAction = result.ActionDisplay;
+        UpstreamUpdateMode = FormatAircraftUpdateMode(result.UpdateMode);
         UpstreamSource = string.IsNullOrWhiteSpace(result.SourceUrl) ? ZiboUpstreamFeedParser.DefaultFeedUrl : result.SourceUrl;
         UpstreamLastChecked = DateTimeOffset.Now.ToString("HH:mm:ss");
         UpstreamRequiredPackages.ReplaceWith(result.RequiredPackages);
@@ -990,9 +1221,14 @@ public partial class MainWindowViewModel : ViewModelBase
         var allRequiredPackagesCached = hasRequiredPackages
             && UpstreamPackageCacheEntries.Count == requiredPackages.Count
             && UpstreamPackageCacheEntries.All(entry => entry.IsCached);
+        var dryRunHasBlockingEntries = UpstreamDryRunEntries.Any(entry => entry.Action is AircraftUpdateDryRunEntryAction.BlockedUnsafePath
+            or AircraftUpdateDryRunEntryAction.BlockedInvalidPackage);
 
         CanImportAircraftUpdateZip = ActionsEnabled && hasRequiredPackages && !isCustomDistribution;
+        CanDownloadAircraftUpdateZip = ActionsEnabled && hasRequiredPackages && !isCustomDistribution && !allRequiredPackagesCached;
         CanDryRunAircraftUpdateZip = ActionsEnabled && hasRequiredPackages && !isCustomDistribution && allRequiredPackagesCached;
+        CanApplyAircraftUpdateZip = ActionsEnabled && hasRequiredPackages && !isCustomDistribution && allRequiredPackagesCached && !dryRunHasBlockingEntries;
+        CanRestoreAircraftUpdate = ActionsEnabled && SelectedViewVariant is not null;
 
         if (!string.IsNullOrWhiteSpace(statusOverride))
         {
@@ -1030,11 +1266,17 @@ public partial class MainWindowViewModel : ViewModelBase
                 .Where(entry => !entry.IsCached)
                 .Select(entry => entry.Package.FileName)
                 .ToArray();
-            UpstreamActionStatus = $"Ready to import: {string.Join(", ", missing)}.";
+            UpstreamActionStatus = $"Ready to download or import: {string.Join(", ", missing)}.";
             return;
         }
 
-        UpstreamActionStatus = "All required ZIPs are cached. Run dry-run to inspect planned aircraft file changes.";
+        if (dryRunHasBlockingEntries)
+        {
+            UpstreamActionStatus = "Dry-run found blocked ZIP entries. Apply is disabled until the package cache or plan is corrected.";
+            return;
+        }
+
+        UpstreamActionStatus = "All required ZIPs are cached. Run dry-run to inspect changes or apply cached ZIPs with backup and rollback.";
     }
 
     private string BuildImportSuccessStatus(string importedFileName)
@@ -1054,6 +1296,14 @@ public partial class MainWindowViewModel : ViewModelBase
         var required = _lastUpstreamUpdateCheck?.RequiredPackages.Select(package => package.FileName).ToArray() ?? [];
         return required.Length == 0 ? "no package" : string.Join(", ", required);
     }
+
+    private static string FormatAircraftUpdateMode(AircraftUpdateMode mode) =>
+        mode switch
+        {
+            AircraftUpdateMode.Full => "Full",
+            AircraftUpdateMode.Incremental => "Incremental",
+            _ => "-"
+        };
 
     [RelayCommand]
     private void SaveBackupSettings()

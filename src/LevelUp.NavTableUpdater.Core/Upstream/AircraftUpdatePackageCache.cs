@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.IO.Compression;
 using LevelUp.NavTableUpdater.Core.Platform;
 
 namespace LevelUp.NavTableUpdater.Core.Upstream;
@@ -129,6 +130,65 @@ public sealed class AircraftUpdatePackageCache
             ComputeSha256(destinationPath));
     }
 
+    public async Task<AircraftUpdatePackageCacheEntry> DownloadAsync(
+        AircraftUpdatePackage package,
+        HttpClient httpClient,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(package);
+        ArgumentNullException.ThrowIfNull(httpClient);
+
+        var candidates = BuildDownloadCandidates(package).ToArray();
+        if (candidates.Length == 0)
+        {
+            throw new InvalidOperationException($"Package '{package.FileName}' has no download URL.");
+        }
+
+        EnsureRoot();
+        var destinationPath = GetPackagePath(package);
+        Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
+        var failures = new List<string>();
+
+        foreach (var candidate in candidates)
+        {
+            var tempPath = destinationPath + $".{Guid.NewGuid():N}.download";
+            try
+            {
+                using var response = await httpClient.GetAsync(candidate, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+                    .ConfigureAwait(false);
+                response.EnsureSuccessStatusCode();
+                await using (var input = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false))
+                await using (var output = File.Create(tempPath))
+                {
+                    await input.CopyToAsync(output, cancellationToken).ConfigureAwait(false);
+                }
+
+                ValidateReadableZip(tempPath);
+                File.Move(tempPath, destinationPath, overwrite: true);
+                var info = new FileInfo(destinationPath);
+                return new AircraftUpdatePackageCacheEntry(
+                    package,
+                    destinationPath,
+                    AircraftUpdatePackageCacheState.Imported,
+                    info.Length,
+                    ComputeSha256(destinationPath));
+            }
+            catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidDataException)
+            {
+                failures.Add($"{candidate}: {ex.Message}");
+            }
+            finally
+            {
+                if (File.Exists(tempPath))
+                {
+                    File.Delete(tempPath);
+                }
+            }
+        }
+
+        throw new InvalidOperationException($"Package '{package.FileName}' could not be downloaded as a readable ZIP. {string.Join(" | ", failures)}");
+    }
+
     public string GetPackagePath(AircraftUpdatePackage package)
     {
         ArgumentNullException.ThrowIfNull(package);
@@ -156,6 +216,28 @@ public sealed class AircraftUpdatePackageCache
         using var stream = File.OpenRead(path);
         var hash = SHA256.HashData(stream);
         return Convert.ToHexString(hash).ToLowerInvariant();
+    }
+
+    private static IEnumerable<string> BuildDownloadCandidates(AircraftUpdatePackage package)
+    {
+        if (string.IsNullOrWhiteSpace(package.SourceUrl))
+        {
+            yield break;
+        }
+
+        var sourceUrl = package.SourceUrl.Trim();
+        if (sourceUrl.EndsWith(".torrent", StringComparison.OrdinalIgnoreCase))
+        {
+            yield return sourceUrl[..^".torrent".Length];
+        }
+
+        yield return sourceUrl;
+    }
+
+    private static void ValidateReadableZip(string path)
+    {
+        using var archive = ZipFile.OpenRead(path);
+        _ = archive.Entries.Count;
     }
 
     private bool IsSafeToClear()

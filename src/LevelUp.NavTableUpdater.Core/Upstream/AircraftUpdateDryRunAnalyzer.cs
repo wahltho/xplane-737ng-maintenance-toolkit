@@ -42,7 +42,8 @@ public sealed class AircraftUpdateDryRunAnalyzer
             AnalyzePackage(targetRoot, cachedPackage, entries, findings);
         }
 
-        var blockedCount = entries.Count(entry => entry.Action == AircraftUpdateDryRunEntryAction.BlockedUnsafePath);
+        var blockedCount = entries.Count(entry => entry.Action is AircraftUpdateDryRunEntryAction.BlockedUnsafePath
+            or AircraftUpdateDryRunEntryAction.BlockedInvalidPackage);
         var summary = blockedCount > 0
             ? $"Aircraft update dry-run found {blockedCount} unsafe path(s); install would be blocked."
             : $"Aircraft update dry-run: {entries.Count(entry => entry.Action == AircraftUpdateDryRunEntryAction.Add)} add, {entries.Count(entry => entry.Action == AircraftUpdateDryRunEntryAction.Replace)} replace, {entries.Count(entry => entry.Action is AircraftUpdateDryRunEntryAction.PreserveProtectedLocalFile or AircraftUpdateDryRunEntryAction.PreserveToolkitMetadata)} protected.";
@@ -74,6 +75,12 @@ public sealed class AircraftUpdateDryRunAnalyzer
         catch (InvalidDataException ex)
         {
             findings.Add($"{cachedPackage.Package.FileName} is not a readable ZIP archive: {ex.Message}");
+            entries.Add(new AircraftUpdateDryRunEntry(
+                cachedPackage.Package.FileName,
+                cachedPackage.Package.FileName,
+                AircraftUpdateDryRunEntryAction.BlockedInvalidPackage,
+                cachedPackage.SizeBytes ?? 0,
+                $"Package is not a readable ZIP archive: {ex.Message}"));
         }
     }
 
@@ -96,8 +103,9 @@ public sealed class AircraftUpdateDryRunAnalyzer
         }
 
         var targetPath = Path.GetFullPath(Path.Combine(targetRoot, normalizedPath));
-        if (!targetPath.StartsWith(targetRoot + Path.DirectorySeparatorChar, StringComparison.Ordinal)
-            && !string.Equals(targetPath, targetRoot, StringComparison.Ordinal))
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        if (!targetPath.StartsWith(targetRoot + Path.DirectorySeparatorChar, comparison)
+            && !string.Equals(targetPath, targetRoot, comparison))
         {
             entries.Add(new AircraftUpdateDryRunEntry(
                 packageFileName,
@@ -142,6 +150,7 @@ public sealed class AircraftUpdateDryRunAnalyzer
             AircraftUpdateDryRunEntryAction.PreserveProtectedLocalFile => $"Protected local preference/config file would not be overwritten: {targetPath}.",
             AircraftUpdateDryRunEntryAction.PreserveToolkitMetadata => $"Toolkit metadata is owned locally and would not be overwritten: {targetPath}.",
             AircraftUpdateDryRunEntryAction.BlockedUnsafePath => "Unsafe ZIP path.",
+            AircraftUpdateDryRunEntryAction.BlockedInvalidPackage => "Invalid ZIP package.",
             _ => "Not classified."
         };
 

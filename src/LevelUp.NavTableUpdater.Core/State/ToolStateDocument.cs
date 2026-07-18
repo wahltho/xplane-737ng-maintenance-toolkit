@@ -41,6 +41,16 @@ public sealed class AircraftToolState
 
     public DateTimeOffset? LastContentOperationUtc { get; set; }
 
+    public string? InstalledAircraftUpdateFamily { get; set; }
+
+    public string? InstalledAircraftUpdateVersion { get; set; }
+
+    public string? LastAircraftUpdateMode { get; set; }
+
+    public DateTimeOffset? LastAircraftUpdateUtc { get; set; }
+
+    public List<string> LastAircraftUpdatePackages { get; set; } = [];
+
     public string? LastOperation { get; set; }
 
     public List<BackupRecord> Backups { get; set; } = [];
@@ -63,4 +73,16 @@ public sealed class BackupRecord
     public string? PackageId { get; set; }
 
     public string? PackageVersion { get; set; }
+
+    public string? PackageFileName { get; set; }
+
+    public bool SourceExisted { get; set; } = true;
+
+    public long? SourceSizeBytes { get; set; }
+
+    public string? SourceSha256 { get; set; }
+
+    public long? WrittenSizeBytes { get; set; }
+
+    public string? WrittenSha256 { get; set; }
 }

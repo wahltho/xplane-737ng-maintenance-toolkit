@@ -6,7 +6,8 @@ public enum AircraftUpdateDryRunEntryAction
     Replace,
     PreserveProtectedLocalFile,
     PreserveToolkitMetadata,
-    BlockedUnsafePath
+    BlockedUnsafePath,
+    BlockedInvalidPackage
 }
 
 public sealed record AircraftUpdateDryRunEntry(
@@ -29,5 +30,6 @@ public sealed record AircraftUpdateDryRunResult(
     public int ProtectedCount => Entries.Count(entry => entry.Action is AircraftUpdateDryRunEntryAction.PreserveProtectedLocalFile
         or AircraftUpdateDryRunEntryAction.PreserveToolkitMetadata);
 
-    public int BlockedCount => Entries.Count(entry => entry.Action == AircraftUpdateDryRunEntryAction.BlockedUnsafePath);
+    public int BlockedCount => Entries.Count(entry => entry.Action is AircraftUpdateDryRunEntryAction.BlockedUnsafePath
+        or AircraftUpdateDryRunEntryAction.BlockedInvalidPackage);
 }

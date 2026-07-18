@@ -10,6 +10,13 @@ public enum AircraftUpdatePlanAction
     MissingRequiredPackage
 }
 
+public enum AircraftUpdateMode
+{
+    None = 0,
+    Incremental,
+    Full
+}
+
 public sealed record AircraftUpdatePlan(
     string Family,
     AircraftUpdatePlanAction Action,
@@ -22,4 +29,10 @@ public sealed record AircraftUpdatePlan(
     public bool HasUpdate =>
         Action is AircraftUpdatePlanAction.ApplyCumulativePatch
             or AircraftUpdatePlanAction.InstallBaselineAndCumulativePatch;
+
+    public AircraftUpdateMode UpdateMode => RequiredPackages.Any(package => package.Kind == AircraftUpdatePackageKind.FullBaseline)
+        ? AircraftUpdateMode.Full
+        : RequiredPackages.Any(package => package.Kind == AircraftUpdatePackageKind.CumulativePatch)
+            ? AircraftUpdateMode.Incremental
+            : AircraftUpdateMode.None;
 }

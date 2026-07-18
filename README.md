@@ -35,11 +35,19 @@ Current capabilities:
   payload files from the package GitHub Release assets. The bundled manifest
   and local/offline package directories are fallback sources.
 - It can review Zibo upstream baseline/cumulative package plans, import exact
-  matching aircraft update ZIPs into a local cache, and dry-run cached ZIP
-  contents without writing aircraft files.
+  matching aircraft update ZIPs into a local cache, download direct ZIP sources
+  when available, dry-run cached ZIP contents, then apply cached ZIPs with
+  backups, rollback and restore support.
+- It distinguishes full aircraft updates, which include a full baseline ZIP,
+  from incremental updates, which apply only the latest cumulative patch ZIP for
+  the same baseline.
 
 Dry-run remains available for reviewing planned changes. Real write actions are
-limited to manifest-owned VNAV content and view-maintenance files.
+limited to manifest-owned VNAV content, view-maintenance files and explicitly
+applied cached aircraft update ZIPs. Direct ZIP download is attempted from the
+feed source URL and from a `.zip` candidate when the feed exposes `.zip.torrent`
+links; manual import remains the fallback for sources that do not expose a
+direct ZIP stream.
 
 ## Build
 

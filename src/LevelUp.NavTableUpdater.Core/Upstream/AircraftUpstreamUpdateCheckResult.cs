@@ -13,6 +13,12 @@ public sealed record AircraftUpstreamUpdateCheckResult(
     IReadOnlyList<AircraftUpdatePackage> RequiredPackages,
     IReadOnlyList<string> Findings)
 {
+    public AircraftUpdateMode UpdateMode => RequiredPackages.Any(package => package.Kind == AircraftUpdatePackageKind.FullBaseline)
+        ? AircraftUpdateMode.Full
+        : RequiredPackages.Any(package => package.Kind == AircraftUpdatePackageKind.CumulativePatch)
+            ? AircraftUpdateMode.Incremental
+            : AircraftUpdateMode.None;
+
     public static AircraftUpstreamUpdateCheckResult NotApplicable(string summary, string sourceUrl = "") =>
         new(
             "Not applicable",

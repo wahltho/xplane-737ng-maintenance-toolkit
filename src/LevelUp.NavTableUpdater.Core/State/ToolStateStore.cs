@@ -66,6 +66,38 @@ public sealed class ToolStateStore
         return Path.Combine(directory, Path.GetFileName(sourcePath));
     }
 
+    public string CreateBackupPath(
+        AircraftVariantViewAnalysis variant,
+        string sourcePath,
+        DateTimeOffset createdUtc,
+        string relativePath)
+    {
+        if (string.IsNullOrWhiteSpace(relativePath))
+        {
+            return CreateBackupPath(variant, sourcePath, createdUtc);
+        }
+
+        var stamp = createdUtc.UtcDateTime.ToString("yyyyMMddTHHmmssfffZ");
+        var directory = Path.Combine(BackupRootPath, SanitizePathPart(variant.AircraftId), stamp);
+        var safeRelativePath = relativePath
+            .Replace('\\', Path.DirectorySeparatorChar)
+            .Replace('/', Path.DirectorySeparatorChar);
+        var safeParts = safeRelativePath
+            .Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries)
+            .Select(SanitizePathPart)
+            .Where(part => part.Length > 0)
+            .ToArray();
+        if (safeParts.Length == 0)
+        {
+            return Path.Combine(directory, Path.GetFileName(sourcePath));
+        }
+
+        var pathParts = new string[safeParts.Length + 1];
+        pathParts[0] = directory;
+        Array.Copy(safeParts, 0, pathParts, 1, safeParts.Length);
+        return Path.Combine(pathParts);
+    }
+
     public AircraftToolState? TryGetTarget(AircraftVariantViewAnalysis variant)
     {
         var document = Load();
