@@ -8,6 +8,7 @@ using LevelUp.NavTableUpdater.Core.Analysis;
 using LevelUp.NavTableUpdater.Core.Content;
 using LevelUp.NavTableUpdater.Core.Detection;
 using LevelUp.NavTableUpdater.Core.Manifest;
+using LevelUp.NavTableUpdater.Core.Platform;
 using LevelUp.NavTableUpdater.Core.State;
 using LevelUp.NavTableUpdater.Core.Upstream;
 
@@ -18,14 +19,16 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly AircraftDetector _detector = new();
     private readonly AircraftInstallAnalyzer _analyzer = new();
     private readonly AircraftViewAnalyzer _viewAnalyzer = new();
-    private readonly ToolStateStore _stateStore = ToolStateStore.CreateDefault();
+    private readonly ToolkitSettingsStore _settingsStore = ToolkitSettingsStore.CreateDefault();
+    private readonly ToolkitSettingsDocument _settings;
+    private readonly ToolStateStore _stateStore;
     private readonly ApplyDefaultViewFromQv0Operation _applyDefaultViewOperation;
     private readonly ApplyQuickViewCgAdaptOperation _applyQuickViewCgAdaptOperation;
     private readonly ConfigBackupOperation _configBackupOperation;
     private readonly RestoreLatestBackupOperation _restoreLatestBackupOperation;
     private readonly VnavContentOperation _vnavContentOperation;
     private readonly AircraftUpstreamUpdateChecker _ziboUpdateChecker;
-    private readonly AircraftUpdatePackageCache _aircraftUpdatePackageCache = new(AircraftUpdatePackageCache.DefaultRootPath);
+    private AircraftUpdatePackageCache _aircraftUpdatePackageCache;
     private readonly AircraftUpdateDryRunAnalyzer _aircraftUpdateDryRunAnalyzer = new();
     private readonly IPackageManifestSource _packageManifestSource = new GitHubReleasePackageManifestSource();
     private readonly IReadOnlyList<PackageManifest> _manifests;
@@ -158,6 +161,42 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private bool canDryRunAircraftUpdateZip;
 
+    [ObservableProperty]
+    private string backupRootPath = "";
+
+    [ObservableProperty]
+    private string defaultBackupRootPath = ToolkitPaths.DefaultBackupRootPath;
+
+    [ObservableProperty]
+    private string aircraftUpdateCacheRootPath = "";
+
+    [ObservableProperty]
+    private string defaultAircraftUpdateCacheRootPath = ToolkitPaths.DefaultAircraftUpdateCacheRootPath;
+
+    [ObservableProperty]
+    private string offlinePackageRootPath = "";
+
+    [ObservableProperty]
+    private string defaultOfflinePackageRootPath = ToolkitPaths.DefaultOfflinePackageRootPath;
+
+    [ObservableProperty]
+    private string diagnosticsExportRootPath = "";
+
+    [ObservableProperty]
+    private string defaultDiagnosticsExportRootPath = ToolkitPaths.DefaultDiagnosticsExportRootPath;
+
+    [ObservableProperty]
+    private string toolkitDataRoot = "";
+
+    [ObservableProperty]
+    private string toolkitStatePath = "";
+
+    [ObservableProperty]
+    private string toolkitSettingsPath = "";
+
+    [ObservableProperty]
+    private string settingsStatus = "Backup settings are ready.";
+
     public ObservableCollection<AircraftCandidate> DetectedTargets { get; } = [];
 
     public ObservableCollection<ComponentStatus> Components { get; } = [];
@@ -180,6 +219,21 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public MainWindowViewModel()
     {
+        _settings = _settingsStore.Load();
+        _stateStore = ToolStateStore.CreateDefault(_settings.BackupRootPath);
+        _aircraftUpdatePackageCache = new AircraftUpdatePackageCache(_settings.AircraftUpdateCacheRootPath);
+        BackupRootPath = _stateStore.BackupRootPath;
+        AircraftUpdateCacheRootPath = _aircraftUpdatePackageCache.RootPath;
+        OfflinePackageRootPath = _settings.OfflinePackageRootPath;
+        DiagnosticsExportRootPath = _settings.DiagnosticsExportRootPath;
+        DefaultBackupRootPath = ToolkitPaths.DefaultBackupRootPath;
+        DefaultAircraftUpdateCacheRootPath = ToolkitPaths.DefaultAircraftUpdateCacheRootPath;
+        DefaultOfflinePackageRootPath = ToolkitPaths.DefaultOfflinePackageRootPath;
+        DefaultDiagnosticsExportRootPath = ToolkitPaths.DefaultDiagnosticsExportRootPath;
+        UpstreamCacheRoot = _aircraftUpdatePackageCache.RootPath;
+        ToolkitDataRoot = _stateStore.RootPath;
+        ToolkitStatePath = _stateStore.StatePath;
+        ToolkitSettingsPath = _settingsStore.SettingsPath;
         _manifests = LoadManifests();
         _manifest = _manifests[0];
         _applyDefaultViewOperation = new ApplyDefaultViewFromQv0Operation(_stateStore);
@@ -194,12 +248,58 @@ public partial class MainWindowViewModel : ViewModelBase
         ApplyViewAnalysis(AircraftViewAnalysisResult.Empty());
         AppendLog("Toolkit started. VNAV package and view-maintenance actions can write after validation and backup.");
         AppendLog($"Loaded {_manifests.Count} bundled manifest(s). Active: {_manifest.PackageId} {_manifest.PackageVersion}.");
+        AppendLog($"Settings loaded. Backup folder: {_stateStore.BackupRootPath}");
+        AppendLog($"Settings loaded. Aircraft update cache: {_aircraftUpdatePackageCache.RootPath}");
     }
 
     public void SetAircraftPathFromBrowse(string path)
     {
         SelectedAircraftPath = path;
         Scan();
+    }
+
+    public void SetBackupRootPathFromBrowse(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return;
+        }
+
+        BackupRootPath = path;
+        SaveBackupSettings();
+    }
+
+    public void SetAircraftUpdateCacheRootPathFromBrowse(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return;
+        }
+
+        AircraftUpdateCacheRootPath = path;
+        SaveAircraftUpdateCacheSettings();
+    }
+
+    public void SetOfflinePackageRootPathFromBrowse(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return;
+        }
+
+        OfflinePackageRootPath = path;
+        SaveOfflinePackageSettings();
+    }
+
+    public void SetDiagnosticsExportRootPathFromBrowse(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return;
+        }
+
+        DiagnosticsExportRootPath = path;
+        SaveDiagnosticsExportSettings();
     }
 
     public void ImportAircraftUpdateZip(string path)
@@ -955,6 +1055,188 @@ public partial class MainWindowViewModel : ViewModelBase
         return required.Length == 0 ? "no package" : string.Join(", ", required);
     }
 
+    [RelayCommand]
+    private void SaveBackupSettings()
+    {
+        SaveDirectorySetting(
+            "Backup folder",
+            BackupRootPath,
+            fullPath => _settings.BackupRootPath = fullPath,
+            fullPath =>
+            {
+                _stateStore.SetBackupRootPath(fullPath);
+                BackupRootPath = fullPath;
+            });
+    }
+
+    [RelayCommand]
+    private void UseDefaultBackupSettings()
+    {
+        BackupRootPath = ToolkitPaths.DefaultBackupRootPath;
+        SaveBackupSettings();
+    }
+
+    [RelayCommand]
+    private void SaveAircraftUpdateCacheSettings()
+    {
+        SaveDirectorySetting(
+            "Aircraft update cache folder",
+            AircraftUpdateCacheRootPath,
+            fullPath => _settings.AircraftUpdateCacheRootPath = fullPath,
+            fullPath =>
+            {
+                _aircraftUpdatePackageCache = new AircraftUpdatePackageCache(fullPath);
+                _aircraftUpdatePackageCache.EnsureRoot();
+                AircraftUpdateCacheRootPath = _aircraftUpdatePackageCache.RootPath;
+                UpstreamCacheRoot = _aircraftUpdatePackageCache.RootPath;
+                RefreshUpstreamCacheEntries();
+                UpstreamDryRunEntries.Clear();
+                UpstreamDryRunSummary = "Cache folder changed. Run dry-run after required ZIPs are cached.";
+            });
+    }
+
+    [RelayCommand]
+    private void UseDefaultAircraftUpdateCacheSettings()
+    {
+        AircraftUpdateCacheRootPath = ToolkitPaths.DefaultAircraftUpdateCacheRootPath;
+        SaveAircraftUpdateCacheSettings();
+    }
+
+    [RelayCommand]
+    private void ClearAircraftUpdateCache()
+    {
+        if (!ActionsEnabled || IsOperationRunning)
+        {
+            SettingsStatus = "Cache can be cleared after the current operation finishes.";
+            return;
+        }
+
+        try
+        {
+            var removed = _aircraftUpdatePackageCache.Clear();
+            RefreshUpstreamCacheEntries();
+            UpstreamDryRunEntries.Clear();
+            UpstreamDryRunSummary = "Aircraft update cache was cleared. Import required ZIPs again before dry-run.";
+            RefreshUpstreamActionAvailability($"Aircraft update cache cleared. Removed {removed} top-level item(s).");
+            SettingsStatus = $"Aircraft update cache cleared. Removed {removed} top-level item(s).";
+            AppendLog($"Settings: aircraft update cache cleared at {_aircraftUpdatePackageCache.RootPath}.");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            SettingsStatus = $"Aircraft update cache was not cleared: {ex.Message}";
+            AppendLog($"Settings: aircraft update cache clear failed: {ex.Message}");
+        }
+    }
+
+    [RelayCommand]
+    private void SaveOfflinePackageSettings()
+    {
+        SaveDirectorySetting(
+            "Offline VNAV package folder",
+            OfflinePackageRootPath,
+            fullPath => _settings.OfflinePackageRootPath = fullPath,
+            fullPath =>
+            {
+                OfflinePackageRootPath = fullPath;
+            });
+    }
+
+    [RelayCommand]
+    private void UseDefaultOfflinePackageSettings()
+    {
+        OfflinePackageRootPath = ToolkitPaths.DefaultOfflinePackageRootPath;
+        SaveOfflinePackageSettings();
+    }
+
+    [RelayCommand]
+    private void SaveDiagnosticsExportSettings()
+    {
+        SaveDirectorySetting(
+            "Diagnostics export folder",
+            DiagnosticsExportRootPath,
+            fullPath => _settings.DiagnosticsExportRootPath = fullPath,
+            fullPath =>
+            {
+                DiagnosticsExportRootPath = fullPath;
+            });
+    }
+
+    [RelayCommand]
+    private void UseDefaultDiagnosticsExportSettings()
+    {
+        DiagnosticsExportRootPath = ToolkitPaths.DefaultDiagnosticsExportRootPath;
+        SaveDiagnosticsExportSettings();
+    }
+
+    private void SaveDirectorySetting(
+        string label,
+        string requestedPath,
+        Action<string> updateSettings,
+        Action<string> applyRuntime)
+    {
+        if (!ActionsEnabled || IsOperationRunning)
+        {
+            SettingsStatus = "Settings can be changed after the current operation finishes.";
+            return;
+        }
+
+        try
+        {
+            var fullPath = NormalizeUserPath(requestedPath);
+            Directory.CreateDirectory(fullPath);
+            VerifyWritableDirectory(fullPath);
+
+            updateSettings(fullPath);
+            _settingsStore.Save(_settings);
+            applyRuntime(fullPath);
+            SettingsStatus = $"{label} saved: {fullPath}";
+            AppendLog($"Settings: {label} set to {fullPath}");
+        }
+        catch (Exception ex) when (ex is ArgumentException or IOException or NotSupportedException or UnauthorizedAccessException)
+        {
+            SettingsStatus = $"{label} was not changed: {ex.Message}";
+            AppendLog($"Settings: {label} rejected: {ex.Message}");
+        }
+    }
+
+    private static string NormalizeUserPath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            throw new ArgumentException("Backup folder is empty.");
+        }
+
+        var expanded = Environment.ExpandEnvironmentVariables(path.Trim());
+        if (expanded == "~")
+        {
+            expanded = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        }
+        else if (expanded.StartsWith("~/", StringComparison.Ordinal) || expanded.StartsWith("~\\", StringComparison.Ordinal))
+        {
+            expanded = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                expanded[2..]);
+        }
+
+        return Path.GetFullPath(expanded);
+    }
+
+    private static void VerifyWritableDirectory(string directory)
+    {
+        var probePath = Path.Combine(directory, $".write-test-{Guid.NewGuid():N}.tmp");
+        try
+        {
+            File.WriteAllText(probePath, "ok");
+        }
+        finally
+        {
+            if (File.Exists(probePath))
+            {
+                File.Delete(probePath);
+            }
+        }
+    }
+
     private void AppendLog(string message)
     {
         var timestamp = DateTimeOffset.Now.ToString("HH:mm:ss");
@@ -1055,7 +1337,7 @@ public partial class MainWindowViewModel : ViewModelBase
         return manifests;
     }
 
-    private static IPackagePayloadSource CreatePayloadSource() =>
+    private IPackagePayloadSource CreatePayloadSource() =>
         new CompositePackagePayloadSource(
             new GitHubReleasePackagePayloadSource(),
             new LocalDirectoryPackagePayloadSource(BuildLocalPackageDirectories()));
@@ -1075,7 +1357,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
-    private static IEnumerable<string> BuildLocalPackageDirectories()
+    private IEnumerable<string> BuildLocalPackageDirectories()
     {
         var explicitDirectory = Environment.GetEnvironmentVariable("XPLANE_737NG_PACKAGE_DIR");
         if (!string.IsNullOrWhiteSpace(explicitDirectory))
@@ -1083,18 +1365,16 @@ public partial class MainWindowViewModel : ViewModelBase
             yield return explicitDirectory;
         }
 
+        if (!string.IsNullOrWhiteSpace(_settings.OfflinePackageRootPath))
+        {
+            yield return _settings.OfflinePackageRootPath;
+        }
+
         var contentDir = Path.Combine(AppContext.BaseDirectory, "Content");
         yield return contentDir;
 
         var sourceContentDir = Path.Combine(Environment.CurrentDirectory, "src", "LevelUp.NavTableUpdater.App", "Content");
         yield return sourceContentDir;
-
-        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        if (!string.IsNullOrWhiteSpace(home))
-        {
-            yield return Path.Combine(home, "Documents", "Projects", "X-Plane-ZIBO-Descent-Tables");
-            yield return Path.Combine(home, "Documents", "Projects", "X-Plane-LevelUp-737NG-Descent-Tables");
-        }
     }
 
     private static bool TryParseContentAction(string action, out VnavContentAction contentAction)

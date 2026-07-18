@@ -1,9 +1,12 @@
 using System.Security.Cryptography;
+using LevelUp.NavTableUpdater.Core.Platform;
 
 namespace LevelUp.NavTableUpdater.Core.Upstream;
 
 public sealed class AircraftUpdatePackageCache
 {
+    private const string MarkerFileName = ".xplane-737ng-aircraft-update-cache";
+
     public AircraftUpdatePackageCache(string rootPath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(rootPath);
@@ -12,11 +15,50 @@ public sealed class AircraftUpdatePackageCache
 
     public string RootPath { get; }
 
-    public static string DefaultRootPath =>
-        Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "XPlane737NGMaintenanceToolkit",
-            "aircraft-updates");
+    public static string DefaultRootPath => ToolkitPaths.DefaultAircraftUpdateCacheRootPath;
+
+    public void EnsureRoot()
+    {
+        Directory.CreateDirectory(RootPath);
+        File.WriteAllText(Path.Combine(RootPath, MarkerFileName), "X-Plane 737NG Maintenance Toolkit aircraft update cache\n");
+    }
+
+    public int Clear()
+    {
+        if (!Directory.Exists(RootPath))
+        {
+            EnsureRoot();
+            return 0;
+        }
+
+        if (!IsSafeToClear())
+        {
+            throw new InvalidOperationException("Cache folder is not marked as a toolkit aircraft update cache. Save the cache folder setting first before clearing it.");
+        }
+
+        var removed = 0;
+        foreach (var entry in Directory.EnumerateFileSystemEntries(RootPath))
+        {
+            if (string.Equals(Path.GetFileName(entry), MarkerFileName, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (Directory.Exists(entry))
+            {
+                Directory.Delete(entry, recursive: true);
+            }
+            else
+            {
+                File.Delete(entry);
+            }
+
+            removed++;
+        }
+
+        EnsureRoot();
+        return removed;
+    }
 
     public AircraftUpdatePackageCacheEntry Inspect(AircraftUpdatePackage package)
     {
@@ -60,6 +102,7 @@ public sealed class AircraftUpdatePackageCache
             throw new InvalidOperationException($"Selected ZIP '{sourceFileName}' does not match expected package '{expectedPackage.FileName}'.");
         }
 
+        EnsureRoot();
         var destinationPath = GetPackagePath(expectedPackage);
         Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
 
@@ -113,5 +156,15 @@ public sealed class AircraftUpdatePackageCache
         using var stream = File.OpenRead(path);
         var hash = SHA256.HashData(stream);
         return Convert.ToHexString(hash).ToLowerInvariant();
+    }
+
+    private bool IsSafeToClear()
+    {
+        if (File.Exists(Path.Combine(RootPath, MarkerFileName)))
+        {
+            return true;
+        }
+
+        return string.Equals(RootPath, Path.GetFullPath(DefaultRootPath), StringComparison.OrdinalIgnoreCase);
     }
 }

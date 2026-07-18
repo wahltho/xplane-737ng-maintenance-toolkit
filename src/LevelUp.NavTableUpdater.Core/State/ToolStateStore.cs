@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using LevelUp.NavTableUpdater.Core.Aircraft;
+using LevelUp.NavTableUpdater.Core.Platform;
 
 namespace LevelUp.NavTableUpdater.Core.State;
 
@@ -12,25 +13,31 @@ public sealed class ToolStateStore
         WriteIndented = true
     };
 
-    public ToolStateStore(string rootPath)
+    public ToolStateStore(string rootPath, string? backupRootPath = null)
     {
-        RootPath = rootPath;
-        StatePath = Path.Combine(rootPath, "state.json");
+        RootPath = Path.GetFullPath(rootPath);
+        StatePath = Path.Combine(RootPath, "state.json");
+        BackupRootPath = NormalizeBackupRootPath(backupRootPath);
     }
 
     public string RootPath { get; }
 
     public string StatePath { get; }
 
-    public static ToolStateStore CreateDefault()
-    {
-        var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        if (string.IsNullOrWhiteSpace(appData))
-        {
-            appData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".xplane-737ng-maintenance-toolkit");
-        }
+    public string BackupRootPath { get; private set; }
 
-        return new ToolStateStore(Path.Combine(appData, "XPlane737NGMaintenanceToolkit"));
+    public static string DefaultRootPath => ToolkitPaths.RoamingAppDataRoot;
+
+    public static string DefaultBackupRootPath => ToolkitPaths.DefaultBackupRootPath;
+
+    public static ToolStateStore CreateDefault(string? backupRootPath = null)
+    {
+        return new ToolStateStore(DefaultRootPath, backupRootPath);
+    }
+
+    public void SetBackupRootPath(string backupRootPath)
+    {
+        BackupRootPath = NormalizeBackupRootPath(backupRootPath);
     }
 
     public ToolStateDocument Load()
@@ -55,7 +62,7 @@ public sealed class ToolStateStore
     public string CreateBackupPath(AircraftVariantViewAnalysis variant, string sourcePath, DateTimeOffset createdUtc)
     {
         var stamp = createdUtc.UtcDateTime.ToString("yyyyMMddTHHmmssfffZ");
-        var directory = Path.Combine(RootPath, "backups", SanitizePathPart(variant.AircraftId), stamp);
+        var directory = Path.Combine(BackupRootPath, SanitizePathPart(variant.AircraftId), stamp);
         return Path.Combine(directory, Path.GetFileName(sourcePath));
     }
 
@@ -102,4 +109,9 @@ public sealed class ToolStateStore
 
         return builder.ToString();
     }
+
+    private static string NormalizeBackupRootPath(string? backupRootPath) =>
+        Path.GetFullPath(string.IsNullOrWhiteSpace(backupRootPath)
+            ? DefaultBackupRootPath
+            : backupRootPath);
 }
