@@ -160,11 +160,15 @@
                         </StackPanel>
                     </Border>
 
+                    <TabControl>
+                        <TabItem Header="Views &amp; Config">
+                            <ScrollViewer>
+                                <StackPanel Spacing="16">
                     <Border Classes="card">
                         <StackPanel Spacing="10">
                             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
                                 <StackPanel Spacing="4">
-                                    <TextBlock Text="View Utilities" FontSize="16" FontWeight="SemiBold"/>
+                                    <TextBlock Text="Aircraft Maintenance" FontSize="16" FontWeight="SemiBold"/>
                                     <TextBlock Text="{Binding ViewUtilitySummary}" TextWrapping="Wrap"/>
                                 </StackPanel>
                                 <StackPanel Grid.Column="1" Spacing="4" MinWidth="170">
@@ -184,6 +188,12 @@
                                             IsEnabled="{Binding ActionsEnabled}"/>
                                     <Button Content="Apply QV0 to Default View"
                                             Command="{Binding ApplyQv0ToDefaultViewCommand}"
+                                            IsEnabled="{Binding ActionsEnabled}"/>
+                                    <Button Content="Create Config Backup"
+                                            Command="{Binding CreateConfigBackupCommand}"
+                                            IsEnabled="{Binding ActionsEnabled}"/>
+                                    <Button Content="Restore Config Backup"
+                                            Command="{Binding RestoreConfigBackupCommand}"
                                             IsEnabled="{Binding ActionsEnabled}"/>
                                     <Button Content="Restore Latest Backup"
                                             Command="{Binding RestoreLatestBackupCommand}"
@@ -238,6 +248,13 @@
                         </StackPanel>
                     </Border>
 
+                                </StackPanel>
+                            </ScrollViewer>
+                        </TabItem>
+
+                        <TabItem Header="Aircraft Updates">
+                            <ScrollViewer>
+                                <StackPanel Spacing="16">
                     <Border Classes="card">
                         <StackPanel Spacing="10">
                             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
@@ -251,12 +268,20 @@
                                             IsEnabled="{Binding ActionsEnabled}"/>
                                     <Button Content="Import ZIP"
                                             Click="ImportAircraftUpdateZip_Click"
-                                            IsEnabled="{Binding ActionsEnabled}"/>
+                                            IsEnabled="{Binding CanImportAircraftUpdateZip}"/>
                                     <Button Content="Dry-run ZIPs"
                                             Command="{Binding DryRunAircraftUpdateCommand}"
-                                            IsEnabled="{Binding ActionsEnabled}"/>
+                                            IsEnabled="{Binding CanDryRunAircraftUpdateZip}"/>
                                 </WrapPanel>
                             </Grid>
+
+                            <Border Background="#F8FAFC"
+                                    BorderBrush="#E2E8F0"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Padding="10,8">
+                                <TextBlock Text="{Binding UpstreamActionStatus}" Foreground="#475467" TextWrapping="Wrap"/>
+                            </Border>
 
                             <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="12">
                                 <StackPanel Spacing="2">
@@ -339,6 +364,20 @@
                         </StackPanel>
                     </Border>
 
+                                </StackPanel>
+                            </ScrollViewer>
+                        </TabItem>
+
+                        <TabItem Header="Activity">
+                            <ScrollViewer>
+                                <StackPanel Spacing="16">
+                    <Border Classes="card">
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="Activity" FontSize="16" FontWeight="SemiBold"/>
+                            <TextBlock Text="Write, restore and package transactions report progress here. Read-only scans and dry-runs continue to write to the log." TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+
                     <Border Classes="operation-card" IsVisible="{Binding OperationPanelVisible}">
                         <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="16">
                             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
@@ -405,6 +444,13 @@
                         </Grid>
                     </Border>
 
+                                </StackPanel>
+                            </ScrollViewer>
+                        </TabItem>
+
+                        <TabItem Header="VNAV Tables">
+                            <ScrollViewer>
+                                <StackPanel Spacing="16">
                     <Border Classes="card">
                         <StackPanel Spacing="10">
                             <TextBlock Text="Components" FontSize="16" FontWeight="SemiBold"/>
@@ -448,6 +494,13 @@
                         </Border>
                     </Grid>
 
+                                </StackPanel>
+                            </ScrollViewer>
+                        </TabItem>
+
+                        <TabItem Header="Logs">
+                            <ScrollViewer>
+                                <StackPanel Spacing="16">
                     <Border Classes="card">
                         <Grid RowDefinitions="Auto,*" RowSpacing="8">
                             <Grid ColumnDefinitions="*,Auto">
@@ -463,6 +516,11 @@
                                      MinHeight="160"/>
                         </Grid>
                     </Border>
+
+                                </StackPanel>
+                            </ScrollViewer>
+                        </TabItem>
+                    </TabControl>
                 </StackPanel>
             </ScrollViewer>
         </Grid>

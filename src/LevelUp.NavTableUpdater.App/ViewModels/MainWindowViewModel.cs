@@ -21,6 +21,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly ToolStateStore _stateStore = ToolStateStore.CreateDefault();
     private readonly ApplyDefaultViewFromQv0Operation _applyDefaultViewOperation;
     private readonly ApplyQuickViewCgAdaptOperation _applyQuickViewCgAdaptOperation;
+    private readonly ConfigBackupOperation _configBackupOperation;
     private readonly RestoreLatestBackupOperation _restoreLatestBackupOperation;
     private readonly VnavContentOperation _vnavContentOperation;
     private readonly AircraftUpstreamUpdateChecker _ziboUpdateChecker;
@@ -148,6 +149,15 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private string upstreamDryRunSummary = "No aircraft update dry-run has been calculated.";
 
+    [ObservableProperty]
+    private string upstreamActionStatus = "Refresh upstream packages to enable ZIP import.";
+
+    [ObservableProperty]
+    private bool canImportAircraftUpdateZip;
+
+    [ObservableProperty]
+    private bool canDryRunAircraftUpdateZip;
+
     public ObservableCollection<AircraftCandidate> DetectedTargets { get; } = [];
 
     public ObservableCollection<ComponentStatus> Components { get; } = [];
@@ -174,6 +184,7 @@ public partial class MainWindowViewModel : ViewModelBase
         _manifest = _manifests[0];
         _applyDefaultViewOperation = new ApplyDefaultViewFromQv0Operation(_stateStore);
         _applyQuickViewCgAdaptOperation = new ApplyQuickViewCgAdaptOperation(_stateStore);
+        _configBackupOperation = new ConfigBackupOperation(_stateStore);
         _restoreLatestBackupOperation = new RestoreLatestBackupOperation(_stateStore);
         _vnavContentOperation = new VnavContentOperation(_stateStore, CreatePayloadSource());
         _ziboUpdateChecker = new AircraftUpstreamUpdateChecker(
@@ -195,13 +206,26 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         if (string.IsNullOrWhiteSpace(path))
         {
+            RefreshUpstreamActionAvailability("ZIP selection canceled. No package was imported.");
             return;
         }
 
         if (_lastUpstreamUpdateCheck is null || _lastUpstreamUpdateCheck.RequiredPackages.Count == 0)
         {
+            RefreshUpstreamActionAvailability("Import blocked. Refresh a non-custom upstream package plan first.");
             AppendLog("Aircraft update ZIP import blocked: refresh upstream package plan first.");
             UpstreamFindings.ReplaceWith(["Refresh a non-custom upstream package plan before importing ZIPs."]);
+            return;
+        }
+
+        if (_lastUpstreamUpdateCheck.IsCustomDistribution)
+        {
+            RefreshUpstreamActionAvailability("Import blocked. Custom distributions use upstream package information as review-only.");
+            AppendLog("Aircraft update ZIP import blocked: selected target is a custom distribution.");
+            UpstreamFindings.ReplaceWith([
+                "Custom distribution detected. Official upstream ZIP import is disabled for this target.",
+                "Use a normal upstream Zibo install for package import/dry-run, or define a dedicated custom-port update source."
+            ]);
             return;
         }
 
@@ -210,6 +234,7 @@ public partial class MainWindowViewModel : ViewModelBase
             .FirstOrDefault(package => string.Equals(package.FileName, fileName, StringComparison.OrdinalIgnoreCase));
         if (expectedPackage is null)
         {
+            RefreshUpstreamActionAvailability($"Import blocked. Selected '{fileName}', expected: {BuildRequiredPackageList()}.");
             AppendLog($"Aircraft update ZIP import blocked: {fileName} is not required by the current plan.");
             UpstreamFindings.ReplaceWith([
                 $"Selected ZIP '{fileName}' is not required by the current upstream package plan.",
@@ -224,10 +249,12 @@ public partial class MainWindowViewModel : ViewModelBase
             RefreshUpstreamCacheEntries();
             UpstreamDryRunEntries.Clear();
             UpstreamDryRunSummary = "Package cache changed. Run dry-run to inspect planned aircraft file changes.";
+            RefreshUpstreamActionAvailability(BuildImportSuccessStatus(imported.Package.FileName));
             AppendLog($"Imported aircraft update ZIP into cache: {imported.Package.FileName} ({imported.SizeBytes} bytes, sha256 {imported.Sha256}).");
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
+            RefreshUpstreamActionAvailability($"Import failed. {ex.Message}");
             AppendLog($"Aircraft update ZIP import failed: {ex.Message}");
             UpstreamFindings.ReplaceWith(["Aircraft update ZIP import failed.", ex.Message]);
         }
@@ -352,6 +379,7 @@ public partial class MainWindowViewModel : ViewModelBase
         var selectedVariant = SelectedViewVariant;
         IsUpstreamCheckRunning = true;
         ActionsEnabled = false;
+        _lastUpstreamUpdateCheck = null;
         UpstreamUpdateStatus = "Checking Zibo feed";
         UpstreamUpdateSummary = "Reading upstream index and planning baseline/cumulative package requirements.";
         UpstreamPlanAction = "Checking";
@@ -359,6 +387,7 @@ public partial class MainWindowViewModel : ViewModelBase
         UpstreamPackageCacheEntries.Clear();
         UpstreamDryRunEntries.Clear();
         UpstreamDryRunSummary = "No aircraft update dry-run has been calculated.";
+        RefreshUpstreamActionAvailability("Checking upstream package plan. ZIP import is disabled while the feed is refreshed.");
         UpstreamFindings.ReplaceWith(["Read-only check in progress. No aircraft files will be changed."]);
 
         try
@@ -378,6 +407,7 @@ public partial class MainWindowViewModel : ViewModelBase
             UpstreamPackageCacheEntries.Clear();
             UpstreamDryRunEntries.Clear();
             UpstreamDryRunSummary = "No aircraft update dry-run has been calculated.";
+            RefreshUpstreamActionAvailability("Import unavailable. Upstream package check failed before a plan was available.");
             UpstreamFindings.ReplaceWith([
                 "Read-only check failed before a package plan could be built.",
                 ex.Message
@@ -396,6 +426,7 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         if (_lastUpstreamUpdateCheck is null)
         {
+            RefreshUpstreamActionAvailability("Dry-run blocked. Refresh upstream packages before running an aircraft update dry-run.");
             AppendLog("Aircraft update dry-run blocked: refresh upstream package plan first.");
             UpstreamFindings.ReplaceWith(["Refresh upstream packages before running an aircraft update dry-run."]);
             return;
@@ -403,6 +434,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
         if (_lastUpstreamUpdateCheck.IsCustomDistribution)
         {
+            RefreshUpstreamActionAvailability("Dry-run blocked. Custom distributions use upstream package information as review-only.");
             AppendLog("Aircraft update dry-run blocked: selected target is a custom distribution.");
             UpstreamFindings.ReplaceWith([
                 "Custom distribution detected. Official upstream packages are review-only for this target.",
@@ -416,6 +448,7 @@ public partial class MainWindowViewModel : ViewModelBase
             AppendLog("Aircraft update dry-run: no upstream packages are required by the current plan.");
             UpstreamDryRunEntries.Clear();
             UpstreamDryRunSummary = "No upstream package changes are required.";
+            RefreshUpstreamActionAvailability("No upstream ZIP dry-run is required for this target.");
             return;
         }
 
@@ -426,6 +459,7 @@ public partial class MainWindowViewModel : ViewModelBase
             .ToArray();
         if (missing.Length > 0)
         {
+            RefreshUpstreamActionAvailability($"Dry-run blocked. Missing cached package(s): {string.Join(", ", missing)}.");
             AppendLog($"Aircraft update dry-run blocked: missing cached package(s): {string.Join(", ", missing)}.");
             UpstreamFindings.ReplaceWith(missing.Select(name => $"Missing cached package: {name}"));
             return;
@@ -435,6 +469,7 @@ public partial class MainWindowViewModel : ViewModelBase
         UpstreamDryRunSummary = result.Summary;
         UpstreamDryRunEntries.ReplaceWith(result.Entries);
         UpstreamFindings.ReplaceWith(result.Findings);
+        RefreshUpstreamActionAvailability("Dry-run complete. No aircraft files were changed.");
         AppendLog($"Aircraft update dry-run: {result.Summary}");
     }
 
@@ -562,13 +597,63 @@ public partial class MainWindowViewModel : ViewModelBase
             () => _restoreLatestBackupOperation.Restore(selectedVariant));
     }
 
+    [RelayCommand]
+    private void CreateConfigBackup()
+    {
+        if (IsOperationRunning)
+        {
+            return;
+        }
+
+        var selectedVariant = SelectedViewVariant;
+        if (selectedVariant is null)
+        {
+            AppendLog("Create Config Backup: blocked because no view variant is selected.");
+            return;
+        }
+
+        RunViewMaintenanceAction(
+            "Create Config Backup",
+            "Creating config backup",
+            "Config backup created",
+            "Config backup blocked",
+            selectedVariant,
+            () => _configBackupOperation.CreateBackup(selectedVariant),
+            showRestartNoticeOnChanged: false);
+    }
+
+    [RelayCommand]
+    private void RestoreConfigBackup()
+    {
+        if (IsOperationRunning)
+        {
+            return;
+        }
+
+        var selectedVariant = SelectedViewVariant;
+        if (selectedVariant is null)
+        {
+            AppendLog("Restore Config Backup: blocked because no view variant is selected.");
+            return;
+        }
+
+        RunViewMaintenanceAction(
+            "Restore Config Backup",
+            "Restoring config backup",
+            "Config backup restored",
+            "Config restore blocked",
+            selectedVariant,
+            () => _configBackupOperation.RestoreLatestConfigBackup(selectedVariant));
+    }
+
     private void RunViewMaintenanceAction(
         string actionName,
         string preparingTitle,
         string successTitle,
         string blockedTitle,
         AircraftVariantViewAnalysis selectedVariant,
-        Func<MaintenanceOperationResult> action)
+        Func<MaintenanceOperationResult> action,
+        bool showRestartNoticeOnChanged = true)
     {
         OperationPanelVisible = true;
         OperationLog = "";
@@ -601,7 +686,7 @@ public partial class MainWindowViewModel : ViewModelBase
             OperationProgressText = result.Succeeded
                 ? result.Changed ? "100% - Transaction completed and backup state recorded" : "100% - No file change required"
                 : "0% - Transaction did not start";
-            RestartNoticeVisible = result.Changed;
+            RestartNoticeVisible = result.Changed && showRestartNoticeOnChanged;
 
             foreach (var backupPath in result.BackupPaths)
             {
@@ -739,12 +824,14 @@ public partial class MainWindowViewModel : ViewModelBase
         UpstreamPackageCacheEntries.Clear();
         UpstreamDryRunEntries.Clear();
         UpstreamDryRunSummary = "No aircraft update dry-run has been calculated.";
+        RefreshUpstreamActionAvailability("Refresh upstream packages to enable ZIP import.");
 
         if (variant is null)
         {
             UpstreamUpdateStatus = "No Zibo aircraft selected";
             UpstreamUpdateSummary = "Select a Zibo aircraft folder to check upstream aircraft packages.";
             UpstreamLocalVersion = "-";
+            RefreshUpstreamActionAvailability("Select a Zibo aircraft folder and refresh upstream packages before importing ZIPs.");
             UpstreamFindings.ReplaceWith(["The upstream aircraft package check is read-only."]);
             return;
         }
@@ -755,12 +842,14 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             UpstreamUpdateStatus = "Not applicable";
             UpstreamUpdateSummary = "Aircraft upstream update checks are currently implemented for Zibo only.";
+            RefreshUpstreamActionAvailability("ZIP import is currently available only for Zibo upstream package plans.");
             UpstreamFindings.ReplaceWith(["LevelUp can use the same planner later when an authorized index source is available."]);
             return;
         }
 
         UpstreamUpdateStatus = "Ready to check";
         UpstreamUpdateSummary = "Refresh reads the Zibo feed and plans full-baseline/cumulative-patch requirements without changing files.";
+        RefreshUpstreamActionAvailability("Click Refresh to calculate required upstream ZIP packages.");
         UpstreamFindings.ReplaceWith(["No aircraft files will be downloaded, backed up, or changed by this check."]);
     }
 
@@ -780,6 +869,7 @@ public partial class MainWindowViewModel : ViewModelBase
         UpstreamDryRunSummary = result.IsCustomDistribution
             ? "Custom distribution detected. Official upstream packages are review-only for this target."
             : "No aircraft update dry-run has been calculated.";
+        RefreshUpstreamActionAvailability();
         UpstreamFindings.ReplaceWith(result.Findings);
     }
 
@@ -787,6 +877,82 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         UpstreamPackageCacheEntries.ReplaceWith(_lastUpstreamUpdateCheck?.RequiredPackages.Select(_aircraftUpdatePackageCache.Inspect)
             ?? []);
+        RefreshUpstreamActionAvailability();
+    }
+
+    partial void OnActionsEnabledChanged(bool value) => RefreshUpstreamActionAvailability();
+
+    private void RefreshUpstreamActionAvailability(string? statusOverride = null)
+    {
+        var requiredPackages = _lastUpstreamUpdateCheck?.RequiredPackages ?? [];
+        var hasRequiredPackages = requiredPackages.Count > 0;
+        var isCustomDistribution = _lastUpstreamUpdateCheck?.IsCustomDistribution == true;
+        var allRequiredPackagesCached = hasRequiredPackages
+            && UpstreamPackageCacheEntries.Count == requiredPackages.Count
+            && UpstreamPackageCacheEntries.All(entry => entry.IsCached);
+
+        CanImportAircraftUpdateZip = ActionsEnabled && hasRequiredPackages && !isCustomDistribution;
+        CanDryRunAircraftUpdateZip = ActionsEnabled && hasRequiredPackages && !isCustomDistribution && allRequiredPackagesCached;
+
+        if (!string.IsNullOrWhiteSpace(statusOverride))
+        {
+            UpstreamActionStatus = statusOverride;
+            return;
+        }
+
+        if (!ActionsEnabled)
+        {
+            UpstreamActionStatus = "Upstream package actions are disabled while another operation is running.";
+            return;
+        }
+
+        if (_lastUpstreamUpdateCheck is null)
+        {
+            UpstreamActionStatus = "Refresh upstream packages before importing ZIPs.";
+            return;
+        }
+
+        if (isCustomDistribution)
+        {
+            UpstreamActionStatus = "Custom distribution detected. Official upstream ZIP import is disabled; package information is review-only.";
+            return;
+        }
+
+        if (!hasRequiredPackages)
+        {
+            UpstreamActionStatus = "No upstream ZIP import is required by the current package plan.";
+            return;
+        }
+
+        if (!allRequiredPackagesCached)
+        {
+            var missing = UpstreamPackageCacheEntries
+                .Where(entry => !entry.IsCached)
+                .Select(entry => entry.Package.FileName)
+                .ToArray();
+            UpstreamActionStatus = $"Ready to import: {string.Join(", ", missing)}.";
+            return;
+        }
+
+        UpstreamActionStatus = "All required ZIPs are cached. Run dry-run to inspect planned aircraft file changes.";
+    }
+
+    private string BuildImportSuccessStatus(string importedFileName)
+    {
+        var missing = UpstreamPackageCacheEntries
+            .Where(entry => !entry.IsCached)
+            .Select(entry => entry.Package.FileName)
+            .ToArray();
+
+        return missing.Length == 0
+            ? $"Imported {importedFileName}. All required ZIPs are cached; dry-run is now available."
+            : $"Imported {importedFileName}. Still missing: {string.Join(", ", missing)}.";
+    }
+
+    private string BuildRequiredPackageList()
+    {
+        var required = _lastUpstreamUpdateCheck?.RequiredPackages.Select(package => package.FileName).ToArray() ?? [];
+        return required.Length == 0 ? "no package" : string.Join(", ", required);
     }
 
     private void AppendLog(string message)

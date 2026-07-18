@@ -25,6 +25,8 @@ Current capabilities:
   backup.
 - It can optionally adapt a matching `X-Camera_<acf-stem>.csv` file when one is
   present.
+- It can create and restore dedicated config backups for root-level aircraft
+  preferences, camera CSVs, cfg files and toolkit metadata.
 - It can install, update, repair and uninstall manifest-owned VNAV Lua hooks and
   payload files after validation and backup.
 - It can restore the latest recorded backup generation for the selected

@@ -68,6 +68,8 @@ The first public app should stay deliberately small:
 - Restore from backup.
 - Uninstall installer-owned hooks/payloads.
 - Automatic backup before patching.
+- Manual config backup and config-only restore for user preferences, camera
+  CSVs, root cfg files and toolkit metadata.
 - Simple install log.
 - Exportable diagnostic report without sensitive data.
 - Clear "X-Plane restart required" message.
@@ -191,7 +193,9 @@ overwriting files.
 
 ## Backup And Restore
 
-Backups are automatic before any patching and cannot be skipped.
+Backups are automatic before any patching and cannot be skipped. The app also
+supports an explicit config-only backup action for user-facing aircraft
+configuration files before experiments or upstream maintenance work.
 
 Backups should be stored per target installation and should include:
 
@@ -211,6 +215,10 @@ If the current target no longer matches the stored restore preconditions, the
 app should stop and explain the conflict.
 
 Repair, Restore and Uninstall are separate actions.
+
+Config backup and config restore are separate from generic latest-backup
+restore. Config restore must select only the latest `ConfigBackup` generation
+and must create a pre-restore image before replacing config files.
 
 ## Manifest
 
