@@ -8,7 +8,8 @@ versioned.
 ## Goal
 
 Build a small cross-platform installer/updater and maintenance tool for 737NG
-VNAV descent table packages and conservative view-maintenance utilities.
+VNAV descent table packages, conservative view-maintenance utilities and
+validated upstream aircraft package maintenance.
 
 The updater should allow users to safely install, update, verify, repair,
 restore and uninstall the VNAV descent table hooks without manually editing
@@ -18,8 +19,11 @@ VeloPack is the chosen application installer and update framework.
 
 ## Ownership
 
-The updater application should live in a GitHub organization-owned open-source
-repository, not under a personal account.
+The official updater application should live in a GitHub organization-owned
+open-source repository when the owning team is ready. The current public
+development repository can remain a temporary personal repository as long as it
+is treated as transferable development infrastructure, not as final official
+ownership.
 
 The VNAV content package remains a separate versioned package with its own
 manifest, payload files and release assets.
@@ -52,7 +56,8 @@ separated.
 
 ## Initial Scope
 
-The first public app should stay deliberately small:
+The first public app should stay deliberately small, but the current beta scope
+already spans four clearly separated tool areas:
 
 - Single-page desktop app.
 - Auto-detect Zibo and LevelUp aircraft folders.
@@ -70,8 +75,15 @@ The first public app should stay deliberately small:
 - Automatic backup before patching.
 - Manual config backup and config-only restore for user preferences, camera
   CSVs, root cfg files and toolkit metadata.
+- Quick View adaptation after ACF CG changes.
+- Default-view update from Quick View 0.
+- Zibo upstream package review, import/download into cache, dry-run, apply and
+  restore.
+- Separate settings for backup data, aircraft update ZIP cache, offline VNAV
+  package source and diagnostics export target.
 - Simple install log.
-- Exportable diagnostic report without sensitive data.
+- Diagnostic export target configuration. A full one-click diagnostic export is
+  still intended product scope.
 - Clear "X-Plane restart required" message.
 
 The app should not attempt to restart X-Plane automatically.
@@ -80,7 +92,7 @@ The app should not attempt to restart X-Plane automatically.
 
 Recommended stack:
 
-- Current stable .NET LTS.
+- Current stable .NET LTS. The current repository targets .NET 10.
 - Avalonia UI.
 - VeloPack SDK/CLI.
 - GitHub Releases.
@@ -98,17 +110,16 @@ Suggested module boundaries:
 
 ## UI Flow
 
-The app should be a single-page tool, not a marketing landing page.
+The app should be a single-page tool, not a marketing landing page. The current
+UI is organized as a target selector plus tabs.
 
-The UI can move through these states:
-
-### 1. Locate Aircraft
+### 1. Aircraft Target
 
 - Show detected X-Plane / Zibo / LevelUp installations.
 - Provide a Browse button for manual aircraft folder selection.
 - Validate the selected folder structurally, not by name only.
 
-### 2. Scan Aircraft And Package
+### 2. Scan Summary
 
 - Locate `plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua`.
 - Load current local install state.
@@ -116,7 +127,23 @@ The UI can move through these states:
 - Verify payload metadata and checksums.
 - Classify install state.
 
-### 3. Show Options
+### 3. Views And Config
+
+- Show detected variants, ACF CG, reference CG, delta, Quick View status and
+  default-view status.
+- Offer Quick View CG adaptation.
+- Offer Quick View 0 to default-view application.
+- Offer config backup, config restore and latest-backup restore.
+
+### 4. Aircraft Updates
+
+- Show local and available upstream package versions.
+- Show update mode: none, full or incremental.
+- Show required package list and source links.
+- Show aircraft update ZIP cache state.
+- Offer refresh, import, download, dry-run, apply and restore.
+
+### 5. VNAV Tables
 
 - Installed package version.
 - Available package version.
@@ -124,22 +151,23 @@ The UI can move through these states:
 - Planned changes.
 - Install / Update / Repair / Restore / Uninstall actions.
 
-### 4. Apply Transaction
+### 6. Activity
 
-- Validate target.
-- Ensure X-Plane is not running.
-- Create backup.
-- Prepare patched files in temp location.
-- Validate result.
-- Replace files.
-- Write state/log.
+- Show current write/restore transaction progress.
+- Show elapsed time and transaction console.
 
-### 5. Complete
+### 7. Settings
 
-- Success/failure status.
-- Restart-required banner.
-- Collapsed install log.
-- Diagnostic export option.
+- Configure backup root.
+- Configure aircraft update ZIP cache root.
+- Configure offline VNAV package root.
+- Configure diagnostics export root.
+- Show toolkit data, state and settings file paths.
+
+### 8. Logs
+
+- Show session log.
+- Allow clearing the visible log without deleting state or backups.
 
 ## Aircraft Detection
 
@@ -175,6 +203,11 @@ The patch engine should classify the target as:
 
 Unknown or unsafe states should stop and offer a diagnostic report instead of
 overwriting files.
+
+`Correctly installed` requires both current manifest-owned hook blocks and all
+required manifest payload files matching size and SHA-256. Current hook blocks
+with missing or changed payload files are not a correct install state; they
+must be classified as partially installed or repair-required.
 
 ## Hard Patch Rules
 
@@ -219,6 +252,16 @@ Repair, Restore and Uninstall are separate actions.
 Config backup and config restore are separate from generic latest-backup
 restore. Config restore must select only the latest `ConfigBackup` generation
 and must create a pre-restore image before replacing config files.
+
+User-facing storage settings are separate from aircraft content:
+
+- Backup root: durable restore data and toolkit state references.
+- Aircraft update ZIP cache root: downloaded/imported upstream aircraft ZIPs.
+- Offline VNAV package root: optional local VNAV payload source.
+- Diagnostics export root: target folder for future diagnostic exports.
+
+Changing the backup root affects future backups only. Existing restore records
+keep their original absolute backup paths.
 
 ## Manifest
 
@@ -343,21 +386,46 @@ baseline plus cumulative patch:
 The Zibo RSS feed is an update index, not an aircraft payload manifest. It can
 identify available full and cumulative packages and their source links, but the
 actual aircraft ZIPs still need staging and validation before any live file is
-changed. The first implementation should support local ZIP selection/import
-against the planned package list. Direct Google Drive or torrent download can
-be added later behind the same source interface.
+changed.
 
-The first UI slice is read-only: it reads the local Zibo version, refreshes the
-feed, displays the available version and required baseline/cumulative packages,
-and performs no automatic download, extraction, backup or aircraft file write.
-The next supported slice imports user-selected ZIP files only when their file
-names exactly match the current package plan, copies them into a local package
-cache, and records size plus SHA-256 for review.
+Current implementation:
 
-Cached aircraft update ZIPs can be opened for a dry-run before any install
-support exists. The dry-run reports planned add/replace operations, preserves
-local preference/config files and toolkit metadata, blocks unsafe or
-path-traversing ZIP entries, and still does not write into the aircraft folder.
+- Reads local Zibo version from custom toolkit metadata, `version.txt`, or the
+  legacy Lua version fallback.
+- Refreshes the Zibo feed.
+- Computes a full or incremental plan.
+- Imports user-selected ZIP files only when their file names exactly match the
+  current package plan.
+- Attempts direct ZIP download into the aircraft update cache when the source
+  exposes a readable ZIP stream.
+- For `.zip.torrent` links, tries the matching `.zip` candidate first and falls
+  back to manual import when direct download is not possible.
+- Records cached package size and SHA-256.
+- Opens cached ZIPs for dry-run.
+- Applies cached ZIPs transactionally after a clean dry-run.
+- Restores the latest aircraft-update backup generation.
+
+Cached aircraft update ZIP dry-run reports planned add/replace operations,
+preserves local preference/config files and toolkit metadata, blocks unsafe,
+path-traversing or unreadable ZIP entries, and does not write into the aircraft
+folder.
+
+Aircraft update apply must:
+
+- block while X-Plane is running
+- reject missing or changed cache entries
+- verify cached ZIP size and SHA-256 against the local cache snapshot
+- run an internal dry-run before writing
+- create backups for replaced files
+- track files added by the update so restore can remove them
+- preserve protected local preference/config files
+- write `xplane-737ng-maintenance.json` after a successful apply
+- record installed aircraft update family, version, mode and package list
+- roll back changed files on failure where possible
+
+Official Zibo package hashes are not available from the feed. Until an
+authorized upstream manifest exists, ZIP integrity is cache-snapshot integrity,
+not official upstream authenticity.
 
 Custom no-Lua ports should declare their own distribution state in
 `xplane-737ng-maintenance.json` at the aircraft root. This metadata takes
@@ -379,24 +447,28 @@ VeloPack handles app installation and app auto-update only.
 
 Expected app release channels:
 
-- Stable public channel.
-- Optional review/testing channel when needed.
+- Active beta channel for review/testing builds.
+- Stable public channel once release policy, signing and ownership are settled.
 
 Expected platform artifacts:
 
 - Windows x64 setup, optional portable.
-- macOS app bundle/package for Intel and Apple Silicon as needed.
+- macOS package and portable output for the supported architecture set.
 - Linux AppImage.
 
 Signing/notarization should be handled in CI once credentials are available.
 
 ## CI/CD
 
-GitHub Actions should eventually provide:
+GitHub Actions currently provide:
 
 - Build.
 - Tests.
 - Package app.
+- Upload manual VeloPack workflow artifacts.
+
+GitHub Actions should later provide:
+
 - Sign artifacts.
 - Notarize macOS artifacts.
 - Create/update GitHub Release.
@@ -433,7 +505,8 @@ Required tests:
 
 ## Out Of Scope For Initial Release
 
-- Full aircraft/package manager.
+- General full aircraft/package manager behavior beyond the explicitly planned
+  Zibo baseline/cumulative update flow and future authorized LevelUp extension.
 - Auto-restarting X-Plane.
 - Telemetry by default.
 - Editing unrelated LevelUp/Zibo files.
@@ -443,14 +516,17 @@ Required tests:
 
 ## Open Decisions
 
-- GitHub organization and repository name.
-- Updater app name and branding.
+- Official GitHub organization/repository ownership and transfer/fork path.
+- Final app name and branding.
 - Official vs semi-official status.
-- License for updater app.
+- Final signing/notarization policy.
 - License/status of VNAV content package.
 - Supported LevelUp versions.
-- Supported platforms and CPU architectures for the initial release.
+- Supported platforms and CPU architectures for signed public releases.
 - Signing and notarization budget.
-- Release channel naming.
+- Stable release-channel policy.
 - Support/issue workflow.
 - Whether content and app releases are published together or separately.
+- Whether Zibo or LevelUp will provide official package manifests and hashes
+  for aircraft update ZIPs.
+- Whether full diagnostic export belongs in the first stable release.

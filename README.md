@@ -73,6 +73,12 @@ For offline or development package testing, set `XPLANE_737NG_PACKAGE_DIR` to a
 folder containing `package-manifest.txt` and all manifest payload files. GitHub
 Release assets remain the preferred package source for normal use.
 
+## Documentation
+
+- [User Manual](docs/USER_MANUAL.md)
+- [Product Specification](SPEC.md)
+- [CI/CD Preparation](docs/CI_CD.md)
+
 ## Current Scope
 
 - .NET 10.
