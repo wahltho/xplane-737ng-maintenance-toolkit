@@ -11,7 +11,7 @@ public sealed class ApplyQuickViewCgAdaptOperationTests
     {
         using var fixture = QuickViewCgFixture.Create(cgZ: 49.840001678, lineEnding: "\r\n", includeXCamera: true);
         var variant = fixture.SingleVariant();
-        var store = new ToolStateStore(Path.Combine(fixture.Path, ".tool-state"));
+        var store = TestToolStateStore.Create(fixture.Path);
         var operation = new ApplyQuickViewCgAdaptOperation(store, isXPlaneRunning: () => false);
 
         var result = operation.Apply(variant);
@@ -41,7 +41,7 @@ public sealed class ApplyQuickViewCgAdaptOperationTests
     public void Apply_WhenRunTwice_UsesStoredCgBaselineAndDoesNotShiftAgain()
     {
         using var fixture = QuickViewCgFixture.Create(cgZ: 49.840001678, lineEnding: "\n", includeXCamera: false);
-        var store = new ToolStateStore(Path.Combine(fixture.Path, ".tool-state"));
+        var store = TestToolStateStore.Create(fixture.Path);
         var operation = new ApplyQuickViewCgAdaptOperation(store, isXPlaneRunning: () => false);
 
         var first = operation.Apply(fixture.SingleVariant());
@@ -63,7 +63,7 @@ public sealed class ApplyQuickViewCgAdaptOperationTests
             cgZ: 49.840001678,
             lineEnding: "\n",
             includeXCamera: false);
-        var store = new ToolStateStore(Path.Combine(fixture.Path, ".tool-state"));
+        var store = TestToolStateStore.Create(fixture.Path);
         var operation = new ApplyQuickViewCgAdaptOperation(store, isXPlaneRunning: () => false);
 
         var result = operation.Apply(fixture.SingleVariant());
@@ -79,7 +79,7 @@ public sealed class ApplyQuickViewCgAdaptOperationTests
     public void Apply_WhenXPlaneRuns_BlocksWithoutWritingState()
     {
         using var fixture = QuickViewCgFixture.Create(cgZ: 49.840001678, lineEnding: "\n", includeXCamera: false);
-        var store = new ToolStateStore(Path.Combine(fixture.Path, ".tool-state"));
+        var store = TestToolStateStore.Create(fixture.Path);
         var operation = new ApplyQuickViewCgAdaptOperation(store, isXPlaneRunning: () => true);
 
         var result = operation.Apply(fixture.SingleVariant());
@@ -98,7 +98,7 @@ public sealed class ApplyQuickViewCgAdaptOperationTests
         {
             IdentityStatus = "Metadata differs (version.txt differs)"
         };
-        var store = new ToolStateStore(Path.Combine(fixture.Path, ".tool-state"));
+        var store = TestToolStateStore.Create(fixture.Path);
         var operation = new ApplyQuickViewCgAdaptOperation(store, isXPlaneRunning: () => false);
 
         var result = operation.Apply(variant);
@@ -120,7 +120,7 @@ public sealed class ApplyQuickViewCgAdaptOperationTests
         {
             IdentityStatus = "Metadata differs (version.txt differs)"
         };
-        var store = new ToolStateStore(Path.Combine(fixture.Path, ".tool-state"));
+        var store = TestToolStateStore.Create(fixture.Path);
         var operation = new ApplyQuickViewCgAdaptOperation(store, isXPlaneRunning: () => false);
 
         var result = operation.Apply(variant);

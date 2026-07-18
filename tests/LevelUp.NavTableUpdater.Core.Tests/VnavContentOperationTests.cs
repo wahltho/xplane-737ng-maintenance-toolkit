@@ -141,7 +141,7 @@ public sealed class VnavContentOperationTests
             Payloads = payloads;
             ScriptFolder = System.IO.Path.Combine(path, "plugins", "xlua", "scripts", "B738.a_fms");
             TargetScriptPath = System.IO.Path.Combine(ScriptFolder, "B738.a_fms.lua");
-            Store = new ToolStateStore(System.IO.Path.Combine(path, ".tool-state"));
+            Store = TestToolStateStore.Create(path);
         }
 
         public string Path { get; }

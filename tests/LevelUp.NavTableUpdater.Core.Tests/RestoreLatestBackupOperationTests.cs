@@ -11,7 +11,7 @@ public sealed class RestoreLatestBackupOperationTests
     {
         using var fixture = RestoreFixture.Create();
         var variant = fixture.SingleVariant();
-        var store = new ToolStateStore(Path.Combine(fixture.Path, ".tool-state"));
+        var store = TestToolStateStore.Create(fixture.Path);
         var adapt = new ApplyQuickViewCgAdaptOperation(store, isXPlaneRunning: () => false);
         var restore = new RestoreLatestBackupOperation(store, isXPlaneRunning: () => false);
 
@@ -38,7 +38,7 @@ public sealed class RestoreLatestBackupOperationTests
     public void Restore_WhenNoBackupExists_BlocksWithoutWritingState()
     {
         using var fixture = RestoreFixture.Create();
-        var store = new ToolStateStore(Path.Combine(fixture.Path, ".tool-state"));
+        var store = TestToolStateStore.Create(fixture.Path);
         var restore = new RestoreLatestBackupOperation(store, isXPlaneRunning: () => false);
 
         var result = restore.Restore(fixture.SingleVariant());

@@ -11,7 +11,7 @@ public sealed class ApplyDefaultViewFromQv0OperationTests
     {
         using var fixture = DefaultViewOperationFixture.Create(defaultViewMatchesQv0: false, lineEnding: "\r\n");
         var variant = fixture.SingleVariant();
-        var store = new ToolStateStore(Path.Combine(fixture.Path, ".tool-state"));
+        var store = TestToolStateStore.Create(fixture.Path);
         var operation = new ApplyDefaultViewFromQv0Operation(store, isXPlaneRunning: () => false);
 
         var result = operation.Apply(variant);
@@ -44,7 +44,7 @@ public sealed class ApplyDefaultViewFromQv0OperationTests
     public void Apply_WhenDefaultViewAlreadyMatches_DoesNotCreateBackupButRecordsState()
     {
         using var fixture = DefaultViewOperationFixture.Create(defaultViewMatchesQv0: true, lineEnding: "\n");
-        var store = new ToolStateStore(Path.Combine(fixture.Path, ".tool-state"));
+        var store = TestToolStateStore.Create(fixture.Path);
         var operation = new ApplyDefaultViewFromQv0Operation(store, isXPlaneRunning: () => false);
 
         var result = operation.Apply(fixture.SingleVariant());
@@ -63,7 +63,7 @@ public sealed class ApplyDefaultViewFromQv0OperationTests
     public void Apply_WhenXPlaneRuns_BlocksWithoutWritingState()
     {
         using var fixture = DefaultViewOperationFixture.Create(defaultViewMatchesQv0: false, lineEnding: "\n");
-        var store = new ToolStateStore(Path.Combine(fixture.Path, ".tool-state"));
+        var store = TestToolStateStore.Create(fixture.Path);
         var operation = new ApplyDefaultViewFromQv0Operation(store, isXPlaneRunning: () => true);
 
         var result = operation.Apply(fixture.SingleVariant());
@@ -78,7 +78,7 @@ public sealed class ApplyDefaultViewFromQv0OperationTests
     public void Apply_WhenDefaultViewKeyIsDuplicated_ThrowsBeforeBackup()
     {
         using var fixture = DefaultViewOperationFixture.Create(defaultViewMatchesQv0: false, lineEnding: "\n", duplicateDefaultKey: true);
-        var store = new ToolStateStore(Path.Combine(fixture.Path, ".tool-state"));
+        var store = TestToolStateStore.Create(fixture.Path);
         var operation = new ApplyDefaultViewFromQv0Operation(store, isXPlaneRunning: () => false);
 
         var ex = Assert.Throws<InvalidOperationException>(() => operation.Apply(fixture.SingleVariant()));

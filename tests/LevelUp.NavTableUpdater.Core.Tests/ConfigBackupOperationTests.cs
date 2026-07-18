@@ -10,7 +10,7 @@ public sealed class ConfigBackupOperationTests
     public void CreateBackup_BacksUpConfigFilesAndRecordsState()
     {
         using var fixture = ConfigBackupFixture.Create();
-        var store = new ToolStateStore(Path.Combine(fixture.Path, ".tool-state"));
+        var store = TestToolStateStore.Create(fixture.Path);
         var operation = new ConfigBackupOperation(store, isXPlaneRunning: () => false);
 
         var result = operation.CreateBackup(fixture.SingleVariant());
@@ -32,7 +32,7 @@ public sealed class ConfigBackupOperationTests
     public void RestoreLatestConfigBackup_RestoresOnlyLatestConfigGenerationAndCreatesPreImages()
     {
         using var fixture = ConfigBackupFixture.Create();
-        var store = new ToolStateStore(Path.Combine(fixture.Path, ".tool-state"));
+        var store = TestToolStateStore.Create(fixture.Path);
         var operation = new ConfigBackupOperation(store, isXPlaneRunning: () => false);
         var variant = fixture.SingleVariant();
 
@@ -61,7 +61,7 @@ public sealed class ConfigBackupOperationTests
     public void CreateBackup_WhenXPlaneRuns_BlocksWithoutWritingState()
     {
         using var fixture = ConfigBackupFixture.Create();
-        var store = new ToolStateStore(Path.Combine(fixture.Path, ".tool-state"));
+        var store = TestToolStateStore.Create(fixture.Path);
         var operation = new ConfigBackupOperation(store, isXPlaneRunning: () => true);
 
         var result = operation.CreateBackup(fixture.SingleVariant());
