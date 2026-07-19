@@ -11,6 +11,21 @@ on:
         description: VeloPack channel prefix.
         required: true
         default: stable
+      publish_release:
+        description: Create or update a GitHub Release from the VeloPack artifacts.
+        required: true
+        type: boolean
+        default: true
+      prerelease:
+        description: Mark the GitHub Release as a pre-release.
+        required: true
+        type: boolean
+        default: false
+      draft:
+        description: Create or update the GitHub Release as a draft.
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -105,3 +120,92 @@ jobs:
           name: velopack-${{ matrix.rid }}
           path: artifacts/velopack/${{ matrix.rid }}
           if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    runs-on: ubuntu-latest
+    needs: package
+    if: ${{ inputs.publish_release }}
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download VeloPack artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: velopack-*
+          path: artifacts/release
+          merge-multiple: true
+
+      - name: Prepare release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP_VERSION="${{ inputs.app_version }}"
+          TAG="v${APP_VERSION}"
+
+          find artifacts/release -maxdepth 1 -type f | sort
+
+          printf '%s\n' \
+            "# X-Plane 737NG Maintenance Toolkit ${APP_VERSION}" \
+            "" \
+            "Automated VeloPack release from commit ${GITHUB_SHA}." \
+            "" \
+            "Included assets:" \
+            "" \
+            "- Windows x64 setup and portable package" \
+            "- macOS arm64 pkg and portable package" \
+            "- Linux x64 AppImage" \
+            "- VeloPack full packages and stable channel metadata" \
+            "- SHA-256 checksums" \
+            "" \
+            "Important limitations:" \
+            "" \
+            "- unsigned Windows build" \
+            "- unsigned and not notarized macOS build" \
+            "- public toolkit release, not an official LevelUp production release" \
+            > "artifacts/release/release-notes-${TAG}.md"
+
+          (
+            cd artifacts/release
+            find . -maxdepth 1 -type f ! -name SHA256SUMS.txt -print0 \
+              | sort -z \
+              | xargs -0 shasum -a 256 > SHA256SUMS.txt
+          )
+
+      - name: Create or update GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          APP_VERSION="${{ inputs.app_version }}"
+          TAG="v${APP_VERSION}"
+          TITLE="X-Plane 737NG Maintenance Toolkit ${APP_VERSION}"
+          NOTES_FILE="artifacts/release/release-notes-${TAG}.md"
+          release_flags=()
+
+          if [[ "${{ inputs.prerelease }}" == "true" ]]; then
+            release_flags+=(--prerelease)
+          else
+            release_flags+=(--latest)
+          fi
+
+          if [[ "${{ inputs.draft }}" == "true" ]]; then
+            release_flags+=(--draft)
+          fi
+
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            gh release edit "${TAG}" \
+              --title "${TITLE}" \
+              --notes-file "${NOTES_FILE}" \
+              "${release_flags[@]}"
+          else
+            gh release create "${TAG}" \
+              --target "${GITHUB_SHA}" \
+              --title "${TITLE}" \
+              --notes-file "${NOTES_FILE}" \
+              "${release_flags[@]}"
+          fi
+
+          gh release upload "${TAG}" artifacts/release/* --clobber

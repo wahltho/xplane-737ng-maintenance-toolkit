@@ -42,9 +42,16 @@ The workflow:
 - uses the current app icon assets for packaging
 - installs `squashfs-tools` on Linux so VeloPack can create AppImage output
 - uploads GitHub Actions artifacts
+- optionally creates or updates a GitHub Release from the VeloPack artifacts
+- adds release notes and `SHA256SUMS.txt` to the release assets
 
-It does not create GitHub Releases and does not use signing or notarization
-secrets.
+The release step is controlled by manual workflow inputs:
+
+- `publish_release`: create or update `v<app_version>`
+- `prerelease`: mark the GitHub Release as a pre-release
+- `draft`: create or update the GitHub Release as a draft
+
+The workflow does not use signing or notarization secrets.
 
 The current macOS package intentionally omits an icon argument because VeloPack
 expects a `.icns` file there. Final branding should provide platform-native
@@ -76,8 +83,6 @@ Recommended additions:
 - Apple notarization and stapling
 - Linux AppImage signing or checksum/signature policy
 - `vpk download github` before packing to preserve update history and deltas
-- `vpk upload github` to create GitHub Releases
-- release notes generation
 - manual approval gate before publishing stable releases
 
 ## Secrets To Add Later
