@@ -16,6 +16,16 @@ public sealed class AircraftViewAnalyzerTests
         Assert.Contains(references, reference => reference.AircraftId == "zibo-737-800-4k"
             && reference.ReferenceCgYFeet == -2.000000000
             && reference.ReferenceCgZFeet == 60.340000153);
+        Assert.Contains(AircraftReferenceCatalog.CgRanges, range => range.AircraftId == "zibo-737-800-2k"
+            && range.FromVersion.ToString() == "4.05.00"
+            && range.ToVersion.ToString() == "4.05.02"
+            && range.ReferenceCgYFeet == -1.000000000
+            && range.ReferenceCgZFeet == 59.500000000);
+        Assert.Contains(AircraftReferenceCatalog.CgRanges, range => range.AircraftId == "zibo-737-800-2k"
+            && range.FromVersion.ToString() == "4.05.18"
+            && range.ToVersion.ToString() == "4.05.35"
+            && range.ReferenceCgYFeet == -2.000000000
+            && range.ReferenceCgZFeet == 60.340000153);
         Assert.Contains(references, reference => reference.AircraftId == "levelup-737-600"
             && reference.ReferenceCgZFeet == 46.040000916);
         Assert.Contains(references, reference => reference.AircraftId == "levelup-737-700"
@@ -82,6 +92,48 @@ public sealed class AircraftViewAnalyzerTests
     }
 
     [Fact]
+    public void Analyze_WhenZiboVersionTxtMatchesHistoricalCgRange_UsesHistoricalReferenceCg()
+    {
+        using var fixture = AircraftViewFixture.CreateZibo2K(
+            localVersion: "4.05.03",
+            cgY: -1.000000000,
+            cgZ: 62.419998169,
+            acfVersion: "Early access",
+            writer: "123008");
+
+        var result = new AircraftViewAnalyzer().Analyze(fixture.Path);
+        var variant = Assert.Single(result.Variants);
+
+        Assert.Equal("Reference CG", result.StateLabel);
+        Assert.Equal("4.05.03-4.05.04", variant.SourceVersion);
+        Assert.Equal(-1.000000000, variant.ReferenceCgYFeet);
+        Assert.Equal(62.419998169, variant.ReferenceCgZFeet);
+        Assert.Equal(0, variant.DeltaYFeet!.Value, precision: 6);
+        Assert.Equal(0, variant.DeltaZFeet!.Value, precision: 6);
+        Assert.Equal("Expected metadata", variant.IdentityStatus);
+        Assert.Contains(result.Findings, finding => finding.Contains("reference CG selected from 4.05.03-4.05.04", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Analyze_WhenZiboHistoricalVersionHasUnexpectedCg_ReportsDeltaFromHistoricalReference()
+    {
+        using var fixture = AircraftViewFixture.CreateZibo2K(
+            localVersion: "4.05.15",
+            cgY: -1.000000000,
+            cgZ: 60.340000153,
+            acfVersion: "ver 4.05",
+            writer: "124001");
+
+        var result = new AircraftViewAnalyzer().Analyze(fixture.Path);
+        var variant = Assert.Single(result.Variants);
+
+        Assert.Equal("CG delta detected", result.StateLabel);
+        Assert.Equal("4.05.15", variant.SourceVersion);
+        Assert.Equal(60.720001221, variant.ReferenceCgZFeet);
+        Assert.Equal(-0.380001068, variant.DeltaZFeet!.Value, precision: 6);
+    }
+
+    [Fact]
     public void Analyze_WhenMaintenanceMetadataIsPresent_UsesDistributionVersionBeforeVersionTxt()
     {
         using var fixture = AircraftViewFixture.CreateZibo2K();
@@ -108,6 +160,41 @@ public sealed class AircraftViewAnalyzerTests
         Assert.Equal("Custom distribution (wahltho-no-lua-port 5.00.00)", variant.IdentityStatus);
         Assert.Contains(result.Findings, finding => finding.Contains("xplane-737ng-maintenance.json", StringComparison.Ordinal));
         Assert.Contains(result.Findings, finding => finding.Contains("wahltho-no-lua-port", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Analyze_WhenMaintenanceMetadataHasUpstreamBaseVersion_UsesUpstreamCgRangeForCustomPort()
+    {
+        using var fixture = AircraftViewFixture.CreateZibo2K(
+            localVersion: "5.00.00",
+            cgY: -1.000000000,
+            cgZ: 60.720001221,
+            acfVersion: "ver 4.05",
+            writer: "124001");
+        File.WriteAllText(
+            System.IO.Path.Combine(fixture.Path, "xplane-737ng-maintenance.json"),
+            """
+            {
+              "schemaVersion": 1,
+              "aircraftFamily": "zibo-737ng",
+              "variant": "zibo-737-800-2k",
+              "distribution": "wahltho-no-lua-port",
+              "distributionVersion": "5.00.00",
+              "upstreamFamily": "zibo-737ng",
+              "upstreamBaseVersion": "4.05.15",
+              "runtime": "no-lua-cpp"
+            }
+            """,
+            new UTF8Encoding(false));
+
+        var result = new AircraftViewAnalyzer().Analyze(fixture.Path);
+        var variant = Assert.Single(result.Variants);
+
+        Assert.Equal("5.00.00", variant.LocalVersion);
+        Assert.Equal("4.05.15", variant.SourceVersion);
+        Assert.Equal("Reference CG", variant.Status);
+        Assert.Equal(60.720001221, variant.ReferenceCgZFeet);
+        Assert.Equal(0, variant.DeltaZFeet!.Value, precision: 6);
     }
 
     private sealed class AircraftViewFixture : IDisposable
@@ -142,20 +229,25 @@ public sealed class AircraftViewAnalyzerTests
             return new AircraftViewFixture(root);
         }
 
-        public static AircraftViewFixture CreateZibo2K()
+        public static AircraftViewFixture CreateZibo2K(
+            string localVersion = "4.05.35",
+            double cgY = -2.000000000,
+            double cgZ = 60.340000153,
+            string acfVersion = "ver 4.05",
+            string writer = "124201")
         {
             var root = CreateRoot();
-            WriteText(System.IO.Path.Combine(root, "version.txt"), "4.05.35\n");
+            WriteText(System.IO.Path.Combine(root, "version.txt"), $"{localVersion}\n");
             WriteText(
                 System.IO.Path.Combine(root, "b738.acf"),
                 BuildAcf(
                     name: "Boeing 737-800X",
                     description: "Boeing 737-800X",
                     studio: "Laminar Research modified by Zibo and Twkster",
-                    version: "ver 4.05",
-                    writer: "124201",
-                    cgY: -2.000000000,
-                    cgZ: 60.340000153,
+                    version: acfVersion,
+                    writer: writer,
+                    cgY: cgY,
+                    cgZ: cgZ,
                     defaultView: new DefaultView(0.0, 0.0, 0.0, 0.0)));
             return new AircraftViewFixture(root);
         }

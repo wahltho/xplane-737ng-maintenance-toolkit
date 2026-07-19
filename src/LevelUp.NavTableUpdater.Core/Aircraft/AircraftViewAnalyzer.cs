@@ -98,8 +98,16 @@ public sealed class AircraftViewAnalyzer
         }
 
         var localVersion = ResolveLocalVersion(reference, maintenanceMetadata, versionTxt, findings);
-        var identityStatus = BuildIdentityStatus(reference, metadata, versionTxt, maintenanceMetadata);
-        var prefsPath = Path.Combine(aircraftFolder, reference.PrefsFileName);
+        var effectiveReference = AircraftReferenceCatalog.ResolveForKnownCg(reference, localVersion, maintenanceMetadata);
+        if (!string.Equals(effectiveReference.SourceVersion, reference.SourceVersion, StringComparison.Ordinal)
+            || Math.Abs(effectiveReference.ReferenceCgYFeet - reference.ReferenceCgYFeet) > CgToleranceFeet
+            || Math.Abs(effectiveReference.ReferenceCgZFeet - reference.ReferenceCgZFeet) > CgToleranceFeet)
+        {
+            findings.Add($"{reference.DisplayName}: reference CG selected from {effectiveReference.SourceVersion} catalog baseline.");
+        }
+
+        var identityStatus = BuildIdentityStatus(effectiveReference, metadata, versionTxt, maintenanceMetadata);
+        var prefsPath = Path.Combine(aircraftFolder, effectiveReference.PrefsFileName);
         var quickViewStatus = "Prefs missing";
         var defaultViewStatus = metadata.DefaultView is null ? "Default view incomplete" : "QV0 missing";
 
@@ -110,8 +118,8 @@ public sealed class AircraftViewAnalyzer
             quickViewStatus = quickView0 is null ? "QV0 incomplete" : "QV0 readable";
         }
 
-        var deltaYFeet = metadata.Cg?.YFeet - reference.ReferenceCgYFeet;
-        var deltaZFeet = metadata.Cg?.ZFeet - reference.ReferenceCgZFeet;
+        var deltaYFeet = metadata.Cg?.YFeet - effectiveReference.ReferenceCgYFeet;
+        var deltaZFeet = metadata.Cg?.ZFeet - effectiveReference.ReferenceCgZFeet;
         var deltaYMeters = deltaYFeet * FeetToMeters;
         var deltaZMeters = deltaZFeet * FeetToMeters;
 
@@ -133,30 +141,30 @@ public sealed class AircraftViewAnalyzer
 
         if (identityStatus != "Expected metadata")
         {
-            findings.Add($"{reference.DisplayName}: {identityStatus}.");
+            findings.Add($"{effectiveReference.DisplayName}: {identityStatus}.");
         }
 
         if (hasCgDelta)
         {
-            findings.Add($"{reference.DisplayName}: CG differs from reference baseline by Y {deltaYFeet!.Value:+0.000000;-0.000000;0.000000} ft, Z {deltaZFeet!.Value:+0.000000;-0.000000;0.000000} ft.");
+            findings.Add($"{effectiveReference.DisplayName}: CG differs from reference baseline by Y {deltaYFeet!.Value:+0.000000;-0.000000;0.000000} ft, Z {deltaZFeet!.Value:+0.000000;-0.000000;0.000000} ft.");
         }
 
         return new AircraftVariantViewAnalysis(
-            reference.AircraftId,
-            reference.DisplayName,
-            reference.Family,
+            effectiveReference.AircraftId,
+            effectiveReference.DisplayName,
+            effectiveReference.Family,
             acfPath,
             prefsPath,
-            reference.Source,
-            reference.SourceRef,
-            reference.SourceVersion,
+            effectiveReference.Source,
+            effectiveReference.SourceRef,
+            effectiveReference.SourceVersion,
             localVersion,
             metadata.AcfVersion,
             metadata.FileWriterVersion,
             metadata.Cg?.YFeet,
             metadata.Cg?.ZFeet,
-            reference.ReferenceCgYFeet,
-            reference.ReferenceCgZFeet,
+            effectiveReference.ReferenceCgYFeet,
+            effectiveReference.ReferenceCgZFeet,
             deltaYFeet,
             deltaZFeet,
             deltaYMeters,

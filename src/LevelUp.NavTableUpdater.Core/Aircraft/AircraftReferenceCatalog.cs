@@ -1,7 +1,13 @@
+using LevelUp.NavTableUpdater.Core.Upstream;
+
 namespace LevelUp.NavTableUpdater.Core.Aircraft;
 
 public static class AircraftReferenceCatalog
 {
+    private const string ZiboFamily = "zibo-737ng";
+    private const string Zibo2K = "zibo-737-800-2k";
+    private const string Zibo4K = "zibo-737-800-4k";
+
     private static readonly IReadOnlyList<AircraftReference> References =
     [
         new(
@@ -125,5 +131,91 @@ public static class AircraftReferenceCatalog
             ReferenceCgZFeet: 65.800003052)
     ];
 
+    private static readonly IReadOnlyList<AircraftReferenceCgRange> ReferenceCgRanges =
+    [
+        ZiboRange(Zibo2K, 0, 2, -1.000000000, 59.500000000),
+        ZiboRange(Zibo4K, 0, 2, -1.000000000, 59.500000000),
+        ZiboRange(Zibo2K, 3, 4, -1.000000000, 62.419998169),
+        ZiboRange(Zibo4K, 3, 4, -1.000000000, 62.419998169),
+        ZiboRange(Zibo2K, 5, 14, -1.000000000, 61.419998169),
+        ZiboRange(Zibo4K, 5, 14, -1.000000000, 61.419998169),
+        ZiboRange(Zibo2K, 15, 15, -1.000000000, 60.720001221),
+        ZiboRange(Zibo4K, 15, 15, -1.000000000, 60.720001221),
+        ZiboRange(Zibo2K, 16, 17, -2.000000000, 59.979999542),
+        ZiboRange(Zibo4K, 16, 17, -2.000000000, 59.979999542),
+        ZiboRange(Zibo2K, 18, 35, -2.000000000, 60.340000153),
+        ZiboRange(Zibo4K, 18, 35, -2.000000000, 60.340000153),
+    ];
+
     public static IReadOnlyList<AircraftReference> All => References;
+
+    public static IReadOnlyList<AircraftReferenceCgRange> CgRanges => ReferenceCgRanges;
+
+    public static AircraftReference ResolveForKnownCg(
+        AircraftReference reference,
+        string? localVersion,
+        AircraftMaintenanceMetadata? maintenanceMetadata)
+    {
+        if (!string.Equals(reference.Family, ZiboFamily, StringComparison.OrdinalIgnoreCase))
+        {
+            return reference;
+        }
+
+        var referenceVersionText = !string.IsNullOrWhiteSpace(maintenanceMetadata?.UpstreamBaseVersion)
+            ? maintenanceMetadata.UpstreamBaseVersion
+            : localVersion;
+        if (!AircraftUpstreamVersion.TryParse(referenceVersionText, out var referenceVersion))
+        {
+            return reference;
+        }
+
+        if (string.Equals(reference.SourceVersion, referenceVersion.ToString(), StringComparison.OrdinalIgnoreCase))
+        {
+            return reference;
+        }
+
+        var range = ReferenceCgRanges.FirstOrDefault(candidate =>
+            string.Equals(candidate.AircraftId, reference.AircraftId, StringComparison.OrdinalIgnoreCase)
+            && candidate.Contains(referenceVersion));
+        if (range is null)
+        {
+            return reference;
+        }
+
+        var expectedName = reference.ExpectedName;
+        var expectedDescription = reference.ExpectedDescription;
+        if (string.Equals(reference.AircraftId, Zibo4K, StringComparison.OrdinalIgnoreCase)
+            && referenceVersion == new AircraftUpstreamVersion(4, 5, 0))
+        {
+            expectedName = "Boeing 737-800X";
+            expectedDescription = "Boeing 737-800X (4k)";
+        }
+
+        return reference with
+        {
+            SourceRef = range.SourceRef,
+            SourceVersion = range.SourceVersion,
+            ExpectedName = expectedName,
+            ExpectedDescription = expectedDescription,
+            ExpectedVersionTxt = maintenanceMetadata is null ? referenceVersion.ToString() : reference.ExpectedVersionTxt,
+            ExpectedAcfVersion = null,
+            ExpectedFileWriterVersion = null,
+            ReferenceCgYFeet = range.ReferenceCgYFeet,
+            ReferenceCgZFeet = range.ReferenceCgZFeet
+        };
+    }
+
+    private static AircraftReferenceCgRange ZiboRange(
+        string aircraftId,
+        int fromPatch,
+        int toPatch,
+        double cgYFeet,
+        double cgZFeet) =>
+        new(
+            aircraftId,
+            new AircraftUpstreamVersion(4, 5, fromPatch),
+            new AircraftUpstreamVersion(4, 5, toPatch),
+            "Zibo XP12 ACF CG catalog from Google Drive XP12 packages and Skymatix 4.05.16 torrent",
+            cgYFeet,
+            cgZFeet);
 }
