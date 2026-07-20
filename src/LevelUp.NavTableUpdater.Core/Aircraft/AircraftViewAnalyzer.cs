@@ -98,7 +98,7 @@ public sealed class AircraftViewAnalyzer
         }
 
         var localVersion = ResolveLocalVersion(reference, maintenanceMetadata, versionTxt, findings);
-        var effectiveReference = AircraftReferenceCatalog.ResolveForKnownCg(reference, localVersion, maintenanceMetadata);
+        var effectiveReference = AircraftReferenceCatalog.ResolveForKnownCg(reference, localVersion, metadata.AcfVersion, maintenanceMetadata);
         if (!string.Equals(effectiveReference.SourceVersion, reference.SourceVersion, StringComparison.Ordinal)
             || Math.Abs(effectiveReference.ReferenceCgYFeet - reference.ReferenceCgYFeet) > CgToleranceFeet
             || Math.Abs(effectiveReference.ReferenceCgZFeet - reference.ReferenceCgZFeet) > CgToleranceFeet)

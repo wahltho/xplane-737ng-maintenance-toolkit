@@ -323,6 +323,8 @@ public sealed class AircraftUpdateOperation
             DistributionVersion: updateCheck.AvailableVersionDisplay,
             UpstreamFamily: updateCheck.Family,
             UpstreamBaseVersion: updateCheck.AvailableVersionDisplay,
+            UpstreamSourceRef: null,
+            UpstreamReleaseTag: null,
             Runtime: null);
         var tempPath = metadataPath + $".tmp-{Guid.NewGuid():N}";
         try

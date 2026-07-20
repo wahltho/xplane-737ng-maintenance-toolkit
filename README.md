@@ -79,6 +79,7 @@ Release assets remain the preferred package source for normal use.
 - [Product Specification](SPEC.md)
 - [CI/CD Preparation](docs/CI_CD.md)
 - [Zibo ACF CG Catalog Builder](docs/ZIBO_ACF_CG_CATALOG.md)
+- [LevelUp ACF CG History](docs/LEVELUP_ACF_CG_HISTORY.md)
 
 ## Current Scope
 

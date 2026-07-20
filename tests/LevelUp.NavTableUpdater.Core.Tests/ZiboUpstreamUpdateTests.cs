@@ -388,6 +388,43 @@ public sealed class ZiboUpstreamUpdateTests
     }
 
     [Fact]
+    public void DryRun_ClassifiesPackageOwnedAndLocalExtraLiveries()
+    {
+        using var fixture = AircraftUpdateFixture.Create();
+        var packageOwnedLivery = Path.Combine(fixture.AircraftPath, "liveries", "Default", "objects", "paint.txt");
+        var localExtraLivery = Path.Combine(fixture.AircraftPath, "liveries", "User Extra", "objects", "paint.txt");
+        Directory.CreateDirectory(Path.GetDirectoryName(packageOwnedLivery)!);
+        Directory.CreateDirectory(Path.GetDirectoryName(localExtraLivery)!);
+        File.WriteAllText(packageOwnedLivery, "local default paint");
+        File.WriteAllText(localExtraLivery, "user extra paint");
+
+        var package = BuildFullPackage();
+        var zipPath = Path.Combine(fixture.Path, package.FileName);
+        CreateZip(
+            zipPath,
+            ("liveries/Default/objects/paint.txt", "package default paint"),
+            ("liveries/New Package/objects/paint.txt", "package new paint"));
+        var cache = new AircraftUpdatePackageCache(Path.Combine(fixture.Path, "cache"));
+        var imported = cache.ImportZip(zipPath, package);
+
+        var result = new AircraftUpdateDryRunAnalyzer().Analyze(fixture.AircraftPath, [imported]);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(1, result.LocalLiveryPreservedCount);
+        Assert.Contains(result.Entries, entry => entry.Action == AircraftUpdateDryRunEntryAction.Replace
+            && ToSlashPath(entry.RelativePath) == "liveries/Default/objects/paint.txt"
+            && entry.Detail.Contains("package-owned livery file", StringComparison.OrdinalIgnoreCase)
+            && entry.Detail.Contains("backup", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Entries, entry => entry.Action == AircraftUpdateDryRunEntryAction.Add
+            && ToSlashPath(entry.RelativePath) == "liveries/New Package/objects/paint.txt"
+            && entry.Detail.Contains("package-owned livery file", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Entries, entry => entry.Action == AircraftUpdateDryRunEntryAction.PreserveLocalLivery
+            && ToSlashPath(entry.RelativePath) == "liveries/User Extra"
+            && entry.Detail.Contains("will be preserved", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Findings, finding => finding.Contains("Preserved 1 local livery", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Apply_AppliesCachedPackagesSequentiallyCreatesBackupsStateAndMetadata()
     {
         using var fixture = AircraftUpdateFixture.Create();
@@ -437,6 +474,38 @@ public sealed class ZiboUpstreamUpdateTests
         Assert.Contains(state.Backups, record => record.SourcePath == existingPath && record.SourceExisted);
         Assert.Contains(state.Backups, record => record.SourcePath.EndsWith("baseline-only.txt", StringComparison.Ordinal) && !record.SourceExisted);
         Assert.Contains(state.Backups, record => record.SourcePath.EndsWith(AircraftMaintenanceMetadata.FileName, StringComparison.Ordinal) && !record.SourceExisted);
+    }
+
+    [Fact]
+    public void Apply_UpdatesPackageOwnedLiveryAndPreservesLocalExtraLivery()
+    {
+        using var fixture = AircraftUpdateFixture.Create();
+        var packageOwnedLivery = Path.Combine(fixture.AircraftPath, "liveries", "Default", "objects", "paint.txt");
+        var localExtraLivery = Path.Combine(fixture.AircraftPath, "liveries", "User Extra", "objects", "paint.txt");
+        Directory.CreateDirectory(Path.GetDirectoryName(packageOwnedLivery)!);
+        Directory.CreateDirectory(Path.GetDirectoryName(localExtraLivery)!);
+        File.WriteAllText(packageOwnedLivery, "local default paint");
+        File.WriteAllText(localExtraLivery, "user extra paint");
+        var package = BuildPatchPackage();
+        var zipPath = Path.Combine(fixture.Path, package.FileName);
+        CreateZip(zipPath, ("liveries/Default/objects/paint.txt", "package default paint"));
+        var cache = new AircraftUpdatePackageCache(Path.Combine(fixture.Path, "cache"));
+        var cachedPatch = cache.ImportZip(zipPath, package);
+        var store = TestToolStateStore.Create(fixture.Path);
+        var operation = new AircraftUpdateOperation(store, isXPlaneRunning: () => false);
+        var check = BuildUpdateCheck(
+            AircraftUpdatePlanAction.ApplyCumulativePatch,
+            "Apply latest cumulative patch",
+            [package]);
+
+        var result = operation.Apply(BuildVariant("zibo-737ng", "4.05.34", fixture.AcfPath), check, [cachedPatch]);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal("package default paint", File.ReadAllText(packageOwnedLivery));
+        Assert.Equal("user extra paint", File.ReadAllText(localExtraLivery));
+        var state = Assert.Single(store.Load().Aircraft.Values);
+        Assert.Contains(state.Backups, record => record.SourcePath == packageOwnedLivery && record.SourceExisted);
+        Assert.DoesNotContain(state.Backups, record => record.SourcePath == localExtraLivery);
     }
 
     [Fact]
@@ -616,6 +685,9 @@ public sealed class ZiboUpstreamUpdateTests
 
         return stream.ToArray();
     }
+
+    private static string ToSlashPath(string path) =>
+        path.Replace('\\', '/');
 
     private static AircraftVariantViewAnalysis BuildVariant(string family, string? localVersion, string acfPath = "/tmp/test.acf") =>
         new(

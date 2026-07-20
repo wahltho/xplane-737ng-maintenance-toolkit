@@ -17,15 +17,27 @@ public sealed class AircraftViewAnalyzerTests
             && reference.ReferenceCgYFeet == -2.000000000
             && reference.ReferenceCgZFeet == 60.340000153);
         Assert.Contains(AircraftReferenceCatalog.CgRanges, range => range.AircraftId == "zibo-737-800-2k"
-            && range.FromVersion.ToString() == "4.05.00"
-            && range.ToVersion.ToString() == "4.05.02"
+            && range.FromVersion!.ToString() == "4.05.00"
+            && range.ToVersion!.ToString() == "4.05.02"
             && range.ReferenceCgYFeet == -1.000000000
             && range.ReferenceCgZFeet == 59.500000000);
         Assert.Contains(AircraftReferenceCatalog.CgRanges, range => range.AircraftId == "zibo-737-800-2k"
-            && range.FromVersion.ToString() == "4.05.18"
-            && range.ToVersion.ToString() == "4.05.35"
+            && range.FromVersion!.ToString() == "4.05.18"
+            && range.ToVersion!.ToString() == "4.05.35"
             && range.ReferenceCgYFeet == -2.000000000
             && range.ReferenceCgZFeet == 60.340000153);
+        Assert.Contains(AircraftReferenceCatalog.CgRanges, range => range.AircraftId == "levelup-737-700"
+            && range.MatchesReleaseTag("v2.S1.01")
+            && range.ReferenceCgYFeet == -2.049999952
+            && range.ReferenceCgZFeet == 50.840000153);
+        Assert.Contains(AircraftReferenceCatalog.CgRanges, range => range.AircraftId == "levelup-737-800"
+            && range.MatchesSourceRef("petrolpram/737NG-Series@2723547")
+            && range.ReferenceCgYFeet == -1.049999952
+            && range.ReferenceCgZFeet == 60.299999237);
+        Assert.Contains(AircraftReferenceCatalog.CgRanges, range => range.AircraftId == "levelup-737-900"
+            && range.MatchesReleaseTag("v2.S1.50B")
+            && range.ReferenceCgYFeet == -2.049999952
+            && range.ReferenceCgZFeet == 65.650001526);
         Assert.Contains(references, reference => reference.AircraftId == "levelup-737-600"
             && reference.ReferenceCgZFeet == 46.040000916);
         Assert.Contains(references, reference => reference.AircraftId == "levelup-737-700"
@@ -74,6 +86,117 @@ public sealed class AircraftViewAnalyzerTests
         Assert.Equal(0.100000000, variant.DeltaZFeet!.Value, precision: 6);
         Assert.Equal(0.030480000, variant.DeltaZMeters!.Value, precision: 6);
         Assert.Contains(result.Findings, finding => finding.Contains("CG differs from reference baseline", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Analyze_WhenLevelUpHistoricalAcfVersionIsKnown_UsesHistoricalReferenceCg()
+    {
+        using var fixture = AircraftViewFixture.CreateLevelUp700(
+            cgY: -2.049999952,
+            cgZ: 50.840000153,
+            defaultViewMatchesQv0: true,
+            acfVersion: "XP12 FM 2.0.3",
+            writer: "124004");
+
+        var result = new AircraftViewAnalyzer().Analyze(fixture.Path);
+        var variant = Assert.Single(result.Variants);
+
+        Assert.Equal("Reference CG", result.StateLabel);
+        Assert.Equal("XP12 FM 2.0.3", variant.SourceVersion);
+        Assert.Equal(50.840000153, variant.ReferenceCgZFeet);
+        Assert.Equal(0, variant.DeltaZFeet!.Value, precision: 6);
+        Assert.Equal("Expected metadata", variant.IdentityStatus);
+    }
+
+    [Fact]
+    public void Analyze_WhenLevelUpHistoricalReleaseTagMetadataIsPresent_UsesTaggedReferenceCg()
+    {
+        using var fixture = AircraftViewFixture.CreateLevelUp900(
+            cgY: -2.049999952,
+            cgZ: 65.650001526,
+            defaultViewMatchesQv0: true,
+            acfVersion: "XP12 custom no-lua port",
+            writer: "124311");
+        File.WriteAllText(
+            System.IO.Path.Combine(fixture.Path, AircraftMaintenanceMetadata.FileName),
+            """
+            {
+              "schemaVersion": 1,
+              "aircraftFamily": "levelup-737ng",
+              "variant": "levelup-737-900",
+              "distribution": "wahltho-no-lua-port",
+              "distributionVersion": "5.00.00",
+              "upstreamFamily": "levelup-737ng",
+              "upstreamReleaseTag": "v2.S1.50B",
+              "runtime": "no-lua-cpp"
+            }
+            """,
+            new UTF8Encoding(false));
+
+        var result = new AircraftViewAnalyzer().Analyze(fixture.Path);
+        var variant = Assert.Single(result.Variants);
+
+        Assert.Equal("Reference CG", result.StateLabel);
+        Assert.Equal("5.00.00", variant.LocalVersion);
+        Assert.Equal("v2.S1.50B", variant.SourceVersion);
+        Assert.Equal(65.650001526, variant.ReferenceCgZFeet);
+        Assert.Equal(0, variant.DeltaZFeet!.Value, precision: 6);
+        Assert.Equal("Custom distribution (wahltho-no-lua-port 5.00.00)", variant.IdentityStatus);
+    }
+
+    [Fact]
+    public void Analyze_WhenLevelUpHistoricalSourceRefMetadataIsPresent_UsesCommitReferenceCg()
+    {
+        using var fixture = AircraftViewFixture.CreateLevelUp800(
+            cgY: -1.049999952,
+            cgZ: 60.299999237,
+            defaultViewMatchesQv0: true,
+            acfVersion: "XP12 FM 2.0.3",
+            writer: "124004");
+        File.WriteAllText(
+            System.IO.Path.Combine(fixture.Path, AircraftMaintenanceMetadata.FileName),
+            """
+            {
+              "schemaVersion": 1,
+              "aircraftFamily": "levelup-737ng",
+              "variant": "levelup-737-800",
+              "distribution": "wahltho-no-lua-port",
+              "distributionVersion": "5.00.00",
+              "upstreamFamily": "levelup-737ng",
+              "upstreamSourceRef": "petrolpram/737NG-Series@2723547",
+              "runtime": "no-lua-cpp"
+            }
+            """,
+            new UTF8Encoding(false));
+
+        var result = new AircraftViewAnalyzer().Analyze(fixture.Path);
+        var variant = Assert.Single(result.Variants);
+
+        Assert.Equal("Reference CG", result.StateLabel);
+        Assert.Equal("v2.S1.01", variant.SourceVersion);
+        Assert.Equal(-1.049999952, variant.ReferenceCgYFeet);
+        Assert.Equal(60.299999237, variant.ReferenceCgZFeet);
+        Assert.Equal(0, variant.DeltaYFeet!.Value, precision: 6);
+        Assert.Equal(0, variant.DeltaZFeet!.Value, precision: 6);
+    }
+
+    [Fact]
+    public void Analyze_WhenLevelUp800HistoricalAcfVersionIsAmbiguousWithoutMetadata_DoesNotGuess()
+    {
+        using var fixture = AircraftViewFixture.CreateLevelUp800(
+            cgY: -1.049999952,
+            cgZ: 60.299999237,
+            defaultViewMatchesQv0: true,
+            acfVersion: "XP12 FM 2.0.3",
+            writer: "124004");
+
+        var result = new AircraftViewAnalyzer().Analyze(fixture.Path);
+        var variant = Assert.Single(result.Variants);
+
+        Assert.Equal("CG delta detected", result.StateLabel);
+        Assert.Equal("XP12 FM V2.S1.50B (20260712-1919 SAO)", variant.SourceVersion);
+        Assert.Equal(1.000000000, variant.DeltaYFeet!.Value, precision: 6);
+        Assert.Equal(0.079998016, variant.DeltaZFeet!.Value, precision: 6);
     }
 
     [Fact]
@@ -206,7 +329,67 @@ public sealed class AircraftViewAnalyzerTests
 
         public string Path { get; }
 
-        public static AircraftViewFixture CreateLevelUp700(double cgY, double cgZ, bool defaultViewMatchesQv0)
+        public static AircraftViewFixture CreateLevelUp700(
+            double cgY,
+            double cgZ,
+            bool defaultViewMatchesQv0,
+            string acfVersion = "XP12 2.S1.50B (20260709-2031 SAO)",
+            string writer = "124311") =>
+            CreateLevelUpVariant(
+                acfFileName: "737_70NG.acf",
+                prefsFileName: "737_70NG_prefs.txt",
+                name: "Boeing 737-700NG",
+                description: "Boeing 737-700NG",
+                acfVersion,
+                writer,
+                cgY,
+                cgZ,
+                defaultViewMatchesQv0);
+
+        public static AircraftViewFixture CreateLevelUp800(
+            double cgY,
+            double cgZ,
+            bool defaultViewMatchesQv0,
+            string acfVersion = "XP12 FM V2.S1.50B (20260712-1919 SAO)",
+            string writer = "124311") =>
+            CreateLevelUpVariant(
+                acfFileName: "737_80NG.acf",
+                prefsFileName: "737_80NG_prefs.txt",
+                name: "Boeing 737-800NG",
+                description: "Boeing 737-800NG",
+                acfVersion,
+                writer,
+                cgY,
+                cgZ,
+                defaultViewMatchesQv0);
+
+        public static AircraftViewFixture CreateLevelUp900(
+            double cgY,
+            double cgZ,
+            bool defaultViewMatchesQv0,
+            string acfVersion = "XP12 V2.S1.50B (20260711-2137 SAO)",
+            string writer = "124311") =>
+            CreateLevelUpVariant(
+                acfFileName: "737_90NG.acf",
+                prefsFileName: "737_90NG_prefs.txt",
+                name: "Boeing 737-900NG",
+                description: "Boeing 737-900NG",
+                acfVersion,
+                writer,
+                cgY,
+                cgZ,
+                defaultViewMatchesQv0);
+
+        private static AircraftViewFixture CreateLevelUpVariant(
+            string acfFileName,
+            string prefsFileName,
+            string name,
+            string description,
+            string acfVersion,
+            string writer,
+            double cgY,
+            double cgZ,
+            bool defaultViewMatchesQv0)
         {
             var root = CreateRoot();
             var qv0 = new QuickView0(XMeters: 1.0, YMeters: 2.0, ZMeters: -3.0, PitchDegrees: -2.5);
@@ -215,17 +398,17 @@ public sealed class AircraftViewAnalyzerTests
                 : new DefaultView(0.0, 0.0, 0.0, 0.0);
 
             WriteText(
-                System.IO.Path.Combine(root, "737_70NG.acf"),
+                System.IO.Path.Combine(root, acfFileName),
                 BuildAcf(
-                    name: "Boeing 737-700NG",
-                    description: "Boeing 737-700NG",
+                    name: name,
+                    description: description,
                     studio: "LevelUp, Laminar Research, ZiboMod, flight tuned by Aeroguitarist",
-                    version: "XP12 2.S1.50B (20260709-2031 SAO)",
-                    writer: "124311",
+                    version: acfVersion,
+                    writer: writer,
                     cgY,
                     cgZ,
                     defaultView));
-            WritePrefs(System.IO.Path.Combine(root, "737_70NG_prefs.txt"), qv0);
+            WritePrefs(System.IO.Path.Combine(root, prefsFileName), qv0);
             return new AircraftViewFixture(root);
         }
 

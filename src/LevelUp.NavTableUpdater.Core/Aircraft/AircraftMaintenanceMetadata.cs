@@ -8,6 +8,8 @@ public sealed record AircraftMaintenanceMetadata(
     string? DistributionVersion,
     string? UpstreamFamily,
     string? UpstreamBaseVersion,
+    string? UpstreamSourceRef,
+    string? UpstreamReleaseTag,
     string? Runtime)
 {
     public const string FileName = "xplane-737ng-maintenance.json";
