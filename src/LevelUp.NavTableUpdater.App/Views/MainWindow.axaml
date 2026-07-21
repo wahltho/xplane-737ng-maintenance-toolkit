@@ -80,6 +80,115 @@
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                     <TextBlock Text="App update: VeloPack" Foreground="#D1FAE5" VerticalAlignment="Center"/>
                     <TextBlock Text="Content: manifest-driven" Foreground="#DBEAFE" VerticalAlignment="Center"/>
+                    <Button Content="⚙"
+                            Width="34"
+                            Height="30"
+                            Padding="0"
+                            FontSize="16"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"
+                            ToolTip.Tip="Settings">
+                        <Button.Flyout>
+                            <Flyout Placement="Bottom">
+                                <ScrollViewer Width="720" MaxHeight="620">
+                                    <Border Classes="card">
+                                        <StackPanel Spacing="14">
+                                            <StackPanel Spacing="4">
+                                                <TextBlock Text="Settings" FontSize="16" FontWeight="SemiBold"/>
+                                                <TextBlock Text="Directory settings are validated before saving. Existing restore records keep their original absolute backup paths." Foreground="#667085" TextWrapping="Wrap"/>
+                                            </StackPanel>
+
+                                            <Border Background="#F8FAFC"
+                                                    BorderBrush="#E2E8F0"
+                                                    BorderThickness="1"
+                                                    CornerRadius="6"
+                                                    Padding="10,8">
+                                                <TextBlock Text="{Binding SettingsStatus}" Foreground="#475467" TextWrapping="Wrap"/>
+                                            </Border>
+
+                                            <StackPanel Spacing="10">
+                                                <TextBlock Text="Data &amp; Backups" FontSize="15" FontWeight="SemiBold"/>
+                                                <StackPanel Spacing="6">
+                                                    <TextBlock Classes="label" Text="Backup folder"/>
+                                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                                        <TextBox Text="{Binding BackupRootPath}" PlaceholderText="/path/to/toolkit-backups"/>
+                                                        <Button Grid.Column="1" Content="Browse" Click="BrowseBackupRoot_Click" IsEnabled="{Binding ActionsEnabled}"/>
+                                                    </Grid>
+                                                    <TextBlock Text="{Binding DefaultBackupRootPath}" FontFamily="Menlo,Consolas,monospace" FontSize="11" Foreground="#667085" TextWrapping="Wrap"/>
+                                                    <WrapPanel ItemSpacing="8" LineSpacing="8">
+                                                        <Button Content="Save" Command="{Binding SaveBackupSettingsCommand}" IsEnabled="{Binding ActionsEnabled}"/>
+                                                        <Button Content="Use Default" Command="{Binding UseDefaultBackupSettingsCommand}" IsEnabled="{Binding ActionsEnabled}"/>
+                                                    </WrapPanel>
+                                                </StackPanel>
+                                            </StackPanel>
+
+                                            <StackPanel Spacing="10">
+                                                <TextBlock Text="Package Sources" FontSize="15" FontWeight="SemiBold"/>
+                                                <StackPanel Spacing="6">
+                                                    <TextBlock Classes="label" Text="Aircraft update package cache folder"/>
+                                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                                        <TextBox Text="{Binding AircraftUpdateCacheRootPath}" PlaceholderText="/path/to/aircraft-update-cache"/>
+                                                        <Button Grid.Column="1" Content="Browse" Click="BrowseAircraftUpdateCacheRoot_Click" IsEnabled="{Binding ActionsEnabled}"/>
+                                                    </Grid>
+                                                    <TextBlock Text="{Binding DefaultAircraftUpdateCacheRootPath}" FontFamily="Menlo,Consolas,monospace" FontSize="11" Foreground="#667085" TextWrapping="Wrap"/>
+                                                    <WrapPanel ItemSpacing="8" LineSpacing="8">
+                                                        <Button Content="Save" Command="{Binding SaveAircraftUpdateCacheSettingsCommand}" IsEnabled="{Binding ActionsEnabled}"/>
+                                                        <Button Content="Use Default" Command="{Binding UseDefaultAircraftUpdateCacheSettingsCommand}" IsEnabled="{Binding ActionsEnabled}"/>
+                                                        <Button Content="Clear Cache" Command="{Binding ClearAircraftUpdateCacheCommand}" IsEnabled="{Binding ActionsEnabled}"/>
+                                                    </WrapPanel>
+                                                </StackPanel>
+
+                                                <StackPanel Spacing="6">
+                                                    <TextBlock Classes="label" Text="Offline VNAV package folder"/>
+                                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                                        <TextBox Text="{Binding OfflinePackageRootPath}" PlaceholderText="/path/to/offline-vnav-packages"/>
+                                                        <Button Grid.Column="1" Content="Browse" Click="BrowseOfflinePackageRoot_Click" IsEnabled="{Binding ActionsEnabled}"/>
+                                                    </Grid>
+                                                    <TextBlock Text="{Binding DefaultOfflinePackageRootPath}" FontFamily="Menlo,Consolas,monospace" FontSize="11" Foreground="#667085" TextWrapping="Wrap"/>
+                                                    <WrapPanel ItemSpacing="8" LineSpacing="8">
+                                                        <Button Content="Save" Command="{Binding SaveOfflinePackageSettingsCommand}" IsEnabled="{Binding ActionsEnabled}"/>
+                                                        <Button Content="Use Default" Command="{Binding UseDefaultOfflinePackageSettingsCommand}" IsEnabled="{Binding ActionsEnabled}"/>
+                                                    </WrapPanel>
+                                                </StackPanel>
+                                            </StackPanel>
+
+                                            <StackPanel Spacing="10">
+                                                <TextBlock Text="Diagnostics" FontSize="15" FontWeight="SemiBold"/>
+                                                <StackPanel Spacing="6">
+                                                    <TextBlock Classes="label" Text="Diagnostics export folder"/>
+                                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                                        <TextBox Text="{Binding DiagnosticsExportRootPath}" PlaceholderText="/path/to/diagnostics"/>
+                                                        <Button Grid.Column="1" Content="Browse" Click="BrowseDiagnosticsExportRoot_Click" IsEnabled="{Binding ActionsEnabled}"/>
+                                                    </Grid>
+                                                    <TextBlock Text="{Binding DefaultDiagnosticsExportRootPath}" FontFamily="Menlo,Consolas,monospace" FontSize="11" Foreground="#667085" TextWrapping="Wrap"/>
+                                                    <WrapPanel ItemSpacing="8" LineSpacing="8">
+                                                        <Button Content="Save" Command="{Binding SaveDiagnosticsExportSettingsCommand}" IsEnabled="{Binding ActionsEnabled}"/>
+                                                        <Button Content="Use Default" Command="{Binding UseDefaultDiagnosticsExportSettingsCommand}" IsEnabled="{Binding ActionsEnabled}"/>
+                                                    </WrapPanel>
+                                                </StackPanel>
+                                            </StackPanel>
+
+                                            <Grid ColumnDefinitions="*,*" ColumnSpacing="14">
+                                                <StackPanel Spacing="4">
+                                                    <TextBlock Classes="label" Text="Toolkit data folder"/>
+                                                    <TextBlock Text="{Binding ToolkitDataRoot}" FontFamily="Menlo,Consolas,monospace" FontSize="12" Foreground="#667085" TextWrapping="Wrap"/>
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1" Spacing="4">
+                                                    <TextBlock Classes="label" Text="State file"/>
+                                                    <TextBlock Text="{Binding ToolkitStatePath}" FontFamily="Menlo,Consolas,monospace" FontSize="12" Foreground="#667085" TextWrapping="Wrap"/>
+                                                </StackPanel>
+                                            </Grid>
+
+                                            <StackPanel Spacing="4">
+                                                <TextBlock Classes="label" Text="Settings file"/>
+                                                <TextBlock Text="{Binding ToolkitSettingsPath}" FontFamily="Menlo,Consolas,monospace" FontSize="12" Foreground="#667085" TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
+                                </ScrollViewer>
+                            </Flyout>
+                        </Button.Flyout>
+                    </Button>
                 </StackPanel>
             </Grid>
         </Border>
@@ -176,8 +285,74 @@
                         </StackPanel>
                     </Border>
 
+                    <Border Classes="operation-card" IsVisible="{Binding OperationPanelVisible}">
+                        <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="16">
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                <StackPanel Spacing="4">
+                                    <TextBlock Text="{Binding OperationTitle}"
+                                               Foreground="#F8FAFC"
+                                               FontSize="24"
+                                               FontWeight="SemiBold"
+                                               TextWrapping="Wrap"/>
+                                    <TextBlock Text="{Binding OperationSubtitle}"
+                                               Foreground="#C4B5FD"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
+                                    <TextBlock Text="Elapsed" Foreground="#C4B5FD" FontSize="18" FontWeight="SemiBold"/>
+                                    <TextBlock Text="{Binding OperationElapsed}" Foreground="#F8FAFC" FontSize="18" FontWeight="SemiBold"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <Grid Grid.Row="1" RowDefinitions="Auto,Auto" RowSpacing="8">
+                                <ProgressBar Minimum="0"
+                                             Maximum="100"
+                                             Value="{Binding OperationProgress}"
+                                             Height="14"
+                                             Background="#2E1065"
+                                             Foreground="#BDEB73"
+                                             CornerRadius="6"/>
+                                <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                                    <TextBlock Text="{Binding OperationProgressText}"
+                                               Foreground="#DDD6FE"
+                                               FontFamily="Menlo,Consolas,monospace"
+                                               FontSize="12"
+                                               TextWrapping="Wrap"/>
+                                    <TextBlock Grid.Column="1"
+                                               Text="{Binding OperationStatus}"
+                                               Foreground="#BDEB73"
+                                               FontWeight="SemiBold"/>
+                                </Grid>
+                            </Grid>
+
+                            <Border Grid.Row="2" Classes="console-card">
+                                <Grid RowDefinitions="Auto,*" RowSpacing="10">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <TextBlock Text="Console" Foreground="#F8FAFC" FontWeight="SemiBold"/>
+                                        <TextBlock Grid.Column="1"
+                                                   Text="{Binding OperationStatus}"
+                                                   Foreground="#BDEB73"
+                                                   FontFamily="Menlo,Consolas,monospace"
+                                                   FontSize="12"
+                                                   FontWeight="SemiBold"/>
+                                    </Grid>
+                                    <TextBox Grid.Row="1"
+                                             Text="{Binding OperationLog}"
+                                             IsReadOnly="True"
+                                             AcceptsReturn="True"
+                                             TextWrapping="Wrap"
+                                             FontFamily="Menlo,Consolas,monospace"
+                                             Foreground="#E9D5FF"
+                                             Background="#10072C"
+                                             BorderThickness="0"
+                                             MinHeight="96"/>
+                                </Grid>
+                            </Border>
+                        </Grid>
+                    </Border>
+
                     <TabControl>
-                        <TabItem Header="Views &amp; Config">
+                        <TabItem Header="Maintenance">
                             <ScrollViewer>
                                 <StackPanel Spacing="16">
                     <Border Classes="card">
@@ -300,30 +475,77 @@
                             </ScrollViewer>
                         </TabItem>
 
-                        <TabItem Header="Aircraft Updates">
+                        <TabItem Header="Updates">
                             <ScrollViewer>
                                 <StackPanel Spacing="16">
                     <Border Classes="card">
                         <StackPanel Spacing="10">
                             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
                                 <StackPanel Spacing="4">
-                                    <TextBlock Text="Zibo Upstream Packages" FontSize="16" FontWeight="SemiBold"/>
+                                    <TextBlock Text="VNAV Tables" FontSize="16" FontWeight="SemiBold"/>
+                                    <TextBlock Text="Manifest-owned VNAV payloads and Lua hooks are installed without distributing modified aircraft scripts." TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <WrapPanel Grid.Column="1" ItemSpacing="8" LineSpacing="8" VerticalAlignment="Top">
+                                    <Button Content="Review VNAV changes" Command="{Binding DryRunCommand}" IsEnabled="{Binding ActionsEnabled}"/>
+                                    <Button Content="Install" Command="{Binding RunPackageActionCommand}" CommandParameter="Install" IsEnabled="{Binding ActionsEnabled}"/>
+                                    <Button Content="Update" Command="{Binding RunPackageActionCommand}" CommandParameter="Update" IsEnabled="{Binding ActionsEnabled}"/>
+                                    <Button Content="Repair" Command="{Binding RunPackageActionCommand}" CommandParameter="Repair" IsEnabled="{Binding ActionsEnabled}"/>
+                                    <Button Content="Restore" Command="{Binding RunPackageActionCommand}" CommandParameter="Restore" IsEnabled="{Binding ActionsEnabled}"/>
+                                    <Button Content="Uninstall" Command="{Binding RunPackageActionCommand}" CommandParameter="Uninstall" IsEnabled="{Binding ActionsEnabled}"/>
+                                </WrapPanel>
+                            </Grid>
+
+                            <StackPanel Spacing="6">
+                                <TextBlock Classes="label" Text="VNAV components"/>
+                                <ItemsControl ItemsSource="{Binding Components}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="analysis:ComponentStatus">
+                                            <Grid ColumnDefinitions="220,100,90,*" ColumnSpacing="10" Margin="0,4">
+                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                                <TextBlock Grid.Column="1" Text="{Binding State}"/>
+                                                <TextBlock Grid.Column="2" Text="{Binding Version}"/>
+                                                <TextBlock Grid.Column="3" Text="{Binding Detail}" Foreground="#667085" TextWrapping="Wrap"/>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+
+                            <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Classes="label" Text="Planned VNAV changes"/>
+                                    <ItemsControl ItemsSource="{Binding PlannedChanges}"/>
+                                    <TextBlock Text="VNAV actions modify only manifest-owned content after validation and backup. Review changes before writing files." Foreground="#B45309" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Spacing="8">
+                                    <TextBlock Classes="label" Text="VNAV findings"/>
+                                    <ItemsControl ItemsSource="{Binding Findings}"/>
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Classes="card">
+                        <StackPanel Spacing="10">
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                                <StackPanel Spacing="4">
+                                    <TextBlock Text="Aircraft Packages" FontSize="16" FontWeight="SemiBold"/>
                                     <TextBlock Text="{Binding UpstreamUpdateSummary}" TextWrapping="Wrap"/>
                                 </StackPanel>
                                 <WrapPanel Grid.Column="1" ItemSpacing="8" LineSpacing="8" VerticalAlignment="Top">
-                                    <Button Content="Refresh"
+                                    <Button Content="Check for updates"
                                             Command="{Binding RefreshZiboUpdateCheckCommand}"
                                             IsEnabled="{Binding ActionsEnabled}"/>
-                                    <Button Content="Import ZIP"
+                                    <Button Content="Import package..."
                                             Click="ImportAircraftUpdateZip_Click"
                                             IsEnabled="{Binding CanImportAircraftUpdateZip}"/>
-                                    <Button Content="Download ZIPs"
+                                    <Button Content="Download required packages"
                                             Command="{Binding DownloadAircraftUpdateZipsCommand}"
                                             IsEnabled="{Binding CanDownloadAircraftUpdateZip}"/>
-                                    <Button Content="Dry-run ZIPs"
+                                    <Button Content="Review aircraft changes"
                                             Command="{Binding DryRunAircraftUpdateCommand}"
                                             IsEnabled="{Binding CanDryRunAircraftUpdateZip}"/>
-                                    <Button Content="Apply cached ZIPs"
+                                    <Button Content="Apply aircraft update"
                                             Command="{Binding ApplyAircraftUpdateCommand}"
                                             IsEnabled="{Binding CanApplyAircraftUpdateZip}"/>
                                     <Button Content="Restore update"
@@ -388,7 +610,7 @@
                             </StackPanel>
 
                             <StackPanel Spacing="6">
-                                <TextBlock Classes="label" Text="Cache status"/>
+                                <TextBlock Classes="label" Text="Package cache"/>
                                 <ItemsControl ItemsSource="{Binding UpstreamPackageCacheEntries}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate x:DataType="upstream:AircraftUpdatePackageCacheEntry">
@@ -405,7 +627,7 @@
                             </StackPanel>
 
                             <StackPanel Spacing="6">
-                                <TextBlock Classes="label" Text="Aircraft update dry-run"/>
+                                <TextBlock Classes="label" Text="Planned aircraft package changes"/>
                                 <TextBlock Text="{Binding UpstreamDryRunSummary}" TextWrapping="Wrap"/>
                                 <ItemsControl ItemsSource="{Binding UpstreamDryRunEntries}">
                                     <ItemsControl.ItemTemplate>
@@ -429,239 +651,7 @@
                             </ScrollViewer>
                         </TabItem>
 
-                        <TabItem Header="Activity">
-                            <ScrollViewer>
-                                <StackPanel Spacing="16">
-                    <Border Classes="card">
-                        <StackPanel Spacing="6">
-                            <TextBlock Text="Activity" FontSize="16" FontWeight="SemiBold"/>
-                            <TextBlock Text="Write, restore and package transactions report progress here. Read-only scans and dry-runs continue to write to the log." TextWrapping="Wrap"/>
-                        </StackPanel>
-                    </Border>
-
-                    <Border Classes="operation-card" IsVisible="{Binding OperationPanelVisible}">
-                        <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="16">
-                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
-                                <StackPanel Spacing="4">
-                                    <TextBlock Text="{Binding OperationTitle}"
-                                               Foreground="#F8FAFC"
-                                               FontSize="24"
-                                               FontWeight="SemiBold"
-                                               TextWrapping="Wrap"/>
-                                    <TextBlock Text="{Binding OperationSubtitle}"
-                                               Foreground="#C4B5FD"
-                                               TextWrapping="Wrap"/>
-                                </StackPanel>
-                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
-                                    <TextBlock Text="Elapsed" Foreground="#C4B5FD" FontSize="18" FontWeight="SemiBold"/>
-                                    <TextBlock Text="{Binding OperationElapsed}" Foreground="#F8FAFC" FontSize="18" FontWeight="SemiBold"/>
-                                </StackPanel>
-                            </Grid>
-
-                            <Grid Grid.Row="1" RowDefinitions="Auto,Auto" RowSpacing="8">
-                                <ProgressBar Minimum="0"
-                                             Maximum="100"
-                                             Value="{Binding OperationProgress}"
-                                             Height="14"
-                                             Background="#2E1065"
-                                             Foreground="#BDEB73"
-                                             CornerRadius="6"/>
-                                <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="12">
-                                    <TextBlock Text="{Binding OperationProgressText}"
-                                               Foreground="#DDD6FE"
-                                               FontFamily="Menlo,Consolas,monospace"
-                                               FontSize="12"
-                                               TextWrapping="Wrap"/>
-                                    <TextBlock Grid.Column="1"
-                                               Text="{Binding OperationStatus}"
-                                               Foreground="#BDEB73"
-                                               FontWeight="SemiBold"/>
-                                </Grid>
-                            </Grid>
-
-                            <Border Grid.Row="2" Classes="console-card">
-                                <Grid RowDefinitions="Auto,*" RowSpacing="10">
-                                    <Grid ColumnDefinitions="*,Auto">
-                                        <TextBlock Text="Console" Foreground="#F8FAFC" FontWeight="SemiBold"/>
-                                        <TextBlock Grid.Column="1"
-                                                   Text="{Binding OperationStatus}"
-                                                   Foreground="#BDEB73"
-                                                   FontFamily="Menlo,Consolas,monospace"
-                                                   FontSize="12"
-                                                   FontWeight="SemiBold"/>
-                                    </Grid>
-                                    <TextBox Grid.Row="1"
-                                             Text="{Binding OperationLog}"
-                                             IsReadOnly="True"
-                                             AcceptsReturn="True"
-                                             TextWrapping="Wrap"
-                                             FontFamily="Menlo,Consolas,monospace"
-                                             Foreground="#E9D5FF"
-                                             Background="#10072C"
-                                             BorderThickness="0"
-                                             MinHeight="96"/>
-                                </Grid>
-                            </Border>
-                        </Grid>
-                    </Border>
-
-                                </StackPanel>
-                            </ScrollViewer>
-                        </TabItem>
-
-                        <TabItem Header="VNAV Tables">
-                            <ScrollViewer>
-                                <StackPanel Spacing="16">
-                    <Border Classes="card">
-                        <StackPanel Spacing="10">
-                            <TextBlock Text="Components" FontSize="16" FontWeight="SemiBold"/>
-                            <ItemsControl ItemsSource="{Binding Components}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="analysis:ComponentStatus">
-                                        <Grid ColumnDefinitions="220,100,90,*" ColumnSpacing="10" Margin="0,4">
-                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="Wrap"/>
-                                            <TextBlock Grid.Column="1" Text="{Binding State}"/>
-                                            <TextBlock Grid.Column="2" Text="{Binding Version}"/>
-                                            <TextBlock Grid.Column="3" Text="{Binding Detail}" Foreground="#667085" TextWrapping="Wrap"/>
-                                        </Grid>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </StackPanel>
-                    </Border>
-
-                    <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
-                        <Border Classes="card">
-                            <StackPanel Spacing="10">
-                                <TextBlock Text="Planned Changes" FontSize="16" FontWeight="SemiBold"/>
-                                <ItemsControl ItemsSource="{Binding PlannedChanges}"/>
-                                <TextBlock Text="Package actions below modify manifest-owned VNAV content only after validation and backup. Dry-run reviews planned changes without writing files." Foreground="#B45309" FontWeight="SemiBold" TextWrapping="Wrap"/>
-                                <WrapPanel ItemSpacing="8" LineSpacing="8">
-                                    <Button Content="Dry-run" Command="{Binding DryRunCommand}" IsEnabled="{Binding ActionsEnabled}"/>
-                                    <Button Content="Install" Command="{Binding RunPackageActionCommand}" CommandParameter="Install" IsEnabled="{Binding ActionsEnabled}"/>
-                                    <Button Content="Update" Command="{Binding RunPackageActionCommand}" CommandParameter="Update" IsEnabled="{Binding ActionsEnabled}"/>
-                                    <Button Content="Repair" Command="{Binding RunPackageActionCommand}" CommandParameter="Repair" IsEnabled="{Binding ActionsEnabled}"/>
-                                    <Button Content="Restore" Command="{Binding RunPackageActionCommand}" CommandParameter="Restore" IsEnabled="{Binding ActionsEnabled}"/>
-                                    <Button Content="Uninstall" Command="{Binding RunPackageActionCommand}" CommandParameter="Uninstall" IsEnabled="{Binding ActionsEnabled}"/>
-                                </WrapPanel>
-                            </StackPanel>
-                        </Border>
-
-                        <Border Grid.Column="1" Classes="card">
-                            <StackPanel Spacing="10">
-                                <TextBlock Text="Findings" FontSize="16" FontWeight="SemiBold"/>
-                                <ItemsControl ItemsSource="{Binding Findings}"/>
-                            </StackPanel>
-                        </Border>
-                    </Grid>
-
-                                </StackPanel>
-                            </ScrollViewer>
-                        </TabItem>
-
-                        <TabItem Header="Settings">
-                            <ScrollViewer>
-                                <StackPanel Spacing="16">
-                    <Border Classes="card">
-                        <StackPanel Spacing="14">
-                            <StackPanel Spacing="4">
-                                <TextBlock Text="Settings" FontSize="16" FontWeight="SemiBold"/>
-                                <TextBlock Text="Directory settings are validated before saving. Existing restore records keep their original absolute backup paths." Foreground="#667085" TextWrapping="Wrap"/>
-                            </StackPanel>
-
-                            <Border Background="#F8FAFC"
-                                    BorderBrush="#E2E8F0"
-                                    BorderThickness="1"
-                                    CornerRadius="6"
-                                    Padding="10,8">
-                                <TextBlock Text="{Binding SettingsStatus}" Foreground="#475467" TextWrapping="Wrap"/>
-                            </Border>
-
-                            <StackPanel Spacing="10">
-                                <TextBlock Text="Data &amp; Backups" FontSize="15" FontWeight="SemiBold"/>
-                                <StackPanel Spacing="6">
-                                    <TextBlock Classes="label" Text="Backup folder"/>
-                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                                        <TextBox Text="{Binding BackupRootPath}" PlaceholderText="/path/to/toolkit-backups"/>
-                                        <Button Grid.Column="1" Content="Browse" Click="BrowseBackupRoot_Click" IsEnabled="{Binding ActionsEnabled}"/>
-                                    </Grid>
-                                    <TextBlock Text="{Binding DefaultBackupRootPath}" FontFamily="Menlo,Consolas,monospace" FontSize="11" Foreground="#667085" TextWrapping="Wrap"/>
-                                    <WrapPanel ItemSpacing="8" LineSpacing="8">
-                                        <Button Content="Save" Command="{Binding SaveBackupSettingsCommand}" IsEnabled="{Binding ActionsEnabled}"/>
-                                        <Button Content="Use Default" Command="{Binding UseDefaultBackupSettingsCommand}" IsEnabled="{Binding ActionsEnabled}"/>
-                                    </WrapPanel>
-                                </StackPanel>
-                            </StackPanel>
-
-                            <StackPanel Spacing="10">
-                                <TextBlock Text="Package Sources" FontSize="15" FontWeight="SemiBold"/>
-                                <StackPanel Spacing="6">
-                                    <TextBlock Classes="label" Text="Aircraft update ZIP cache folder"/>
-                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                                        <TextBox Text="{Binding AircraftUpdateCacheRootPath}" PlaceholderText="/path/to/aircraft-update-cache"/>
-                                        <Button Grid.Column="1" Content="Browse" Click="BrowseAircraftUpdateCacheRoot_Click" IsEnabled="{Binding ActionsEnabled}"/>
-                                    </Grid>
-                                    <TextBlock Text="{Binding DefaultAircraftUpdateCacheRootPath}" FontFamily="Menlo,Consolas,monospace" FontSize="11" Foreground="#667085" TextWrapping="Wrap"/>
-                                    <WrapPanel ItemSpacing="8" LineSpacing="8">
-                                        <Button Content="Save" Command="{Binding SaveAircraftUpdateCacheSettingsCommand}" IsEnabled="{Binding ActionsEnabled}"/>
-                                        <Button Content="Use Default" Command="{Binding UseDefaultAircraftUpdateCacheSettingsCommand}" IsEnabled="{Binding ActionsEnabled}"/>
-                                        <Button Content="Clear Cache" Command="{Binding ClearAircraftUpdateCacheCommand}" IsEnabled="{Binding ActionsEnabled}"/>
-                                    </WrapPanel>
-                                </StackPanel>
-
-                                <StackPanel Spacing="6">
-                                    <TextBlock Classes="label" Text="Offline VNAV package folder"/>
-                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                                        <TextBox Text="{Binding OfflinePackageRootPath}" PlaceholderText="/path/to/offline-vnav-packages"/>
-                                        <Button Grid.Column="1" Content="Browse" Click="BrowseOfflinePackageRoot_Click" IsEnabled="{Binding ActionsEnabled}"/>
-                                    </Grid>
-                                    <TextBlock Text="{Binding DefaultOfflinePackageRootPath}" FontFamily="Menlo,Consolas,monospace" FontSize="11" Foreground="#667085" TextWrapping="Wrap"/>
-                                    <WrapPanel ItemSpacing="8" LineSpacing="8">
-                                        <Button Content="Save" Command="{Binding SaveOfflinePackageSettingsCommand}" IsEnabled="{Binding ActionsEnabled}"/>
-                                        <Button Content="Use Default" Command="{Binding UseDefaultOfflinePackageSettingsCommand}" IsEnabled="{Binding ActionsEnabled}"/>
-                                    </WrapPanel>
-                                </StackPanel>
-                            </StackPanel>
-
-                            <StackPanel Spacing="10">
-                                <TextBlock Text="Diagnostics" FontSize="15" FontWeight="SemiBold"/>
-                                <StackPanel Spacing="6">
-                                    <TextBlock Classes="label" Text="Diagnostics export folder"/>
-                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                                        <TextBox Text="{Binding DiagnosticsExportRootPath}" PlaceholderText="/path/to/diagnostics"/>
-                                        <Button Grid.Column="1" Content="Browse" Click="BrowseDiagnosticsExportRoot_Click" IsEnabled="{Binding ActionsEnabled}"/>
-                                    </Grid>
-                                    <TextBlock Text="{Binding DefaultDiagnosticsExportRootPath}" FontFamily="Menlo,Consolas,monospace" FontSize="11" Foreground="#667085" TextWrapping="Wrap"/>
-                                    <WrapPanel ItemSpacing="8" LineSpacing="8">
-                                        <Button Content="Save" Command="{Binding SaveDiagnosticsExportSettingsCommand}" IsEnabled="{Binding ActionsEnabled}"/>
-                                        <Button Content="Use Default" Command="{Binding UseDefaultDiagnosticsExportSettingsCommand}" IsEnabled="{Binding ActionsEnabled}"/>
-                                    </WrapPanel>
-                                </StackPanel>
-                            </StackPanel>
-
-                            <Grid ColumnDefinitions="*,*" ColumnSpacing="14">
-                                <StackPanel Spacing="4">
-                                    <TextBlock Classes="label" Text="Toolkit data folder"/>
-                                    <TextBlock Text="{Binding ToolkitDataRoot}" FontFamily="Menlo,Consolas,monospace" FontSize="12" Foreground="#667085" TextWrapping="Wrap"/>
-                                </StackPanel>
-                                <StackPanel Grid.Column="1" Spacing="4">
-                                    <TextBlock Classes="label" Text="State file"/>
-                                    <TextBlock Text="{Binding ToolkitStatePath}" FontFamily="Menlo,Consolas,monospace" FontSize="12" Foreground="#667085" TextWrapping="Wrap"/>
-                                </StackPanel>
-                            </Grid>
-
-                            <StackPanel Spacing="4">
-                                <TextBlock Classes="label" Text="Settings file"/>
-                                <TextBlock Text="{Binding ToolkitSettingsPath}" FontFamily="Menlo,Consolas,monospace" FontSize="12" Foreground="#667085" TextWrapping="Wrap"/>
-                            </StackPanel>
-                        </StackPanel>
-                    </Border>
-
-                                </StackPanel>
-                            </ScrollViewer>
-                        </TabItem>
-
-                        <TabItem Header="Logs">
+                        <TabItem Header="Log">
                             <ScrollViewer>
                                 <StackPanel Spacing="16">
                     <Border Classes="card">

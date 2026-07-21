@@ -9,7 +9,7 @@ tasks:
 - VNAV descent table package install, update, repair, restore and uninstall.
 - Quick View and default-view maintenance after aircraft CG changes.
 - Config backup and config restore for supported aircraft preference files.
-- Zibo upstream aircraft package review, cache, dry-run, apply and restore.
+- Zibo upstream aircraft package review, cache, apply and restore.
 
 The app does not replace X-Plane, Zibo, LevelUp or their official installers.
 It works on a selected local aircraft folder and writes only after validation,
@@ -93,20 +93,44 @@ Supported config backup files include:
 - `version.txt`
 - `xplane-737ng-maintenance.json`
 
-### Aircraft Updates
+### Updates
 
-This tab handles upstream aircraft package planning and application. The first
-implemented source is Zibo.
+This tab groups update workflows for the selected aircraft. Zibo and LevelUp
+are treated as equal 737NG targets; the app shows the providers that apply to
+the detected aircraft.
 
-Click `Refresh` to read the local aircraft version and refresh the upstream
-package index. The app then shows:
+The `VNAV Tables` section handles manifest-owned descent table content and Lua
+hooks. `Review VNAV changes` calculates planned changes without writing files.
+`Install`, `Update`, `Repair`, `Restore` and `Uninstall` modify only
+manifest-owned VNAV blocks and payload files after validation and backup.
+
+VNAV content writes are limited to the manifest-owned Lua blocks and payload
+files. The app never distributes or writes a complete modified
+`B738.a_fms.lua`.
+
+For normal online use, the app tries to refresh `package-manifest.txt` and
+payload files from explicit GitHub Release assets. Fallback sources are:
+
+- the folder set in `XPLANE_737NG_PACKAGE_DIR`
+- the Offline VNAV package folder configured in Settings
+- bundled preview content shipped with the app
+- the source-tree content folder during development
+
+Every payload is checked against size and SHA-256 from the manifest before it
+is installed.
+
+The `Aircraft Packages` section handles upstream aircraft package planning and
+application. The first implemented aircraft package source is Zibo.
+
+Click `Check for updates` to read the local aircraft version and refresh the
+upstream package index. The app then shows:
 
 - installed version
 - available version
 - update mode
 - required package list
 - source links
-- cache status
+- package cache status
 
 Zibo packages are modeled as baseline plus cumulative patch:
 
@@ -119,26 +143,27 @@ The app does not apply a chain of incremental patches. It plans either the
 current full baseline plus latest cumulative patch, or only the latest
 cumulative patch for the already installed baseline.
 
-Use `Download ZIPs` to let the app try to download required ZIPs into the
-aircraft update cache. If the source exposes a `.zip.torrent` URL, the app
+Use `Download required packages` to let the app try to download required
+packages into the aircraft update cache. If the source exposes a `.zip.torrent`
+URL, the app
 tries the matching `.zip` URL first. Some sources may not expose a direct ZIP
-stream; in that case use `Import ZIP`.
+stream; in that case use `Import package...`.
 
-Use `Import ZIP` to select a local package ZIP. The selected file name must
+Use `Import package...` to select a local package ZIP. The selected file name must
 match a required package in the current plan exactly. If the file dialog closes
-and nothing obvious happens, check the Aircraft Updates status line, cache
-status and Logs tab for the import result.
+and nothing obvious happens, check the Updates status line, cache status and
+Log tab for the import result.
 
-Use `Dry-run ZIPs` before applying. Dry-run opens the cached ZIPs and reports
-which files would be added, replaced or protected. No aircraft files are
-changed during dry-run.
+Use `Review aircraft changes` before applying. Review opens the cached packages
+and reports which files would be added, replaced or protected. No aircraft
+files are changed during review.
 
-Use `Apply cached ZIPs` only after the cache contains every required package
-and dry-run is clean. The apply operation:
+Use `Apply aircraft update` only after the cache contains every required
+package and review is clean. The apply operation:
 
 - blocks when X-Plane is running
 - verifies cached ZIP size and SHA-256 against the recorded cache snapshot
-- performs an internal dry-run before writing
+- performs an internal review pass before writing
 - backs up replaced files and tracks files added by the update
 - preserves protected local config and preference files
 - writes toolkit metadata after a successful update
@@ -157,55 +182,11 @@ Custom distributions and no-Lua ports can declare their own state in
 package information is review-only unless a dedicated custom-port update
 source is implemented.
 
-### VNAV Tables
-
-This tab handles manifest-owned VNAV descent table content.
-
-`Dry-run` calculates planned changes without writing files.
-
-`Install` adds the manifest-owned Lua hooks and payload files when the package
-is not installed.
-
-`Update` replaces older manifest-owned hooks or payload files with the current
-package version.
-
-`Repair` rewrites the current manifest-owned package even when the installed
-version appears current. Use it when payload files are missing or changed.
-
-`Restore` restores the latest recorded backup generation for the selected
-variant.
-
-`Uninstall` removes manifest-owned VNAV hook blocks and matching manifest
-payload files. Changed payload files that no longer match the manifest hash are
-left in place instead of being deleted blindly.
-
-VNAV content writes are limited to the manifest-owned Lua blocks and payload
-files. The app never distributes or writes a complete modified
-`B738.a_fms.lua`.
-
-For normal online use, the app tries to refresh `package-manifest.txt` and
-payload files from explicit GitHub Release assets. Fallback sources are:
-
-- the folder set in `XPLANE_737NG_PACKAGE_DIR`
-- the Offline VNAV package folder configured in Settings
-- bundled preview content shipped with the app
-- the source-tree content folder during development
-
-Every payload is checked against size and SHA-256 from the manifest before it
-is installed.
-
-### Activity
-
-This tab shows the current write operation with progress, elapsed time and a
-console-style transaction log.
-
-Use it while a longer apply, restore or backup operation is running.
-
 ### Settings
 
-Settings are stored in `settings.json` under the toolkit data folder shown in
-the Settings tab. Directory settings are normalized and tested for write
-access before saving.
+Open Settings from the cog button in the top-right header. Settings are stored
+in `settings.json` under the toolkit data folder shown in the settings panel.
+Directory settings are normalized and tested for write access before saving.
 
 The selected aircraft folder is also stored in `settings.json` and is restored
 when the app starts. On Linux, the toolkit data folder follows
@@ -216,8 +197,8 @@ Available settings:
 
 - `Backup folder`: stores real backup data and restore records. Do not delete
   this folder casually.
-- `Aircraft update ZIP cache folder`: stores downloaded or imported upstream
-  aircraft update ZIPs. This can be cleared and recreated.
+- `Aircraft update package cache folder`: stores downloaded or imported
+  upstream aircraft update packages. This can be cleared and recreated.
 - `Offline VNAV package folder`: optional local source for VNAV manifest
   payload files.
 - `Diagnostics export folder`: target folder reserved for diagnostic exports.
@@ -230,8 +211,8 @@ not delete aircraft files and does not delete backups.
 
 ### Logs
 
-The Logs tab contains the session install log. It records scans, blocked
-actions, backups, dry-runs, writes, restores and errors.
+The Log tab contains the session install log. It records scans, blocked
+actions, backups, reviews, writes, restores and errors.
 
 The log can be cleared from the UI. Clearing the visible log does not delete
 backup files or state records.
@@ -268,23 +249,23 @@ Close X-Plane fully, then retry the operation.
 
 `Import blocked`
 
-Refresh the Aircraft Updates tab first. The ZIP file name must match one of
+Use `Check for updates` in the Updates tab first. The ZIP file name must match one of
 the required packages in the current plan.
 
 `Download failed`
 
 The source may not expose a direct ZIP stream. Download the required ZIP
-manually and use `Import ZIP`.
+manually and use `Import package...`.
 
-`Dry-run blocked`
+`Review blocked`
 
-Check the dry-run findings. Common causes are missing cache entries, an invalid
+Check the review findings. Common causes are missing cache entries, an invalid
 ZIP file or an unsafe ZIP path.
 
 `Target state is not safe to patch`
 
 The current aircraft files do not match a state the app can modify safely.
-Review the Findings and Logs tabs before changing anything manually.
+Review the Findings and Log tab before changing anything manually.
 
 `Custom distribution detected`
 
