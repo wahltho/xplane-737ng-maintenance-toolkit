@@ -22,6 +22,22 @@
     </Design.DataContext>
 
     <Window.Styles>
+        <Style Selector="TextBlock">
+            <Setter Property="Foreground" Value="#111827"/>
+        </Style>
+        <Style Selector="TextBox">
+            <Setter Property="Background" Value="#FFFFFFFF"/>
+            <Setter Property="Foreground" Value="#111827"/>
+            <Setter Property="BorderBrush" Value="#CBD5E1"/>
+        </Style>
+        <Style Selector="ListBox">
+            <Setter Property="Background" Value="#FFFFFFFF"/>
+            <Setter Property="Foreground" Value="#111827"/>
+            <Setter Property="BorderBrush" Value="#E5E7EB"/>
+        </Style>
+        <Style Selector="TabControl">
+            <Setter Property="Background" Value="Transparent"/>
+        </Style>
         <Style Selector="Border.card">
             <Setter Property="Background" Value="#FFFFFFFF"/>
             <Setter Property="BorderBrush" Value="#D8DEE8"/>

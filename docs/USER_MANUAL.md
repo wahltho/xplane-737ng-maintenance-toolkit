@@ -207,6 +207,11 @@ Settings are stored in `settings.json` under the toolkit data folder shown in
 the Settings tab. Directory settings are normalized and tested for write
 access before saving.
 
+The selected aircraft folder is also stored in `settings.json` and is restored
+when the app starts. On Linux, the toolkit data folder follows
+`$XDG_CONFIG_HOME` or `~/.config`; the aircraft update ZIP cache follows
+`$XDG_CACHE_HOME` or `~/.cache`.
+
 Available settings:
 
 - `Backup folder`: stores real backup data and restore records. Do not delete

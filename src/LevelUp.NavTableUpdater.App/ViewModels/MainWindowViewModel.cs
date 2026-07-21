@@ -262,6 +262,7 @@ public partial class MainWindowViewModel : ViewModelBase
         _settings = _settingsStore.Load();
         _stateStore = ToolStateStore.CreateDefault(_settings.BackupRootPath);
         _aircraftUpdatePackageCache = new AircraftUpdatePackageCache(_settings.AircraftUpdateCacheRootPath);
+        SelectedAircraftPath = _settings.SelectedAircraftPath;
         BackupRootPath = _stateStore.BackupRootPath;
         AircraftUpdateCacheRootPath = _aircraftUpdatePackageCache.RootPath;
         OfflinePackageRootPath = _settings.OfflinePackageRootPath;
@@ -293,11 +294,16 @@ public partial class MainWindowViewModel : ViewModelBase
         AppendLog($"Loaded {_manifests.Count} bundled manifest(s). Active: {_manifest.PackageId} {_manifest.PackageVersion}.");
         AppendLog($"Settings loaded. Backup folder: {_stateStore.BackupRootPath}");
         AppendLog($"Settings loaded. Aircraft update cache: {_aircraftUpdatePackageCache.RootPath}");
+        if (!string.IsNullOrWhiteSpace(SelectedAircraftPath))
+        {
+            AppendLog($"Settings loaded. Selected aircraft folder: {SelectedAircraftPath}");
+        }
     }
 
     public void SetAircraftPathFromBrowse(string path)
     {
         SelectedAircraftPath = path;
+        SaveSelectedAircraftPathSetting();
         Scan();
     }
 
@@ -483,6 +489,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         SelectedAircraftPath = value.Path;
+        SaveSelectedAircraftPathSetting();
         Scan();
     }
 
@@ -509,6 +516,7 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private void Scan()
     {
+        SaveSelectedAircraftPathSetting();
         var viewResult = _viewAnalyzer.Analyze(SelectedAircraftPath);
         ApplyManifest(SelectManifest(viewResult));
         var result = _analyzer.Analyze(SelectedAircraftPath, _manifest);
@@ -1557,6 +1565,33 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             SettingsStatus = $"{label} was not changed: {ex.Message}";
             AppendLog($"Settings: {label} rejected: {ex.Message}");
+        }
+    }
+
+    private void SaveSelectedAircraftPathSetting()
+    {
+        if (string.IsNullOrWhiteSpace(SelectedAircraftPath))
+        {
+            return;
+        }
+
+        try
+        {
+            var fullPath = NormalizeUserPath(SelectedAircraftPath);
+            if (string.Equals(_settings.SelectedAircraftPath, fullPath, StringComparison.Ordinal))
+            {
+                SelectedAircraftPath = fullPath;
+                return;
+            }
+
+            _settings.SelectedAircraftPath = fullPath;
+            _settingsStore.Save(_settings);
+            SelectedAircraftPath = fullPath;
+            AppendLog($"Settings: selected aircraft folder saved: {fullPath}");
+        }
+        catch (Exception ex) when (ex is ArgumentException or IOException or NotSupportedException or UnauthorizedAccessException)
+        {
+            AppendLog($"Settings: selected aircraft folder was not saved: {ex.Message}");
         }
     }
 

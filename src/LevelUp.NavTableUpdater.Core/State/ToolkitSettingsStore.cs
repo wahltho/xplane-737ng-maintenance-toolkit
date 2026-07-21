@@ -54,6 +54,7 @@ public sealed class ToolkitSettingsStore
     private static ToolkitSettingsDocument CreateDefaultDocument() =>
         new()
         {
+            SelectedAircraftPath = "",
             BackupRootPath = ToolkitPaths.DefaultBackupRootPath,
             AircraftUpdateCacheRootPath = ToolkitPaths.DefaultAircraftUpdateCacheRootPath,
             OfflinePackageRootPath = ToolkitPaths.DefaultOfflinePackageRootPath,
@@ -63,6 +64,7 @@ public sealed class ToolkitSettingsStore
     private static ToolkitSettingsDocument Normalize(ToolkitSettingsDocument document)
     {
         document.SchemaVersion = document.SchemaVersion <= 0 ? 1 : document.SchemaVersion;
+        document.SelectedAircraftPath = NormalizeOptionalPath(document.SelectedAircraftPath);
         document.BackupRootPath = NormalizePath(document.BackupRootPath, ToolkitPaths.DefaultBackupRootPath);
         document.AircraftUpdateCacheRootPath = NormalizePath(document.AircraftUpdateCacheRootPath, ToolkitPaths.DefaultAircraftUpdateCacheRootPath);
         document.OfflinePackageRootPath = NormalizePath(document.OfflinePackageRootPath, ToolkitPaths.DefaultOfflinePackageRootPath);
@@ -72,4 +74,21 @@ public sealed class ToolkitSettingsStore
 
     private static string NormalizePath(string path, string fallback) =>
         Path.GetFullPath(string.IsNullOrWhiteSpace(path) ? fallback : path);
+
+    private static string NormalizeOptionalPath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return "";
+        }
+
+        try
+        {
+            return Path.GetFullPath(path);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return "";
+        }
+    }
 }

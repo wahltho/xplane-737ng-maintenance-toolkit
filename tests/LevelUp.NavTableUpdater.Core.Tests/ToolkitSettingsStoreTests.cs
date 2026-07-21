@@ -13,6 +13,7 @@ public sealed class ToolkitSettingsStoreTests : IDisposable
 
         var settings = store.Load();
 
+        Assert.Equal("", settings.SelectedAircraftPath);
         Assert.Equal(Path.GetFullPath(ToolStateStore.DefaultBackupRootPath), settings.BackupRootPath);
         Assert.False(string.IsNullOrWhiteSpace(settings.AircraftUpdateCacheRootPath));
         Assert.False(string.IsNullOrWhiteSpace(settings.OfflinePackageRootPath));
@@ -26,10 +27,12 @@ public sealed class ToolkitSettingsStoreTests : IDisposable
         var cacheRoot = Path.Combine(_root, "custom-cache");
         var packagesRoot = Path.Combine(_root, "custom-packages");
         var diagnosticsRoot = Path.Combine(_root, "custom-diagnostics");
+        var selectedAircraftPath = Path.Combine(_root, "B737-800X");
         var store = new ToolkitSettingsStore(_root);
 
         store.Save(new ToolkitSettingsDocument
         {
+            SelectedAircraftPath = selectedAircraftPath,
             BackupRootPath = backupRoot,
             AircraftUpdateCacheRootPath = cacheRoot,
             OfflinePackageRootPath = packagesRoot,
@@ -37,6 +40,7 @@ public sealed class ToolkitSettingsStoreTests : IDisposable
         });
 
         var settings = store.Load();
+        Assert.Equal(Path.GetFullPath(selectedAircraftPath), settings.SelectedAircraftPath);
         Assert.Equal(Path.GetFullPath(backupRoot), settings.BackupRootPath);
         Assert.Equal(Path.GetFullPath(cacheRoot), settings.AircraftUpdateCacheRootPath);
         Assert.Equal(Path.GetFullPath(packagesRoot), settings.OfflinePackageRootPath);
