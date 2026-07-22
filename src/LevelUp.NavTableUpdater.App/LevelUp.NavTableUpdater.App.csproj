@@ -3,7 +3,7 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <AssemblyName>XPlane737NGMaintenanceToolkit</AssemblyName>
-    <Version>0.2.4</Version>
+    <Version>0.2.5</Version>
     <Authors>X-Plane 737NG Maintenance Toolkit contributors</Authors>
     <Product>X-Plane 737NG Maintenance Toolkit</Product>
     <ImplicitUsings>enable</ImplicitUsings>

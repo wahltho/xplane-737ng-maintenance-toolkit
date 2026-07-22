@@ -30,6 +30,10 @@
             <Setter Property="Foreground" Value="#111827"/>
             <Setter Property="BorderBrush" Value="#CBD5E1"/>
         </Style>
+        <Style Selector="TextBox.path-field">
+            <Setter Property="MinWidth" Value="0"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+        </Style>
         <Style Selector="ListBox">
             <Setter Property="Background" Value="#FFFFFFFF"/>
             <Setter Property="Foreground" Value="#111827"/>
@@ -89,8 +93,11 @@
                             VerticalContentAlignment="Center"
                             ToolTip.Tip="Settings">
                         <Button.Flyout>
-                            <Flyout Placement="Bottom">
-                                <ScrollViewer Width="720" MaxHeight="620">
+                            <Flyout Placement="BottomEdgeAlignedRight">
+                                <ScrollViewer Width="520"
+                                              MaxHeight="560"
+                                              HorizontalScrollBarVisibility="Disabled"
+                                              VerticalScrollBarVisibility="Auto">
                                     <Border Classes="card">
                                         <StackPanel Spacing="14">
                                             <StackPanel Spacing="4">
@@ -110,9 +117,9 @@
                                                 <TextBlock Text="Data &amp; Backups" FontSize="15" FontWeight="SemiBold"/>
                                                 <StackPanel Spacing="6">
                                                     <TextBlock Classes="label" Text="Backup folder"/>
-                                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                                                        <TextBox Text="{Binding BackupRootPath}" PlaceholderText="/path/to/toolkit-backups"/>
-                                                        <Button Grid.Column="1" Content="Browse" Click="BrowseBackupRoot_Click" IsEnabled="{Binding ActionsEnabled}"/>
+                                                    <Grid ColumnDefinitions="*,92" ColumnSpacing="8">
+                                                        <TextBox Classes="path-field" Text="{Binding BackupRootPath}" PlaceholderText="/path/to/toolkit-backups"/>
+                                                        <Button Grid.Column="1" Content="Browse" Click="BrowseBackupRoot_Click" IsEnabled="{Binding ActionsEnabled}" HorizontalAlignment="Stretch"/>
                                                     </Grid>
                                                     <TextBlock Text="{Binding DefaultBackupRootPath}" FontFamily="Menlo,Consolas,monospace" FontSize="11" Foreground="#667085" TextWrapping="Wrap"/>
                                                     <WrapPanel ItemSpacing="8" LineSpacing="8">
@@ -126,9 +133,9 @@
                                                 <TextBlock Text="Package Sources" FontSize="15" FontWeight="SemiBold"/>
                                                 <StackPanel Spacing="6">
                                                     <TextBlock Classes="label" Text="Aircraft update package cache folder"/>
-                                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                                                        <TextBox Text="{Binding AircraftUpdateCacheRootPath}" PlaceholderText="/path/to/aircraft-update-cache"/>
-                                                        <Button Grid.Column="1" Content="Browse" Click="BrowseAircraftUpdateCacheRoot_Click" IsEnabled="{Binding ActionsEnabled}"/>
+                                                    <Grid ColumnDefinitions="*,92" ColumnSpacing="8">
+                                                        <TextBox Classes="path-field" Text="{Binding AircraftUpdateCacheRootPath}" PlaceholderText="/path/to/aircraft-update-cache"/>
+                                                        <Button Grid.Column="1" Content="Browse" Click="BrowseAircraftUpdateCacheRoot_Click" IsEnabled="{Binding ActionsEnabled}" HorizontalAlignment="Stretch"/>
                                                     </Grid>
                                                     <TextBlock Text="{Binding DefaultAircraftUpdateCacheRootPath}" FontFamily="Menlo,Consolas,monospace" FontSize="11" Foreground="#667085" TextWrapping="Wrap"/>
                                                     <WrapPanel ItemSpacing="8" LineSpacing="8">
@@ -140,9 +147,9 @@
 
                                                 <StackPanel Spacing="6">
                                                     <TextBlock Classes="label" Text="Offline VNAV package folder"/>
-                                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                                                        <TextBox Text="{Binding OfflinePackageRootPath}" PlaceholderText="/path/to/offline-vnav-packages"/>
-                                                        <Button Grid.Column="1" Content="Browse" Click="BrowseOfflinePackageRoot_Click" IsEnabled="{Binding ActionsEnabled}"/>
+                                                    <Grid ColumnDefinitions="*,92" ColumnSpacing="8">
+                                                        <TextBox Classes="path-field" Text="{Binding OfflinePackageRootPath}" PlaceholderText="/path/to/offline-vnav-packages"/>
+                                                        <Button Grid.Column="1" Content="Browse" Click="BrowseOfflinePackageRoot_Click" IsEnabled="{Binding ActionsEnabled}" HorizontalAlignment="Stretch"/>
                                                     </Grid>
                                                     <TextBlock Text="{Binding DefaultOfflinePackageRootPath}" FontFamily="Menlo,Consolas,monospace" FontSize="11" Foreground="#667085" TextWrapping="Wrap"/>
                                                     <WrapPanel ItemSpacing="8" LineSpacing="8">
@@ -156,9 +163,9 @@
                                                 <TextBlock Text="Diagnostics" FontSize="15" FontWeight="SemiBold"/>
                                                 <StackPanel Spacing="6">
                                                     <TextBlock Classes="label" Text="Diagnostics export folder"/>
-                                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                                                        <TextBox Text="{Binding DiagnosticsExportRootPath}" PlaceholderText="/path/to/diagnostics"/>
-                                                        <Button Grid.Column="1" Content="Browse" Click="BrowseDiagnosticsExportRoot_Click" IsEnabled="{Binding ActionsEnabled}"/>
+                                                    <Grid ColumnDefinitions="*,92" ColumnSpacing="8">
+                                                        <TextBox Classes="path-field" Text="{Binding DiagnosticsExportRootPath}" PlaceholderText="/path/to/diagnostics"/>
+                                                        <Button Grid.Column="1" Content="Browse" Click="BrowseDiagnosticsExportRoot_Click" IsEnabled="{Binding ActionsEnabled}" HorizontalAlignment="Stretch"/>
                                                     </Grid>
                                                     <TextBlock Text="{Binding DefaultDiagnosticsExportRootPath}" FontFamily="Menlo,Consolas,monospace" FontSize="11" Foreground="#667085" TextWrapping="Wrap"/>
                                                     <WrapPanel ItemSpacing="8" LineSpacing="8">
@@ -168,16 +175,16 @@
                                                 </StackPanel>
                                             </StackPanel>
 
-                                            <Grid ColumnDefinitions="*,*" ColumnSpacing="14">
+                                            <StackPanel Spacing="8">
                                                 <StackPanel Spacing="4">
                                                     <TextBlock Classes="label" Text="Toolkit data folder"/>
                                                     <TextBlock Text="{Binding ToolkitDataRoot}" FontFamily="Menlo,Consolas,monospace" FontSize="12" Foreground="#667085" TextWrapping="Wrap"/>
                                                 </StackPanel>
-                                                <StackPanel Grid.Column="1" Spacing="4">
+                                                <StackPanel Spacing="4">
                                                     <TextBlock Classes="label" Text="State file"/>
                                                     <TextBlock Text="{Binding ToolkitStatePath}" FontFamily="Menlo,Consolas,monospace" FontSize="12" Foreground="#667085" TextWrapping="Wrap"/>
                                                 </StackPanel>
-                                            </Grid>
+                                            </StackPanel>
 
                                             <StackPanel Spacing="4">
                                                 <TextBlock Classes="label" Text="Settings file"/>
@@ -249,7 +256,7 @@
 
             <ScrollViewer Grid.Column="1">
                 <StackPanel Spacing="16">
-                    <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="12">
+                    <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="12">
                         <Border Classes="card">
                             <StackPanel Spacing="4">
                                 <TextBlock Classes="label" Text="Aircraft status"/>
@@ -262,13 +269,13 @@
                                 <TextBlock Classes="value" Text="{Binding LocalPackageVersion}"/>
                             </StackPanel>
                         </Border>
-                        <Border Grid.Column="2" Classes="card">
+                        <Border Grid.Row="1" Classes="card">
                             <StackPanel Spacing="4">
                                 <TextBlock Classes="label" Text="Available package"/>
                                 <TextBlock Classes="value" Text="{Binding AvailablePackageVersion}"/>
                             </StackPanel>
                         </Border>
-                        <Border Grid.Column="3" Classes="card">
+                        <Border Grid.Row="1" Grid.Column="1" Classes="card">
                             <StackPanel Spacing="4">
                                 <TextBlock Classes="label" Text="Line endings"/>
                                 <TextBlock Classes="value" Text="{Binding LineEnding}"/>
