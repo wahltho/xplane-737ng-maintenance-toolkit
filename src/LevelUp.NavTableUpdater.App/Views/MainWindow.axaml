@@ -35,6 +35,12 @@
             <Setter Property="Foreground" Value="#111827"/>
             <Setter Property="BorderBrush" Value="#E5E7EB"/>
         </Style>
+        <Style Selector="ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#E0F2FE"/>
+        </Style>
+        <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#F1F5F9"/>
+        </Style>
         <Style Selector="TabControl">
             <Setter Property="Background" Value="Transparent"/>
         </Style>
@@ -63,6 +69,31 @@
             <Setter Property="BorderBrush" Value="#475569"/>
             <Setter Property="Foreground" Value="#F8FAFC"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+        <Style Selector="Button.back-button">
+            <Setter Property="Background" Value="#FFFFFFFF"/>
+            <Setter Property="BorderBrush" Value="#CBD5E1"/>
+            <Setter Property="Foreground" Value="#111827"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+        <Style Selector="Border.path-display">
+            <Setter Property="Background" Value="#F8FAFC"/>
+            <Setter Property="BorderBrush" Value="#CBD5E1"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="5"/>
+            <Setter Property="Padding" Value="10,8"/>
+        </Style>
+        <Style Selector="TextBlock.path">
+            <Setter Property="FontFamily" Value="Menlo,Consolas,monospace"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="#111827"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+        <Style Selector="TextBlock.secondary-path">
+            <Setter Property="FontFamily" Value="Menlo,Consolas,monospace"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="#667085"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
         </Style>
         <Style Selector="Border.operation-card">
             <Setter Property="Background" Value="#160A3D"/>
@@ -95,7 +126,7 @@
                             HorizontalContentAlignment="Center"
                             VerticalContentAlignment="Center"
                             ToolTip.Tip="Settings"
-                            Click="OpenSettings_Click"/>
+                            Command="{Binding ShowSettingsCommand}"/>
                 </StackPanel>
             </Grid>
         </Border>
@@ -109,7 +140,7 @@
             <TextBlock Text="{Binding RestartNotice}" Foreground="#9A3412" FontWeight="SemiBold"/>
         </Border>
 
-        <Grid Grid.Row="2" ColumnDefinitions="320,*" Margin="16" ColumnSpacing="16">
+        <Grid Grid.Row="2" ColumnDefinitions="320,*" Margin="16" ColumnSpacing="16" IsVisible="{Binding MainContentVisible}">
             <Border Classes="card">
                 <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="14">
                     <StackPanel Spacing="4">
@@ -118,6 +149,20 @@
                     </StackPanel>
 
                     <StackPanel Grid.Row="1" Spacing="8">
+                        <TextBlock Classes="label" Text="Active target"/>
+                        <ComboBox ItemsSource="{Binding DetectedTargets}"
+                                  SelectedItem="{Binding SelectedCandidate}"
+                                  HorizontalAlignment="Stretch"
+                                  MaxDropDownHeight="320">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="core:AircraftCandidate">
+                                    <StackPanel Spacing="2" Margin="0,3">
+                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
+                                        <TextBlock Text="{Binding Path}" Foreground="#667085" FontSize="11" TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
                         <TextBlock Classes="label" Text="Selected folder"/>
                         <TextBox Text="{Binding SelectedAircraftPath}" PlaceholderText="/path/to/Zibo or LevelUp aircraft folder"/>
                         <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
@@ -584,6 +629,123 @@
                 </StackPanel>
             </ScrollViewer>
         </Grid>
+
+        <ScrollViewer Grid.Row="2"
+                      IsVisible="{Binding SettingsContentVisible}"
+                      HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="16" Spacing="16">
+                <Border Classes="card">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Settings" FontSize="22" FontWeight="SemiBold"/>
+                            <TextBlock Text="Directory settings are validated before saving. Existing restore records keep their original absolute backup paths."
+                                       Foreground="#667085"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+                        <Button Grid.Column="1"
+                                Content="Back"
+                                Classes="back-button"
+                                Width="96"
+                                Height="34"
+                                HorizontalContentAlignment="Center"
+                                VerticalAlignment="Top"
+                                Command="{Binding ShowMainContentCommand}"/>
+                    </Grid>
+                </Border>
+
+                <Border Background="#F8FAFC"
+                        BorderBrush="#E2E8F0"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Padding="12,10">
+                    <TextBlock Text="{Binding SettingsStatus}" Foreground="#475467" TextWrapping="Wrap"/>
+                </Border>
+
+                <Border Classes="card">
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="Data &amp; Backups" FontSize="16" FontWeight="SemiBold"/>
+                        <TextBlock Classes="label" Text="Backup folder"/>
+                        <Border Classes="path-display">
+                            <TextBlock Classes="path" Text="{Binding BackupRootPath}"/>
+                        </Border>
+                        <TextBlock Classes="secondary-path" Text="{Binding DefaultBackupRootPath}"/>
+                        <WrapPanel ItemSpacing="8" LineSpacing="8">
+                            <Button Content="Browse" Click="BrowseBackupRoot_Click" IsEnabled="{Binding ActionsEnabled}"/>
+                            <Button Content="Save" Command="{Binding SaveBackupSettingsCommand}" IsEnabled="{Binding ActionsEnabled}"/>
+                            <Button Content="Use Default" Command="{Binding UseDefaultBackupSettingsCommand}" IsEnabled="{Binding ActionsEnabled}"/>
+                        </WrapPanel>
+                    </StackPanel>
+                </Border>
+
+                <Border Classes="card">
+                    <StackPanel Spacing="12">
+                        <TextBlock Text="Package Sources" FontSize="16" FontWeight="SemiBold"/>
+
+                        <StackPanel Spacing="6">
+                            <TextBlock Classes="label" Text="Aircraft update package cache folder"/>
+                            <Border Classes="path-display">
+                                <TextBlock Classes="path" Text="{Binding AircraftUpdateCacheRootPath}"/>
+                            </Border>
+                            <TextBlock Classes="secondary-path" Text="{Binding DefaultAircraftUpdateCacheRootPath}"/>
+                            <WrapPanel ItemSpacing="8" LineSpacing="8">
+                                <Button Content="Browse" Click="BrowseAircraftUpdateCacheRoot_Click" IsEnabled="{Binding ActionsEnabled}"/>
+                                <Button Content="Save" Command="{Binding SaveAircraftUpdateCacheSettingsCommand}" IsEnabled="{Binding ActionsEnabled}"/>
+                                <Button Content="Use Default" Command="{Binding UseDefaultAircraftUpdateCacheSettingsCommand}" IsEnabled="{Binding ActionsEnabled}"/>
+                                <Button Content="Clear Cache" Command="{Binding ClearAircraftUpdateCacheCommand}" IsEnabled="{Binding ActionsEnabled}"/>
+                            </WrapPanel>
+                        </StackPanel>
+
+                        <StackPanel Spacing="6">
+                            <TextBlock Classes="label" Text="Offline VNAV package folder"/>
+                            <Border Classes="path-display">
+                                <TextBlock Classes="path" Text="{Binding OfflinePackageRootPath}"/>
+                            </Border>
+                            <TextBlock Classes="secondary-path" Text="{Binding DefaultOfflinePackageRootPath}"/>
+                            <WrapPanel ItemSpacing="8" LineSpacing="8">
+                                <Button Content="Browse" Click="BrowseOfflinePackageRoot_Click" IsEnabled="{Binding ActionsEnabled}"/>
+                                <Button Content="Save" Command="{Binding SaveOfflinePackageSettingsCommand}" IsEnabled="{Binding ActionsEnabled}"/>
+                                <Button Content="Use Default" Command="{Binding UseDefaultOfflinePackageSettingsCommand}" IsEnabled="{Binding ActionsEnabled}"/>
+                            </WrapPanel>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <Border Classes="card">
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="Diagnostics" FontSize="16" FontWeight="SemiBold"/>
+                        <TextBlock Classes="label" Text="Diagnostics export folder"/>
+                        <Border Classes="path-display">
+                            <TextBlock Classes="path" Text="{Binding DiagnosticsExportRootPath}"/>
+                        </Border>
+                        <TextBlock Classes="secondary-path" Text="{Binding DefaultDiagnosticsExportRootPath}"/>
+                        <WrapPanel ItemSpacing="8" LineSpacing="8">
+                            <Button Content="Browse" Click="BrowseDiagnosticsExportRoot_Click" IsEnabled="{Binding ActionsEnabled}"/>
+                            <Button Content="Save" Command="{Binding SaveDiagnosticsExportSettingsCommand}" IsEnabled="{Binding ActionsEnabled}"/>
+                            <Button Content="Use Default" Command="{Binding UseDefaultDiagnosticsExportSettingsCommand}" IsEnabled="{Binding ActionsEnabled}"/>
+                        </WrapPanel>
+                    </StackPanel>
+                </Border>
+
+                <Border Classes="card">
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="Toolkit Files" FontSize="16" FontWeight="SemiBold"/>
+                        <StackPanel Spacing="4">
+                            <TextBlock Classes="label" Text="Toolkit data folder"/>
+                            <TextBlock Classes="secondary-path" Text="{Binding ToolkitDataRoot}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="4">
+                            <TextBlock Classes="label" Text="State file"/>
+                            <TextBlock Classes="secondary-path" Text="{Binding ToolkitStatePath}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="4">
+                            <TextBlock Classes="label" Text="Settings file"/>
+                            <TextBlock Classes="secondary-path" Text="{Binding ToolkitSettingsPath}"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
     </Grid>
 
 </Window>

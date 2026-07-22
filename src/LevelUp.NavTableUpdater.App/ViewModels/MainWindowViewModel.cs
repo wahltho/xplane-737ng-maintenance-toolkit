@@ -237,6 +237,12 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private string settingsStatus = "Backup settings are ready.";
 
+    [ObservableProperty]
+    private bool mainContentVisible = true;
+
+    [ObservableProperty]
+    private bool settingsContentVisible;
+
     public ObservableCollection<AircraftCandidate> DetectedTargets { get; } = [];
 
     public ObservableCollection<ComponentStatus> Components { get; } = [];
@@ -407,6 +413,20 @@ public partial class MainWindowViewModel : ViewModelBase
             AppendLog($"Aircraft package import failed: {ex.Message}");
             UpstreamFindings.ReplaceWith(["Aircraft package import failed.", ex.Message]);
         }
+    }
+
+    [RelayCommand]
+    private void ShowSettings()
+    {
+        MainContentVisible = false;
+        SettingsContentVisible = true;
+    }
+
+    [RelayCommand]
+    private void ShowMainContent()
+    {
+        SettingsContentVisible = false;
+        MainContentVisible = true;
     }
 
     [RelayCommand]

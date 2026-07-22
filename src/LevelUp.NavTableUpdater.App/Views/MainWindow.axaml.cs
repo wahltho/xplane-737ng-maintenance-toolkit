@@ -6,27 +6,9 @@ namespace LevelUp.NavTableUpdater.App.Views;
 
 public partial class MainWindow : Window
 {
-    private SettingsWindow? settingsWindow;
-
     public MainWindow()
     {
         InitializeComponent();
-    }
-
-    private void OpenSettings_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-    {
-        if (settingsWindow is not null)
-        {
-            settingsWindow.Activate();
-            return;
-        }
-
-        settingsWindow = new SettingsWindow
-        {
-            DataContext = DataContext
-        };
-        settingsWindow.Closed += (_, _) => settingsWindow = null;
-        settingsWindow.Show(this);
     }
 
     private async void BrowseAircraft_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
@@ -69,4 +51,67 @@ public partial class MainWindow : Window
         viewModel.ImportAircraftUpdateZip(files[0].Path.LocalPath);
     }
 
+    private async void BrowseBackupRoot_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = "Select toolkit backup folder",
+            AllowMultiple = false
+        });
+
+        if (folders.Count == 0 || DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
+        viewModel.SetBackupRootPathFromBrowse(folders[0].Path.LocalPath);
+    }
+
+    private async void BrowseAircraftUpdateCacheRoot_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = "Select aircraft update ZIP cache folder",
+            AllowMultiple = false
+        });
+
+        if (folders.Count == 0 || DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
+        viewModel.SetAircraftUpdateCacheRootPathFromBrowse(folders[0].Path.LocalPath);
+    }
+
+    private async void BrowseOfflinePackageRoot_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = "Select offline VNAV package folder",
+            AllowMultiple = false
+        });
+
+        if (folders.Count == 0 || DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
+        viewModel.SetOfflinePackageRootPathFromBrowse(folders[0].Path.LocalPath);
+    }
+
+    private async void BrowseDiagnosticsExportRoot_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = "Select diagnostics export folder",
+            AllowMultiple = false
+        });
+
+        if (folders.Count == 0 || DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
+        viewModel.SetDiagnosticsExportRootPathFromBrowse(folders[0].Path.LocalPath);
+    }
 }
