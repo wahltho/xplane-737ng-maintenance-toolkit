@@ -10,6 +10,15 @@ keeps package content, aircraft patching, and application updates separate.
 Current public packages are unsigned. Platform signing and notarization belong
 to the release policy for later signed distribution.
 
+## Disclaimer
+
+This toolkit is provided as-is, without warranty of any kind. It is an
+independent community tool and is not an official X-Plane, Zibo or LevelUp
+product unless explicitly stated otherwise.
+
+The toolkit can modify aircraft installation files after validation and backup.
+Users should keep their own backups and use the tool at their own risk.
+
 Current capabilities:
 
 - It can detect likely Zibo and LevelUp aircraft folders.

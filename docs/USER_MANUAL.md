@@ -15,6 +15,15 @@ The app does not replace X-Plane, Zibo, LevelUp or their official installers.
 It works on a selected local aircraft folder and writes only after validation,
 backup and an explicit user action.
 
+## Disclaimer
+
+This toolkit is provided as-is, without warranty of any kind. It is an
+independent community tool and is not an official X-Plane, Zibo or LevelUp
+product unless explicitly stated otherwise.
+
+The toolkit can modify aircraft installation files after validation and backup.
+Keep your own backups and use the tool at your own risk.
+
 ## Before You Start
 
 Close X-Plane before using any action that changes files. The app detects a
