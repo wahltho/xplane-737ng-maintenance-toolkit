@@ -30,10 +30,6 @@
             <Setter Property="Foreground" Value="#111827"/>
             <Setter Property="BorderBrush" Value="#CBD5E1"/>
         </Style>
-        <Style Selector="TextBox.path-field">
-            <Setter Property="MinWidth" Value="0"/>
-            <Setter Property="HorizontalAlignment" Value="Stretch"/>
-        </Style>
         <Style Selector="ListBox">
             <Setter Property="Background" Value="#FFFFFFFF"/>
             <Setter Property="Foreground" Value="#111827"/>
@@ -62,6 +58,12 @@
             <Setter Property="Background" Value="#2563EB"/>
             <Setter Property="Foreground" Value="White"/>
         </Style>
+        <Style Selector="Button.header-settings">
+            <Setter Property="Background" Value="#1F2937"/>
+            <Setter Property="BorderBrush" Value="#475569"/>
+            <Setter Property="Foreground" Value="#F8FAFC"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
         <Style Selector="Border.operation-card">
             <Setter Property="Background" Value="#160A3D"/>
             <Setter Property="CornerRadius" Value="8"/>
@@ -84,118 +86,16 @@
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                     <TextBlock Text="App update: VeloPack" Foreground="#D1FAE5" VerticalAlignment="Center"/>
                     <TextBlock Text="Content: manifest-driven" Foreground="#DBEAFE" VerticalAlignment="Center"/>
-                    <Button Content="⚙"
-                            Width="34"
+                    <Button Content="⚙ Settings"
+                            Classes="header-settings"
+                            Width="108"
                             Height="30"
-                            Padding="0"
-                            FontSize="16"
+                            Padding="10,0"
+                            FontSize="13"
                             HorizontalContentAlignment="Center"
                             VerticalContentAlignment="Center"
-                            ToolTip.Tip="Settings">
-                        <Button.Flyout>
-                            <Flyout Placement="BottomEdgeAlignedRight">
-                                <ScrollViewer Width="520"
-                                              MaxHeight="560"
-                                              HorizontalScrollBarVisibility="Disabled"
-                                              VerticalScrollBarVisibility="Auto">
-                                    <Border Classes="card">
-                                        <StackPanel Spacing="14">
-                                            <StackPanel Spacing="4">
-                                                <TextBlock Text="Settings" FontSize="16" FontWeight="SemiBold"/>
-                                                <TextBlock Text="Directory settings are validated before saving. Existing restore records keep their original absolute backup paths." Foreground="#667085" TextWrapping="Wrap"/>
-                                            </StackPanel>
-
-                                            <Border Background="#F8FAFC"
-                                                    BorderBrush="#E2E8F0"
-                                                    BorderThickness="1"
-                                                    CornerRadius="6"
-                                                    Padding="10,8">
-                                                <TextBlock Text="{Binding SettingsStatus}" Foreground="#475467" TextWrapping="Wrap"/>
-                                            </Border>
-
-                                            <StackPanel Spacing="10">
-                                                <TextBlock Text="Data &amp; Backups" FontSize="15" FontWeight="SemiBold"/>
-                                                <StackPanel Spacing="6">
-                                                    <TextBlock Classes="label" Text="Backup folder"/>
-                                                    <Grid ColumnDefinitions="*,92" ColumnSpacing="8">
-                                                        <TextBox Classes="path-field" Text="{Binding BackupRootPath}" PlaceholderText="/path/to/toolkit-backups"/>
-                                                        <Button Grid.Column="1" Content="Browse" Click="BrowseBackupRoot_Click" IsEnabled="{Binding ActionsEnabled}" HorizontalAlignment="Stretch"/>
-                                                    </Grid>
-                                                    <TextBlock Text="{Binding DefaultBackupRootPath}" FontFamily="Menlo,Consolas,monospace" FontSize="11" Foreground="#667085" TextWrapping="Wrap"/>
-                                                    <WrapPanel ItemSpacing="8" LineSpacing="8">
-                                                        <Button Content="Save" Command="{Binding SaveBackupSettingsCommand}" IsEnabled="{Binding ActionsEnabled}"/>
-                                                        <Button Content="Use Default" Command="{Binding UseDefaultBackupSettingsCommand}" IsEnabled="{Binding ActionsEnabled}"/>
-                                                    </WrapPanel>
-                                                </StackPanel>
-                                            </StackPanel>
-
-                                            <StackPanel Spacing="10">
-                                                <TextBlock Text="Package Sources" FontSize="15" FontWeight="SemiBold"/>
-                                                <StackPanel Spacing="6">
-                                                    <TextBlock Classes="label" Text="Aircraft update package cache folder"/>
-                                                    <Grid ColumnDefinitions="*,92" ColumnSpacing="8">
-                                                        <TextBox Classes="path-field" Text="{Binding AircraftUpdateCacheRootPath}" PlaceholderText="/path/to/aircraft-update-cache"/>
-                                                        <Button Grid.Column="1" Content="Browse" Click="BrowseAircraftUpdateCacheRoot_Click" IsEnabled="{Binding ActionsEnabled}" HorizontalAlignment="Stretch"/>
-                                                    </Grid>
-                                                    <TextBlock Text="{Binding DefaultAircraftUpdateCacheRootPath}" FontFamily="Menlo,Consolas,monospace" FontSize="11" Foreground="#667085" TextWrapping="Wrap"/>
-                                                    <WrapPanel ItemSpacing="8" LineSpacing="8">
-                                                        <Button Content="Save" Command="{Binding SaveAircraftUpdateCacheSettingsCommand}" IsEnabled="{Binding ActionsEnabled}"/>
-                                                        <Button Content="Use Default" Command="{Binding UseDefaultAircraftUpdateCacheSettingsCommand}" IsEnabled="{Binding ActionsEnabled}"/>
-                                                        <Button Content="Clear Cache" Command="{Binding ClearAircraftUpdateCacheCommand}" IsEnabled="{Binding ActionsEnabled}"/>
-                                                    </WrapPanel>
-                                                </StackPanel>
-
-                                                <StackPanel Spacing="6">
-                                                    <TextBlock Classes="label" Text="Offline VNAV package folder"/>
-                                                    <Grid ColumnDefinitions="*,92" ColumnSpacing="8">
-                                                        <TextBox Classes="path-field" Text="{Binding OfflinePackageRootPath}" PlaceholderText="/path/to/offline-vnav-packages"/>
-                                                        <Button Grid.Column="1" Content="Browse" Click="BrowseOfflinePackageRoot_Click" IsEnabled="{Binding ActionsEnabled}" HorizontalAlignment="Stretch"/>
-                                                    </Grid>
-                                                    <TextBlock Text="{Binding DefaultOfflinePackageRootPath}" FontFamily="Menlo,Consolas,monospace" FontSize="11" Foreground="#667085" TextWrapping="Wrap"/>
-                                                    <WrapPanel ItemSpacing="8" LineSpacing="8">
-                                                        <Button Content="Save" Command="{Binding SaveOfflinePackageSettingsCommand}" IsEnabled="{Binding ActionsEnabled}"/>
-                                                        <Button Content="Use Default" Command="{Binding UseDefaultOfflinePackageSettingsCommand}" IsEnabled="{Binding ActionsEnabled}"/>
-                                                    </WrapPanel>
-                                                </StackPanel>
-                                            </StackPanel>
-
-                                            <StackPanel Spacing="10">
-                                                <TextBlock Text="Diagnostics" FontSize="15" FontWeight="SemiBold"/>
-                                                <StackPanel Spacing="6">
-                                                    <TextBlock Classes="label" Text="Diagnostics export folder"/>
-                                                    <Grid ColumnDefinitions="*,92" ColumnSpacing="8">
-                                                        <TextBox Classes="path-field" Text="{Binding DiagnosticsExportRootPath}" PlaceholderText="/path/to/diagnostics"/>
-                                                        <Button Grid.Column="1" Content="Browse" Click="BrowseDiagnosticsExportRoot_Click" IsEnabled="{Binding ActionsEnabled}" HorizontalAlignment="Stretch"/>
-                                                    </Grid>
-                                                    <TextBlock Text="{Binding DefaultDiagnosticsExportRootPath}" FontFamily="Menlo,Consolas,monospace" FontSize="11" Foreground="#667085" TextWrapping="Wrap"/>
-                                                    <WrapPanel ItemSpacing="8" LineSpacing="8">
-                                                        <Button Content="Save" Command="{Binding SaveDiagnosticsExportSettingsCommand}" IsEnabled="{Binding ActionsEnabled}"/>
-                                                        <Button Content="Use Default" Command="{Binding UseDefaultDiagnosticsExportSettingsCommand}" IsEnabled="{Binding ActionsEnabled}"/>
-                                                    </WrapPanel>
-                                                </StackPanel>
-                                            </StackPanel>
-
-                                            <StackPanel Spacing="8">
-                                                <StackPanel Spacing="4">
-                                                    <TextBlock Classes="label" Text="Toolkit data folder"/>
-                                                    <TextBlock Text="{Binding ToolkitDataRoot}" FontFamily="Menlo,Consolas,monospace" FontSize="12" Foreground="#667085" TextWrapping="Wrap"/>
-                                                </StackPanel>
-                                                <StackPanel Spacing="4">
-                                                    <TextBlock Classes="label" Text="State file"/>
-                                                    <TextBlock Text="{Binding ToolkitStatePath}" FontFamily="Menlo,Consolas,monospace" FontSize="12" Foreground="#667085" TextWrapping="Wrap"/>
-                                                </StackPanel>
-                                            </StackPanel>
-
-                                            <StackPanel Spacing="4">
-                                                <TextBlock Classes="label" Text="Settings file"/>
-                                                <TextBlock Text="{Binding ToolkitSettingsPath}" FontFamily="Menlo,Consolas,monospace" FontSize="12" Foreground="#667085" TextWrapping="Wrap"/>
-                                            </StackPanel>
-                                        </StackPanel>
-                                    </Border>
-                                </ScrollViewer>
-                            </Flyout>
-                        </Button.Flyout>
-                    </Button>
+                            ToolTip.Tip="Settings"
+                            Click="OpenSettings_Click"/>
                 </StackPanel>
             </Grid>
         </Border>
