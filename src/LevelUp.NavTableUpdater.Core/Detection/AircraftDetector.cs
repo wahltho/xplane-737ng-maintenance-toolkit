@@ -110,9 +110,35 @@ public sealed class AircraftDetector
 
     private static string[] FindRecognizedReferences(string aircraftPath)
     {
-        return AircraftReferenceCatalog.All
-            .Where(reference => File.Exists(Path.Combine(aircraftPath, reference.AcfFileName)))
-            .Select(reference => reference.DisplayName)
-            .ToArray();
+        var recognized = new List<string>();
+
+        foreach (var reference in AircraftReferenceCatalog.All)
+        {
+            var acfPath = Path.Combine(aircraftPath, reference.AcfFileName);
+            if (!File.Exists(acfPath))
+            {
+                continue;
+            }
+
+            try
+            {
+                var metadata = AircraftFileParser.ReadAcfMetadata(acfPath);
+                var maintenanceMetadata = AircraftFileParser.ReadMaintenanceMetadata(aircraftPath, out _);
+                if (AircraftReferenceCatalog.MatchesProductIdentity(reference, metadata, maintenanceMetadata))
+                {
+                    recognized.Add(reference.DisplayName);
+                }
+            }
+            catch (IOException)
+            {
+                continue;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                continue;
+            }
+        }
+
+        return recognized.ToArray();
     }
 }

@@ -44,12 +44,13 @@ the GitHub Release page.
 
 ## Selecting An Aircraft
 
-Use the left Aircraft Target panel first.
+Use the `Start` tab first.
 
 1. Click `Auto-detect` to search common X-Plane aircraft locations.
-2. Select the intended Zibo or LevelUp candidate.
-3. If the aircraft is not found, click `Browse` and select the aircraft root
-   folder manually.
+2. Select an auto-detected installation folder, or keep the manually entered
+   folder.
+3. If the aircraft is not found, click `Browse` and select an X-Plane folder,
+   the `Aircraft` folder, or a direct Zibo/LevelUp aircraft folder manually.
 4. Click `Scan selected folder`.
 
 The selected folder must be the aircraft root, not the X-Plane root and not a
@@ -59,19 +60,51 @@ Detection is structural. Folder names are not trusted by themselves. The app
 looks for expected aircraft files and target scripts before enabling write
 actions.
 
-The status cards at the top show:
+The `Installation Folder` panel is the scan input. It contains exactly one
+selected folder at a time, but that folder may contain more than one supported
+product. The app then derives product targets from the folder contents.
+Supported products are `Zibo` and `LevelUp`; detected variants belong to the
+selected product and are used for variant-specific view maintenance.
 
-- `Aircraft status`: overall VNAV patch state for the selected target.
-- `Installed package`: detected installed VNAV content version.
-- `Available package`: package version from the active manifest.
-- `Line endings`: detected line-ending style of the target Lua script.
+The status cards on the `Start` tab show:
+
+- selected product state
+- installed and available VNAV package versions
+- aircraft package update state where an update source is available
 
 ## Main Tabs
 
-### Views And Config
+### Start
 
-This tab contains view and configuration maintenance for the selected aircraft
-variant.
+This is the normal user workflow. It contains product selection and three
+maintenance cards for the selected product:
+
+- `Aircraft Update`
+- `VNAV Descent Tables`
+- `Views After CG Change`
+
+Zibo and LevelUp aircraft are treated as equal 737NG targets. The app enables
+only the actions that apply to the detected aircraft and available package
+sources.
+
+The `Aircraft Update` card handles upstream aircraft package planning and
+application. The first implemented aircraft package source is Zibo. The main
+`Update` button performs the safe sequence where possible: check the package
+index, download direct ZIP sources into the cache, review the cached packages,
+then apply them with backup and rollback. If a source does not expose a direct
+ZIP stream, import the exact required ZIP manually and retry.
+
+The `VNAV Descent Tables` card handles manifest-owned descent table content and
+Lua hooks. Use `Update` when tables are missing, outdated or need repair. The
+operation modifies only manifest-owned VNAV blocks and payload files after
+validation and backup.
+
+VNAV content writes are limited to the manifest-owned Lua blocks and payload
+files. The app never distributes or writes a complete modified
+`B738.a_fms.lua`.
+
+The `Views After CG Change` card contains view and configuration maintenance for
+the selected aircraft variant.
 
 `Adapt Quick Views` adjusts X-Plane quick-view positions after an aircraft CG
 change. The app reads the ACF CG values in feet and the quick-view positions in
@@ -102,20 +135,18 @@ Supported config backup files include:
 - `version.txt`
 - `xplane-737ng-maintenance.json`
 
-### Updates
+### Log
 
-This tab groups update workflows for the selected aircraft. Zibo and LevelUp
-are treated as equal 737NG targets; the app shows the providers that apply to
-the detected aircraft.
+The `Log` tab contains technical details, review output and recovery actions
+that normal users should not need for routine operation.
 
-The `VNAV Tables` section handles manifest-owned descent table content and Lua
-hooks. `Review VNAV changes` calculates planned changes without writing files.
-`Install`, `Update`, `Repair`, `Restore` and `Uninstall` modify only
-manifest-owned VNAV blocks and payload files after validation and backup.
+`Review VNAV changes` calculates planned changes without writing files.
+Advanced VNAV actions such as `Install`, `Repair` and `Uninstall` are kept here
+instead of on the main `Start` page.
 
-VNAV content writes are limited to the manifest-owned Lua blocks and payload
-files. The app never distributes or writes a complete modified
-`B738.a_fms.lua`.
+Use `Dump to file` to export the visible install and operation logs into the
+configured diagnostics export folder. If users need support, this is the file
+to attach or post.
 
 For normal online use, the app tries to refresh `package-manifest.txt` and
 payload files from explicit GitHub Release assets. Fallback sources are:
@@ -125,14 +156,10 @@ payload files from explicit GitHub Release assets. Fallback sources are:
 - bundled preview content shipped with the app
 - the source-tree content folder during development
 
-Every payload is checked against size and SHA-256 from the manifest before it
-is installed.
+Every VNAV payload is checked against size and SHA-256 from the manifest before
+it is installed.
 
-The `Aircraft Packages` section handles upstream aircraft package planning and
-application. The first implemented aircraft package source is Zibo.
-
-Click `Check for updates` to read the local aircraft version and refresh the
-upstream package index. The app then shows:
+The aircraft package details section shows:
 
 - installed version
 - available version
@@ -158,9 +185,9 @@ URL, the app
 tries the matching `.zip` URL first. Some sources may not expose a direct ZIP
 stream; in that case use `Import package...`.
 
-Use `Import package...` to select a local package ZIP. The selected file name must
+Use `Import ZIP` or `Import package...` to select a local package ZIP. The selected file name must
 match a required package in the current plan exactly. If the file dialog closes
-and nothing obvious happens, check the Updates status line, cache status and
+and nothing obvious happens, check the aircraft update status, cache status and
 Log tab for the import result.
 
 Use `Review aircraft changes` before applying. Review opens the cached packages
@@ -193,9 +220,9 @@ source is implemented.
 
 ### Settings
 
-Open Settings from the cog button in the top-right header. Settings are stored
-in `settings.json` under the toolkit data folder shown in the settings panel.
-Directory settings are normalized and tested for write access before saving.
+The `Settings` tab stores directory settings in `settings.json` under the
+toolkit data folder shown in the settings panel. Directory settings are
+normalized and tested for write access before saving.
 
 The selected aircraft folder is also stored in `settings.json` and is restored
 when the app starts. On Linux, the toolkit data folder follows
@@ -218,13 +245,8 @@ keep their original absolute backup paths.
 `Clear Cache` removes the current aircraft update ZIP cache contents. It does
 not delete aircraft files and does not delete backups.
 
-### Logs
-
-The Log tab contains the session install log. It records scans, blocked
-actions, backups, reviews, writes, restores and errors.
-
-The log can be cleared from the UI. Clearing the visible log does not delete
-backup files or state records.
+The log can be cleared from the `Log` tab. Clearing the visible log does not
+delete backup files or state records.
 
 ## Safety Rules
 

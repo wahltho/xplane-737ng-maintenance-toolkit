@@ -8,6 +8,7 @@ public sealed class AircraftViewAnalyzer
     private const double CgToleranceFeet = 0.001;
     private const double ViewToleranceFeet = 0.005;
     private const double PitchToleranceDegrees = 0.001;
+    private const int ScanRootMaxDepth = 3;
 
     public AircraftViewAnalysisResult Analyze(string aircraftFolder)
     {
@@ -27,18 +28,32 @@ public sealed class AircraftViewAnalyzer
                 Findings: [$"Missing folder: {fullPath}"]);
         }
 
+        var scanFolders = ResolveScanFolders(fullPath);
         var variants = new List<AircraftVariantViewAnalysis>();
         var findings = new List<string>();
 
-        foreach (var reference in AircraftReferenceCatalog.All)
+        if (scanFolders.Count == 0)
         {
-            var acfPath = Path.Combine(fullPath, reference.AcfFileName);
-            if (!File.Exists(acfPath))
-            {
-                continue;
-            }
+            scanFolders.Add(fullPath);
+        }
 
-            variants.Add(AnalyzeVariant(fullPath, reference, acfPath, findings));
+        foreach (var scanFolder in scanFolders)
+        {
+            var isSelectedFolder = string.Equals(scanFolder, fullPath, StringComparison.Ordinal);
+            foreach (var reference in AircraftReferenceCatalog.All)
+            {
+                var acfPath = Path.Combine(scanFolder, reference.AcfFileName);
+                if (!File.Exists(acfPath))
+                {
+                    continue;
+                }
+
+                var variant = AnalyzeVariant(scanFolder, reference, acfPath, findings, includeIdentityMismatchFinding: isSelectedFolder);
+                if (variant is not null)
+                {
+                    variants.Add(variant);
+                }
+            }
         }
 
         var isXPlaneRunning = XPlaneProcessDetector.IsXPlaneRunning();
@@ -51,7 +66,7 @@ public sealed class AircraftViewAnalyzer
         {
             return new AircraftViewAnalysisResult(
                 StateLabel: "No supported 737NG variant",
-                Summary: "No known Zibo or LevelUp ACF file was found in the selected folder.",
+                Summary: "No supported Zibo or LevelUp product identity was found in the selected folder.",
                 IsXPlaneRunning: isXPlaneRunning,
                 Variants: [],
                 Findings: findings);
@@ -68,11 +83,12 @@ public sealed class AircraftViewAnalyzer
         return new AircraftViewAnalysisResult(status, summary, isXPlaneRunning, variants, findings);
     }
 
-    private static AircraftVariantViewAnalysis AnalyzeVariant(
+    private static AircraftVariantViewAnalysis? AnalyzeVariant(
         string aircraftFolder,
         AircraftReference reference,
         string acfPath,
-        ICollection<string> findings)
+        ICollection<string> findings,
+        bool includeIdentityMismatchFinding)
     {
         AcfMetadata metadata;
         try
@@ -95,6 +111,16 @@ public sealed class AircraftViewAnalyzer
         if (metadataError is not null)
         {
             findings.Add($"{reference.DisplayName}: {metadataError}");
+        }
+
+        if (!AircraftReferenceCatalog.MatchesProductIdentity(reference, metadata, maintenanceMetadata))
+        {
+            if (includeIdentityMismatchFinding)
+            {
+                findings.Add($"{reference.DisplayName}: ACF file exists but does not match the expected Zibo or LevelUp product identity.");
+            }
+
+            return null;
         }
 
         var localVersion = ResolveLocalVersion(reference, maintenanceMetadata, versionTxt, findings);
@@ -173,6 +199,81 @@ public sealed class AircraftViewAnalyzer
             identityStatus,
             quickViewStatus,
             defaultViewStatus);
+    }
+
+    private static List<string> ResolveScanFolders(string root)
+    {
+        var folders = new List<string>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+
+        AddIfAircraftLike(root, folders, seen);
+
+        foreach (var child in EnumerateCandidateFolders(root, ScanRootMaxDepth))
+        {
+            AddIfAircraftLike(child, folders, seen);
+        }
+
+        return folders;
+    }
+
+    private static void AddIfAircraftLike(string folder, ICollection<string> folders, ISet<string> seen)
+    {
+        if (!LooksLikeAircraftFolder(folder))
+        {
+            return;
+        }
+
+        var fullPath = Path.GetFullPath(folder);
+        if (seen.Add(fullPath))
+        {
+            folders.Add(fullPath);
+        }
+    }
+
+    private static bool LooksLikeAircraftFolder(string folder)
+    {
+        if (File.Exists(Path.Combine(folder, AircraftMaintenanceMetadata.FileName))
+            || File.Exists(Path.Combine(folder, "plugins", "xlua", "scripts", "B738.a_fms", "B738.a_fms.lua")))
+        {
+            return true;
+        }
+
+        return AircraftReferenceCatalog.All.Any(reference => File.Exists(Path.Combine(folder, reference.AcfFileName)));
+    }
+
+    private static IEnumerable<string> EnumerateCandidateFolders(string root, int maxDepth)
+    {
+        var pending = new Queue<(string Path, int Depth)>();
+        pending.Enqueue((root, 0));
+
+        while (pending.Count > 0)
+        {
+            var (path, depth) = pending.Dequeue();
+            if (depth >= maxDepth)
+            {
+                continue;
+            }
+
+            IEnumerable<string> children;
+            try
+            {
+                children = Directory.EnumerateDirectories(path);
+            }
+            catch (IOException)
+            {
+                continue;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                continue;
+            }
+
+            foreach (var child in children)
+            {
+                yield return child;
+                pending.Enqueue((child, depth + 1));
+            }
+        }
     }
 
     private static string? ResolveLocalVersion(

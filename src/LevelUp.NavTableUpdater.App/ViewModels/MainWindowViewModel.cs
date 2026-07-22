@@ -46,6 +46,30 @@ public partial class MainWindowViewModel : ViewModelBase
     private AircraftCandidate? selectedCandidate;
 
     [ObservableProperty]
+    private ProductTargetStatus? selectedProduct;
+
+    [ObservableProperty]
+    private string selectedProductName = "No supported product";
+
+    [ObservableProperty]
+    private string selectedProductDetail = "Select a Zibo or LevelUp installation folder.";
+
+    [ObservableProperty]
+    private string selectedProductVariants = "-";
+
+    [ObservableProperty]
+    private string selectedProductFolderPath = "-";
+
+    [ObservableProperty]
+    private bool productSelectorVisible;
+
+    [ObservableProperty]
+    private bool fixedProductVisible = true;
+
+    [ObservableProperty]
+    private bool productFolderVisible;
+
+    [ObservableProperty]
     private string aircraftStatus = "No aircraft selected";
 
     [ObservableProperty]
@@ -86,6 +110,12 @@ public partial class MainWindowViewModel : ViewModelBase
 
     [ObservableProperty]
     private bool actionsEnabled = true;
+
+    [ObservableProperty]
+    private bool productActionsEnabled;
+
+    [ObservableProperty]
+    private bool aircraftProductUpdateEnabled;
 
     [ObservableProperty]
     private bool operationPanelVisible;
@@ -237,13 +267,11 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private string settingsStatus = "Backup settings are ready.";
 
-    [ObservableProperty]
-    private bool mainContentVisible = true;
-
-    [ObservableProperty]
-    private bool settingsContentVisible;
-
     public ObservableCollection<AircraftCandidate> DetectedTargets { get; } = [];
+
+    public ObservableCollection<ProductTargetStatus> ProductTargets { get; } = [];
+
+    public ObservableCollection<ProductTargetStatus> DetectedProductTargets { get; } = [];
 
     public ObservableCollection<ComponentStatus> Components { get; } = [];
 
@@ -303,6 +331,7 @@ public partial class MainWindowViewModel : ViewModelBase
         if (!string.IsNullOrWhiteSpace(SelectedAircraftPath))
         {
             AppendLog($"Settings loaded. Selected aircraft folder: {SelectedAircraftPath}");
+            Scan();
         }
     }
 
@@ -416,20 +445,6 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void ShowSettings()
-    {
-        MainContentVisible = false;
-        SettingsContentVisible = true;
-    }
-
-    [RelayCommand]
-    private void ShowMainContent()
-    {
-        SettingsContentVisible = false;
-        MainContentVisible = true;
-    }
-
-    [RelayCommand]
     private async Task DownloadAircraftUpdateZips()
     {
         if (IsUpstreamCheckRunning || IsOperationRunning)
@@ -513,6 +528,29 @@ public partial class MainWindowViewModel : ViewModelBase
         Scan();
     }
 
+    partial void OnSelectedProductChanged(ProductTargetStatus? value)
+    {
+        RefreshSelectedProductSummary(value);
+        if (value is null)
+        {
+            return;
+        }
+
+        if (!value.IsDetected)
+        {
+            return;
+        }
+
+        var nextVariant = ViewVariants.FirstOrDefault(variant => string.Equals(variant.Family, value.Family, StringComparison.OrdinalIgnoreCase));
+        if (nextVariant is not null && !ReferenceEquals(SelectedViewVariant, nextVariant))
+        {
+            SelectedViewVariant = nextVariant;
+            return;
+        }
+
+        RefreshProductScopedPackageAnalysis();
+    }
+
     [RelayCommand]
     private void AutoDetect()
     {
@@ -538,10 +576,10 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         SaveSelectedAircraftPathSetting();
         var viewResult = _viewAnalyzer.Analyze(SelectedAircraftPath);
-        ApplyManifest(SelectManifest(viewResult));
-        var result = _analyzer.Analyze(SelectedAircraftPath, _manifest);
-        ApplyAnalysis(result);
         ApplyViewAnalysis(viewResult);
+        ApplyManifest(SelectManifest(viewResult));
+        var result = _analyzer.Analyze(CurrentProductAircraftFolderPath(), _manifest);
+        ApplyAnalysis(result);
         AppendLog($"Scan complete using {_manifest.PackageId}: {result.StateLabel}.");
         AppendLog($"View utility scan complete: {viewResult.StateLabel}.");
     }
@@ -550,10 +588,10 @@ public partial class MainWindowViewModel : ViewModelBase
     private void DryRun()
     {
         var viewResult = _viewAnalyzer.Analyze(SelectedAircraftPath);
-        ApplyManifest(SelectManifest(viewResult));
-        var result = _analyzer.Analyze(SelectedAircraftPath, _manifest);
-        ApplyAnalysis(result);
         ApplyViewAnalysis(viewResult);
+        ApplyManifest(SelectManifest(viewResult));
+        var result = _analyzer.Analyze(CurrentProductAircraftFolderPath(), _manifest);
+        ApplyAnalysis(result);
         AppendLog("VNAV review complete. Planned changes were calculated without writing files.");
     }
 
@@ -566,10 +604,10 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         var viewResult = _viewAnalyzer.Analyze(SelectedAircraftPath);
-        ApplyManifest(SelectManifest(viewResult));
-        var result = _analyzer.Analyze(SelectedAircraftPath, _manifest);
-        ApplyAnalysis(result);
         ApplyViewAnalysis(viewResult);
+        ApplyManifest(SelectManifest(viewResult));
+        var result = _analyzer.Analyze(CurrentProductAircraftFolderPath(), _manifest);
+        ApplyAnalysis(result);
 
         var selectedVariant = SelectedViewVariant;
         if (selectedVariant is null)
@@ -607,6 +645,73 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private void ExportLog()
+    {
+        try
+        {
+            Directory.CreateDirectory(DiagnosticsExportRootPath);
+            var fileName = $"xplane-737ng-maintenance-log-{DateTimeOffset.Now:yyyyMMdd-HHmmss}.txt";
+            var path = Path.Combine(DiagnosticsExportRootPath, fileName);
+            File.WriteAllText(
+                path,
+                string.Join(
+                    Environment.NewLine,
+                    [
+                        "X-Plane 737NG Maintenance Toolkit Log",
+                        $"Exported: {DateTimeOffset.Now:O}",
+                        $"Selected aircraft: {SelectedAircraftPath}",
+                        $"Detected product: {SelectedProductName}",
+                        $"Product folder: {SelectedProductFolderPath}",
+                        $"Target script: {TargetScriptPath}",
+                        $"Line endings: {LineEnding}",
+                        $"Repository: {RepositoryUrl}",
+                        "",
+                        "Install Log",
+                        InstallLog,
+                        "",
+                        "Operation Log",
+                        OperationLog
+                    ]));
+            AppendLog($"Log exported: {path}");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            AppendLog($"Log export failed: {ex.Message}");
+        }
+    }
+
+    [RelayCommand]
+    private async Task UpdateAircraftPackages()
+    {
+        if (IsOperationRunning || IsUpstreamCheckRunning)
+        {
+            return;
+        }
+
+        await RefreshZiboUpdateCheck();
+
+        if (_lastUpstreamUpdateCheck is null || _lastUpstreamUpdateCheck.IsCustomDistribution)
+        {
+            return;
+        }
+
+        if (CanDownloadAircraftUpdateZip)
+        {
+            await DownloadAircraftUpdateZips();
+        }
+
+        if (CanDryRunAircraftUpdateZip)
+        {
+            DryRunAircraftUpdate();
+        }
+
+        if (CanApplyAircraftUpdateZip)
+        {
+            ApplyAircraftUpdate();
+        }
+    }
+
+    [RelayCommand]
     private async Task RefreshZiboUpdateCheck()
     {
         if (IsUpstreamCheckRunning)
@@ -615,9 +720,9 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         var viewResult = _viewAnalyzer.Analyze(SelectedAircraftPath);
-        ApplyManifest(SelectManifest(viewResult));
-        ApplyAnalysis(_analyzer.Analyze(SelectedAircraftPath, _manifest));
         ApplyViewAnalysis(viewResult);
+        ApplyManifest(SelectManifest(viewResult));
+        ApplyAnalysis(_analyzer.Analyze(CurrentProductAircraftFolderPath(), _manifest));
 
         var selectedVariant = SelectedViewVariant;
         IsUpstreamCheckRunning = true;
@@ -709,7 +814,7 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
-        var result = _aircraftUpdateDryRunAnalyzer.Analyze(SelectedAircraftPath, UpstreamPackageCacheEntries);
+        var result = _aircraftUpdateDryRunAnalyzer.Analyze(CurrentProductAircraftFolderPath(), UpstreamPackageCacheEntries);
         UpstreamDryRunSummary = result.Summary;
         UpstreamDryRunEntries.ReplaceWith(result.Entries);
         UpstreamFindings.ReplaceWith(result.Findings);
@@ -846,8 +951,10 @@ public partial class MainWindowViewModel : ViewModelBase
             IsOperationRunning = false;
             ActionsEnabled = true;
             var selectedPath = selectedVariant.AcfPath;
-            ApplyAnalysis(_analyzer.Analyze(SelectedAircraftPath, _manifest));
-            ApplyViewAnalysis(_viewAnalyzer.Analyze(SelectedAircraftPath), selectedPath);
+            var viewResult = _viewAnalyzer.Analyze(SelectedAircraftPath);
+            ApplyViewAnalysis(viewResult, selectedPath);
+            ApplyManifest(SelectManifest(viewResult));
+            ApplyAnalysis(_analyzer.Analyze(CurrentProductAircraftFolderPath(), _manifest));
         }
     }
 
@@ -1039,9 +1146,9 @@ public partial class MainWindowViewModel : ViewModelBase
             ActionsEnabled = true;
             var selectedPath = selectedVariant.AcfPath;
             var viewResult = _viewAnalyzer.Analyze(SelectedAircraftPath);
-            ApplyManifest(SelectManifest(viewResult));
-            ApplyAnalysis(_analyzer.Analyze(SelectedAircraftPath, _manifest));
             ApplyViewAnalysis(viewResult, selectedPath);
+            ApplyManifest(SelectManifest(viewResult));
+            ApplyAnalysis(_analyzer.Analyze(CurrentProductAircraftFolderPath(), _manifest));
         }
     }
 
@@ -1112,9 +1219,9 @@ public partial class MainWindowViewModel : ViewModelBase
             ActionsEnabled = true;
             var selectedPath = selectedVariant.AcfPath;
             var viewResult = _viewAnalyzer.Analyze(SelectedAircraftPath);
-            ApplyManifest(SelectManifest(viewResult));
-            ApplyAnalysis(_analyzer.Analyze(SelectedAircraftPath, _manifest));
             ApplyViewAnalysis(viewResult, selectedPath);
+            ApplyManifest(SelectManifest(viewResult));
+            ApplyAnalysis(_analyzer.Analyze(CurrentProductAircraftFolderPath(), _manifest));
             if (operationResult is not null)
             {
                 UpstreamDryRunEntries.Clear();
@@ -1189,9 +1296,9 @@ public partial class MainWindowViewModel : ViewModelBase
             ActionsEnabled = true;
             var selectedPath = selectedVariant.AcfPath;
             var viewResult = _viewAnalyzer.Analyze(SelectedAircraftPath);
-            ApplyManifest(SelectManifest(viewResult));
-            ApplyAnalysis(_analyzer.Analyze(SelectedAircraftPath, _manifest));
             ApplyViewAnalysis(viewResult, selectedPath);
+            ApplyManifest(SelectManifest(viewResult));
+            ApplyAnalysis(_analyzer.Analyze(CurrentProductAircraftFolderPath(), _manifest));
         }
     }
 
@@ -1218,6 +1325,7 @@ public partial class MainWindowViewModel : ViewModelBase
         XPlaneProcessStatus = result.IsXPlaneRunning ? "Running - write actions blocked" : "Not running";
         ViewVariants.ReplaceWith(result.Variants);
         ViewFindings.ReplaceWith(result.Findings);
+        RefreshProductTargets(currentSelection);
         var nextSelection = ViewVariants.FirstOrDefault(variant => string.Equals(variant.AcfPath, currentSelection, StringComparison.Ordinal))
             ?? ViewVariants.FirstOrDefault();
         if (!ReferenceEquals(SelectedViewVariant, nextSelection))
@@ -1230,8 +1338,174 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
-    partial void OnSelectedViewVariantChanged(AircraftVariantViewAnalysis? value) =>
+    partial void OnSelectedViewVariantChanged(AircraftVariantViewAnalysis? value)
+    {
+        SelectProductForVariant(value);
         ApplySelectedVariantReadiness(value);
+        RefreshProductScopedPackageAnalysis();
+    }
+
+    private void RefreshProductTargets(string? preferredAcfPath = null)
+    {
+        var products = new[]
+        {
+            BuildProductTarget("zibo-737ng", "Zibo", preferredAcfPath),
+            BuildProductTarget("levelup-737ng", "LevelUp", preferredAcfPath)
+        };
+
+        ProductTargets.ReplaceWith(products);
+        var detectedProducts = products
+            .Where(product => product.IsDetected)
+            .ToArray();
+        DetectedProductTargets.ReplaceWith(detectedProducts);
+        ProductSelectorVisible = detectedProducts.Length > 1;
+        FixedProductVisible = !ProductSelectorVisible;
+
+        var selected = products.FirstOrDefault(product => product.HasSelection && product.IsDetected)
+            ?? products.FirstOrDefault(product => string.Equals(product.Family, SelectedProduct?.Family, StringComparison.OrdinalIgnoreCase) && product.IsDetected)
+            ?? detectedProducts.FirstOrDefault();
+        if (!ReferenceEquals(SelectedProduct, selected))
+        {
+            SelectedProduct = selected;
+        }
+        else
+        {
+            RefreshSelectedProductSummary(selected);
+        }
+    }
+
+    private ProductTargetStatus BuildProductTarget(string family, string name, string? preferredAcfPath)
+    {
+        var variants = ViewVariants
+            .Where(variant => string.Equals(variant.Family, family, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        var selected = variants.FirstOrDefault(variant => string.Equals(variant.AcfPath, preferredAcfPath, StringComparison.Ordinal))
+            ?? (SelectedViewVariant is not null && string.Equals(SelectedViewVariant.Family, family, StringComparison.OrdinalIgnoreCase)
+                ? SelectedViewVariant
+                : null);
+
+        if (variants.Length == 0)
+        {
+            return new ProductTargetStatus(
+                name,
+                family,
+                "Not detected",
+                name == "Zibo"
+                    ? "No Zibo 737-800X installation was detected in the selected folder."
+                    : "No LevelUp 737NG installation was detected in the selected folder.",
+                "-",
+                "",
+                selected is not null);
+        }
+
+        var folderPaths = variants
+            .Select(GetAircraftFolderPath)
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        var selectedFolderPath = selected is null
+            ? folderPaths.FirstOrDefault() ?? ""
+            : GetAircraftFolderPath(selected);
+        var detail = folderPaths.Length <= 1
+            ? $"{variants.Length} supported variant(s) found."
+            : $"{variants.Length} supported variant(s) found across {folderPaths.Length} installation folders.";
+
+        return new ProductTargetStatus(
+            name,
+            family,
+            "Detected",
+            detail,
+            string.Join(", ", variants.Select(variant => variant.DisplayName)),
+            selectedFolderPath,
+            selected is not null);
+    }
+
+    private void SelectProductForVariant(AircraftVariantViewAnalysis? variant)
+    {
+        if (variant is null)
+        {
+            ProductActionsEnabled = false;
+            AircraftProductUpdateEnabled = false;
+            return;
+        }
+
+        var product = ProductTargets.FirstOrDefault(item => string.Equals(item.Family, variant.Family, StringComparison.OrdinalIgnoreCase));
+        if (product is not null && !ReferenceEquals(SelectedProduct, product))
+        {
+            SelectedProduct = product;
+        }
+
+        ProductActionsEnabled = ActionsEnabled && product is not null && product.IsDetected;
+        AircraftProductUpdateEnabled = ProductActionsEnabled
+            && string.Equals(product?.Family, "zibo-737ng", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void RefreshSelectedProductSummary(ProductTargetStatus? product)
+    {
+        if (product is null)
+        {
+            SelectedProductName = "No supported product";
+            SelectedProductDetail = "Select a Zibo or LevelUp installation folder.";
+            SelectedProductVariants = "-";
+            SelectedProductFolderPath = "-";
+            ProductFolderVisible = false;
+            ProductActionsEnabled = false;
+            AircraftProductUpdateEnabled = false;
+            return;
+        }
+
+        SelectedProductName = product.Name;
+        SelectedProductDetail = product.Detail;
+        SelectedProductVariants = product.Variants;
+        SelectedProductFolderPath = string.IsNullOrWhiteSpace(product.AircraftFolderPath) ? "-" : product.AircraftFolderPath;
+        ProductFolderVisible = product.IsDetected
+            && !string.IsNullOrWhiteSpace(product.AircraftFolderPath)
+            && !PathsEqual(product.AircraftFolderPath, SelectedAircraftPath);
+        ProductActionsEnabled = ActionsEnabled && product.IsDetected;
+        AircraftProductUpdateEnabled = ProductActionsEnabled
+            && string.Equals(product.Family, "zibo-737ng", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string CurrentProductAircraftFolderPath()
+    {
+        if (!string.IsNullOrWhiteSpace(SelectedProduct?.AircraftFolderPath))
+        {
+            return SelectedProduct.AircraftFolderPath;
+        }
+
+        return SelectedViewVariant is null ? SelectedAircraftPath : GetAircraftFolderPath(SelectedViewVariant);
+    }
+
+    private static string GetAircraftFolderPath(AircraftVariantViewAnalysis variant)
+    {
+        return Path.GetDirectoryName(variant.AcfPath) ?? "";
+    }
+
+    private static bool PathsEqual(string left, string right)
+    {
+        if (string.IsNullOrWhiteSpace(left) || string.IsNullOrWhiteSpace(right))
+        {
+            return false;
+        }
+
+        try
+        {
+            return string.Equals(
+                Path.GetFullPath(left),
+                Path.GetFullPath(right),
+                OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return string.Equals(left, right, StringComparison.Ordinal);
+        }
+    }
+
+    private void RefreshProductScopedPackageAnalysis()
+    {
+        ApplyManifest(SelectManifest(AircraftViewAnalysisResult.Empty()));
+        ApplyAnalysis(_analyzer.Analyze(CurrentProductAircraftFolderPath(), _manifest));
+    }
 
     private void ApplySelectedVariantReadiness(AircraftVariantViewAnalysis? variant)
     {
@@ -1325,10 +1599,14 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         RefreshUpstreamActionAvailability();
         ApplyQuickViewBaselineAssessment(SelectedViewVariant);
+        RefreshSelectedProductSummary(SelectedProduct);
     }
 
     private void RefreshUpstreamActionAvailability(string? statusOverride = null)
     {
+        var selectedVariant = SelectedViewVariant;
+        var aircraftUpdateSupported = selectedVariant is not null
+            && string.Equals(selectedVariant.Family, "zibo-737ng", StringComparison.OrdinalIgnoreCase);
         var requiredPackages = _lastUpstreamUpdateCheck?.RequiredPackages ?? [];
         var hasRequiredPackages = requiredPackages.Count > 0;
         var isCustomDistribution = _lastUpstreamUpdateCheck?.IsCustomDistribution == true;
@@ -1338,11 +1616,11 @@ public partial class MainWindowViewModel : ViewModelBase
         var dryRunHasBlockingEntries = UpstreamDryRunEntries.Any(entry => entry.Action is AircraftUpdateDryRunEntryAction.BlockedUnsafePath
             or AircraftUpdateDryRunEntryAction.BlockedInvalidPackage);
 
-        CanImportAircraftUpdateZip = ActionsEnabled && hasRequiredPackages && !isCustomDistribution;
-        CanDownloadAircraftUpdateZip = ActionsEnabled && hasRequiredPackages && !isCustomDistribution && !allRequiredPackagesCached;
-        CanDryRunAircraftUpdateZip = ActionsEnabled && hasRequiredPackages && !isCustomDistribution && allRequiredPackagesCached;
-        CanApplyAircraftUpdateZip = ActionsEnabled && hasRequiredPackages && !isCustomDistribution && allRequiredPackagesCached && !dryRunHasBlockingEntries;
-        CanRestoreAircraftUpdate = ActionsEnabled && SelectedViewVariant is not null;
+        CanImportAircraftUpdateZip = ActionsEnabled && aircraftUpdateSupported && hasRequiredPackages && !isCustomDistribution;
+        CanDownloadAircraftUpdateZip = ActionsEnabled && aircraftUpdateSupported && hasRequiredPackages && !isCustomDistribution && !allRequiredPackagesCached;
+        CanDryRunAircraftUpdateZip = ActionsEnabled && aircraftUpdateSupported && hasRequiredPackages && !isCustomDistribution && allRequiredPackagesCached;
+        CanApplyAircraftUpdateZip = ActionsEnabled && aircraftUpdateSupported && hasRequiredPackages && !isCustomDistribution && allRequiredPackagesCached && !dryRunHasBlockingEntries;
+        CanRestoreAircraftUpdate = ActionsEnabled && aircraftUpdateSupported;
 
         if (!string.IsNullOrWhiteSpace(statusOverride))
         {
@@ -1699,7 +1977,9 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private PackageManifest SelectManifest(AircraftViewAnalysisResult viewResult)
     {
-        var family = viewResult.Variants.FirstOrDefault()?.Family;
+        var family = SelectedProduct?.IsDetected == true
+            ? SelectedProduct.Family
+            : SelectedViewVariant?.Family ?? viewResult.Variants.FirstOrDefault()?.Family;
         if (string.Equals(family, "zibo-737ng", StringComparison.OrdinalIgnoreCase))
         {
             if (_manifest.PackageId.Contains("zibo", StringComparison.OrdinalIgnoreCase))
@@ -1801,6 +2081,18 @@ public partial class MainWindowViewModel : ViewModelBase
                 or VnavContentAction.Repair
                 or VnavContentAction.Uninstall;
     }
+}
+
+public sealed record ProductTargetStatus(
+    string Name,
+    string Family,
+    string Status,
+    string Detail,
+    string Variants,
+    string AircraftFolderPath,
+    bool HasSelection)
+{
+    public bool IsDetected => !string.Equals(Status, "Not detected", StringComparison.OrdinalIgnoreCase);
 }
 
 internal static class ObservableCollectionExtensions

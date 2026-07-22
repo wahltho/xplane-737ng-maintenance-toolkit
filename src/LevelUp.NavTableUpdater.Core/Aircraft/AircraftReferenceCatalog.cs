@@ -276,6 +276,26 @@ public static class AircraftReferenceCatalog
 
     public static IReadOnlyList<AircraftReferenceCgRange> CgRanges => ReferenceCgRanges;
 
+    public static bool MatchesProductIdentity(
+        AircraftReference reference,
+        AcfMetadata metadata,
+        AircraftMaintenanceMetadata? maintenanceMetadata = null)
+    {
+        if (maintenanceMetadata is not null
+            && string.Equals(maintenanceMetadata.AircraftFamily, reference.Family, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (metadata.Studio?.Contains(reference.ExpectedStudioContains, StringComparison.OrdinalIgnoreCase) == true)
+        {
+            return true;
+        }
+
+        return string.Equals(metadata.Name, reference.ExpectedName, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(metadata.Description, reference.ExpectedDescription, StringComparison.OrdinalIgnoreCase);
+    }
+
     public static AircraftReference ResolveForKnownCg(
         AircraftReference reference,
         string? localVersion,

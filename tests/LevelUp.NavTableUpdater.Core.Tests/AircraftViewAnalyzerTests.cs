@@ -71,6 +71,55 @@ public sealed class AircraftViewAnalyzerTests
     }
 
     [Fact]
+    public void Analyze_WhenLaminarStockB738AcfExists_DoesNotReturnZiboProduct()
+    {
+        using var fixture = AircraftViewFixture.CreateLaminarStock737();
+
+        var result = new AircraftViewAnalyzer().Analyze(fixture.Path);
+
+        Assert.Empty(result.Variants);
+        Assert.Equal("No supported 737NG variant", result.StateLabel);
+        Assert.Contains(result.Findings, finding => finding.Contains("does not match the expected Zibo or LevelUp product identity", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Analyze_WhenAircraftRootContainsSupportedProducts_ReturnsZiboAndLevelUpOnly()
+    {
+        using var zibo = AircraftViewFixture.CreateZibo2K();
+        using var levelUp = AircraftViewFixture.CreateLevelUp700(
+            cgY: -2.049999952,
+            cgZ: 49.740001678,
+            defaultViewMatchesQv0: true);
+        using var laminar = AircraftViewFixture.CreateLaminarStock737();
+        var root = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"xplane-737ng-root-tests-{Guid.NewGuid():N}");
+        var aircraftRoot = System.IO.Path.Combine(root, "Aircraft");
+        var laminarRoot = System.IO.Path.Combine(aircraftRoot, "Laminar Research");
+        Directory.CreateDirectory(aircraftRoot);
+        Directory.CreateDirectory(laminarRoot);
+
+        Directory.Move(zibo.Path, System.IO.Path.Combine(aircraftRoot, "B737-800X"));
+        Directory.Move(levelUp.Path, System.IO.Path.Combine(aircraftRoot, "737NG Series"));
+        Directory.Move(laminar.Path, System.IO.Path.Combine(laminarRoot, "Boeing 737-800"));
+
+        try
+        {
+            var result = new AircraftViewAnalyzer().Analyze(aircraftRoot);
+
+            Assert.Equal(2, result.Variants.Count);
+            Assert.Contains(result.Variants, variant => variant.Family == "zibo-737ng");
+            Assert.Contains(result.Variants, variant => variant.Family == "levelup-737ng");
+            Assert.DoesNotContain(result.Variants, variant => variant.DisplayName.Contains("Laminar", StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public void Analyze_WhenCustomAcfCgDiffers_ReturnsCgDeltaWithoutHashGating()
     {
         using var fixture = AircraftViewFixture.CreateLevelUp700(
@@ -431,6 +480,23 @@ public sealed class AircraftViewAnalyzerTests
                     writer: writer,
                     cgY: cgY,
                     cgZ: cgZ,
+                    defaultView: new DefaultView(0.0, 0.0, 0.0, 0.0)));
+            return new AircraftViewFixture(root);
+        }
+
+        public static AircraftViewFixture CreateLaminarStock737()
+        {
+            var root = CreateRoot();
+            WriteText(
+                System.IO.Path.Combine(root, "b738.acf"),
+                BuildAcf(
+                    name: "Boeing 737-800",
+                    description: "Boeing 737-800",
+                    studio: "Laminar Research",
+                    version: "XP12",
+                    writer: "124311",
+                    cgY: -1.0,
+                    cgZ: 60.0,
                     defaultView: new DefaultView(0.0, 0.0, 0.0, 0.0)));
             return new AircraftViewFixture(root);
         }
