@@ -70,6 +70,9 @@ public partial class MainWindowViewModel : ViewModelBase
     private bool productFolderVisible;
 
     [ObservableProperty]
+    private bool detectedTargetsVisible;
+
+    [ObservableProperty]
     private string aircraftStatus = "No aircraft selected";
 
     [ObservableProperty]
@@ -280,6 +283,8 @@ public partial class MainWindowViewModel : ViewModelBase
     public ObservableCollection<string> Findings { get; } = [];
 
     public ObservableCollection<AircraftVariantViewAnalysis> ViewVariants { get; } = [];
+
+    public ObservableCollection<AircraftVariantViewAnalysis> FilteredViewVariants { get; } = [];
 
     public ObservableCollection<string> ViewFindings { get; } = [];
 
@@ -533,30 +538,31 @@ public partial class MainWindowViewModel : ViewModelBase
         RefreshSelectedProductSummary(value);
         if (value is null)
         {
+            RefreshFilteredViewVariants();
             return;
         }
 
         if (!value.IsDetected)
         {
+            RefreshFilteredViewVariants();
             return;
         }
 
-        var nextVariant = ViewVariants.FirstOrDefault(variant => string.Equals(variant.Family, value.Family, StringComparison.OrdinalIgnoreCase));
-        if (nextVariant is not null && !ReferenceEquals(SelectedViewVariant, nextVariant))
-        {
-            SelectedViewVariant = nextVariant;
-            return;
-        }
-
+        RefreshFilteredViewVariants(SelectedViewVariant?.AcfPath);
         RefreshProductScopedPackageAnalysis();
     }
 
     [RelayCommand]
     private void AutoDetect()
     {
+        SelectedCandidate = null;
         DetectedTargets.Clear();
+        DetectedTargetsVisible = false;
 
-        foreach (var candidate in _detector.FindCandidates())
+        var additionalRoots = string.IsNullOrWhiteSpace(SelectedAircraftPath)
+            ? []
+            : new[] { SelectedAircraftPath };
+        foreach (var candidate in _detector.FindCandidates(additionalRoots))
         {
             DetectedTargets.Add(candidate);
         }
@@ -568,6 +574,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         AppendLog($"Auto-detection found {DetectedTargets.Count} candidate(s).");
+        DetectedTargetsVisible = DetectedTargets.Count > 1;
         SelectedCandidate = DetectedTargets[0];
     }
 
@@ -1326,16 +1333,7 @@ public partial class MainWindowViewModel : ViewModelBase
         ViewVariants.ReplaceWith(result.Variants);
         ViewFindings.ReplaceWith(result.Findings);
         RefreshProductTargets(currentSelection);
-        var nextSelection = ViewVariants.FirstOrDefault(variant => string.Equals(variant.AcfPath, currentSelection, StringComparison.Ordinal))
-            ?? ViewVariants.FirstOrDefault();
-        if (!ReferenceEquals(SelectedViewVariant, nextSelection))
-        {
-            SelectedViewVariant = nextSelection;
-        }
-        else
-        {
-            ApplySelectedVariantReadiness(nextSelection);
-        }
+        RefreshFilteredViewVariants(currentSelection);
     }
 
     partial void OnSelectedViewVariantChanged(AircraftVariantViewAnalysis? value)
@@ -1371,6 +1369,34 @@ public partial class MainWindowViewModel : ViewModelBase
         else
         {
             RefreshSelectedProductSummary(selected);
+        }
+    }
+
+    private void RefreshFilteredViewVariants(string? preferredAcfPath = null)
+    {
+        var selectedFamily = SelectedProduct?.IsDetected == true
+            ? SelectedProduct.Family
+            : null;
+        var variants = string.IsNullOrWhiteSpace(selectedFamily)
+            ? ViewVariants.ToArray()
+            : ViewVariants
+                .Where(variant => string.Equals(variant.Family, selectedFamily, StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+
+        FilteredViewVariants.ReplaceWith(variants);
+
+        var nextSelection = variants.FirstOrDefault(variant => string.Equals(variant.AcfPath, preferredAcfPath, StringComparison.Ordinal))
+            ?? (SelectedViewVariant is not null && variants.Any(variant => ReferenceEquals(variant, SelectedViewVariant))
+                ? SelectedViewVariant
+                : null)
+            ?? variants.FirstOrDefault();
+        if (!ReferenceEquals(SelectedViewVariant, nextSelection))
+        {
+            SelectedViewVariant = nextSelection;
+        }
+        else
+        {
+            ApplySelectedVariantReadiness(nextSelection);
         }
     }
 
@@ -1554,10 +1580,13 @@ public partial class MainWindowViewModel : ViewModelBase
 
         if (!string.Equals(variant.Family, "zibo-737ng", StringComparison.OrdinalIgnoreCase))
         {
-            UpstreamUpdateStatus = "Not applicable";
-            UpstreamUpdateSummary = "Aircraft upstream update checks are currently implemented for Zibo only.";
-            RefreshUpstreamActionAvailability("Package import is currently available only for Zibo upstream package plans.");
-            UpstreamFindings.ReplaceWith(["LevelUp can use the same planner later when an authorized index source is available."]);
+            UpstreamUpdateStatus = "No authorized LU source";
+            UpstreamUpdateSummary = "LevelUp aircraft updates need an authorized LevelUp package source. Embedded Zibomod updates are not applied from the normal Zibo feed because Zibo controls plugin releases and not every Zibo version is LevelUp-compatible.";
+            RefreshUpstreamActionAvailability("LevelUp aircraft update is disabled until an authorized LevelUp aircraft/update index is available.");
+            UpstreamFindings.ReplaceWith([
+                "LevelUp aircraft updates need their own authorized package source.",
+                "Embedded Zibomod updates must be LevelUp-compatible; normal Zibo upstream packages are not applied directly to LevelUp aircraft."
+            ]);
             return;
         }
 

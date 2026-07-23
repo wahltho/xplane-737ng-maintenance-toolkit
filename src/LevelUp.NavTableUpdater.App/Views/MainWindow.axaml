@@ -167,8 +167,8 @@
                                                 HorizontalAlignment="Stretch"/>
                                     </StackPanel>
 
-                                    <StackPanel Grid.Row="2" Spacing="4">
-                                        <TextBlock Classes="label" Text="Auto-detected installation folders"/>
+                                    <StackPanel Grid.Row="2" Spacing="4" IsVisible="{Binding DetectedTargetsVisible}">
+                                        <TextBlock Classes="label" Text="Auto-detected choices"/>
                                         <ComboBox ItemsSource="{Binding DetectedTargets}"
                                                   SelectedItem="{Binding SelectedCandidate}"
                                                   HorizontalAlignment="Stretch"
@@ -188,7 +188,7 @@
                             </Border>
 
                             <StackPanel Grid.Column="1" Spacing="16">
-                                <Grid ColumnDefinitions="2*,*,*" ColumnSpacing="12">
+                                <Grid ColumnDefinitions="*,430" ColumnSpacing="12">
                                     <Border Classes="status-card">
                                         <StackPanel Spacing="4">
                                             <TextBlock Classes="label" Text="Detected product"/>
@@ -219,26 +219,12 @@
                                         </StackPanel>
                                     </Border>
                                     <Border Grid.Column="1" Classes="status-card">
-                                        <StackPanel Spacing="4">
-                                            <TextBlock Classes="label" Text="VNAV package"/>
-                                            <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
-                                                <StackPanel Spacing="2">
-                                                    <TextBlock Classes="label" Text="Installed"/>
-                                                    <TextBlock Text="{Binding LocalPackageVersion}" FontWeight="SemiBold"/>
-                                                </StackPanel>
-                                                <StackPanel Grid.Column="1" Spacing="2">
-                                                    <TextBlock Classes="label" Text="Available"/>
-                                                    <TextBlock Text="{Binding AvailablePackageVersion}" FontWeight="SemiBold"/>
-                                                </StackPanel>
-                                            </Grid>
-                                        </StackPanel>
-                                    </Border>
-                                    <Border Grid.Column="2" Classes="status-card">
-                                        <StackPanel Spacing="4">
-                                            <TextBlock Classes="label" Text="Aircraft update"/>
-                                            <TextBlock Classes="value" Text="{Binding UpstreamUpdateStatus}" TextWrapping="Wrap"/>
-                                            <TextBlock Text="{Binding UpstreamActionStatus}" Foreground="#667085" TextWrapping="Wrap"/>
-                                        </StackPanel>
+                                        <Image Source="/Assets/wahltho_logo_horizontal_v2.jpg"
+                                               Stretch="Uniform"
+                                               MaxWidth="390"
+                                               MaxHeight="130"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"/>
                                     </Border>
                                 </Grid>
 
@@ -307,7 +293,7 @@
                                                     <TextBlock Classes="label" Text="Status"/>
                                                     <TextBlock Text="{Binding AircraftStatus}" FontWeight="SemiBold" TextWrapping="Wrap"/>
                                                 </StackPanel>
-                                                <TextBlock Grid.Row="2" Text="Use Update when tables are missing, outdated or need repair. Details are in the Log tab."
+                                                <TextBlock Grid.Row="2" Text="Use Update when tables are missing, outdated or need repair. Details are in the Advanced tab."
                                                            Foreground="#667085"
                                                            TextWrapping="Wrap"/>
                                             </Grid>
@@ -339,7 +325,7 @@
                                             <StackPanel Grid.Row="1" Spacing="10">
                                                 <StackPanel Spacing="2">
                                                     <TextBlock Classes="label" Text="Target variant"/>
-                                                    <ComboBox ItemsSource="{Binding ViewVariants}"
+                                                    <ComboBox ItemsSource="{Binding FilteredViewVariants}"
                                                               SelectedItem="{Binding SelectedViewVariant}"
                                                               HorizontalAlignment="Stretch">
                                                         <ComboBox.ItemTemplate>
@@ -450,7 +436,7 @@
                 </ScrollViewer>
             </TabItem>
 
-            <TabItem Header="Log">
+            <TabItem Header="Advanced">
                 <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
                     <StackPanel Spacing="16">
                         <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">

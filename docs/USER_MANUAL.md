@@ -188,7 +188,7 @@ stream; in that case use `Import package...`.
 Use `Import ZIP` or `Import package...` to select a local package ZIP. The selected file name must
 match a required package in the current plan exactly. If the file dialog closes
 and nothing obvious happens, check the aircraft update status, cache status and
-Log tab for the import result.
+Advanced tab for the import result.
 
 Use `Review aircraft changes` before applying. Review opens the cached packages
 and reports which files would be added, replaced or protected. No aircraft
@@ -296,7 +296,7 @@ ZIP file or an unsafe ZIP path.
 `Target state is not safe to patch`
 
 The current aircraft files do not match a state the app can modify safely.
-Review the Findings and Log tab before changing anything manually.
+Review the Findings and Advanced tab before changing anything manually.
 
 `Custom distribution detected`
 
