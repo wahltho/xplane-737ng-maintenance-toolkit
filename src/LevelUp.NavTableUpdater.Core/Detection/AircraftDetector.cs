@@ -19,9 +19,9 @@ public sealed class AircraftDetector
 
     public IReadOnlyList<AircraftCandidate> FindCandidates(IEnumerable<string>? additionalSearchRoots = null)
     {
-        var candidates = new Dictionary<string, AircraftCandidate>(StringComparer.Ordinal);
+        var candidates = new Dictionary<string, AircraftCandidate>(PathKeyComparer);
 
-        foreach (var root in CommonAircraftRoots(homeDirectory).Concat(additionalSearchRoots ?? []))
+        foreach (var root in (additionalSearchRoots ?? []).Concat(CommonAircraftRoots(homeDirectory)))
         {
             if (!Directory.Exists(root))
             {
@@ -47,13 +47,14 @@ public sealed class AircraftDetector
                     }
 
                     var fullPath = Path.GetFullPath(directory);
+                    var canonicalPath = ResolveCanonicalDirectoryPath(fullPath);
                     var reason = hasLuaTarget
                         ? "Found XLua B738.a_fms target script."
                         : hasPortNoLuaLayout
                             ? "Found LevelUp port/no-Lua layout; Lua package is not applicable."
                             : $"Found supported 737NG aircraft: {string.Join(", ", recognizedReferences)}.";
                     candidates.TryAdd(
-                        fullPath,
+                        canonicalPath,
                         new AircraftCandidate(
                             Name: Path.GetFileName(fullPath),
                             Path: fullPath,
@@ -222,6 +223,61 @@ public sealed class AircraftDetector
         }
 
         return recognized.ToArray();
+    }
+
+    private static StringComparer PathKeyComparer =>
+        OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+
+    private static string ResolveCanonicalDirectoryPath(string path)
+    {
+        try
+        {
+            var fullPath = Path.GetFullPath(path);
+            if (!Directory.Exists(fullPath))
+            {
+                return fullPath;
+            }
+
+            var root = Path.GetPathRoot(fullPath);
+            if (string.IsNullOrWhiteSpace(root))
+            {
+                return fullPath;
+            }
+
+            var current = root;
+            var relativePath = Path.GetRelativePath(root, fullPath);
+            if (relativePath == ".")
+            {
+                return Path.GetFullPath(current);
+            }
+
+            foreach (var segment in relativePath.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))
+            {
+                if (string.IsNullOrWhiteSpace(segment) || segment == ".")
+                {
+                    continue;
+                }
+
+                var next = Path.Combine(current, segment);
+                var directory = new DirectoryInfo(next);
+                if (directory.LinkTarget is not null)
+                {
+                    var target = directory.ResolveLinkTarget(returnFinalTarget: true);
+                    if (target is DirectoryInfo targetDirectory)
+                    {
+                        next = targetDirectory.FullName;
+                    }
+                }
+
+                current = Path.GetFullPath(next);
+            }
+
+            return Path.GetFullPath(current);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return Path.GetFullPath(path);
+        }
     }
 
     private static bool PathsEqual(string left, string right)

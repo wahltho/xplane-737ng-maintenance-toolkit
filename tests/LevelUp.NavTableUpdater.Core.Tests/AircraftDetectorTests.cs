@@ -36,6 +36,38 @@ public sealed class AircraftDetectorTests
         Assert.Equal(Path.GetFullPath(aircraftRoot), candidate.Path);
     }
 
+    [Fact]
+    public void FindCandidates_WhenInstallRootsShareSymlinkedAircraftFolder_DeduplicatesRealAircraftPath()
+    {
+        using var fixture = DetectorFixture.Create();
+        var sharedAircraftRoot = Path.Combine(fixture.RootPath, "shared-aircraft");
+        var ziboRoot = Path.Combine(sharedAircraftRoot, "B737-800X");
+        Directory.CreateDirectory(ziboRoot);
+        DetectorFixture.WriteZiboAcf(ziboRoot);
+
+        var xplaneRoots = new[]
+        {
+            Path.Combine(fixture.RootPath, "X-Plane_12_a"),
+            Path.Combine(fixture.RootPath, "X-Plane_12_b"),
+            Path.Combine(fixture.RootPath, "X-Plane_12_c")
+        };
+        foreach (var xplaneRoot in xplaneRoots)
+        {
+            Directory.CreateDirectory(xplaneRoot);
+            if (!DetectorFixture.TryCreateDirectorySymlink(Path.Combine(xplaneRoot, "Aircraft"), sharedAircraftRoot))
+            {
+                return;
+            }
+        }
+
+        fixture.WriteLinuxInstallFile(xplaneRoots);
+
+        var candidates = new AircraftDetector(fixture.HomePath).FindCandidates();
+
+        var candidate = Assert.Single(candidates);
+        Assert.Equal(Path.Combine(xplaneRoots[0], "Aircraft", "B737-800X"), candidate.Path);
+    }
+
     private sealed class DetectorFixture : IDisposable
     {
         private DetectorFixture(string rootPath)
@@ -56,11 +88,11 @@ public sealed class AircraftDetectorTests
             return new DetectorFixture(root);
         }
 
-        public void WriteLinuxInstallFile(string xplaneRoot)
+        public void WriteLinuxInstallFile(params string[] xplaneRoots)
         {
             var installDir = Path.Combine(HomePath, ".x-plane");
             Directory.CreateDirectory(installDir);
-            File.WriteAllText(Path.Combine(installDir, "x-plane_install_12.txt"), $"{xplaneRoot}{Environment.NewLine}");
+            File.WriteAllLines(Path.Combine(installDir, "x-plane_install_12.txt"), xplaneRoots);
         }
 
         public static void WriteZiboAcf(string aircraftRoot)
@@ -81,6 +113,19 @@ public sealed class AircraftDetectorTests
                 P acf/_pe_xyz/2 0.000000000
                 P acf/_ang_offset/0,1 0.000000000
                 """);
+        }
+
+        public static bool TryCreateDirectorySymlink(string linkPath, string targetPath)
+        {
+            try
+            {
+                Directory.CreateSymbolicLink(linkPath, targetPath);
+                return true;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or PlatformNotSupportedException)
+            {
+                return false;
+            }
         }
 
         public void Dispose()
