@@ -1580,12 +1580,12 @@ public partial class MainWindowViewModel : ViewModelBase
 
         if (!string.Equals(variant.Family, "zibo-737ng", StringComparison.OrdinalIgnoreCase))
         {
-            UpstreamUpdateStatus = "No authorized LU source";
-            UpstreamUpdateSummary = "LevelUp aircraft updates need an authorized LevelUp package source. Embedded Zibomod updates are not applied from the normal Zibo feed because Zibo controls plugin releases and not every Zibo version is LevelUp-compatible.";
-            RefreshUpstreamActionAvailability("LevelUp aircraft update is disabled until an authorized LevelUp aircraft/update index is available.");
+            UpstreamUpdateStatus = "LU source not configured";
+            UpstreamUpdateSummary = "LevelUp aircraft updates need a LevelUp package source. Embedded Zibomod updates are a separate layer and require a Zibo-declared LU-compatible package signal; normal Zibo packages are not applied directly to LevelUp.";
+            RefreshUpstreamActionAvailability("LevelUp aircraft update is disabled until a LevelUp update source and Zibo LU-compatibility metadata are available.");
             UpstreamFindings.ReplaceWith([
-                "LevelUp aircraft updates need their own authorized package source.",
-                "Embedded Zibomod updates must be LevelUp-compatible; normal Zibo upstream packages are not applied directly to LevelUp aircraft."
+                "LevelUp aircraft updates need their own package source.",
+                "Embedded Zibomod updates require Zibo LU-compatibility metadata; normal Zibo upstream packages are not applied directly to LevelUp aircraft."
             ]);
             return;
         }

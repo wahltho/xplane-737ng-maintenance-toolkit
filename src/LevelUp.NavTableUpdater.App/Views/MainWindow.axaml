@@ -155,16 +155,19 @@
                                     </StackPanel>
 
                                     <StackPanel Grid.Row="1" Spacing="8">
+                                        <Button Content="Auto-detect"
+                                                Command="{Binding AutoDetectCommand}"
+                                                Classes="primary"
+                                                HorizontalAlignment="Stretch"/>
                                         <TextBlock Classes="label" Text="Selected folder"/>
                                         <TextBox Text="{Binding SelectedAircraftPath}" PlaceholderText="/path/to/X-Plane, Aircraft, Zibo, or LevelUp folder"/>
                                         <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
-                                            <Button Grid.Column="0" Content="Auto-detect" Command="{Binding AutoDetectCommand}" HorizontalAlignment="Stretch"/>
-                                            <Button Grid.Column="1" Content="Browse" Click="BrowseAircraft_Click" HorizontalAlignment="Stretch"/>
+                                            <Button Grid.Column="0" Content="Browse" Click="BrowseAircraft_Click" HorizontalAlignment="Stretch"/>
+                                            <Button Grid.Column="1"
+                                                    Content="Scan selected folder"
+                                                    Command="{Binding ScanCommand}"
+                                                    HorizontalAlignment="Stretch"/>
                                         </Grid>
-                                        <Button Content="Scan selected folder"
-                                                Command="{Binding ScanCommand}"
-                                                Classes="primary"
-                                                HorizontalAlignment="Stretch"/>
                                     </StackPanel>
 
                                     <StackPanel Grid.Row="2" Spacing="4" IsVisible="{Binding DetectedTargetsVisible}">
