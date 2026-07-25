@@ -60,7 +60,7 @@ public sealed class AircraftUpstreamUpdateChecker
 
         findings.Add(requiredPackages.Count == 0
             ? "No upstream package is required by this plan."
-            : "Required package list is a plan from the feed. Refresh does not download or write files; cached ZIPs can be imported, dry-run and applied separately.");
+            : "Required package list is a plan from the feed. Refresh does not download or write files; cached packages can be imported, reviewed and applied separately.");
 
         return new AircraftUpstreamUpdateCheckResult(
             isCustomDistribution ? "Custom port detected" : BuildStateLabel(plan.Action),
@@ -171,6 +171,7 @@ public sealed class AircraftUpstreamUpdateChecker
             AircraftUpdatePlanAction.InstallBaselineAndCumulativePatch => "Full update required",
             AircraftUpdatePlanAction.LocalNewerThanIndex => "Local newer than index",
             AircraftUpdatePlanAction.MissingRequiredPackage => "Package missing",
+            AircraftUpdatePlanAction.BaselineMismatch => "Baseline mismatch",
             _ => "Not checked"
         };
 
@@ -182,6 +183,7 @@ public sealed class AircraftUpstreamUpdateChecker
             AircraftUpdatePlanAction.InstallBaselineAndCumulativePatch => "Full: install baseline plus latest cumulative patch",
             AircraftUpdatePlanAction.LocalNewerThanIndex => "Review manually",
             AircraftUpdatePlanAction.MissingRequiredPackage => "Blocked by incomplete index",
+            AircraftUpdatePlanAction.BaselineMismatch => "Select a matching full package or baseline",
             _ => "Not checked"
         };
 

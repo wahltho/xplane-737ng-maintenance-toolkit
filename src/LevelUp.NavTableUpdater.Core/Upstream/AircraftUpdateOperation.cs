@@ -1,4 +1,3 @@
-using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text.Json;
 using LevelUp.NavTableUpdater.Core.Aircraft;
@@ -59,8 +58,8 @@ public sealed class AircraftUpdateOperation
 
         if (updateCheck.IsCustomDistribution)
         {
-            log.Add("[BLOCKED] Custom distribution detected. Official upstream ZIPs are review-only for this target.");
-            return MaintenanceOperationResult.Blocked("Custom distributions are review-only for official upstream ZIP updates.", log);
+            log.Add("[BLOCKED] Custom distribution detected. Official upstream packages are review-only for this target.");
+            return MaintenanceOperationResult.Blocked("Custom distributions are review-only for official upstream package updates.", log);
         }
 
         if (updateCheck.RequiredPackages.Count == 0)
@@ -77,7 +76,7 @@ public sealed class AircraftUpdateOperation
                 log.Add($"[BLOCKED] {message}");
             }
 
-            return MaintenanceOperationResult.Blocked("Required aircraft update ZIPs are missing or changed in the cache.", log);
+            return MaintenanceOperationResult.Blocked("Required aircraft update packages are missing or changed in the cache.", log);
         }
 
         var orderedCacheEntries = updateCheck.RequiredPackages
@@ -88,7 +87,9 @@ public sealed class AircraftUpdateOperation
             log.Add($"[CACHE] {entry.Package.FileName}: {entry.SizeBytes} bytes, sha256 {entry.Sha256}.");
         }
 
-        log.Add("[INTEGRITY] ZIPs are verified against the local cache snapshot. No official upstream package hashes are available from the feed.");
+        log.Add(orderedCacheEntries.All(entry => !string.IsNullOrWhiteSpace(entry.Package.ExpectedSha256))
+            ? "[INTEGRITY] Package archives are verified against authoritative manifest size and SHA-256 values."
+            : "[INTEGRITY] Legacy packages are verified against the local cache snapshot; the source feed provides no authoritative package hashes.");
         var dryRun = _dryRunAnalyzer.Analyze(aircraftFolder, orderedCacheEntries);
         foreach (var finding in dryRun.Findings)
         {
@@ -101,20 +102,22 @@ public sealed class AircraftUpdateOperation
             return MaintenanceOperationResult.Blocked(dryRun.Summary, log);
         }
 
-        var writableEntries = dryRun.Entries
-            .Where(entry => entry.Action is AircraftUpdateDryRunEntryAction.Add or AircraftUpdateDryRunEntryAction.Replace)
+        var changeEntries = dryRun.Entries
+            .Where(entry => entry.Action is AircraftUpdateDryRunEntryAction.Add
+                or AircraftUpdateDryRunEntryAction.Replace
+                or AircraftUpdateDryRunEntryAction.Delete)
             .ToArray();
-        if (writableEntries.Length == 0)
+        if (changeEntries.Length == 0)
         {
             RecordAircraftUpdateState(variant, updateCheck, backups: [], operation: BuildOperationName(updateCheck.UpdateMode, "NoChange"));
-            log.Add("[NO-CHANGE] Dry-run found no add or replace entries.");
+            log.Add("[NO-CHANGE] Dry-run found no add, replace, or delete entries.");
             return MaintenanceOperationResult.NoChange("No upstream aircraft files need to be changed.", log);
         }
 
         var createdUtc = DateTimeOffset.UtcNow;
         var backupRecords = new List<BackupRecord>();
         var preImagesByTarget = new Dictionary<string, BackupRecord>(StringComparerForCurrentPlatform());
-        var writePlan = writableEntries
+        var writePlan = changeEntries
             .GroupBy(entry => (entry.PackageFileName, entry.RelativePath), entry => entry.Action)
             .ToDictionary(group => group.Key, group => group.Last());
 
@@ -147,7 +150,7 @@ public sealed class AircraftUpdateOperation
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or InvalidDataException)
         {
-            RollBack(preImagesByTarget.Values.Reverse().ToArray(), log);
+            RollBack(preImagesByTarget.Values.ToArray(), log);
             log.Add($"[FAILED] {ex.Message}");
             return MaintenanceOperationResult.Blocked($"Aircraft update failed and rollback completed: {ex.Message}", log);
         }
@@ -246,24 +249,51 @@ public sealed class AircraftUpdateOperation
         ICollection<BackupRecord> backupRecords,
         ICollection<string> log)
     {
-        using var archive = ZipFile.OpenRead(cacheEntry.CachePath);
-        log.Add($"[PACKAGE] Applying {cacheEntry.Package.FileName} ({archive.Entries.Count} ZIP entries).");
-
-        foreach (var zipEntry in archive.Entries)
+        foreach (var deletion in writePlan
+            .Where(entry => string.Equals(entry.Key.PackageFileName, cacheEntry.Package.FileName, StringComparison.OrdinalIgnoreCase)
+                && entry.Value == AircraftUpdateDryRunEntryAction.Delete)
+            .Select(entry => entry.Key.RelativePath))
         {
-            if (IsDirectoryEntry(zipEntry))
+            var targetPath = AircraftUpdatePath.ResolveTargetPath(aircraftFolder, deletion);
+            if (!preImagesByTarget.ContainsKey(targetPath))
+            {
+                var backupRecord = CapturePreImage(
+                    variant,
+                    updateCheck,
+                    cacheEntry.Package,
+                    targetPath,
+                    deletion,
+                    createdUtc,
+                    "AircraftUpdateDeletedFile");
+                preImagesByTarget[targetPath] = backupRecord;
+                backupRecords.Add(backupRecord);
+                log.Add($"[BACKUP] {backupRecord.BackupPath}");
+            }
+
+            File.Delete(targetPath);
+            log.Add($"[DELETE] Removed {deletion} as declared by {cacheEntry.Package.FileName}.");
+        }
+
+        using var archive = AircraftPackageArchive.Open(cacheEntry.CachePath);
+        log.Add($"[PACKAGE] Applying {cacheEntry.Package.FileName} ({archive.Entries.Count} archive entries).");
+
+        foreach (var archiveEntry in archive.Entries)
+        {
+            if (archiveEntry.IsDirectory)
             {
                 continue;
             }
 
-            var normalizedPath = NormalizeZipPath(zipEntry.FullName)
-                ?? throw new InvalidOperationException($"Unsafe ZIP path in {cacheEntry.Package.FileName}: {zipEntry.FullName}");
+            var normalizedPath = AircraftUpdatePath.MapArchivePath(
+                archiveEntry.Path,
+                cacheEntry.Package.Manifest?.ContentRoot)
+                ?? throw new InvalidOperationException($"Unsafe archive path in {cacheEntry.Package.FileName}: {archiveEntry.Path}");
             if (!writePlan.TryGetValue((cacheEntry.Package.FileName, normalizedPath), out var action))
             {
                 continue;
             }
 
-            var targetPath = ResolveTargetPath(aircraftFolder, normalizedPath);
+            var targetPath = AircraftUpdatePath.ResolveTargetPath(aircraftFolder, normalizedPath);
             if (!preImagesByTarget.ContainsKey(targetPath))
             {
                 var backupRecord = CapturePreImage(
@@ -281,7 +311,9 @@ public sealed class AircraftUpdateOperation
                     : $"[BACKUP] New file tracked for restore: {targetPath}");
             }
 
-            ExtractZipEntry(zipEntry, targetPath);
+            var manifestFile = cacheEntry.Package.Manifest?.Files
+                .FirstOrDefault(file => string.Equals(file.Path, normalizedPath, StringComparison.OrdinalIgnoreCase));
+            ExtractArchiveEntry(archiveEntry, targetPath, manifestFile);
             log.Add(action == AircraftUpdateDryRunEntryAction.Replace
                 ? $"[WRITE] Replaced {normalizedPath} from {cacheEntry.Package.FileName}."
                 : $"[WRITE] Added {normalizedPath} from {cacheEntry.Package.FileName}.");
@@ -473,12 +505,26 @@ public sealed class AircraftUpdateOperation
             {
                 messages.Add($"Cached package hash changed after inspection: {package.FileName}");
             }
+
+            if (package.ExpectedSizeBytes is not null && package.ExpectedSizeBytes.Value != info.Length)
+            {
+                messages.Add($"Cached package size does not match the manifest: {package.FileName}");
+            }
+
+            if (!string.IsNullOrWhiteSpace(package.ExpectedSha256)
+                && !string.Equals(package.ExpectedSha256, sha, StringComparison.OrdinalIgnoreCase))
+            {
+                messages.Add($"Cached package SHA-256 does not match the manifest: {package.FileName}");
+            }
         }
 
         return new CachedPackageValidation(messages, cacheEntriesByFileName);
     }
 
-    private static void ExtractZipEntry(ZipArchiveEntry zipEntry, string targetPath)
+    private static void ExtractArchiveEntry(
+        AircraftPackageArchiveEntry archiveEntry,
+        string targetPath,
+        AircraftUpdateManifestFile? manifestFile)
     {
         var targetExisted = File.Exists(targetPath);
         var attributes = targetExisted ? File.GetAttributes(targetPath) : FileAttributes.Normal;
@@ -488,13 +534,24 @@ public sealed class AircraftUpdateOperation
 
         try
         {
-            using (var input = zipEntry.Open())
+            using (var input = archiveEntry.Open())
             using (var output = File.Create(tempPath))
             {
                 input.CopyTo(output);
             }
 
             File.Move(tempPath, targetPath, overwrite: true);
+            if (manifestFile is not null)
+            {
+                var info = new FileInfo(targetPath);
+                var sha = ComputeSha256(targetPath);
+                if (info.Length != manifestFile.Size
+                    || !string.Equals(sha, manifestFile.Sha256, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidDataException($"Written payload failed manifest verification: {manifestFile.Path}");
+                }
+            }
+
             if (targetExisted)
             {
                 File.SetAttributes(targetPath, attributes);
@@ -559,7 +616,7 @@ public sealed class AircraftUpdateOperation
         IReadOnlyList<BackupRecord> records)
     {
         var candidates = records
-            .Where(record => record.Operation is "AircraftUpdatePreImage" or "AircraftUpdateAddedFile" or "AircraftUpdateMetadata"
+            .Where(record => record.Operation is "AircraftUpdatePreImage" or "AircraftUpdateAddedFile" or "AircraftUpdateDeletedFile" or "AircraftUpdateMetadata"
                 && IsInsideAircraftFolder(variant, record.SourcePath))
             .ToArray();
         if (candidates.Length == 0)
@@ -576,20 +633,6 @@ public sealed class AircraftUpdateOperation
             .ToArray();
     }
 
-    private static string ResolveTargetPath(string aircraftFolder, string relativePath)
-    {
-        var targetRoot = Path.GetFullPath(aircraftFolder);
-        var targetPath = Path.GetFullPath(Path.Combine(targetRoot, relativePath));
-        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
-        if (!targetPath.StartsWith(targetRoot + Path.DirectorySeparatorChar, comparison)
-            && !string.Equals(targetPath, targetRoot, comparison))
-        {
-            throw new InvalidOperationException($"ZIP entry resolves outside the aircraft folder: {relativePath}");
-        }
-
-        return targetPath;
-    }
-
     private static bool IsInsideAircraftFolder(AircraftVariantViewAnalysis variant, string sourcePath)
     {
         var aircraftFolder = Path.GetFullPath(Path.GetDirectoryName(variant.AcfPath) ?? "");
@@ -598,35 +641,6 @@ public sealed class AircraftUpdateOperation
         return sourceFullPath.Equals(aircraftFolder, comparison)
             || sourceFullPath.StartsWith(aircraftFolder + Path.DirectorySeparatorChar, comparison);
     }
-
-    private static string? NormalizeZipPath(string path)
-    {
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            return null;
-        }
-
-        var normalized = path.Replace('\\', '/').Trim();
-        if (normalized.Length == 0 || normalized.StartsWith('/') || Path.IsPathRooted(normalized))
-        {
-            return null;
-        }
-
-        var segments = normalized
-            .Split('/', StringSplitOptions.RemoveEmptyEntries)
-            .ToArray();
-
-        if (segments.Length == 0 || segments.Any(segment => segment is "." or ".."))
-        {
-            return null;
-        }
-
-        return string.Join(Path.DirectorySeparatorChar, segments);
-    }
-
-    private static bool IsDirectoryEntry(ZipArchiveEntry entry) =>
-        entry.FullName.EndsWith("/", StringComparison.Ordinal)
-        || (string.IsNullOrEmpty(entry.Name) && entry.Length == 0);
 
     private static string ComputeSha256(string path)
     {

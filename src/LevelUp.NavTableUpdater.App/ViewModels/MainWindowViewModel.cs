@@ -30,6 +30,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly RestoreLatestBackupOperation _restoreLatestBackupOperation;
     private readonly VnavContentOperation _vnavContentOperation;
     private readonly AircraftUpstreamUpdateChecker _ziboUpdateChecker;
+    private readonly LevelUpAircraftUpdatePackageLoader _levelUpUpdatePackageLoader = new();
     private readonly AircraftUpdateOperation _aircraftUpdateOperation;
     private AircraftUpdatePackageCache _aircraftUpdatePackageCache;
     private readonly AircraftUpdateDryRunAnalyzer _aircraftUpdateDryRunAnalyzer = new();
@@ -220,16 +221,16 @@ public partial class MainWindowViewModel : ViewModelBase
     private string upstreamActionStatus = "Check for updates to enable package download or import.";
 
     [ObservableProperty]
-    private bool canImportAircraftUpdateZip;
+    private bool canImportAircraftUpdatePackage;
 
     [ObservableProperty]
-    private bool canDownloadAircraftUpdateZip;
+    private bool canDownloadAircraftUpdatePackage;
 
     [ObservableProperty]
-    private bool canDryRunAircraftUpdateZip;
+    private bool canDryRunAircraftUpdatePackage;
 
     [ObservableProperty]
-    private bool canApplyAircraftUpdateZip;
+    private bool canApplyAircraftUpdatePackage;
 
     [ObservableProperty]
     private bool canRestoreAircraftUpdate;
@@ -391,11 +392,18 @@ public partial class MainWindowViewModel : ViewModelBase
         SaveDiagnosticsExportSettings();
     }
 
-    public void ImportAircraftUpdateZip(string path)
+    public void ImportAircraftUpdatePackage(string path)
     {
         if (string.IsNullOrWhiteSpace(path))
         {
             RefreshUpstreamActionAvailability("Package selection canceled. No package was imported.");
+            return;
+        }
+
+        if (SelectedViewVariant is not null
+            && string.Equals(SelectedViewVariant.Family, LevelUpAircraftUpdatePackageLoader.Family, StringComparison.OrdinalIgnoreCase))
+        {
+            ImportLevelUpAircraftUpdatePackage(path, SelectedViewVariant);
             return;
         }
 
@@ -434,14 +442,14 @@ public partial class MainWindowViewModel : ViewModelBase
 
         try
         {
-            var imported = _aircraftUpdatePackageCache.ImportZip(path, expectedPackage);
+            var imported = _aircraftUpdatePackageCache.ImportPackage(path, expectedPackage);
             RefreshUpstreamCacheEntries();
             UpstreamDryRunEntries.Clear();
             UpstreamDryRunSummary = "Package cache changed. Review aircraft changes before applying.";
             RefreshUpstreamActionAvailability(BuildImportSuccessStatus(imported.Package.FileName));
             AppendLog($"Imported aircraft package into cache: {imported.Package.FileName} ({imported.SizeBytes} bytes, sha256 {imported.Sha256}).");
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or InvalidDataException)
         {
             RefreshUpstreamActionAvailability($"Import failed. {ex.Message}");
             AppendLog($"Aircraft package import failed: {ex.Message}");
@@ -449,8 +457,36 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
+    private void ImportLevelUpAircraftUpdatePackage(string path, AircraftVariantViewAnalysis variant)
+    {
+        try
+        {
+            var selection = _levelUpUpdatePackageLoader.Load(path, variant);
+            ApplyUpstreamUpdateCheck(selection.UpdateCheck);
+            if (selection.Package is null || string.IsNullOrWhiteSpace(selection.ArchivePath))
+            {
+                RefreshUpstreamActionAvailability(selection.UpdateCheck.Summary);
+                AppendLog($"LevelUp package plan: {selection.UpdateCheck.StateLabel} - {selection.UpdateCheck.Summary}");
+                return;
+            }
+
+            var imported = _aircraftUpdatePackageCache.ImportPackage(selection.ArchivePath, selection.Package);
+            RefreshUpstreamCacheEntries();
+            UpstreamDryRunEntries.Clear();
+            UpstreamDryRunSummary = "LevelUp package imported and verified. Review aircraft changes before applying.";
+            RefreshUpstreamActionAvailability(BuildImportSuccessStatus(imported.Package.FileName));
+            AppendLog($"Imported LevelUp aircraft package and manifest: {imported.Package.FileName} ({imported.SizeBytes} bytes, sha256 {imported.Sha256}).");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or InvalidDataException)
+        {
+            RefreshUpstreamActionAvailability($"LevelUp package import failed. {ex.Message}");
+            AppendLog($"LevelUp aircraft package import failed: {ex.Message}");
+            UpstreamFindings.ReplaceWith(["LevelUp aircraft package import failed.", ex.Message]);
+        }
+    }
+
     [RelayCommand]
-    private async Task DownloadAircraftUpdateZips()
+    private async Task DownloadAircraftUpdatePackages()
     {
         if (IsUpstreamCheckRunning || IsOperationRunning)
         {
@@ -505,10 +541,10 @@ public partial class MainWindowViewModel : ViewModelBase
         }
         catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidOperationException or TaskCanceledException)
         {
-            RefreshUpstreamActionAvailability($"Download failed. Import the exact package manually if the source does not expose a direct ZIP URL. {ex.Message}");
+            RefreshUpstreamActionAvailability($"Download failed. Import the exact package manually if the source does not expose a direct archive URL. {ex.Message}");
             UpstreamFindings.ReplaceWith([
                 "Aircraft package download failed.",
-                "The feed may expose torrent links or a Google Drive flow instead of direct ZIP downloads.",
+                "The source may expose torrent links or a cloud-drive flow instead of direct archive downloads.",
                 ex.Message
             ]);
             AppendLog($"Aircraft package download failed: {ex.Message}");
@@ -695,31 +731,44 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
-        await RefreshZiboUpdateCheck();
+        if (SelectedViewVariant is not null
+            && string.Equals(SelectedViewVariant.Family, LevelUpAircraftUpdatePackageLoader.Family, StringComparison.OrdinalIgnoreCase))
+        {
+            if (_lastUpstreamUpdateCheck is null)
+            {
+                RefreshUpstreamActionAvailability("Import a LevelUp update manifest or archive before running the update.");
+                AppendLog("LevelUp update requires a manifest-controlled package import first.");
+                return;
+            }
+        }
+        else
+        {
+            await RefreshAircraftUpdateCheck();
+        }
 
         if (_lastUpstreamUpdateCheck is null || _lastUpstreamUpdateCheck.IsCustomDistribution)
         {
             return;
         }
 
-        if (CanDownloadAircraftUpdateZip)
+        if (CanDownloadAircraftUpdatePackage)
         {
-            await DownloadAircraftUpdateZips();
+            await DownloadAircraftUpdatePackages();
         }
 
-        if (CanDryRunAircraftUpdateZip)
+        if (CanDryRunAircraftUpdatePackage)
         {
             DryRunAircraftUpdate();
         }
 
-        if (CanApplyAircraftUpdateZip)
+        if (CanApplyAircraftUpdatePackage)
         {
             ApplyAircraftUpdate();
         }
     }
 
     [RelayCommand]
-    private async Task RefreshZiboUpdateCheck()
+    private async Task RefreshAircraftUpdateCheck()
     {
         if (IsUpstreamCheckRunning)
         {
@@ -732,6 +781,14 @@ public partial class MainWindowViewModel : ViewModelBase
         ApplyAnalysis(_analyzer.Analyze(CurrentProductAircraftFolderPath(), _manifest));
 
         var selectedVariant = SelectedViewVariant;
+        if (selectedVariant is not null
+            && string.Equals(selectedVariant.Family, LevelUpAircraftUpdatePackageLoader.Family, StringComparison.OrdinalIgnoreCase))
+        {
+            ApplyUpstreamReadiness(selectedVariant);
+            AppendLog("LevelUp update check uses a local manifest until a remote LU release index is configured.");
+            return;
+        }
+
         IsUpstreamCheckRunning = true;
         ActionsEnabled = false;
         _lastUpstreamUpdateCheck = null;
@@ -1462,8 +1519,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         ProductActionsEnabled = ActionsEnabled && product is not null && product.IsDetected;
-        AircraftProductUpdateEnabled = ProductActionsEnabled
-            && string.Equals(product?.Family, "zibo-737ng", StringComparison.OrdinalIgnoreCase);
+        AircraftProductUpdateEnabled = ProductActionsEnabled && IsAircraftUpdateFamily(product?.Family);
     }
 
     private void RefreshSelectedProductSummary(ProductTargetStatus? product)
@@ -1488,8 +1544,7 @@ public partial class MainWindowViewModel : ViewModelBase
             && !string.IsNullOrWhiteSpace(product.AircraftFolderPath)
             && !PathsEqual(product.AircraftFolderPath, SelectedAircraftPath);
         ProductActionsEnabled = ActionsEnabled && product.IsDetected;
-        AircraftProductUpdateEnabled = ProductActionsEnabled
-            && string.Equals(product.Family, "zibo-737ng", StringComparison.OrdinalIgnoreCase);
+        AircraftProductUpdateEnabled = ProductActionsEnabled && IsAircraftUpdateFamily(product.Family);
     }
 
     private string CurrentProductAircraftFolderPath()
@@ -1568,24 +1623,25 @@ public partial class MainWindowViewModel : ViewModelBase
 
         if (variant is null)
         {
-            UpstreamUpdateStatus = "No Zibo aircraft selected";
-            UpstreamUpdateSummary = "Select a Zibo aircraft folder to check upstream aircraft packages.";
+            UpstreamUpdateStatus = "No aircraft selected";
+            UpstreamUpdateSummary = "Select a Zibo or LevelUp aircraft folder to check aircraft packages.";
             UpstreamLocalVersion = "-";
-            RefreshUpstreamActionAvailability("Select a Zibo aircraft folder and check for updates before importing packages.");
+            RefreshUpstreamActionAvailability("Select a Zibo or LevelUp aircraft folder before importing packages.");
             UpstreamFindings.ReplaceWith(["The upstream aircraft package check is read-only."]);
             return;
         }
 
         UpstreamLocalVersion = variant.LocalVersion ?? "-";
 
-        if (!string.Equals(variant.Family, "zibo-737ng", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(variant.Family, LevelUpAircraftUpdatePackageLoader.Family, StringComparison.OrdinalIgnoreCase))
         {
-            UpstreamUpdateStatus = "LU source not configured";
-            UpstreamUpdateSummary = "LevelUp aircraft updates need a LevelUp package source. Embedded Zibomod updates are a separate layer and require a Zibo-declared LU-compatible package signal; normal Zibo packages are not applied directly to LevelUp.";
-            RefreshUpstreamActionAvailability("LevelUp aircraft update is disabled until a LevelUp update source and Zibo LU-compatibility metadata are available.");
+            UpstreamSource = "Local LevelUp package manifest";
+            UpstreamUpdateStatus = "Ready for LU package";
+            UpstreamUpdateSummary = "Import a manifest-controlled LevelUp full or cumulative update package. The archive will be validated before review or apply.";
+            RefreshUpstreamActionAvailability("Import the LevelUp .manifest.json or its adjacent .7z archive to calculate the package plan.");
             UpstreamFindings.ReplaceWith([
-                "LevelUp aircraft updates need their own package source.",
-                "Embedded Zibomod updates require Zibo LU-compatibility metadata; normal Zibo upstream packages are not applied directly to LevelUp aircraft."
+                "LevelUp aircraft packages use authoritative archive and payload SHA-256 values.",
+                "Embedded Zibomod updates remain a separate layer and are not inferred from normal Zibo packages."
             ]);
             return;
         }
@@ -1634,8 +1690,8 @@ public partial class MainWindowViewModel : ViewModelBase
     private void RefreshUpstreamActionAvailability(string? statusOverride = null)
     {
         var selectedVariant = SelectedViewVariant;
-        var aircraftUpdateSupported = selectedVariant is not null
-            && string.Equals(selectedVariant.Family, "zibo-737ng", StringComparison.OrdinalIgnoreCase);
+        var aircraftUpdateSupported = selectedVariant is not null && IsAircraftUpdateFamily(selectedVariant.Family);
+        var isLevelUp = string.Equals(selectedVariant?.Family, LevelUpAircraftUpdatePackageLoader.Family, StringComparison.OrdinalIgnoreCase);
         var requiredPackages = _lastUpstreamUpdateCheck?.RequiredPackages ?? [];
         var hasRequiredPackages = requiredPackages.Count > 0;
         var isCustomDistribution = _lastUpstreamUpdateCheck?.IsCustomDistribution == true;
@@ -1645,10 +1701,10 @@ public partial class MainWindowViewModel : ViewModelBase
         var dryRunHasBlockingEntries = UpstreamDryRunEntries.Any(entry => entry.Action is AircraftUpdateDryRunEntryAction.BlockedUnsafePath
             or AircraftUpdateDryRunEntryAction.BlockedInvalidPackage);
 
-        CanImportAircraftUpdateZip = ActionsEnabled && aircraftUpdateSupported && hasRequiredPackages && !isCustomDistribution;
-        CanDownloadAircraftUpdateZip = ActionsEnabled && aircraftUpdateSupported && hasRequiredPackages && !isCustomDistribution && !allRequiredPackagesCached;
-        CanDryRunAircraftUpdateZip = ActionsEnabled && aircraftUpdateSupported && hasRequiredPackages && !isCustomDistribution && allRequiredPackagesCached;
-        CanApplyAircraftUpdateZip = ActionsEnabled && aircraftUpdateSupported && hasRequiredPackages && !isCustomDistribution && allRequiredPackagesCached && !dryRunHasBlockingEntries;
+        CanImportAircraftUpdatePackage = ActionsEnabled && aircraftUpdateSupported && !isCustomDistribution && (isLevelUp || hasRequiredPackages);
+        CanDownloadAircraftUpdatePackage = ActionsEnabled && aircraftUpdateSupported && hasRequiredPackages && !isCustomDistribution && !allRequiredPackagesCached;
+        CanDryRunAircraftUpdatePackage = ActionsEnabled && aircraftUpdateSupported && hasRequiredPackages && !isCustomDistribution && allRequiredPackagesCached;
+        CanApplyAircraftUpdatePackage = ActionsEnabled && aircraftUpdateSupported && hasRequiredPackages && !isCustomDistribution && allRequiredPackagesCached && !dryRunHasBlockingEntries;
         CanRestoreAircraftUpdate = ActionsEnabled && aircraftUpdateSupported;
 
         if (!string.IsNullOrWhiteSpace(statusOverride))
@@ -1665,7 +1721,9 @@ public partial class MainWindowViewModel : ViewModelBase
 
         if (_lastUpstreamUpdateCheck is null)
         {
-            UpstreamActionStatus = "Check for updates before importing packages.";
+            UpstreamActionStatus = isLevelUp
+                ? "Import a LevelUp update manifest or archive."
+                : "Check for updates before importing packages.";
             return;
         }
 
@@ -1698,7 +1756,12 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         UpstreamActionStatus = "All required packages are cached. Review changes or apply with backup and rollback.";
+        AircraftProductUpdateEnabled = ActionsEnabled && aircraftUpdateSupported;
     }
+
+    private static bool IsAircraftUpdateFamily(string? family) =>
+        string.Equals(family, "zibo-737ng", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(family, LevelUpAircraftUpdatePackageLoader.Family, StringComparison.OrdinalIgnoreCase);
 
     private string BuildImportSuccessStatus(string importedFileName)
     {

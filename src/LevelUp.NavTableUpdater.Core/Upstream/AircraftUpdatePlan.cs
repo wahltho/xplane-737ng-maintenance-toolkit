@@ -7,7 +7,8 @@ public enum AircraftUpdatePlanAction
     ApplyCumulativePatch,
     InstallBaselineAndCumulativePatch,
     LocalNewerThanIndex,
-    MissingRequiredPackage
+    MissingRequiredPackage,
+    BaselineMismatch
 }
 
 public enum AircraftUpdateMode

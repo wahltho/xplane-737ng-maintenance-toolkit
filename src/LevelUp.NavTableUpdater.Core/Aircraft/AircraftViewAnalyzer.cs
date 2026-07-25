@@ -106,7 +106,9 @@ public sealed class AircraftViewAnalyzer
             return BuildUnreadableVariant(reference, acfPath, "ACF read failed");
         }
 
-        var versionTxt = AircraftFileParser.ReadVersionTxt(aircraftFolder);
+        var versionTxt = string.Equals(reference.Family, "levelup-737ng", StringComparison.OrdinalIgnoreCase)
+            ? AircraftFileParser.ReadLevelUpVersion(aircraftFolder)
+            : AircraftFileParser.ReadVersionTxt(aircraftFolder);
         var maintenanceMetadata = AircraftFileParser.ReadMaintenanceMetadata(aircraftFolder, out var metadataError);
         if (metadataError is not null)
         {

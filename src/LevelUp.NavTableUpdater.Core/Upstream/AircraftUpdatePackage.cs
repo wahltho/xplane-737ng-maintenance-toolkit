@@ -12,7 +12,20 @@ public sealed record AircraftUpdatePackage(
     AircraftUpdatePackageKind Kind,
     AircraftUpstreamVersion Version,
     string FileName,
-    string SourceUrl)
+    string SourceUrl,
+    string? ReleaseVersion = null,
+    string? BaselineVersion = null,
+    long? ExpectedSizeBytes = null,
+    string? ExpectedSha256 = null,
+    AircraftUpdatePackageManifest? Manifest = null)
 {
     public AircraftUpstreamVersion Baseline => Version.Baseline;
+
+    public string VersionDisplay => string.IsNullOrWhiteSpace(ReleaseVersion)
+        ? Version.ToString()
+        : ReleaseVersion;
+
+    public string BaselineVersionDisplay => string.IsNullOrWhiteSpace(BaselineVersion)
+        ? Version.ToBaselineString()
+        : BaselineVersion;
 }

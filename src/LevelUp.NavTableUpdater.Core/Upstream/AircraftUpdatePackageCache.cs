@@ -1,5 +1,4 @@
 using System.Security.Cryptography;
-using System.IO.Compression;
 using LevelUp.NavTableUpdater.Core.Platform;
 
 namespace LevelUp.NavTableUpdater.Core.Upstream;
@@ -75,32 +74,44 @@ public sealed class AircraftUpdatePackageCache
         }
 
         var info = new FileInfo(cachePath);
+        var sha256 = ComputeSha256(cachePath);
+        var validationError = GetExpectedIntegrityError(package, info.Length, sha256);
         return new AircraftUpdatePackageCacheEntry(
             package,
             cachePath,
-            AircraftUpdatePackageCacheState.Cached,
+            validationError is null ? AircraftUpdatePackageCacheState.Cached : AircraftUpdatePackageCacheState.Invalid,
             info.Length,
-            ComputeSha256(cachePath));
+            sha256,
+            validationError);
     }
 
     public IReadOnlyList<AircraftUpdatePackageCacheEntry> InspectRequiredPackages(AircraftUpdatePlan plan) =>
         plan.RequiredPackages.Select(Inspect).ToArray();
 
-    public AircraftUpdatePackageCacheEntry ImportZip(string zipPath, AircraftUpdatePackage expectedPackage)
+    public AircraftUpdatePackageCacheEntry ImportPackage(string packagePath, AircraftUpdatePackage expectedPackage)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(zipPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(packagePath);
         ArgumentNullException.ThrowIfNull(expectedPackage);
 
-        var sourcePath = Path.GetFullPath(zipPath);
+        var sourcePath = Path.GetFullPath(packagePath);
         if (!File.Exists(sourcePath))
         {
-            throw new FileNotFoundException("Aircraft update ZIP was not found.", sourcePath);
+            throw new FileNotFoundException("Aircraft update package was not found.", sourcePath);
         }
 
         var sourceFileName = Path.GetFileName(sourcePath);
         if (!string.Equals(sourceFileName, expectedPackage.FileName, StringComparison.OrdinalIgnoreCase))
         {
-            throw new InvalidOperationException($"Selected ZIP '{sourceFileName}' does not match expected package '{expectedPackage.FileName}'.");
+            throw new InvalidOperationException($"Selected package '{sourceFileName}' does not match expected package '{expectedPackage.FileName}'.");
+        }
+
+        ValidateReadableArchive(sourcePath);
+        var sourceInfo = new FileInfo(sourcePath);
+        var sourceSha256 = ComputeSha256(sourcePath);
+        var integrityError = GetExpectedIntegrityError(expectedPackage, sourceInfo.Length, sourceSha256);
+        if (integrityError is not null)
+        {
+            throw new InvalidDataException(integrityError);
         }
 
         EnsureRoot();
@@ -129,6 +140,9 @@ public sealed class AircraftUpdatePackageCache
             info.Length,
             ComputeSha256(destinationPath));
     }
+
+    public AircraftUpdatePackageCacheEntry ImportZip(string zipPath, AircraftUpdatePackage expectedPackage) =>
+        ImportPackage(zipPath, expectedPackage);
 
     public async Task<AircraftUpdatePackageCacheEntry> DownloadAsync(
         AircraftUpdatePackage package,
@@ -163,7 +177,15 @@ public sealed class AircraftUpdatePackageCache
                     await input.CopyToAsync(output, cancellationToken).ConfigureAwait(false);
                 }
 
-                ValidateReadableZip(tempPath);
+                ValidateReadableArchive(tempPath);
+                var downloadedInfo = new FileInfo(tempPath);
+                var downloadedSha = ComputeSha256(tempPath);
+                var integrityError = GetExpectedIntegrityError(package, downloadedInfo.Length, downloadedSha);
+                if (integrityError is not null)
+                {
+                    throw new InvalidDataException(integrityError);
+                }
+
                 File.Move(tempPath, destinationPath, overwrite: true);
                 var info = new FileInfo(destinationPath);
                 return new AircraftUpdatePackageCacheEntry(
@@ -186,7 +208,7 @@ public sealed class AircraftUpdatePackageCache
             }
         }
 
-        throw new InvalidOperationException($"Package '{package.FileName}' could not be downloaded as a readable ZIP. {string.Join(" | ", failures)}");
+        throw new InvalidOperationException($"Package '{package.FileName}' could not be downloaded and validated. {string.Join(" | ", failures)}");
     }
 
     public string GetPackagePath(AircraftUpdatePackage package)
@@ -199,7 +221,7 @@ public sealed class AircraftUpdatePackageCache
         }
 
         var family = SanitizePathSegment(package.Family);
-        var version = package.Version.ToString();
+        var version = SanitizePathSegment(package.VersionDisplay);
         return Path.Combine(RootPath, family, version, fileName);
     }
 
@@ -234,10 +256,26 @@ public sealed class AircraftUpdatePackageCache
         yield return sourceUrl;
     }
 
-    private static void ValidateReadableZip(string path)
+    private static void ValidateReadableArchive(string path)
     {
-        using var archive = ZipFile.OpenRead(path);
+        using var archive = AircraftPackageArchive.Open(path);
         _ = archive.Entries.Count;
+    }
+
+    private static string? GetExpectedIntegrityError(AircraftUpdatePackage package, long sizeBytes, string sha256)
+    {
+        if (package.ExpectedSizeBytes is not null && package.ExpectedSizeBytes.Value != sizeBytes)
+        {
+            return $"Package size does not match the manifest for {package.FileName}: expected {package.ExpectedSizeBytes.Value}, got {sizeBytes}.";
+        }
+
+        if (!string.IsNullOrWhiteSpace(package.ExpectedSha256)
+            && !string.Equals(package.ExpectedSha256, sha256, StringComparison.OrdinalIgnoreCase))
+        {
+            return $"Package SHA-256 does not match the manifest for {package.FileName}.";
+        }
+
+        return null;
     }
 
     private bool IsSafeToClear()

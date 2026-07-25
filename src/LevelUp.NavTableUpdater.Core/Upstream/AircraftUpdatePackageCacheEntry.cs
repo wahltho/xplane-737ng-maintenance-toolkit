@@ -4,7 +4,8 @@ public enum AircraftUpdatePackageCacheState
 {
     Missing = 0,
     Cached,
-    Imported
+    Imported,
+    Invalid
 }
 
 public sealed record AircraftUpdatePackageCacheEntry(
@@ -12,7 +13,8 @@ public sealed record AircraftUpdatePackageCacheEntry(
     string CachePath,
     AircraftUpdatePackageCacheState State,
     long? SizeBytes,
-    string? Sha256)
+    string? Sha256,
+    string? ValidationError = null)
 {
     public bool IsCached => State is AircraftUpdatePackageCacheState.Cached or AircraftUpdatePackageCacheState.Imported;
 }

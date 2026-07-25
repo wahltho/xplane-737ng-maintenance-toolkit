@@ -4,6 +4,8 @@ public enum AircraftUpdateDryRunEntryAction
 {
     Add = 0,
     Replace,
+    Delete,
+    AlreadyAbsent,
     PreserveProtectedLocalFile,
     PreserveToolkitMetadata,
     PreserveLocalLivery,
@@ -27,6 +29,8 @@ public sealed record AircraftUpdateDryRunResult(
     public int AddCount => Entries.Count(entry => entry.Action == AircraftUpdateDryRunEntryAction.Add);
 
     public int ReplaceCount => Entries.Count(entry => entry.Action == AircraftUpdateDryRunEntryAction.Replace);
+
+    public int DeleteCount => Entries.Count(entry => entry.Action == AircraftUpdateDryRunEntryAction.Delete);
 
     public int ProtectedCount => Entries.Count(entry => entry.Action is AircraftUpdateDryRunEntryAction.PreserveProtectedLocalFile
         or AircraftUpdateDryRunEntryAction.PreserveToolkitMetadata);

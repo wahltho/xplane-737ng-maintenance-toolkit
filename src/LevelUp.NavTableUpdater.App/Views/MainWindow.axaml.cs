@@ -27,18 +27,18 @@ public partial class MainWindow : Window
         viewModel.SetAircraftPathFromBrowse(folders[0].Path.LocalPath);
     }
 
-    private async void ImportAircraftUpdateZip_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    private async void ImportAircraftUpdatePackage_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title = "Import aircraft update ZIP",
+            Title = "Import aircraft update package or manifest",
             AllowMultiple = false,
             FileTypeFilter =
             [
-                new FilePickerFileType("ZIP packages")
+                new FilePickerFileType("Aircraft update packages")
                 {
-                    Patterns = ["*.zip"],
-                    MimeTypes = ["application/zip", "application/x-zip-compressed"]
+                    Patterns = ["*.zip", "*.7z", "*.manifest.json"],
+                    MimeTypes = ["application/zip", "application/x-zip-compressed", "application/x-7z-compressed", "application/json"]
                 }
             ]
         });
@@ -48,7 +48,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        viewModel.ImportAircraftUpdateZip(files[0].Path.LocalPath);
+        viewModel.ImportAircraftUpdatePackage(files[0].Path.LocalPath);
     }
 
     private async void BrowseBackupRoot_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
@@ -71,7 +71,7 @@ public partial class MainWindow : Window
     {
         var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
         {
-            Title = "Select aircraft update ZIP cache folder",
+            Title = "Select aircraft update package cache folder",
             AllowMultiple = false
         });
 

@@ -1,10 +1,15 @@
 using System.Globalization;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace LevelUp.NavTableUpdater.Core.Aircraft;
 
 public static class AircraftFileParser
 {
+    private static readonly Regex LevelUpReleasePattern = new(
+        @"\bB738DR_lvlup_rel\s*=\s*[\""']([^\""']+)[\""']",
+        RegexOptions.CultureInvariant);
+
     public static AcfMetadata ReadAcfMetadata(string acfPath)
     {
         string? name = null;
@@ -127,6 +132,34 @@ public static class AircraftFileParser
 
         var version = File.ReadLines(versionPath).FirstOrDefault();
         return string.IsNullOrWhiteSpace(version) ? null : version.Trim();
+    }
+
+    public static string? ReadLevelUpVersion(string aircraftFolder)
+    {
+        var candidates = new[]
+        {
+            Path.Combine(aircraftFolder, "plugins", "xlua", "scripts", "LU_737NG.sound", "LU_737NG.sound.lua"),
+            Path.Combine(aircraftFolder, "plugins", "xlua", "scripts", "B738.LevelUp.sound", "B738.LevelUp.sound.lua")
+        };
+
+        foreach (var candidate in candidates)
+        {
+            if (!File.Exists(candidate))
+            {
+                continue;
+            }
+
+            foreach (var line in File.ReadLines(candidate))
+            {
+                var match = LevelUpReleasePattern.Match(line);
+                if (match.Success && !string.IsNullOrWhiteSpace(match.Groups[1].Value))
+                {
+                    return match.Groups[1].Value.Trim();
+                }
+            }
+        }
+
+        return ReadVersionTxt(aircraftFolder);
     }
 
     public static AircraftMaintenanceMetadata? ReadMaintenanceMetadata(string aircraftFolder, out string? error)

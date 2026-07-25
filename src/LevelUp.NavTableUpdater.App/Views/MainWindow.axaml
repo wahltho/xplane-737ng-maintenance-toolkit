@@ -262,9 +262,9 @@
                                                         Classes="primary"
                                                         Command="{Binding UpdateAircraftPackagesCommand}"
                                                         IsEnabled="{Binding AircraftProductUpdateEnabled}"/>
-                                                <Button Content="Import ZIP"
-                                                        Click="ImportAircraftUpdateZip_Click"
-                                                        IsEnabled="{Binding CanImportAircraftUpdateZip}"/>
+                                                <Button Content="Import package"
+                                                        Click="ImportAircraftUpdatePackage_Click"
+                                                        IsEnabled="{Binding CanImportAircraftUpdatePackage}"/>
                                                 <Button Content="Restore"
                                                         Command="{Binding RestoreAircraftUpdateCommand}"
                                                         IsEnabled="{Binding CanRestoreAircraftUpdate}"/>
@@ -483,17 +483,17 @@
                                     <TextBlock Text="{Binding UpstreamCacheRoot}" Foreground="#667085" TextWrapping="Wrap"/>
                                     <WrapPanel ItemSpacing="8" LineSpacing="8">
                                         <Button Content="Check updates"
-                                                Command="{Binding RefreshZiboUpdateCheckCommand}"
+                                                Command="{Binding RefreshAircraftUpdateCheckCommand}"
                                                 IsEnabled="{Binding ActionsEnabled}"/>
                                         <Button Content="Download required packages"
-                                                Command="{Binding DownloadAircraftUpdateZipsCommand}"
-                                                IsEnabled="{Binding CanDownloadAircraftUpdateZip}"/>
+                                                Command="{Binding DownloadAircraftUpdatePackagesCommand}"
+                                                IsEnabled="{Binding CanDownloadAircraftUpdatePackage}"/>
                                         <Button Content="Review aircraft changes"
                                                 Command="{Binding DryRunAircraftUpdateCommand}"
-                                                IsEnabled="{Binding CanDryRunAircraftUpdateZip}"/>
+                                                IsEnabled="{Binding CanDryRunAircraftUpdatePackage}"/>
                                         <Button Content="Apply cached update"
                                                 Command="{Binding ApplyAircraftUpdateCommand}"
-                                                IsEnabled="{Binding CanApplyAircraftUpdateZip}"/>
+                                                IsEnabled="{Binding CanApplyAircraftUpdatePackage}"/>
                                     </WrapPanel>
                                 </StackPanel>
                             </Border>
