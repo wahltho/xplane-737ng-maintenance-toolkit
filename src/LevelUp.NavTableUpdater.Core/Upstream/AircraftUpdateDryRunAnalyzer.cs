@@ -13,10 +13,12 @@ public sealed class AircraftUpdateDryRunAnalyzer
 
     public AircraftUpdateDryRunResult Analyze(
         string aircraftFolder,
-        IEnumerable<AircraftUpdatePackageCacheEntry> cachedPackages)
+        IEnumerable<AircraftUpdatePackageCacheEntry> cachedPackages,
+        CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(aircraftFolder);
         ArgumentNullException.ThrowIfNull(cachedPackages);
+        cancellationToken.ThrowIfCancellationRequested();
 
         var targetRoot = Path.GetFullPath(aircraftFolder);
         var entries = new List<AircraftUpdateDryRunEntry>();
@@ -34,6 +36,7 @@ public sealed class AircraftUpdateDryRunAnalyzer
 
         foreach (var cachedPackage in cachedPackages)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (!cachedPackage.IsCached || !File.Exists(cachedPackage.CachePath))
             {
                 findings.Add(cachedPackage.ValidationError ?? $"Package is not cached: {cachedPackage.Package.FileName}");
@@ -46,10 +49,10 @@ public sealed class AircraftUpdateDryRunAnalyzer
                 continue;
             }
 
-            AnalyzePackage(targetRoot, cachedPackage, entries, findings, packageLiveryRoots);
+            AnalyzePackage(targetRoot, cachedPackage, entries, findings, packageLiveryRoots, cancellationToken);
         }
 
-        AddPreservedLocalLiveryEntries(targetRoot, packageLiveryRoots, entries, findings);
+        AddPreservedLocalLiveryEntries(targetRoot, packageLiveryRoots, entries, findings, cancellationToken);
 
         var blockedCount = entries.Count(entry => entry.Action is AircraftUpdateDryRunEntryAction.BlockedUnsafePath
             or AircraftUpdateDryRunEntryAction.BlockedInvalidPackage);
@@ -71,8 +74,10 @@ public sealed class AircraftUpdateDryRunAnalyzer
         AircraftUpdatePackageCacheEntry cachedPackage,
         ICollection<AircraftUpdateDryRunEntry> entries,
         ICollection<string> findings,
-        ISet<string> packageLiveryRoots)
+        ISet<string> packageLiveryRoots,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         try
         {
             using var archive = AircraftPackageArchive.Open(cachedPackage.CachePath);
@@ -81,11 +86,11 @@ public sealed class AircraftUpdateDryRunAnalyzer
 
             if (cachedPackage.Package.Manifest is null)
             {
-                AnalyzeLegacyArchive(targetRoot, cachedPackage.Package.FileName, fileEntries, entries, packageLiveryRoots);
+                AnalyzeLegacyArchive(targetRoot, cachedPackage.Package.FileName, fileEntries, entries, packageLiveryRoots, cancellationToken);
                 return;
             }
 
-            AnalyzeManifestArchive(targetRoot, cachedPackage.Package, fileEntries, entries, findings, packageLiveryRoots);
+            AnalyzeManifestArchive(targetRoot, cachedPackage.Package, fileEntries, entries, findings, packageLiveryRoots, cancellationToken);
         }
         catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException)
         {
@@ -104,10 +109,12 @@ public sealed class AircraftUpdateDryRunAnalyzer
         string packageFileName,
         IEnumerable<AircraftPackageArchiveEntry> archiveEntries,
         ICollection<AircraftUpdateDryRunEntry> entries,
-        ISet<string> packageLiveryRoots)
+        ISet<string> packageLiveryRoots,
+        CancellationToken cancellationToken)
     {
         foreach (var archiveEntry in archiveEntries)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var normalizedPath = AircraftUpdatePath.NormalizeRelativePath(archiveEntry.Path);
             AnalyzeWriteEntry(targetRoot, packageFileName, archiveEntry.Path, normalizedPath, archiveEntry.Size, entries, packageLiveryRoots);
         }
@@ -119,7 +126,8 @@ public sealed class AircraftUpdateDryRunAnalyzer
         IEnumerable<AircraftPackageArchiveEntry> archiveEntries,
         ICollection<AircraftUpdateDryRunEntry> entries,
         ICollection<string> findings,
-        ISet<string> packageLiveryRoots)
+        ISet<string> packageLiveryRoots,
+        CancellationToken cancellationToken)
     {
         var manifest = package.Manifest!;
         var manifestFiles = manifest.Files.ToDictionary(file => file.Path, StringComparer.OrdinalIgnoreCase);
@@ -128,6 +136,7 @@ public sealed class AircraftUpdateDryRunAnalyzer
 
         foreach (var archiveEntry in archiveEntries)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var relativePath = AircraftUpdatePath.MapArchivePath(archiveEntry.Path, manifest.ContentRoot);
             if (relativePath is null)
             {
@@ -162,7 +171,7 @@ public sealed class AircraftUpdateDryRunAnalyzer
                 continue;
             }
 
-            var integrityError = VerifyArchiveEntry(archiveEntry, manifestFile);
+            var integrityError = VerifyArchiveEntry(archiveEntry, manifestFile, cancellationToken);
             if (integrityError is not null)
             {
                 entries.Add(new AircraftUpdateDryRunEntry(
@@ -180,6 +189,7 @@ public sealed class AircraftUpdateDryRunAnalyzer
 
         foreach (var missing in manifest.Files.Where(file => !seenPaths.Contains(file.Path)))
         {
+            cancellationToken.ThrowIfCancellationRequested();
             entries.Add(new AircraftUpdateDryRunEntry(
                 package.FileName,
                 missing.Path,
@@ -190,6 +200,7 @@ public sealed class AircraftUpdateDryRunAnalyzer
 
         foreach (var deletedPath in manifest.DeletedPaths)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             AnalyzeDeleteEntry(targetRoot, package.FileName, deletedPath, entries);
         }
 
@@ -288,7 +299,10 @@ public sealed class AircraftUpdateDryRunAnalyzer
         }
     }
 
-    private static string? VerifyArchiveEntry(AircraftPackageArchiveEntry entry, AircraftUpdateManifestFile manifestFile)
+    private static string? VerifyArchiveEntry(
+        AircraftPackageArchiveEntry entry,
+        AircraftUpdateManifestFile manifestFile,
+        CancellationToken cancellationToken)
     {
         if (entry.Size != manifestFile.Size)
         {
@@ -296,7 +310,16 @@ public sealed class AircraftUpdateDryRunAnalyzer
         }
 
         using var stream = entry.Open();
-        var hash = Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
+        using var hashAlgorithm = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        var buffer = new byte[81920];
+        int bytesRead;
+        while ((bytesRead = stream.Read(buffer, 0, buffer.Length)) > 0)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            hashAlgorithm.AppendData(buffer, 0, bytesRead);
+        }
+
+        var hash = Convert.ToHexString(hashAlgorithm.GetHashAndReset()).ToLowerInvariant();
         return string.Equals(hash, manifestFile.Sha256, StringComparison.OrdinalIgnoreCase)
             ? null
             : "Payload SHA-256 differs from the package manifest.";
@@ -338,7 +361,8 @@ public sealed class AircraftUpdateDryRunAnalyzer
         string targetRoot,
         ISet<string> packageLiveryRoots,
         ICollection<AircraftUpdateDryRunEntry> entries,
-        ICollection<string> findings)
+        ICollection<string> findings,
+        CancellationToken cancellationToken)
     {
         if (packageLiveryRoots.Count == 0)
         {
@@ -354,6 +378,7 @@ public sealed class AircraftUpdateDryRunAnalyzer
         var preserved = 0;
         foreach (var entry in Directory.EnumerateFileSystemEntries(localLiveriesPath).OrderBy(entry => Path.GetFileName(entry), StringComparerForCurrentPlatform()))
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var relativePath = Path.GetRelativePath(targetRoot, entry);
             var normalizedPath = relativePath.Replace('\\', Path.DirectorySeparatorChar).Replace('/', Path.DirectorySeparatorChar);
             var liveryRoot = GetLiveryRoot(normalizedPath);

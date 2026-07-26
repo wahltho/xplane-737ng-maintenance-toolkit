@@ -1,7 +1,9 @@
 ﻿using System.Collections.ObjectModel;
 using System.Diagnostics;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using LevelUp.NavTableUpdater.App.Services;
 using LevelUp.NavTableUpdater.Core;
 using LevelUp.NavTableUpdater.Core.Aircraft;
 using LevelUp.NavTableUpdater.Core.Analysis;
@@ -34,11 +36,15 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly AircraftUpdateOperation _aircraftUpdateOperation;
     private AircraftUpdatePackageCache _aircraftUpdatePackageCache;
     private readonly AircraftUpdateDryRunAnalyzer _aircraftUpdateDryRunAnalyzer = new();
+    private readonly IUserInteractionService _userInteractionService;
     private readonly HttpClient _aircraftUpdateHttpClient = new();
     private readonly IPackageManifestSource _packageManifestSource = new GitHubReleasePackageManifestSource();
     private readonly IReadOnlyList<PackageManifest> _manifests;
     private PackageManifest _manifest;
     private AircraftUpstreamUpdateCheckResult? _lastUpstreamUpdateCheck;
+    private AircraftUpdateDryRunResult? _lastAircraftUpdateDryRun;
+    private AircraftAnalysisResult? _lastAircraftAnalysis;
+    private CancellationTokenSource? _operationCancellationSource;
 
     [ObservableProperty]
     private string selectedAircraftPath = "";
@@ -126,6 +132,9 @@ public partial class MainWindowViewModel : ViewModelBase
 
     [ObservableProperty]
     private bool isOperationRunning;
+
+    [ObservableProperty]
+    private bool canCancelOperation;
 
     [ObservableProperty]
     private string operationTitle = "Ready";
@@ -298,7 +307,13 @@ public partial class MainWindowViewModel : ViewModelBase
     public ObservableCollection<string> UpstreamFindings { get; } = [];
 
     public MainWindowViewModel()
+        : this(RejectingUserInteractionService.Instance)
     {
+    }
+
+    public MainWindowViewModel(IUserInteractionService userInteractionService)
+    {
+        _userInteractionService = userInteractionService ?? throw new ArgumentNullException(nameof(userInteractionService));
         _settings = _settingsStore.Load();
         _stateStore = ToolStateStore.CreateDefault(_settings.BackupRootPath);
         _aircraftUpdatePackageCache = new AircraftUpdatePackageCache(_settings.AircraftUpdateCacheRootPath);
@@ -392,7 +407,7 @@ public partial class MainWindowViewModel : ViewModelBase
         SaveDiagnosticsExportSettings();
     }
 
-    public void ImportAircraftUpdatePackage(string path)
+    public async Task ImportAircraftUpdatePackageAsync(string path)
     {
         if (string.IsNullOrWhiteSpace(path))
         {
@@ -403,7 +418,7 @@ public partial class MainWindowViewModel : ViewModelBase
         if (SelectedViewVariant is not null
             && string.Equals(SelectedViewVariant.Family, LevelUpAircraftUpdatePackageLoader.Family, StringComparison.OrdinalIgnoreCase))
         {
-            ImportLevelUpAircraftUpdatePackage(path, SelectedViewVariant);
+            await ImportLevelUpAircraftUpdatePackageAsync(path, SelectedViewVariant);
             return;
         }
 
@@ -440,49 +455,141 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
+        var cancellationToken = BeginPackageImport($"Importing {fileName}");
         try
         {
-            var imported = _aircraftUpdatePackageCache.ImportPackage(path, expectedPackage);
-            RefreshUpstreamCacheEntries();
+            var imported = await Task.Run(
+                () => _aircraftUpdatePackageCache.ImportPackage(path, expectedPackage, cancellationToken),
+                cancellationToken);
+            CanCancelOperation = false;
+            await RefreshUpstreamCacheEntriesAsync();
+            _lastAircraftUpdateDryRun = null;
             UpstreamDryRunEntries.Clear();
             UpstreamDryRunSummary = "Package cache changed. Review aircraft changes before applying.";
             RefreshUpstreamActionAvailability(BuildImportSuccessStatus(imported.Package.FileName));
             AppendLog($"Imported aircraft package into cache: {imported.Package.FileName} ({imported.SizeBytes} bytes, sha256 {imported.Sha256}).");
+            CompletePackageImport("Aircraft update package imported", "The package was copied to the toolkit cache and verified.");
+        }
+        catch (OperationCanceledException)
+        {
+            RefreshUpstreamActionAvailability("Package import canceled. No aircraft files were changed.");
+            AppendLog("Aircraft package import canceled before any aircraft files were changed.");
+            UpstreamFindings.ReplaceWith(["Aircraft package import canceled. No aircraft files were changed."]);
+            CancelPackageImport();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or InvalidDataException)
         {
             RefreshUpstreamActionAvailability($"Import failed. {ex.Message}");
             AppendLog($"Aircraft package import failed: {ex.Message}");
             UpstreamFindings.ReplaceWith(["Aircraft package import failed.", ex.Message]);
+            FailPackageImport("Aircraft package import failed", ex.Message);
+        }
+        finally
+        {
+            EndCancellableOperation();
+            IsOperationRunning = false;
+            ActionsEnabled = true;
         }
     }
 
-    private void ImportLevelUpAircraftUpdatePackage(string path, AircraftVariantViewAnalysis variant)
+    private async Task ImportLevelUpAircraftUpdatePackageAsync(string path, AircraftVariantViewAnalysis variant)
     {
+        var cancellationToken = BeginPackageImport($"Importing {Path.GetFileName(path)}");
         try
         {
-            var selection = _levelUpUpdatePackageLoader.Load(path, variant);
+            var selection = await Task.Run(
+                () =>
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var loaded = _levelUpUpdatePackageLoader.Load(path, variant);
+                    cancellationToken.ThrowIfCancellationRequested();
+                    return loaded;
+                },
+                cancellationToken);
             ApplyUpstreamUpdateCheck(selection.UpdateCheck);
             if (selection.Package is null || string.IsNullOrWhiteSpace(selection.ArchivePath))
             {
                 RefreshUpstreamActionAvailability(selection.UpdateCheck.Summary);
                 AppendLog($"LevelUp package plan: {selection.UpdateCheck.StateLabel} - {selection.UpdateCheck.Summary}");
+                CompletePackageImport("LevelUp package reviewed", selection.UpdateCheck.Summary);
                 return;
             }
 
-            var imported = _aircraftUpdatePackageCache.ImportPackage(selection.ArchivePath, selection.Package);
-            RefreshUpstreamCacheEntries();
+            var imported = await Task.Run(
+                () => _aircraftUpdatePackageCache.ImportPackage(selection.ArchivePath, selection.Package, cancellationToken),
+                cancellationToken);
+            CanCancelOperation = false;
+            await RefreshUpstreamCacheEntriesAsync();
+            _lastAircraftUpdateDryRun = null;
             UpstreamDryRunEntries.Clear();
             UpstreamDryRunSummary = "LevelUp package imported and verified. Review aircraft changes before applying.";
             RefreshUpstreamActionAvailability(BuildImportSuccessStatus(imported.Package.FileName));
             AppendLog($"Imported LevelUp aircraft package and manifest: {imported.Package.FileName} ({imported.SizeBytes} bytes, sha256 {imported.Sha256}).");
+            CompletePackageImport("LevelUp update package imported", "The manifest and archive were copied to the toolkit cache and verified.");
+        }
+        catch (OperationCanceledException)
+        {
+            RefreshUpstreamActionAvailability("LevelUp package import canceled. No aircraft files were changed.");
+            AppendLog("LevelUp aircraft package import canceled before any aircraft files were changed.");
+            UpstreamFindings.ReplaceWith(["LevelUp package import canceled. No aircraft files were changed."]);
+            CancelPackageImport();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or InvalidDataException)
         {
             RefreshUpstreamActionAvailability($"LevelUp package import failed. {ex.Message}");
             AppendLog($"LevelUp aircraft package import failed: {ex.Message}");
             UpstreamFindings.ReplaceWith(["LevelUp aircraft package import failed.", ex.Message]);
+            FailPackageImport("LevelUp package import failed", ex.Message);
         }
+        finally
+        {
+            EndCancellableOperation();
+            IsOperationRunning = false;
+            ActionsEnabled = true;
+        }
+    }
+
+    private CancellationToken BeginPackageImport(string title)
+    {
+        OperationPanelVisible = true;
+        OperationLog = "";
+        OperationElapsed = "00:00s";
+        OperationProgress = 20;
+        OperationStatus = "Import in progress";
+        OperationTitle = title;
+        OperationSubtitle = "Copying the selected package to the toolkit cache and verifying its integrity.";
+        OperationProgressText = "20% - Reading, copying and hashing the package archive";
+        RestartNoticeVisible = false;
+        IsOperationRunning = true;
+        ActionsEnabled = false;
+        return BeginCancellableOperation();
+    }
+
+    private void CompletePackageImport(string title, string message)
+    {
+        OperationProgress = 100;
+        OperationStatus = "Import complete";
+        OperationTitle = title;
+        OperationSubtitle = message;
+        OperationProgressText = "100% - Package import and cache validation completed";
+    }
+
+    private void FailPackageImport(string title, string message)
+    {
+        OperationProgress = 0;
+        OperationStatus = "Failed";
+        OperationTitle = title;
+        OperationSubtitle = message;
+        OperationProgressText = "0% - No aircraft files were changed";
+    }
+
+    private void CancelPackageImport()
+    {
+        OperationProgress = 0;
+        OperationStatus = "Canceled";
+        OperationTitle = "Package import canceled";
+        OperationSubtitle = "No aircraft files were changed.";
+        OperationProgressText = "0% - Import canceled before aircraft update review";
     }
 
     [RelayCommand]
@@ -507,7 +614,7 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
-        RefreshUpstreamCacheEntries();
+        await RefreshUpstreamCacheEntriesAsync();
         var missingPackages = UpstreamPackageCacheEntries
             .Where(entry => !entry.IsCached)
             .Select(entry => entry.Package)
@@ -521,6 +628,17 @@ public partial class MainWindowViewModel : ViewModelBase
 
         IsUpstreamCheckRunning = true;
         ActionsEnabled = false;
+        OperationPanelVisible = true;
+        OperationLog = "";
+        OperationElapsed = "00:00s";
+        OperationProgress = 10;
+        OperationStatus = "Download in progress";
+        OperationTitle = "Downloading aircraft update";
+        OperationSubtitle = $"Downloading {missingPackages.Length} required package(s) into the toolkit cache.";
+        OperationProgressText = "10% - Downloading and validating package archives";
+        RestartNoticeVisible = false;
+        var stopwatch = Stopwatch.StartNew();
+        var cancellationToken = BeginCancellableOperation();
         RefreshUpstreamActionAvailability($"Downloading {missingPackages.Length} required package(s) into the aircraft update cache.");
         UpstreamFindings.ReplaceWith(["Downloading required aircraft packages. No aircraft files are changed."]);
 
@@ -528,18 +646,38 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             foreach (var package in missingPackages)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 AppendLog($"Downloading aircraft package: {package.FileName}");
-                var downloaded = await _aircraftUpdatePackageCache.DownloadAsync(package, _aircraftUpdateHttpClient);
+                var downloaded = await _aircraftUpdatePackageCache.DownloadAsync(package, _aircraftUpdateHttpClient, cancellationToken);
                 AppendLog($"Downloaded aircraft package into cache: {downloaded.Package.FileName} ({downloaded.SizeBytes} bytes, sha256 {downloaded.Sha256}).");
             }
 
-            RefreshUpstreamCacheEntries();
+            await RefreshUpstreamCacheEntriesAsync();
+            _lastAircraftUpdateDryRun = null;
             UpstreamDryRunEntries.Clear();
             UpstreamDryRunSummary = "Package cache changed. Review aircraft changes before applying.";
             RefreshUpstreamActionAvailability("Download complete. Review aircraft changes or apply the cached packages.");
             UpstreamFindings.ReplaceWith(["Required package download completed. No aircraft files were changed."]);
+            OperationElapsed = FormatElapsed(stopwatch.Elapsed);
+            OperationProgress = 100;
+            OperationStatus = "Download complete";
+            OperationTitle = "Aircraft update packages ready";
+            OperationSubtitle = "Required packages were downloaded and verified in the toolkit cache.";
+            OperationProgressText = "100% - Download and cache validation completed";
         }
-        catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidOperationException or TaskCanceledException)
+        catch (OperationCanceledException)
+        {
+            RefreshUpstreamActionAvailability("Download canceled. No aircraft files were changed.");
+            UpstreamFindings.ReplaceWith(["Aircraft package download canceled. No aircraft files were changed."]);
+            AppendLog("Aircraft package download canceled.");
+            OperationElapsed = FormatElapsed(stopwatch.Elapsed);
+            OperationProgress = 0;
+            OperationStatus = "Canceled";
+            OperationTitle = "Aircraft package download canceled";
+            OperationSubtitle = "No aircraft files were changed.";
+            OperationProgressText = "0% - Download canceled before aircraft update review";
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidOperationException)
         {
             RefreshUpstreamActionAvailability($"Download failed. Import the exact package manually if the source does not expose a direct archive URL. {ex.Message}");
             UpstreamFindings.ReplaceWith([
@@ -551,9 +689,10 @@ public partial class MainWindowViewModel : ViewModelBase
         }
         finally
         {
+            EndCancellableOperation();
             IsUpstreamCheckRunning = false;
             ActionsEnabled = true;
-            RefreshUpstreamCacheEntries();
+            await RefreshUpstreamCacheEntriesAsync();
         }
     }
 
@@ -758,12 +897,12 @@ public partial class MainWindowViewModel : ViewModelBase
 
         if (CanDryRunAircraftUpdatePackage)
         {
-            DryRunAircraftUpdate();
+            await RunAircraftUpdateReviewAsync();
         }
 
         if (CanApplyAircraftUpdatePackage)
         {
-            ApplyAircraftUpdate();
+            await ConfirmAndApplyAircraftUpdateAsync();
         }
     }
 
@@ -792,6 +931,7 @@ public partial class MainWindowViewModel : ViewModelBase
         IsUpstreamCheckRunning = true;
         ActionsEnabled = false;
         _lastUpstreamUpdateCheck = null;
+        _lastAircraftUpdateDryRun = null;
         UpstreamUpdateStatus = "Checking Zibo feed";
         UpstreamUpdateSummary = "Reading upstream index and planning baseline/cumulative package requirements.";
         UpstreamPlanAction = "Checking";
@@ -835,14 +975,19 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void DryRunAircraftUpdate()
+    private async Task DryRunAircraftUpdate()
+    {
+        await RunAircraftUpdateReviewAsync();
+    }
+
+    private async Task<AircraftUpdateDryRunResult?> RunAircraftUpdateReviewAsync()
     {
         if (_lastUpstreamUpdateCheck is null)
         {
             RefreshUpstreamActionAvailability("Review blocked. Check for updates before reviewing aircraft package changes.");
             AppendLog("Aircraft package review blocked: check for updates first.");
             UpstreamFindings.ReplaceWith(["Check for updates before reviewing aircraft package changes."]);
-            return;
+            return null;
         }
 
         if (_lastUpstreamUpdateCheck.IsCustomDistribution)
@@ -853,19 +998,19 @@ public partial class MainWindowViewModel : ViewModelBase
                 "Custom distribution detected. Official upstream packages are review-only for this target.",
                 "Use a normal upstream Zibo install for package import/review, or define a dedicated custom-port update source."
             ]);
-            return;
+            return null;
         }
 
         if (_lastUpstreamUpdateCheck.RequiredPackages.Count == 0)
         {
             AppendLog("Aircraft package review: no upstream packages are required by the current plan.");
+            _lastAircraftUpdateDryRun = null;
             UpstreamDryRunEntries.Clear();
             UpstreamDryRunSummary = "No upstream package changes are required.";
             RefreshUpstreamActionAvailability("No upstream package review is required for this target.");
-            return;
+            return null;
         }
 
-        RefreshUpstreamCacheEntries();
         var missing = UpstreamPackageCacheEntries
             .Where(entry => !entry.IsCached)
             .Select(entry => entry.Package.FileName)
@@ -875,53 +1020,160 @@ public partial class MainWindowViewModel : ViewModelBase
             RefreshUpstreamActionAvailability($"Review blocked. Missing cached package(s): {string.Join(", ", missing)}.");
             AppendLog($"Aircraft package review blocked: missing cached package(s): {string.Join(", ", missing)}.");
             UpstreamFindings.ReplaceWith(missing.Select(name => $"Missing cached package: {name}"));
-            return;
+            return null;
         }
 
-        var result = _aircraftUpdateDryRunAnalyzer.Analyze(CurrentProductAircraftFolderPath(), UpstreamPackageCacheEntries);
-        UpstreamDryRunSummary = result.Summary;
-        UpstreamDryRunEntries.ReplaceWith(result.Entries);
-        UpstreamFindings.ReplaceWith(result.Findings);
-        RefreshUpstreamActionAvailability("Review complete. No aircraft files were changed.");
-        AppendLog($"Aircraft package review: {result.Summary}");
+        var aircraftFolder = CurrentProductAircraftFolderPath();
+        var cacheEntries = UpstreamPackageCacheEntries.ToArray();
+        _lastAircraftUpdateDryRun = null;
+        UpstreamDryRunEntries.Clear();
+        OperationPanelVisible = true;
+        OperationLog = "";
+        OperationElapsed = "00:00s";
+        OperationProgress = 15;
+        OperationStatus = "Review in progress";
+        OperationTitle = "Reviewing aircraft update";
+        OperationSubtitle = "Validating package contents, hashes and target paths. No aircraft files are changed.";
+        OperationProgressText = "15% - Reading and verifying cached package contents";
+        RestartNoticeVisible = false;
+
+        IsOperationRunning = true;
+        ActionsEnabled = false;
+        var stopwatch = Stopwatch.StartNew();
+        var cancellationToken = BeginCancellableOperation();
+        try
+        {
+            var result = await Task.Run(
+                () => _aircraftUpdateDryRunAnalyzer.Analyze(aircraftFolder, cacheEntries, cancellationToken),
+                cancellationToken);
+            _lastAircraftUpdateDryRun = result;
+            UpstreamDryRunSummary = result.Summary;
+            UpstreamDryRunEntries.ReplaceWith(result.Entries);
+            UpstreamFindings.ReplaceWith(result.Findings);
+            OperationElapsed = FormatElapsed(stopwatch.Elapsed);
+            OperationProgress = 100;
+            OperationStatus = result.Succeeded ? "Review complete" : "Review blocked";
+            OperationTitle = result.Succeeded ? "Aircraft update reviewed" : "Aircraft update review blocked";
+            OperationSubtitle = result.Summary;
+            OperationProgressText = result.Succeeded
+                ? "100% - Review completed; no aircraft files were changed"
+                : "100% - Review found blocking package entries";
+            RefreshUpstreamActionAvailability(result.Succeeded
+                ? "Review complete. Confirm the reviewed changes before applying."
+                : "Review found blocking package entries. Apply remains disabled.");
+            AppendLog($"Aircraft package review: {result.Summary}");
+            return result;
+        }
+        catch (OperationCanceledException)
+        {
+            UpstreamDryRunSummary = "Aircraft update review was canceled. No aircraft files were changed.";
+            UpstreamFindings.ReplaceWith(["Review canceled before any aircraft files were changed."]);
+            OperationElapsed = FormatElapsed(stopwatch.Elapsed);
+            OperationProgress = 0;
+            OperationStatus = "Canceled";
+            OperationTitle = "Aircraft update review canceled";
+            OperationSubtitle = "No aircraft files were changed.";
+            OperationProgressText = "0% - Review canceled before the write phase";
+            RefreshUpstreamActionAvailability("Review canceled. No aircraft files were changed.");
+            AppendLog("Aircraft package review canceled before any aircraft files were changed.");
+            return null;
+        }
+        finally
+        {
+            EndCancellableOperation();
+            IsOperationRunning = false;
+            ActionsEnabled = true;
+        }
     }
 
     [RelayCommand]
-    private void ApplyAircraftUpdate()
+    private async Task ApplyAircraftUpdate()
+    {
+        await ConfirmAndApplyAircraftUpdateAsync();
+    }
+
+    private async Task<MaintenanceOperationResult?> ConfirmAndApplyAircraftUpdateAsync()
     {
         if (IsOperationRunning)
         {
-            return;
+            return null;
         }
 
         var selectedVariant = SelectedViewVariant;
         if (selectedVariant is null)
         {
             AppendLog("Apply aircraft update: blocked because no view variant is selected.");
-            return;
+            return null;
         }
 
         if (_lastUpstreamUpdateCheck is null)
         {
             AppendLog("Apply aircraft update: blocked because no upstream package plan is available.");
             RefreshUpstreamActionAvailability("Apply blocked. Check for updates before applying cached packages.");
-            return;
+            return null;
         }
 
-        RefreshUpstreamCacheEntries();
+        var dryRun = _lastAircraftUpdateDryRun ?? await RunAircraftUpdateReviewAsync();
+        if (dryRun is null || !dryRun.Succeeded)
+        {
+            return null;
+        }
+
+        if (dryRun.AddCount + dryRun.ReplaceCount + dryRun.DeleteCount == 0)
+        {
+            RefreshUpstreamActionAvailability("Review found no aircraft package changes to apply.");
+            AppendLog("Apply aircraft update skipped: review found no file changes.");
+            return MaintenanceOperationResult.NoChange(
+                "No aircraft package changes need to be applied.",
+                ["[NO-CHANGE] The confirmed dry-run contained no aircraft file changes."]);
+        }
+
+        var confirmation = new ConfirmationRequest(
+            "Apply aircraft update?",
+            string.Join(
+                Environment.NewLine,
+                [
+                    selectedVariant.DisplayName,
+                    $"Target: {CurrentProductAircraftFolderPath()}",
+                    $"Version: {UpstreamLocalVersion} -> {UpstreamAvailableVersion}",
+                    $"Changes: {dryRun.AddCount} add, {dryRun.ReplaceCount} replace, {dryRun.DeleteCount} delete",
+                    $"Protected local entries: {dryRun.ProtectedCount + dryRun.LocalLiveryPreservedCount}",
+                    "",
+                    "Backups are created before existing aircraft files are replaced or deleted. Once writing starts, the transaction cannot be canceled and will either complete or roll back."
+                ]),
+            "Apply update");
+        if (!await _userInteractionService.ConfirmAsync(confirmation))
+        {
+            RefreshUpstreamActionAvailability("Update canceled after review. No aircraft files were changed.");
+            AppendLog("Apply aircraft update canceled at the confirmation step. No aircraft files were changed.");
+            return null;
+        }
+
         var updateCheck = _lastUpstreamUpdateCheck;
         var cacheEntries = UpstreamPackageCacheEntries.ToArray();
-        RunAircraftUpdateAction(
+        var result = await RunAircraftUpdateAction(
             "Apply aircraft update",
             "Preparing aircraft update transaction",
             "Aircraft update applied",
             "Aircraft update blocked",
             selectedVariant,
-            () => _aircraftUpdateOperation.Apply(selectedVariant, updateCheck, cacheEntries));
+            (cancellationToken, writePhaseStarting) => _aircraftUpdateOperation.Apply(
+                selectedVariant,
+                updateCheck,
+                cacheEntries,
+                cancellationToken,
+                writePhaseStarting),
+            canCancelBeforeWrite: true);
+        if (result?.Changed == true)
+        {
+            await OfferVnavFollowUpAsync();
+        }
+
+        return result;
     }
 
     [RelayCommand]
-    private void RestoreAircraftUpdate()
+    private async Task RestoreAircraftUpdate()
     {
         if (IsOperationRunning)
         {
@@ -935,13 +1187,14 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
-        RunAircraftUpdateAction(
+        await RunAircraftUpdateAction(
             "Restore aircraft update",
             "Preparing aircraft update restore",
             "Aircraft update restored",
             "Aircraft update restore blocked",
             selectedVariant,
-            () => _aircraftUpdateOperation.RestoreLatest(selectedVariant));
+            (_, _) => _aircraftUpdateOperation.RestoreLatest(selectedVariant),
+            canCancelBeforeWrite: false);
     }
 
     [RelayCommand]
@@ -1216,13 +1469,14 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
-    private void RunAircraftUpdateAction(
+    private async Task<MaintenanceOperationResult?> RunAircraftUpdateAction(
         string actionName,
         string preparingTitle,
         string successTitle,
         string blockedTitle,
         AircraftVariantViewAnalysis selectedVariant,
-        Func<MaintenanceOperationResult> action)
+        Func<CancellationToken, Action, MaintenanceOperationResult> action,
+        bool canCancelBeforeWrite)
     {
         OperationPanelVisible = true;
         OperationLog = "";
@@ -1237,10 +1491,32 @@ public partial class MainWindowViewModel : ViewModelBase
         IsOperationRunning = true;
         ActionsEnabled = false;
         var stopwatch = Stopwatch.StartNew();
+        var cancellationToken = canCancelBeforeWrite ? BeginCancellableOperation() : CancellationToken.None;
         MaintenanceOperationResult? operationResult = null;
+
+        void WritePhaseStarting()
+        {
+            if (!canCancelBeforeWrite)
+            {
+                return;
+            }
+
+            Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                CanCancelOperation = false;
+                OperationProgress = 55;
+                OperationStatus = "Writing aircraft files";
+                OperationTitle = "Applying aircraft update";
+                OperationSubtitle = "The write transaction is running and will complete or roll back.";
+                OperationProgressText = "55% - Validation complete; creating backups and applying reviewed changes";
+            }).GetAwaiter().GetResult();
+        }
+
         try
         {
-            var result = action();
+            var result = await Task.Run(
+                () => action(cancellationToken, WritePhaseStarting),
+                cancellationToken);
             operationResult = result;
             foreach (var line in result.Log)
             {
@@ -1266,6 +1542,17 @@ public partial class MainWindowViewModel : ViewModelBase
 
             AppendLog($"{actionName}: {result.Message}");
         }
+        catch (OperationCanceledException)
+        {
+            OperationElapsed = FormatElapsed(stopwatch.Elapsed);
+            OperationStatus = "Canceled";
+            OperationTitle = $"{actionName} canceled";
+            OperationSubtitle = "Validation stopped before the aircraft write phase. No aircraft files were changed.";
+            OperationProgress = 0;
+            OperationProgressText = "0% - Canceled before backup and aircraft file writes";
+            AppendOperationLog("[CANCELED] Validation stopped before the write phase. No aircraft files were changed.");
+            AppendLog($"{actionName} canceled before any aircraft files were changed.");
+        }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or FileNotFoundException)
         {
             OperationElapsed = FormatElapsed(stopwatch.Elapsed);
@@ -1279,6 +1566,11 @@ public partial class MainWindowViewModel : ViewModelBase
         }
         finally
         {
+            if (canCancelBeforeWrite)
+            {
+                EndCancellableOperation();
+            }
+
             IsOperationRunning = false;
             ActionsEnabled = true;
             var selectedPath = selectedVariant.AcfPath;
@@ -1288,6 +1580,7 @@ public partial class MainWindowViewModel : ViewModelBase
             ApplyAnalysis(_analyzer.Analyze(CurrentProductAircraftFolderPath(), _manifest));
             if (operationResult is not null)
             {
+                _lastAircraftUpdateDryRun = null;
                 UpstreamDryRunEntries.Clear();
                 UpstreamDryRunSummary = operationResult.Changed
                     ? "Aircraft files changed. Check for updates to re-check the installed version."
@@ -1297,6 +1590,52 @@ public partial class MainWindowViewModel : ViewModelBase
                     : "No aircraft update file changes were applied.");
             }
         }
+
+        return operationResult;
+    }
+
+    private async Task OfferVnavFollowUpAsync()
+    {
+        var analysis = _lastAircraftAnalysis;
+        var selectedVariant = SelectedViewVariant;
+        if (analysis is null || selectedVariant is null)
+        {
+            return;
+        }
+
+        var action = analysis.State switch
+        {
+            InstallState.NotInstalled => VnavContentAction.Install,
+            InstallState.RepairRequired => VnavContentAction.Repair,
+            InstallState.OutdatedMarkedInstallation or InstallState.KnownLegacyInstallation => VnavContentAction.Update,
+            _ => (VnavContentAction?)null
+        };
+        if (action is null || !analysis.IsSafeToPatch)
+        {
+            AppendLog($"VNAV follow-up not required or unavailable after aircraft update: {analysis.StateLabel}.");
+            return;
+        }
+
+        var confirmation = new ConfirmationRequest(
+            "Update VNAV descent tables?",
+            string.Join(
+                Environment.NewLine,
+                [
+                    $"The aircraft update completed for {selectedVariant.DisplayName}.",
+                    $"VNAV status after rescan: {analysis.StateLabel}",
+                    $"Recommended action: {action}",
+                    "",
+                    "VNAV content is installed as a separate manifest-controlled transaction with its own validation and backup."
+                ]),
+            "Update VNAV tables",
+            "Not now");
+        if (!await _userInteractionService.ConfirmAsync(confirmation))
+        {
+            AppendLog("VNAV follow-up skipped after aircraft update.");
+            return;
+        }
+
+        await RunVnavContentAction(action.Value, selectedVariant);
     }
 
     private async Task RunVnavContentAction(VnavContentAction action, AircraftVariantViewAnalysis selectedVariant)
@@ -1368,6 +1707,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private void ApplyAnalysis(AircraftAnalysisResult result)
     {
+        _lastAircraftAnalysis = result;
         AircraftStatus = result.StateLabel;
         StatusSummary = result.Summary;
         TargetScriptPath = string.IsNullOrWhiteSpace(result.TargetScriptPath) ? "-" : result.TargetScriptPath;
@@ -1615,6 +1955,7 @@ public partial class MainWindowViewModel : ViewModelBase
         UpstreamUpdateMode = "-";
         UpstreamLastChecked = "Not checked";
         _lastUpstreamUpdateCheck = null;
+        _lastAircraftUpdateDryRun = null;
         UpstreamRequiredPackages.Clear();
         UpstreamPackageCacheEntries.Clear();
         UpstreamDryRunEntries.Clear();
@@ -1655,6 +1996,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private void ApplyUpstreamUpdateCheck(AircraftUpstreamUpdateCheckResult result)
     {
         _lastUpstreamUpdateCheck = result;
+        _lastAircraftUpdateDryRun = null;
         UpstreamUpdateStatus = result.StateLabel;
         UpstreamUpdateSummary = result.Summary;
         UpstreamLocalVersion = result.LocalVersionDisplay;
@@ -1680,11 +2022,49 @@ public partial class MainWindowViewModel : ViewModelBase
         RefreshUpstreamActionAvailability();
     }
 
+    private async Task RefreshUpstreamCacheEntriesAsync()
+    {
+        var packages = _lastUpstreamUpdateCheck?.RequiredPackages.ToArray() ?? [];
+        var cache = _aircraftUpdatePackageCache;
+        var entries = await Task.Run(() => packages.Select(cache.Inspect).ToArray());
+        UpstreamPackageCacheEntries.ReplaceWith(entries);
+        RefreshUpstreamActionAvailability();
+    }
+
     partial void OnActionsEnabledChanged(bool value)
     {
         RefreshUpstreamActionAvailability();
         ApplyQuickViewBaselineAssessment(SelectedViewVariant);
         RefreshSelectedProductSummary(SelectedProduct);
+    }
+
+    [RelayCommand]
+    private void CancelOperation()
+    {
+        if (!CanCancelOperation || _operationCancellationSource is null)
+        {
+            return;
+        }
+
+        CanCancelOperation = false;
+        OperationStatus = "Canceling";
+        OperationProgressText = "Cancel requested - waiting for the current validation step to stop";
+        _operationCancellationSource.Cancel();
+    }
+
+    private CancellationToken BeginCancellableOperation()
+    {
+        _operationCancellationSource?.Dispose();
+        _operationCancellationSource = new CancellationTokenSource();
+        CanCancelOperation = true;
+        return _operationCancellationSource.Token;
+    }
+
+    private void EndCancellableOperation()
+    {
+        CanCancelOperation = false;
+        _operationCancellationSource?.Dispose();
+        _operationCancellationSource = null;
     }
 
     private void RefreshUpstreamActionAvailability(string? statusOverride = null)
@@ -1704,7 +2084,13 @@ public partial class MainWindowViewModel : ViewModelBase
         CanImportAircraftUpdatePackage = ActionsEnabled && aircraftUpdateSupported && !isCustomDistribution && (isLevelUp || hasRequiredPackages);
         CanDownloadAircraftUpdatePackage = ActionsEnabled && aircraftUpdateSupported && hasRequiredPackages && !isCustomDistribution && !allRequiredPackagesCached;
         CanDryRunAircraftUpdatePackage = ActionsEnabled && aircraftUpdateSupported && hasRequiredPackages && !isCustomDistribution && allRequiredPackagesCached;
-        CanApplyAircraftUpdatePackage = ActionsEnabled && aircraftUpdateSupported && hasRequiredPackages && !isCustomDistribution && allRequiredPackagesCached && !dryRunHasBlockingEntries;
+        CanApplyAircraftUpdatePackage = ActionsEnabled
+            && aircraftUpdateSupported
+            && hasRequiredPackages
+            && !isCustomDistribution
+            && allRequiredPackagesCached
+            && _lastAircraftUpdateDryRun?.Succeeded == true
+            && !dryRunHasBlockingEntries;
         CanRestoreAircraftUpdate = ActionsEnabled && aircraftUpdateSupported;
 
         if (!string.IsNullOrWhiteSpace(statusOverride))
@@ -1849,6 +2235,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 AircraftUpdateCacheRootPath = _aircraftUpdatePackageCache.RootPath;
                 UpstreamCacheRoot = _aircraftUpdatePackageCache.RootPath;
                 RefreshUpstreamCacheEntries();
+                _lastAircraftUpdateDryRun = null;
                 UpstreamDryRunEntries.Clear();
                 UpstreamDryRunSummary = "Cache folder changed. Review aircraft changes after required packages are cached.";
             });
@@ -1874,6 +2261,7 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             var removed = _aircraftUpdatePackageCache.Clear();
             RefreshUpstreamCacheEntries();
+            _lastAircraftUpdateDryRun = null;
             UpstreamDryRunEntries.Clear();
             UpstreamDryRunSummary = "Aircraft update cache was cleared. Import required packages again before review.";
             RefreshUpstreamActionAvailability($"Aircraft update cache cleared. Removed {removed} top-level item(s).");

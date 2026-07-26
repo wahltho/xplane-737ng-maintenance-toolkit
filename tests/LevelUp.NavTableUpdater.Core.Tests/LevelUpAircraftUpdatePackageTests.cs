@@ -160,6 +160,17 @@ public sealed class LevelUpAircraftUpdatePackageTests : IDisposable
     }
 
     [Fact]
+    public void DryRun_WhenCancelled_StopsBeforeReadingPackages()
+    {
+        var fixture = CreatePackageFixture();
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        Assert.Throws<OperationCanceledException>(() =>
+            new AircraftUpdateDryRunAnalyzer().Analyze(fixture.AircraftPath, [], cancellation.Token));
+    }
+
+    [Fact]
     public void ApplyAndRestore_HandlesManifestWritesAndDeletionTransactionally()
     {
         var fixture = CreatePackageFixture();
@@ -192,6 +203,82 @@ public sealed class LevelUpAircraftUpdatePackageTests : IDisposable
         Assert.Equal("original", File.ReadAllText(existingPath));
         Assert.False(File.Exists(newPath));
         Assert.Equal("retired", File.ReadAllText(retiredPath));
+    }
+
+    [Fact]
+    public void Apply_WhenCancelledBeforeValidation_DoesNotChangeAircraftFiles()
+    {
+        var fixture = CreatePackageFixture();
+        var variant = BuildVariant(fixture.AircraftPath, "2.S1.0");
+        var existingPath = Path.Combine(fixture.AircraftPath, "existing.txt");
+        var retiredPath = Path.Combine(fixture.AircraftPath, "retired.txt");
+        File.WriteAllText(existingPath, "original");
+        File.WriteAllText(retiredPath, "retired");
+        var selection = new LevelUpAircraftUpdatePackageLoader().Load(fixture.ManifestPath, variant);
+        var package = Assert.IsType<AircraftUpdatePackage>(selection.Package);
+        var cache = new AircraftUpdatePackageCache(Path.Combine(_root, "cache"));
+        var imported = cache.ImportPackage(fixture.ArchivePath, package);
+        var store = TestToolStateStore.Create(_root);
+        var operation = new AircraftUpdateOperation(store, isXPlaneRunning: () => false);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        Assert.Throws<OperationCanceledException>(() =>
+            operation.Apply(variant, selection.UpdateCheck, [imported], cancellation.Token));
+
+        Assert.Equal("original", File.ReadAllText(existingPath));
+        Assert.Equal("retired", File.ReadAllText(retiredPath));
+        Assert.False(File.Exists(Path.Combine(fixture.AircraftPath, "new-file.txt")));
+        Assert.Empty(store.Load().Aircraft);
+    }
+
+    [Fact]
+    public void Apply_WhenCancellationArrivesAfterWriteBoundary_CompletesTransaction()
+    {
+        var fixture = CreatePackageFixture();
+        var variant = BuildVariant(fixture.AircraftPath, "2.S1.0");
+        var existingPath = Path.Combine(fixture.AircraftPath, "existing.txt");
+        var retiredPath = Path.Combine(fixture.AircraftPath, "retired.txt");
+        File.WriteAllText(existingPath, "original");
+        File.WriteAllText(retiredPath, "retired");
+        var selection = new LevelUpAircraftUpdatePackageLoader().Load(fixture.ManifestPath, variant);
+        var package = Assert.IsType<AircraftUpdatePackage>(selection.Package);
+        var cache = new AircraftUpdatePackageCache(Path.Combine(_root, "cache"));
+        var imported = cache.ImportPackage(fixture.ArchivePath, package);
+        var operation = new AircraftUpdateOperation(TestToolStateStore.Create(_root), isXPlaneRunning: () => false);
+        using var cancellation = new CancellationTokenSource();
+
+        var result = operation.Apply(
+            variant,
+            selection.UpdateCheck,
+            [imported],
+            cancellation.Token,
+            cancellation.Cancel);
+
+        Assert.True(result.Succeeded);
+        Assert.True(result.Changed);
+        Assert.True(cancellation.IsCancellationRequested);
+        Assert.Equal("updated", File.ReadAllText(existingPath));
+        Assert.False(File.Exists(retiredPath));
+        Assert.Equal("new", File.ReadAllText(Path.Combine(fixture.AircraftPath, "new-file.txt")));
+    }
+
+    [Fact]
+    public void Cache_WhenImportCancelled_DoesNotCreateCachedPackage()
+    {
+        var fixture = CreatePackageFixture();
+        var selection = new LevelUpAircraftUpdatePackageLoader().Load(
+            fixture.ManifestPath,
+            BuildVariant(fixture.AircraftPath, "2.S1.0"));
+        var package = Assert.IsType<AircraftUpdatePackage>(selection.Package);
+        var cache = new AircraftUpdatePackageCache(Path.Combine(_root, "cache"));
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        Assert.Throws<OperationCanceledException>(() =>
+            cache.ImportPackage(fixture.ArchivePath, package, cancellation.Token));
+
+        Assert.False(File.Exists(cache.GetPackagePath(package)));
     }
 
     [Fact]

@@ -4,6 +4,7 @@ using Avalonia.Data.Core;
 using Avalonia.Data.Core.Plugins;
 using System.Linq;
 using Avalonia.Markup.Xaml;
+using LevelUp.NavTableUpdater.App.Services;
 using LevelUp.NavTableUpdater.App.ViewModels;
 using LevelUp.NavTableUpdater.App.Views;
 
@@ -20,10 +21,9 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            desktop.MainWindow = new MainWindow
-            {
-                DataContext = new MainWindowViewModel(),
-            };
+            var mainWindow = new MainWindow();
+            mainWindow.DataContext = new MainWindowViewModel(new MainWindowUserInteractionService(mainWindow));
+            desktop.MainWindow = mainWindow;
         }
 
         base.OnFrameworkInitializationCompleted();

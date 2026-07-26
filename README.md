@@ -45,8 +45,12 @@ Current capabilities:
   and local/offline package directories are fallback sources.
 - It can review Zibo upstream baseline/cumulative package plans, import exact
   matching aircraft update ZIPs into a local cache, download direct ZIP sources
-  when available, review cached ZIP contents, then apply cached packages with
-  backups, rollback and restore support.
+  when available, review cached ZIP contents in the background, then confirm
+  and apply cached packages with backups, rollback and restore support.
+- Package import, download and pre-write validation are cancellable. Once the
+  confirmed aircraft write transaction starts, it completes or rolls back.
+- After a successful aircraft update, a separate prompt offers a required VNAV
+  install, update or repair without coupling both transaction states.
 - It distinguishes full aircraft updates, which include a full baseline ZIP,
   from incremental updates, which apply only the latest cumulative patch ZIP for
   the same baseline.

@@ -1,0 +1,40 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:services="using:LevelUp.NavTableUpdater.App.Services"
+        x:Class="LevelUp.NavTableUpdater.App.Views.ConfirmationDialog"
+        x:DataType="services:ConfirmationRequest"
+        Width="560"
+        SizeToContent="Height"
+        MinHeight="240"
+        CanResize="False"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner"
+        Background="#FFFFFF">
+    <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="18" Margin="24">
+        <TextBlock Text="{Binding Title}"
+                   FontSize="22"
+                   FontWeight="SemiBold"
+                   Foreground="#0F172A"
+                   TextWrapping="Wrap"/>
+
+        <TextBlock Grid.Row="1"
+                   Text="{Binding Message}"
+                   FontSize="14"
+                   Foreground="#475569"
+                   TextWrapping="Wrap"/>
+
+        <StackPanel Grid.Row="2"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Spacing="10">
+            <Button Content="{Binding CancelText}"
+                    MinWidth="100"
+                    Click="Cancel_Click"/>
+            <Button Content="{Binding ConfirmText}"
+                    MinWidth="130"
+                    Background="#2563EB"
+                    Foreground="#FFFFFF"
+                    Click="Confirm_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

@@ -30,11 +30,14 @@ public sealed class AircraftUpdateOperation
     public MaintenanceOperationResult Apply(
         AircraftVariantViewAnalysis variant,
         AircraftUpstreamUpdateCheckResult updateCheck,
-        IReadOnlyList<AircraftUpdatePackageCacheEntry> cachedPackages)
+        IReadOnlyList<AircraftUpdatePackageCacheEntry> cachedPackages,
+        CancellationToken cancellationToken = default,
+        Action? writePhaseStarting = null)
     {
         ArgumentNullException.ThrowIfNull(variant);
         ArgumentNullException.ThrowIfNull(updateCheck);
         ArgumentNullException.ThrowIfNull(cachedPackages);
+        cancellationToken.ThrowIfCancellationRequested();
 
         var aircraftFolder = Path.GetFullPath(Path.GetDirectoryName(variant.AcfPath) ?? "");
         var log = new List<string>
@@ -69,6 +72,7 @@ public sealed class AircraftUpdateOperation
         }
 
         var cacheValidation = ValidateCachedPackages(updateCheck.RequiredPackages, cachedPackages);
+        cancellationToken.ThrowIfCancellationRequested();
         if (cacheValidation.BlockingMessages.Count > 0)
         {
             foreach (var message in cacheValidation.BlockingMessages)
@@ -90,11 +94,13 @@ public sealed class AircraftUpdateOperation
         log.Add(orderedCacheEntries.All(entry => !string.IsNullOrWhiteSpace(entry.Package.ExpectedSha256))
             ? "[INTEGRITY] Package archives are verified against authoritative manifest size and SHA-256 values."
             : "[INTEGRITY] Legacy packages are verified against the local cache snapshot; the source feed provides no authoritative package hashes.");
-        var dryRun = _dryRunAnalyzer.Analyze(aircraftFolder, orderedCacheEntries);
+        var dryRun = _dryRunAnalyzer.Analyze(aircraftFolder, orderedCacheEntries, cancellationToken);
         foreach (var finding in dryRun.Findings)
         {
             log.Add($"[DRY-RUN] {finding}");
         }
+
+        cancellationToken.ThrowIfCancellationRequested();
 
         if (!dryRun.Succeeded)
         {
@@ -114,6 +120,8 @@ public sealed class AircraftUpdateOperation
             return MaintenanceOperationResult.NoChange("No upstream aircraft files need to be changed.", log);
         }
 
+        cancellationToken.ThrowIfCancellationRequested();
+        writePhaseStarting?.Invoke();
         var createdUtc = DateTimeOffset.UtcNow;
         var backupRecords = new List<BackupRecord>();
         var preImagesByTarget = new Dictionary<string, BackupRecord>(StringComparerForCurrentPlatform());

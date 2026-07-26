@@ -88,10 +88,14 @@ public sealed class AircraftUpdatePackageCache
     public IReadOnlyList<AircraftUpdatePackageCacheEntry> InspectRequiredPackages(AircraftUpdatePlan plan) =>
         plan.RequiredPackages.Select(Inspect).ToArray();
 
-    public AircraftUpdatePackageCacheEntry ImportPackage(string packagePath, AircraftUpdatePackage expectedPackage)
+    public AircraftUpdatePackageCacheEntry ImportPackage(
+        string packagePath,
+        AircraftUpdatePackage expectedPackage,
+        CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(packagePath);
         ArgumentNullException.ThrowIfNull(expectedPackage);
+        cancellationToken.ThrowIfCancellationRequested();
 
         var sourcePath = Path.GetFullPath(packagePath);
         if (!File.Exists(sourcePath))
@@ -105,9 +109,9 @@ public sealed class AircraftUpdatePackageCache
             throw new InvalidOperationException($"Selected package '{sourceFileName}' does not match expected package '{expectedPackage.FileName}'.");
         }
 
-        ValidateReadableArchive(sourcePath);
+        ValidateReadableArchive(sourcePath, cancellationToken);
         var sourceInfo = new FileInfo(sourcePath);
-        var sourceSha256 = ComputeSha256(sourcePath);
+        var sourceSha256 = ComputeSha256(sourcePath, cancellationToken);
         var integrityError = GetExpectedIntegrityError(expectedPackage, sourceInfo.Length, sourceSha256);
         if (integrityError is not null)
         {
@@ -121,8 +125,22 @@ public sealed class AircraftUpdatePackageCache
         var tempPath = destinationPath + $".{Guid.NewGuid():N}.tmp";
         try
         {
-            File.Copy(sourcePath, tempPath, overwrite: false);
+            CopyFile(sourcePath, tempPath, cancellationToken);
+            var copiedSha256 = ComputeSha256(tempPath, cancellationToken);
+            if (!string.Equals(sourceSha256, copiedSha256, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException($"Copied package SHA-256 does not match the selected source package: {expectedPackage.FileName}.");
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
             File.Move(tempPath, destinationPath, overwrite: true);
+            var info = new FileInfo(destinationPath);
+            return new AircraftUpdatePackageCacheEntry(
+                expectedPackage,
+                destinationPath,
+                AircraftUpdatePackageCacheState.Imported,
+                info.Length,
+                copiedSha256);
         }
         finally
         {
@@ -132,17 +150,13 @@ public sealed class AircraftUpdatePackageCache
             }
         }
 
-        var info = new FileInfo(destinationPath);
-        return new AircraftUpdatePackageCacheEntry(
-            expectedPackage,
-            destinationPath,
-            AircraftUpdatePackageCacheState.Imported,
-            info.Length,
-            ComputeSha256(destinationPath));
     }
 
-    public AircraftUpdatePackageCacheEntry ImportZip(string zipPath, AircraftUpdatePackage expectedPackage) =>
-        ImportPackage(zipPath, expectedPackage);
+    public AircraftUpdatePackageCacheEntry ImportZip(
+        string zipPath,
+        AircraftUpdatePackage expectedPackage,
+        CancellationToken cancellationToken = default) =>
+        ImportPackage(zipPath, expectedPackage, cancellationToken);
 
     public async Task<AircraftUpdatePackageCacheEntry> DownloadAsync(
         AircraftUpdatePackage package,
@@ -177,9 +191,9 @@ public sealed class AircraftUpdatePackageCache
                     await input.CopyToAsync(output, cancellationToken).ConfigureAwait(false);
                 }
 
-                ValidateReadableArchive(tempPath);
+                ValidateReadableArchive(tempPath, cancellationToken);
                 var downloadedInfo = new FileInfo(tempPath);
-                var downloadedSha = ComputeSha256(tempPath);
+                var downloadedSha = ComputeSha256(tempPath, cancellationToken);
                 var integrityError = GetExpectedIntegrityError(package, downloadedInfo.Length, downloadedSha);
                 if (integrityError is not null)
                 {
@@ -193,7 +207,7 @@ public sealed class AircraftUpdatePackageCache
                     destinationPath,
                     AircraftUpdatePackageCacheState.Imported,
                     info.Length,
-                    ComputeSha256(destinationPath));
+                    downloadedSha);
             }
             catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidDataException)
             {
@@ -233,11 +247,20 @@ public sealed class AircraftUpdatePackageCache
         return string.IsNullOrWhiteSpace(sanitized) ? "unknown" : sanitized;
     }
 
-    private static string ComputeSha256(string path)
+    private static string ComputeSha256(string path, CancellationToken cancellationToken = default)
     {
         using var stream = File.OpenRead(path);
-        var hash = SHA256.HashData(stream);
-        return Convert.ToHexString(hash).ToLowerInvariant();
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        var buffer = new byte[81920];
+        int read;
+        while ((read = stream.Read(buffer, 0, buffer.Length)) > 0)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            hash.AppendData(buffer, 0, read);
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        return Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
     }
 
     private static IEnumerable<string> BuildDownloadCandidates(AircraftUpdatePackage package)
@@ -256,10 +279,28 @@ public sealed class AircraftUpdatePackageCache
         yield return sourceUrl;
     }
 
-    private static void ValidateReadableArchive(string path)
+    private static void ValidateReadableArchive(string path, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         using var archive = AircraftPackageArchive.Open(path);
         _ = archive.Entries.Count;
+        cancellationToken.ThrowIfCancellationRequested();
+    }
+
+    private static void CopyFile(string sourcePath, string destinationPath, CancellationToken cancellationToken)
+    {
+        using var source = File.OpenRead(sourcePath);
+        using var destination = new FileStream(destinationPath, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+        var buffer = new byte[81920];
+        int read;
+        while ((read = source.Read(buffer, 0, buffer.Length)) > 0)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            destination.Write(buffer, 0, read);
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        destination.Flush(flushToDisk: true);
     }
 
     private static string? GetExpectedIntegrityError(AircraftUpdatePackage package, long sizeBytes, string sha256)

@@ -188,14 +188,21 @@ stream; in that case use `Import package...`.
 Use `Import ZIP` or `Import package...` to select a local package ZIP. The selected file name must
 match a required package in the current plan exactly. If the file dialog closes
 and nothing obvious happens, check the aircraft update status, cache status and
-Advanced tab for the import result.
+Advanced tab for the import result. Package copying and integrity checks run in
+the background. They can be canceled before the verified package is committed
+to the toolkit cache; aircraft files are never changed by import.
 
 Use `Review aircraft changes` before applying. Review opens the cached packages
 and reports which files would be added, replaced or protected. No aircraft
-files are changed during review.
+files are changed during review. The review runs in the background and can be
+canceled.
 
 Use `Apply aircraft update` only after the cache contains every required
-package and review is clean. The apply operation:
+package and review is clean. A confirmation dialog summarizes the reviewed
+target, version transition and file counts before any write is allowed. The
+internal validation can still be canceled. When the write phase starts, Cancel
+is disabled and the transaction must either complete or roll back. The apply
+operation:
 
 - blocks when X-Plane is running
 - verifies cached ZIP size and SHA-256 against the recorded cache snapshot
@@ -204,6 +211,11 @@ package and review is clean. The apply operation:
 - preserves protected local config and preference files
 - writes toolkit metadata after a successful update
 - rolls back changed files if the transaction fails
+
+After a successful aircraft update, the app rescans the selected target. If
+the VNAV package is missing, outdated or repairable, a separate confirmation
+offers the appropriate VNAV action. Skipping it leaves the aircraft update in
+place and does not merge the aircraft and VNAV transactions.
 
 Use `Restore update` to restore the latest aircraft-update backup generation.
 Files that were added by the update are removed again during restore.

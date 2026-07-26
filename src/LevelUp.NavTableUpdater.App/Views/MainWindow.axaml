@@ -370,7 +370,7 @@
 
                                 <Border Classes="operation-card" IsVisible="{Binding OperationPanelVisible}">
                                     <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="16">
-                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="16">
                                             <StackPanel Spacing="4">
                                                 <TextBlock Text="{Binding OperationTitle}"
                                                            Foreground="#F8FAFC"
@@ -381,7 +381,15 @@
                                                            Foreground="#C4B5FD"
                                                            TextWrapping="Wrap"/>
                                             </StackPanel>
-                                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
+                                            <Button Grid.Column="1"
+                                                    Content="Cancel"
+                                                    Command="{Binding CancelOperationCommand}"
+                                                    IsVisible="{Binding CanCancelOperation}"
+                                                    IsEnabled="{Binding CanCancelOperation}"
+                                                    Background="#7F1D1D"
+                                                    Foreground="#FFFFFF"
+                                                    VerticalAlignment="Top"/>
+                                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
                                                 <TextBlock Text="Elapsed" Foreground="#C4B5FD" FontSize="18" FontWeight="SemiBold"/>
                                                 <TextBlock Text="{Binding OperationElapsed}" Foreground="#F8FAFC" FontSize="18" FontWeight="SemiBold"/>
                                             </StackPanel>

@@ -48,7 +48,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        viewModel.ImportAircraftUpdatePackage(files[0].Path.LocalPath);
+        await viewModel.ImportAircraftUpdatePackageAsync(files[0].Path.LocalPath);
     }
 
     private async void BrowseBackupRoot_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
