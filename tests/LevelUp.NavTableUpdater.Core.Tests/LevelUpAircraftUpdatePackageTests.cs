@@ -13,7 +13,7 @@ public sealed class LevelUpAircraftUpdatePackageTests : IDisposable
     private readonly string _root = Path.Combine(Path.GetTempPath(), $"levelup-aircraft-update-tests-{Guid.NewGuid():N}");
 
     [Fact]
-    public void ReadLevelUpVersion_ReadsPublicV2S1RuntimeMarker()
+    public void ReadLevelUpVersion_ReadsRuntimeMarker()
     {
         var aircraftPath = CreateAircraft();
         var scriptPath = Path.Combine(aircraftPath, "plugins", "xlua", "scripts", "B738.LevelUp.sound", "B738.LevelUp.sound.lua");
@@ -23,6 +23,32 @@ public sealed class LevelUpAircraftUpdatePackageTests : IDisposable
         var version = AircraftFileParser.ReadLevelUpVersion(aircraftPath);
 
         Assert.Equal("2.S1.0", version);
+    }
+
+    [Fact]
+    public void ReadLevelUpVersion_ReadsPublicV2S1PackageMarker()
+    {
+        var aircraftPath = CreateAircraft();
+        File.WriteAllText(
+            Path.Combine(aircraftPath, "LU & Zibo Version.txt"),
+            "\uFEFFLevelUp 737NG Series XP12:\r\nVersion 2.S1.0\r\n\r\nZiboMod Version:\r\nVersion 4.05.08\r\n");
+
+        var version = AircraftFileParser.ReadLevelUpVersion(aircraftPath);
+
+        Assert.Equal("2.S1.0", version);
+    }
+
+    [Fact]
+    public void ReadLevelUpVersion_DoesNotUseZiboVersionFromCombinedFile()
+    {
+        var aircraftPath = CreateAircraft();
+        File.WriteAllText(
+            Path.Combine(aircraftPath, "LU & Zibo Version.txt"),
+            "ZiboMod Version:\r\nVersion 4.05.08\r\n");
+
+        var version = AircraftFileParser.ReadLevelUpVersion(aircraftPath);
+
+        Assert.Null(version);
     }
 
     [Fact]
@@ -41,6 +67,25 @@ public sealed class LevelUpAircraftUpdatePackageTests : IDisposable
         Assert.Equal(ArchiveSha256, package.ExpectedSha256);
         Assert.Equal(220, package.ExpectedSizeBytes);
         Assert.NotNull(package.Manifest);
+    }
+
+    [Fact]
+    public void Loader_WithPublicV2S1PackageMarkerBuildsIncrementalPlan()
+    {
+        var fixture = CreatePackageFixture();
+        File.WriteAllText(
+            Path.Combine(fixture.AircraftPath, "LU & Zibo Version.txt"),
+            "\uFEFFLevelUp 737NG Series XP12:\r\nVersion 2.S1.0\r\n\r\nZiboMod Version:\r\nVersion 4.05.08\r\n");
+        var localVersion = Assert.IsType<string>(
+            AircraftFileParser.ReadLevelUpVersion(fixture.AircraftPath));
+
+        var selection = new LevelUpAircraftUpdatePackageLoader().Load(
+            fixture.ManifestPath,
+            BuildVariant(fixture.AircraftPath, localVersion));
+
+        Assert.Equal(AircraftUpdatePlanAction.ApplyCumulativePatch, selection.UpdateCheck.Action);
+        Assert.Equal("2.S1.0", selection.UpdateCheck.LocalVersionDisplay);
+        Assert.Single(selection.UpdateCheck.RequiredPackages);
     }
 
     [Fact]

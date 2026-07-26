@@ -10,6 +10,10 @@ public static class AircraftFileParser
         @"\bB738DR_lvlup_rel\s*=\s*[\""']([^\""']+)[\""']",
         RegexOptions.CultureInvariant);
 
+    private static readonly Regex VersionLinePattern = new(
+        @"^Version\s+(.+?)\s*$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
     public static AcfMetadata ReadAcfMetadata(string acfPath)
     {
         string? name = null;
@@ -159,7 +163,51 @@ public static class AircraftFileParser
             }
         }
 
+        var packageVersion = ReadLevelUpPackageVersion(aircraftFolder);
+        if (!string.IsNullOrWhiteSpace(packageVersion))
+        {
+            return packageVersion;
+        }
+
         return ReadVersionTxt(aircraftFolder);
+    }
+
+    private static string? ReadLevelUpPackageVersion(string aircraftFolder)
+    {
+        var versionPath = Path.Combine(aircraftFolder, "LU & Zibo Version.txt");
+        if (!File.Exists(versionPath))
+        {
+            return null;
+        }
+
+        var inLevelUpSection = false;
+        foreach (var line in File.ReadLines(versionPath))
+        {
+            var value = line.Trim().TrimStart('\uFEFF');
+            if (value.StartsWith("LevelUp", StringComparison.OrdinalIgnoreCase))
+            {
+                inLevelUpSection = true;
+                continue;
+            }
+
+            if (!inLevelUpSection || value.Length == 0)
+            {
+                continue;
+            }
+
+            var match = VersionLinePattern.Match(value);
+            if (match.Success && !string.IsNullOrWhiteSpace(match.Groups[1].Value))
+            {
+                return match.Groups[1].Value.Trim();
+            }
+
+            if (value.EndsWith(':'))
+            {
+                break;
+            }
+        }
+
+        return null;
     }
 
     public static AircraftMaintenanceMetadata? ReadMaintenanceMetadata(string aircraftFolder, out string? error)
