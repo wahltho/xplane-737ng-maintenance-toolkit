@@ -249,6 +249,7 @@ jobs:
             done < <(gh release view "${TAG}" --json assets --jq '.assets[].name')
 
             gh release edit "${TAG}" \
+              --target "${GITHUB_SHA}" \
               --title "${TITLE}" \
               --notes-file "${NOTES_FILE}" \
               "${release_flags[@]}"
