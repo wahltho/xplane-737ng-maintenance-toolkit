@@ -157,6 +157,7 @@
                                     <StackPanel Grid.Row="1" Spacing="8">
                                         <Button Content="Auto-detect"
                                                 Command="{Binding AutoDetectCommand}"
+                                                IsEnabled="{Binding CanAutoDetect}"
                                                 Classes="primary"
                                                 HorizontalAlignment="Stretch"/>
                                         <TextBlock Classes="label" Text="Selected folder"/>

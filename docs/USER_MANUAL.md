@@ -46,15 +46,17 @@ the GitHub Release page.
 
 Use the `Start` tab first.
 
-1. Click `Auto-detect` to search common X-Plane aircraft locations.
-2. Select an auto-detected installation folder, or keep the manually entered
-   folder.
+1. On startup, the app searches common X-Plane aircraft locations in the
+   background and keeps a valid previously selected folder.
+2. Select another auto-detected installation folder when required. Use
+   `Auto-detect` to refresh the discovered choices.
 3. If the aircraft is not found, click `Browse` and select an X-Plane folder,
    the `Aircraft` folder, or a direct Zibo/LevelUp aircraft folder manually.
 4. Click `Scan selected folder`.
 
-The selected folder must be the aircraft root, not the X-Plane root and not a
-subfolder such as `plugins` or `fmod`.
+The selected folder can be an X-Plane root, an `Aircraft` folder, or a direct
+supported aircraft folder. Do not select a component subfolder such as
+`plugins` or `fmod`.
 
 Detection is structural. Folder names are not trusted by themselves. The app
 looks for expected aircraft files and target scripts before enabling write

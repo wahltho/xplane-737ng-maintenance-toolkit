@@ -11,6 +11,15 @@ public partial class MainWindow : Window
         InitializeComponent();
     }
 
+    protected override async void OnOpened(EventArgs e)
+    {
+        base.OnOpened(e);
+        if (DataContext is MainWindowViewModel viewModel)
+        {
+            await viewModel.InitializeAsync();
+        }
+    }
+
     private async void BrowseAircraft_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         var folders = await StorageProvider.OpenFolderPickerAsync(new Avalonia.Platform.Storage.FolderPickerOpenOptions

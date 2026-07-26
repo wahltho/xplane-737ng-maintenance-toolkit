@@ -45,6 +45,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private AircraftUpdateDryRunResult? _lastAircraftUpdateDryRun;
     private AircraftAnalysisResult? _lastAircraftAnalysis;
     private CancellationTokenSource? _operationCancellationSource;
+    private bool _isInitialized;
 
     [ObservableProperty]
     private string selectedAircraftPath = "";
@@ -78,6 +79,9 @@ public partial class MainWindowViewModel : ViewModelBase
 
     [ObservableProperty]
     private bool detectedTargetsVisible;
+
+    [ObservableProperty]
+    private bool canAutoDetect = true;
 
     [ObservableProperty]
     private string aircraftStatus = "No aircraft selected";
@@ -361,6 +365,17 @@ public partial class MainWindowViewModel : ViewModelBase
         SelectedAircraftPath = path;
         SaveSelectedAircraftPathSetting();
         Scan();
+    }
+
+    public async Task InitializeAsync()
+    {
+        if (_isInitialized)
+        {
+            return;
+        }
+
+        _isInitialized = true;
+        await AutoDetect();
     }
 
     public void SetBackupRootPathFromBrowse(string path)
@@ -728,8 +743,15 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void AutoDetect()
+    private async Task AutoDetect()
     {
+        if (!CanAutoDetect)
+        {
+            return;
+        }
+
+        CanAutoDetect = false;
+        var preferredPath = SelectedAircraftPath;
         SelectedCandidate = null;
         DetectedTargets.Clear();
         DetectedTargetsVisible = false;
@@ -737,7 +759,24 @@ public partial class MainWindowViewModel : ViewModelBase
         var additionalRoots = string.IsNullOrWhiteSpace(SelectedAircraftPath)
             ? []
             : new[] { SelectedAircraftPath };
-        foreach (var candidate in _detector.FindCandidates(additionalRoots))
+        AppendLog("Auto-detection started.");
+
+        IReadOnlyList<AircraftCandidate> candidates;
+        try
+        {
+            candidates = await Task.Run(() => _detector.FindCandidates(additionalRoots));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            AppendLog($"Auto-detection failed: {ex.Message}");
+            return;
+        }
+        finally
+        {
+            CanAutoDetect = true;
+        }
+
+        foreach (var candidate in candidates)
         {
             DetectedTargets.Add(candidate);
         }
@@ -750,6 +789,19 @@ public partial class MainWindowViewModel : ViewModelBase
 
         AppendLog($"Auto-detection found {DetectedTargets.Count} candidate(s).");
         DetectedTargetsVisible = DetectedTargets.Count > 1;
+        var preferredCandidate = DetectedTargets.FirstOrDefault(candidate => PathsEqual(candidate.Path, preferredPath));
+        if (preferredCandidate is not null)
+        {
+            SelectedCandidate = preferredCandidate;
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(preferredPath) && Directory.Exists(preferredPath))
+        {
+            Scan();
+            return;
+        }
+
         SelectedCandidate = DetectedTargets[0];
     }
 
