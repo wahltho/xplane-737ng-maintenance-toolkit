@@ -14,7 +14,6 @@ public sealed class LevelUpAircraftUpdatePackageTests : IDisposable
 
     [Theory]
     [InlineData("B738.sound", "B738.sound.lua", "2.S1.0")]
-    [InlineData("B738.LevelUp.sound", "B738.LevelUp.sound.lua", "2.S1.0")]
     [InlineData("LU_737NG.sound", "LU_737NG.sound.lua", "2.S1.50")]
     public void ReadLevelUpVersion_ReadsKnownRuntimeMarkerLayouts(
         string scriptFolder,
@@ -29,6 +28,17 @@ public sealed class LevelUpAircraftUpdatePackageTests : IDisposable
         var version = AircraftFileParser.ReadLevelUpVersion(aircraftPath);
 
         Assert.Equal(expectedVersion, version);
+    }
+
+    [Fact]
+    public void ReadLevelUpVersion_DoesNotReadWithdrawnIntermediateRuntimeLayout()
+    {
+        var aircraftPath = CreateAircraft();
+        WriteRuntimeMarker(aircraftPath, "B738.LevelUp.sound", "B738.LevelUp.sound.lua", "2.S1.0");
+
+        var version = AircraftFileParser.ReadLevelUpVersion(aircraftPath);
+
+        Assert.Null(version);
     }
 
     [Fact]

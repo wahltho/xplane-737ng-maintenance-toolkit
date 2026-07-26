@@ -143,7 +143,6 @@ public static class AircraftFileParser
         var candidates = new[]
         {
             Path.Combine(aircraftFolder, "plugins", "xlua", "scripts", "LU_737NG.sound", "LU_737NG.sound.lua"),
-            Path.Combine(aircraftFolder, "plugins", "xlua", "scripts", "B738.LevelUp.sound", "B738.LevelUp.sound.lua"),
             Path.Combine(aircraftFolder, "plugins", "xlua", "scripts", "B738.sound", "B738.sound.lua")
         };
 
