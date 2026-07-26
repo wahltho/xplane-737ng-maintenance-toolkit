@@ -12,17 +12,35 @@ public sealed class LevelUpAircraftUpdatePackageTests : IDisposable
     private const string NewSha256 = "11507a0e2f5e69d5dfa40a62a1bd7b6ee57e6bcd85c67c9b8431b36fff21c437";
     private readonly string _root = Path.Combine(Path.GetTempPath(), $"levelup-aircraft-update-tests-{Guid.NewGuid():N}");
 
-    [Fact]
-    public void ReadLevelUpVersion_ReadsRuntimeMarker()
+    [Theory]
+    [InlineData("B738.sound", "B738.sound.lua", "2.S1.0")]
+    [InlineData("B738.LevelUp.sound", "B738.LevelUp.sound.lua", "2.S1.0")]
+    [InlineData("LU_737NG.sound", "LU_737NG.sound.lua", "2.S1.50")]
+    public void ReadLevelUpVersion_ReadsKnownRuntimeMarkerLayouts(
+        string scriptFolder,
+        string scriptFile,
+        string expectedVersion)
     {
         var aircraftPath = CreateAircraft();
-        var scriptPath = Path.Combine(aircraftPath, "plugins", "xlua", "scripts", "B738.LevelUp.sound", "B738.LevelUp.sound.lua");
+        var scriptPath = Path.Combine(aircraftPath, "plugins", "xlua", "scripts", scriptFolder, scriptFile);
         Directory.CreateDirectory(Path.GetDirectoryName(scriptPath)!);
-        File.WriteAllText(scriptPath, "B738DR_lvlup_rel = \"2.S1.0\" --release version\n");
+        File.WriteAllText(scriptPath, $"B738DR_lvlup_rel = \"{expectedVersion}\" --release version\n");
 
         var version = AircraftFileParser.ReadLevelUpVersion(aircraftPath);
 
-        Assert.Equal("2.S1.0", version);
+        Assert.Equal(expectedVersion, version);
+    }
+
+    [Fact]
+    public void ReadLevelUpVersion_WhenCurrentAndHistoricalMarkersExistPrefersCurrentLayout()
+    {
+        var aircraftPath = CreateAircraft();
+        WriteRuntimeMarker(aircraftPath, "B738.sound", "B738.sound.lua", "2.S1.0");
+        WriteRuntimeMarker(aircraftPath, "LU_737NG.sound", "LU_737NG.sound.lua", "2.S1.50");
+
+        var version = AircraftFileParser.ReadLevelUpVersion(aircraftPath);
+
+        Assert.Equal("2.S1.50", version);
     }
 
     [Fact]
@@ -70,12 +88,10 @@ public sealed class LevelUpAircraftUpdatePackageTests : IDisposable
     }
 
     [Fact]
-    public void Loader_WithPublicV2S1PackageMarkerBuildsIncrementalPlan()
+    public void Loader_WithPublicV2S1RuntimeLayoutBuildsIncrementalPlan()
     {
         var fixture = CreatePackageFixture();
-        File.WriteAllText(
-            Path.Combine(fixture.AircraftPath, "LU & Zibo Version.txt"),
-            "\uFEFFLevelUp 737NG Series XP12:\r\nVersion 2.S1.0\r\n\r\nZiboMod Version:\r\nVersion 4.05.08\r\n");
+        WriteRuntimeMarker(fixture.AircraftPath, "B738.sound", "B738.sound.lua", "2.S1.0");
         var localVersion = Assert.IsType<string>(
             AircraftFileParser.ReadLevelUpVersion(fixture.AircraftPath));
 
@@ -86,6 +102,17 @@ public sealed class LevelUpAircraftUpdatePackageTests : IDisposable
         Assert.Equal(AircraftUpdatePlanAction.ApplyCumulativePatch, selection.UpdateCheck.Action);
         Assert.Equal("2.S1.0", selection.UpdateCheck.LocalVersionDisplay);
         Assert.Single(selection.UpdateCheck.RequiredPackages);
+    }
+
+    private static void WriteRuntimeMarker(
+        string aircraftPath,
+        string scriptFolder,
+        string scriptFile,
+        string version)
+    {
+        var scriptPath = Path.Combine(aircraftPath, "plugins", "xlua", "scripts", scriptFolder, scriptFile);
+        Directory.CreateDirectory(Path.GetDirectoryName(scriptPath)!);
+        File.WriteAllText(scriptPath, $"B738DR_lvlup_rel = \"{version}\" --release version\n");
     }
 
     [Fact]
