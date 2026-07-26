@@ -1,6 +1,9 @@
 name: VeloPack Packages
 
 on:
+  push:
+    tags:
+      - "v*"
   workflow_dispatch:
     inputs:
       app_version:
@@ -61,6 +64,25 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Resolve release version
+        id: release-version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
+            APP_VERSION="${GITHUB_REF_NAME#v}"
+          else
+            APP_VERSION="${{ inputs.app_version }}"
+          fi
+
+          if [[ ! "${APP_VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid release version: ${APP_VERSION}" >&2
+            exit 1
+          fi
+
+          echo "app_version=${APP_VERSION}" >> "${GITHUB_OUTPUT}"
+
       - name: Set up .NET
         uses: actions/setup-dotnet@v4
         with:
@@ -76,7 +98,7 @@ jobs:
         run: dotnet restore LevelUp.NavTableUpdater.slnx
 
       - name: Build
-        run: dotnet build LevelUp.NavTableUpdater.slnx --configuration Release --no-restore -p:Version=${{ inputs.app_version }}
+        run: dotnet build LevelUp.NavTableUpdater.slnx --configuration Release --no-restore -p:Version=${{ steps.release-version.outputs.app_version }}
 
       - name: Test
         run: dotnet test tests/LevelUp.NavTableUpdater.Core.Tests/LevelUp.NavTableUpdater.Core.Tests.csproj --configuration Release --no-build --verbosity normal
@@ -87,7 +109,7 @@ jobs:
           --configuration Release
           --runtime ${{ matrix.rid }}
           --self-contained true
-          -p:Version=${{ inputs.app_version }}
+          -p:Version=${{ steps.release-version.outputs.app_version }}
           --output artifacts/publish/${{ matrix.rid }}
 
       - name: Restore VeloPack CLI
@@ -97,7 +119,7 @@ jobs:
         run: >
           dotnet tool run vpk -- pack
           --packId "${{ env.APP_ID }}"
-          --packVersion "${{ inputs.app_version }}"
+          --packVersion "${{ steps.release-version.outputs.app_version }}"
           --packDir "artifacts/publish/${{ matrix.rid }}"
           --mainExe "${{ matrix.main_exe }}"
           --packTitle "${{ env.APP_TITLE }}"
@@ -125,11 +147,30 @@ jobs:
     name: Publish GitHub Release
     runs-on: ubuntu-latest
     needs: package
-    if: ${{ inputs.publish_release }}
+    if: ${{ github.event_name == 'push' || inputs.publish_release }}
     permissions:
       contents: write
 
     steps:
+      - name: Resolve release version
+        id: release-version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
+            APP_VERSION="${GITHUB_REF_NAME#v}"
+          else
+            APP_VERSION="${{ inputs.app_version }}"
+          fi
+
+          if [[ ! "${APP_VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid release version: ${APP_VERSION}" >&2
+            exit 1
+          fi
+
+          echo "app_version=${APP_VERSION}" >> "${GITHUB_OUTPUT}"
+
       - name: Download VeloPack artifacts
         uses: actions/download-artifact@v4
         with:
@@ -141,7 +182,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          APP_VERSION="${{ inputs.app_version }}"
+          APP_VERSION="${{ steps.release-version.outputs.app_version }}"
           TAG="v${APP_VERSION}"
 
           find artifacts/release -maxdepth 1 -type f | sort
@@ -178,7 +219,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          APP_VERSION="${{ inputs.app_version }}"
+          APP_VERSION="${{ steps.release-version.outputs.app_version }}"
           TAG="v${APP_VERSION}"
           TITLE="X-Plane 737NG Maintenance Toolkit ${APP_VERSION}"
           NOTES_FILE="artifacts/release/release-notes-${TAG}.md"
