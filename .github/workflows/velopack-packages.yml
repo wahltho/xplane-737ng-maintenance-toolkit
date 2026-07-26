@@ -72,8 +72,10 @@ jobs:
 
           if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
             APP_VERSION="${GITHUB_REF_NAME#v}"
+            RELEASE_CHANNEL="stable"
           else
             APP_VERSION="${{ inputs.app_version }}"
+            RELEASE_CHANNEL="${{ inputs.channel }}"
           fi
 
           if [[ ! "${APP_VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]]; then
@@ -81,7 +83,13 @@ jobs:
             exit 1
           fi
 
+          if [[ ! "${RELEASE_CHANNEL}" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
+            echo "Invalid release channel: ${RELEASE_CHANNEL}" >&2
+            exit 1
+          fi
+
           echo "app_version=${APP_VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "channel=${RELEASE_CHANNEL}" >> "${GITHUB_OUTPUT}"
 
       - name: Set up .NET
         uses: actions/setup-dotnet@v4
@@ -125,7 +133,7 @@ jobs:
           --packTitle "${{ env.APP_TITLE }}"
           --packAuthors "${{ env.APP_AUTHORS }}"
           --runtime "${{ matrix.rid }}"
-          --channel "${{ inputs.channel }}-${{ matrix.rid }}"
+          --channel "${{ steps.release-version.outputs.channel }}-${{ matrix.rid }}"
           ${{ matrix.pack_icon_args }}
           --outputDir "artifacts/velopack/${{ matrix.rid }}"
 
@@ -236,6 +244,10 @@ jobs:
           fi
 
           if gh release view "${TAG}" >/dev/null 2>&1; then
+            while IFS= read -r asset; do
+              gh release delete-asset "${TAG}" "${asset}" --yes
+            done < <(gh release view "${TAG}" --json assets --jq '.assets[].name')
+
             gh release edit "${TAG}" \
               --title "${TITLE}" \
               --notes-file "${NOTES_FILE}" \
