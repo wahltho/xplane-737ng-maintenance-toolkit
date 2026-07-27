@@ -9,18 +9,18 @@
         CanResize="False"
         ShowInTaskbar="False"
         WindowStartupLocation="CenterOwner"
-        Background="#FFFFFF">
+        Background="{DynamicResource AppSurfaceBrush}">
     <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="18" Margin="24">
         <TextBlock Text="{Binding Title}"
                    FontSize="22"
                    FontWeight="SemiBold"
-                   Foreground="#0F172A"
+                   Foreground="{DynamicResource AppTextPrimaryBrush}"
                    TextWrapping="Wrap"/>
 
         <TextBlock Grid.Row="1"
                    Text="{Binding Message}"
                    FontSize="14"
-                   Foreground="#475569"
+                   Foreground="{DynamicResource AppTextSecondaryBrush}"
                    TextWrapping="Wrap"/>
 
         <StackPanel Grid.Row="2"
@@ -32,8 +32,8 @@
                     Click="Cancel_Click"/>
             <Button Content="{Binding ConfirmText}"
                     MinWidth="130"
-                    Background="#2563EB"
-                    Foreground="#FFFFFF"
+                    Background="{DynamicResource AppPrimaryBrush}"
+                    Foreground="{DynamicResource AppPrimaryForegroundBrush}"
                     Click="Confirm_Click"/>
         </StackPanel>
     </Grid>

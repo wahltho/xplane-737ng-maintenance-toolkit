@@ -54,11 +54,15 @@ Current capabilities:
   offline fallback.
 - Package import, download and pre-write validation are cancellable. Once the
   confirmed aircraft write transaction starts, it completes or rolls back.
-- After a successful aircraft update, a separate prompt offers a required VNAV
-  install, update or repair without coupling both transaction states.
+- The main `Update` action checks aircraft and VNAV package state in one user
+  flow. It can continue with VNAV-only maintenance when no aircraft update is
+  required.
+- Aircraft and VNAV writes remain separate confirmed transactions with
+  independent backup, rollback and restore state.
 - It distinguishes full aircraft updates, which include a full baseline ZIP,
   from incremental updates, which apply only the latest cumulative patch ZIP for
   the same baseline.
+- The UI follows the operating system's light or dark appearance.
 
 Review remains available for planned changes before write actions. Real write
 actions are limited to manifest-owned VNAV content, view-maintenance files and

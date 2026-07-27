@@ -68,7 +68,7 @@ product. The app then derives product targets from the folder contents.
 Supported products are `Zibo` and `LevelUp`; detected variants belong to the
 selected product and are used for variant-specific view maintenance.
 
-The status cards on the `Start` tab show:
+The status areas on the `Start` tab show:
 
 - selected product state
 - installed and available VNAV package versions
@@ -78,23 +78,24 @@ The status cards on the `Start` tab show:
 
 ### Start
 
-This is the normal user workflow. It contains product selection and three
+This is the normal user workflow. It contains product selection and two
 maintenance cards for the selected product:
 
-- `Aircraft Update`
-- `VNAV Descent Tables`
+- `Updates`
 - `Views After CG Change`
 
 Zibo and LevelUp aircraft are treated as equal 737NG targets. The app enables
 only the actions that apply to the detected aircraft and available package
 sources.
 
-The `Aircraft Update` card handles upstream aircraft package planning and
-application. The main `Update` button performs the safe sequence where
-possible: check the product release source, download the required package into
-the cache, review its contents, ask for confirmation, then apply it with backup
-and rollback. If a source is unavailable, import the exact required package
-manually and retry.
+The `Updates` card shows aircraft-package and VNAV-table status together. Its
+main `Update` button checks both layers and performs the safe sequence where
+possible: check the product release source, download the required aircraft
+package into the cache, review its contents, ask for confirmation, then apply
+it with backup and rollback. The app subsequently offers the required VNAV
+install, update or repair. If the aircraft package is already current, the same
+button can continue directly with the VNAV action. If a source is unavailable,
+import the exact required aircraft package manually and retry.
 
 Zibo uses its public feed and the baseline/cumulative package model described
 below. LevelUp uses the authorized public `737NG-Updates` GitHub Release index.
@@ -104,10 +105,10 @@ package. The release index, package manifests, archive sizes and SHA-256 hashes
 must all agree before download or review is enabled. The app also enforces the
 release's declared minimum toolkit version.
 
-The `VNAV Descent Tables` card handles manifest-owned descent table content and
-Lua hooks. Use `Update` when tables are missing, outdated or need repair. The
-operation modifies only manifest-owned VNAV blocks and payload files after
-validation and backup.
+The VNAV area of the `Updates` card handles manifest-owned descent table
+content and Lua hooks. The operation modifies only manifest-owned VNAV blocks
+and payload files after validation and backup. Aircraft-package and VNAV writes
+remain separate confirmed transactions with separate backup and restore state.
 
 VNAV content writes are limited to the manifest-owned Lua blocks and payload
 files. The app never distributes or writes a complete modified

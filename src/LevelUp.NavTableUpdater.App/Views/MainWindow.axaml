@@ -23,23 +23,23 @@
 
     <Window.Styles>
         <Style Selector="TextBlock">
-            <Setter Property="Foreground" Value="#111827"/>
+            <Setter Property="Foreground" Value="{DynamicResource AppTextPrimaryBrush}"/>
         </Style>
         <Style Selector="TextBox">
-            <Setter Property="Background" Value="#FFFFFFFF"/>
-            <Setter Property="Foreground" Value="#111827"/>
-            <Setter Property="BorderBrush" Value="#CBD5E1"/>
+            <Setter Property="Background" Value="{DynamicResource AppInputBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource AppTextPrimaryBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderStrongBrush}"/>
         </Style>
         <Style Selector="ListBox">
-            <Setter Property="Background" Value="#FFFFFFFF"/>
-            <Setter Property="Foreground" Value="#111827"/>
-            <Setter Property="BorderBrush" Value="#E5E7EB"/>
+            <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource AppTextPrimaryBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}"/>
         </Style>
         <Style Selector="ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="#E0F2FE"/>
+            <Setter Property="Background" Value="{DynamicResource AppSelectionBrush}"/>
         </Style>
         <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-            <Setter Property="Background" Value="#F1F5F9"/>
+            <Setter Property="Background" Value="{DynamicResource AppHoverBrush}"/>
         </Style>
         <Style Selector="TabControl">
             <Setter Property="Background" Value="Transparent"/>
@@ -48,47 +48,47 @@
             <Setter Property="FontSize" Value="16"/>
         </Style>
         <Style Selector="Border.card">
-            <Setter Property="Background" Value="#FFFFFFFF"/>
-            <Setter Property="BorderBrush" Value="#D8DEE8"/>
+            <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="CornerRadius" Value="6"/>
             <Setter Property="Padding" Value="14"/>
         </Style>
         <Style Selector="Border.status-card">
-            <Setter Property="Background" Value="#FFFFFFFF"/>
-            <Setter Property="BorderBrush" Value="#D8DEE8"/>
+            <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="CornerRadius" Value="6"/>
             <Setter Property="Padding" Value="12"/>
         </Style>
         <Style Selector="Border.task-card">
-            <Setter Property="Background" Value="#FFFFFFFF"/>
-            <Setter Property="BorderBrush" Value="#D8DEE8"/>
+            <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="CornerRadius" Value="6"/>
             <Setter Property="Padding" Value="14"/>
             <Setter Property="MinHeight" Value="210"/>
         </Style>
         <Style Selector="TextBlock.label">
-            <Setter Property="Foreground" Value="#667085"/>
+            <Setter Property="Foreground" Value="{DynamicResource AppTextSecondaryBrush}"/>
             <Setter Property="FontSize" Value="12"/>
         </Style>
         <Style Selector="TextBlock.value">
-            <Setter Property="Foreground" Value="#111827"/>
+            <Setter Property="Foreground" Value="{DynamicResource AppTextPrimaryBrush}"/>
             <Setter Property="FontSize" Value="16"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
         </Style>
         <Style Selector="Button.primary">
-            <Setter Property="Background" Value="#2563EB"/>
-            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Background" Value="{DynamicResource AppPrimaryBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource AppPrimaryForegroundBrush}"/>
         </Style>
         <Style Selector="Button.secondary">
-            <Setter Property="Background" Value="#E5E7EB"/>
-            <Setter Property="Foreground" Value="#111827"/>
+            <Setter Property="Background" Value="{DynamicResource AppSecondaryButtonBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource AppSecondaryButtonForegroundBrush}"/>
         </Style>
         <Style Selector="Border.path-display">
-            <Setter Property="Background" Value="#F8FAFC"/>
-            <Setter Property="BorderBrush" Value="#CBD5E1"/>
+            <Setter Property="Background" Value="{DynamicResource AppSurfaceMutedBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource AppBorderStrongBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="CornerRadius" Value="5"/>
             <Setter Property="Padding" Value="10,8"/>
@@ -96,13 +96,13 @@
         <Style Selector="TextBlock.path">
             <Setter Property="FontFamily" Value="Menlo,Consolas,monospace"/>
             <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Foreground" Value="#111827"/>
+            <Setter Property="Foreground" Value="{DynamicResource AppTextPrimaryBrush}"/>
             <Setter Property="TextWrapping" Value="Wrap"/>
         </Style>
         <Style Selector="TextBlock.secondary-path">
             <Setter Property="FontFamily" Value="Menlo,Consolas,monospace"/>
             <Setter Property="FontSize" Value="11"/>
-            <Setter Property="Foreground" Value="#667085"/>
+            <Setter Property="Foreground" Value="{DynamicResource AppTextSecondaryBrush}"/>
             <Setter Property="TextWrapping" Value="Wrap"/>
         </Style>
         <Style Selector="Border.operation-card">
@@ -117,27 +117,34 @@
         </Style>
     </Window.Styles>
 
-    <Grid RowDefinitions="Auto,Auto,*" Background="#F3F6FA">
-        <Border Grid.Row="0" Background="#111827" Padding="18,14">
+    <Grid RowDefinitions="Auto,Auto,*" Background="{DynamicResource AppBackgroundBrush}">
+        <Border Grid.Row="0" Background="{DynamicResource AppHeaderBackgroundBrush}" Padding="18,10">
             <Grid ColumnDefinitions="*,Auto">
                 <StackPanel Spacing="2">
-                    <TextBlock Text="X-Plane 737NG Maintenance Toolkit" Foreground="White" FontSize="20" FontWeight="SemiBold"/>
-                    <TextBlock Text="Target-neutral maintenance for supported Zibo and LevelUp 737NG aircraft" Foreground="#CBD5E1"/>
+                    <TextBlock Text="X-Plane 737NG Maintenance Toolkit" Foreground="{DynamicResource AppHeaderTextBrush}" FontSize="20" FontWeight="SemiBold"/>
+                    <TextBlock Text="Target-neutral maintenance for supported Zibo and LevelUp 737NG aircraft" Foreground="{DynamicResource AppHeaderSecondaryBrush}"/>
                 </StackPanel>
-                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                    <TextBlock Text="App update: VeloPack" Foreground="#D1FAE5" VerticalAlignment="Center"/>
-                    <TextBlock Text="Content: manifest-driven" Foreground="#DBEAFE" VerticalAlignment="Center"/>
-                </StackPanel>
+                <Border Grid.Column="1"
+                        Background="{DynamicResource AppLogoBackgroundBrush}"
+                        CornerRadius="5"
+                        Padding="8,4"
+                        ClipToBounds="True"
+                        VerticalAlignment="Center">
+                    <Image Source="/Assets/wahltho_logo_horizontal_v2.jpg"
+                           Width="360"
+                           Height="78"
+                           Stretch="UniformToFill"/>
+                </Border>
             </Grid>
         </Border>
 
         <Border Grid.Row="1"
-                Background="#FFF7ED"
-                BorderBrush="#FDBA74"
+                Background="{DynamicResource AppWarningBackgroundBrush}"
+                BorderBrush="{DynamicResource AppWarningBorderBrush}"
                 BorderThickness="0,0,0,1"
                 Padding="14,10"
                 IsVisible="{Binding RestartNoticeVisible}">
-            <TextBlock Text="{Binding RestartNotice}" Foreground="#9A3412" FontWeight="SemiBold"/>
+            <TextBlock Text="{Binding RestartNotice}" Foreground="{DynamicResource AppWarningTextBrush}" FontWeight="SemiBold"/>
         </Border>
 
         <TabControl Grid.Row="2" Margin="16">
@@ -150,7 +157,7 @@
                                     <StackPanel Spacing="4">
                                         <TextBlock Text="Installation Folder" FontSize="18" FontWeight="SemiBold"/>
                                         <TextBlock Text="Choose an X-Plane folder, Aircraft folder, or direct aircraft folder. Supported Zibo and LevelUp products are detected structurally."
-                                                   Foreground="#667085"
+                                                   Foreground="{DynamicResource AppTextSecondaryBrush}"
                                                    TextWrapping="Wrap"/>
                                     </StackPanel>
 
@@ -181,7 +188,7 @@
                                                 <DataTemplate x:DataType="core:AircraftCandidate">
                                                     <StackPanel Spacing="2" Margin="0,3">
                                                         <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
-                                                        <TextBlock Text="{Binding Path}" Foreground="#667085" FontSize="11" TextWrapping="Wrap"/>
+                                                        <TextBlock Text="{Binding Path}" Foreground="{DynamicResource AppTextSecondaryBrush}" FontSize="11" TextWrapping="Wrap"/>
                                                     </StackPanel>
                                                 </DataTemplate>
                                             </ComboBox.ItemTemplate>
@@ -192,138 +199,121 @@
                             </Border>
 
                             <StackPanel Grid.Column="1" Spacing="16">
-                                <Grid ColumnDefinitions="*,430" ColumnSpacing="12">
-                                    <Border Classes="status-card">
-                                        <StackPanel Spacing="4">
-                                            <TextBlock Classes="label" Text="Detected product"/>
-                                            <ComboBox ItemsSource="{Binding DetectedProductTargets}"
-                                                      SelectedItem="{Binding SelectedProduct}"
-                                                      IsVisible="{Binding ProductSelectorVisible}"
-                                                      HorizontalAlignment="Stretch">
-                                                <ComboBox.ItemTemplate>
-                                                    <DataTemplate x:DataType="vm:ProductTargetStatus">
-                                                        <StackPanel Spacing="2" Margin="0,3">
-                                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
-                                                            <TextBlock Text="{Binding Status}" Foreground="#667085" FontSize="11"/>
-                                                            <TextBlock Text="{Binding Variants}" Foreground="#475467" FontSize="11" TextWrapping="Wrap"/>
-                                                        </StackPanel>
-                                                    </DataTemplate>
-                                                </ComboBox.ItemTemplate>
-                                            </ComboBox>
-                                            <TextBlock Classes="value"
-                                                       Text="{Binding SelectedProductName}"
-                                                       TextWrapping="Wrap"
-                                                       IsVisible="{Binding FixedProductVisible}"/>
-                                            <TextBlock Text="{Binding SelectedProductDetail}" Foreground="#667085" TextWrapping="Wrap"/>
-                                            <TextBlock Text="{Binding SelectedProductVariants}" Foreground="#475467" TextWrapping="Wrap"/>
-                                            <StackPanel Spacing="2" IsVisible="{Binding ProductFolderVisible}">
-                                                <TextBlock Classes="label" Text="Product folder"/>
-                                                <TextBlock Classes="path" Text="{Binding SelectedProductFolderPath}"/>
-                                            </StackPanel>
+                                <Border Classes="status-card">
+                                    <StackPanel Spacing="4">
+                                        <TextBlock Classes="label" Text="Detected product"/>
+                                        <ComboBox ItemsSource="{Binding DetectedProductTargets}"
+                                                  SelectedItem="{Binding SelectedProduct}"
+                                                  IsVisible="{Binding ProductSelectorVisible}"
+                                                  HorizontalAlignment="Stretch">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:ProductTargetStatus">
+                                                    <StackPanel Spacing="2" Margin="0,3">
+                                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
+                                                        <TextBlock Text="{Binding Status}" Foreground="{DynamicResource AppTextSecondaryBrush}" FontSize="11"/>
+                                                        <TextBlock Text="{Binding Variants}" Foreground="{DynamicResource AppTextTertiaryBrush}" FontSize="11" TextWrapping="Wrap"/>
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+                                        <TextBlock Classes="value"
+                                                   Text="{Binding SelectedProductName}"
+                                                   TextWrapping="Wrap"
+                                                   IsVisible="{Binding FixedProductVisible}"/>
+                                        <TextBlock Text="{Binding SelectedProductDetail}" Foreground="{DynamicResource AppTextSecondaryBrush}" TextWrapping="Wrap"/>
+                                        <TextBlock Text="{Binding SelectedProductVariants}" Foreground="{DynamicResource AppTextTertiaryBrush}" TextWrapping="Wrap"/>
+                                        <StackPanel Spacing="2" IsVisible="{Binding ProductFolderVisible}">
+                                            <TextBlock Classes="label" Text="Product folder"/>
+                                            <TextBlock Classes="path" Text="{Binding SelectedProductFolderPath}"/>
                                         </StackPanel>
-                                    </Border>
-                                    <Border Grid.Column="1" Classes="status-card">
-                                        <Image Source="/Assets/wahltho_logo_horizontal_v2.jpg"
-                                               Stretch="Uniform"
-                                               MaxWidth="390"
-                                               MaxHeight="130"
-                                               HorizontalAlignment="Center"
-                                               VerticalAlignment="Center"/>
-                                    </Border>
-                                </Grid>
+                                    </StackPanel>
+                                </Border>
 
-                                <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="12">
+                                <Grid RowDefinitions="Auto,Auto" RowSpacing="12">
                                     <Border Classes="task-card">
-                                        <Grid RowDefinitions="Auto,*,Auto" RowSpacing="12">
+                                        <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="14">
                                             <StackPanel Spacing="4">
-                                                <TextBlock Text="Aircraft Update" FontSize="18" FontWeight="SemiBold"/>
-                                                <TextBlock Text="{Binding UpstreamUpdateSummary}" Foreground="#667085" TextWrapping="Wrap"/>
+                                                <TextBlock Text="Updates" FontSize="18" FontWeight="SemiBold"/>
+                                                <TextBlock Text="Checks aircraft and VNAV package state, then applies each approved transaction with its own backup."
+                                                           Foreground="{DynamicResource AppTextSecondaryBrush}"
+                                                           TextWrapping="Wrap"/>
                                             </StackPanel>
 
-                                            <Grid Grid.Row="1" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="8">
-                                                <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                                            <Grid Grid.Row="1" ColumnDefinitions="*,Auto,*" ColumnSpacing="16">
+                                                <StackPanel Spacing="9">
+                                                    <TextBlock Text="Aircraft package" FontSize="15" FontWeight="SemiBold"/>
+                                                    <TextBlock Text="{Binding UpstreamUpdateSummary}" Foreground="{DynamicResource AppTextSecondaryBrush}" TextWrapping="Wrap"/>
+                                                    <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                                                        <StackPanel Spacing="2">
+                                                            <TextBlock Classes="label" Text="Installed"/>
+                                                            <TextBlock Text="{Binding UpstreamLocalVersion}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                                        </StackPanel>
+                                                        <StackPanel Grid.Column="1" Spacing="2">
+                                                            <TextBlock Classes="label" Text="Available"/>
+                                                            <TextBlock Text="{Binding UpstreamAvailableVersion}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                                        </StackPanel>
+                                                    </Grid>
                                                     <StackPanel Spacing="2">
-                                                        <TextBlock Classes="label" Text="Installed"/>
-                                                        <TextBlock Text="{Binding UpstreamLocalVersion}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                                        <TextBlock Classes="label" Text="Plan"/>
+                                                        <TextBlock Text="{Binding UpstreamPlanAction}" FontWeight="SemiBold" TextWrapping="Wrap"/>
                                                     </StackPanel>
-                                                    <StackPanel Grid.Column="1" Spacing="2">
-                                                        <TextBlock Classes="label" Text="Available"/>
-                                                        <TextBlock Text="{Binding UpstreamAvailableVersion}" FontWeight="SemiBold" TextWrapping="Wrap"/>
-                                                    </StackPanel>
-                                                </Grid>
-                                                <StackPanel Grid.Row="1" Spacing="2">
-                                                    <TextBlock Classes="label" Text="Plan"/>
-                                                    <TextBlock Text="{Binding UpstreamPlanAction}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                                    <TextBlock Text="{Binding UpstreamActionStatus}" Foreground="{DynamicResource AppTextSecondaryBrush}" TextWrapping="Wrap"/>
                                                 </StackPanel>
-                                                <TextBlock Grid.Row="2" Text="{Binding UpstreamActionStatus}" Foreground="#667085" TextWrapping="Wrap"/>
+
+                                                <Border Grid.Column="1"
+                                                        Width="1"
+                                                        Background="{DynamicResource AppBorderBrush}"
+                                                        Margin="2,0"/>
+
+                                                <StackPanel Grid.Column="2" Spacing="9">
+                                                    <TextBlock Text="VNAV descent tables" FontSize="15" FontWeight="SemiBold"/>
+                                                    <TextBlock Text="Manifest-owned table payloads and Lua hooks. Modified aircraft scripts are not distributed."
+                                                               Foreground="{DynamicResource AppTextSecondaryBrush}"
+                                                               TextWrapping="Wrap"/>
+                                                    <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                                                        <StackPanel Spacing="2">
+                                                            <TextBlock Classes="label" Text="Installed"/>
+                                                            <TextBlock Text="{Binding LocalPackageVersion}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                                        </StackPanel>
+                                                        <StackPanel Grid.Column="1" Spacing="2">
+                                                            <TextBlock Classes="label" Text="Available"/>
+                                                            <TextBlock Text="{Binding AvailablePackageVersion}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                                        </StackPanel>
+                                                    </Grid>
+                                                    <StackPanel Spacing="2">
+                                                        <TextBlock Classes="label" Text="Status"/>
+                                                        <TextBlock Text="{Binding AircraftStatus}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                                    </StackPanel>
+                                                    <TextBlock Text="Technical details and individual review controls remain available in Advanced."
+                                                               Foreground="{DynamicResource AppTextSecondaryBrush}"
+                                                               TextWrapping="Wrap"/>
+                                                </StackPanel>
                                             </Grid>
 
                                             <WrapPanel Grid.Row="2" ItemSpacing="8" LineSpacing="8">
                                                 <Button Content="Update"
                                                         Classes="primary"
                                                         Command="{Binding UpdateAircraftPackagesCommand}"
-                                                        IsEnabled="{Binding AircraftProductUpdateEnabled}"/>
+                                                        IsEnabled="{Binding ProductActionsEnabled}"/>
                                                 <Button Content="Import package"
                                                         Click="ImportAircraftUpdatePackage_Click"
                                                         IsEnabled="{Binding CanImportAircraftUpdatePackage}"/>
-                                                <Button Content="Restore"
+                                                <Button Content="Restore aircraft"
                                                         Command="{Binding RestoreAircraftUpdateCommand}"
                                                         IsEnabled="{Binding CanRestoreAircraftUpdate}"/>
-                                            </WrapPanel>
-                                        </Grid>
-                                    </Border>
-
-                                    <Border Grid.Column="1" Classes="task-card">
-                                        <Grid RowDefinitions="Auto,*,Auto" RowSpacing="12">
-                                            <StackPanel Spacing="4">
-                                                <TextBlock Text="VNAV Descent Tables" FontSize="18" FontWeight="SemiBold"/>
-                                                <TextBlock Text="Updates product-level VNAV table payloads and Lua hooks without distributing modified aircraft scripts."
-                                                           Foreground="#667085"
-                                                           TextWrapping="Wrap"/>
-                                            </StackPanel>
-
-                                            <Grid Grid.Row="1" RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
-                                                <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
-                                                    <StackPanel Spacing="2">
-                                                        <TextBlock Classes="label" Text="Installed"/>
-                                                        <TextBlock Text="{Binding LocalPackageVersion}" FontWeight="SemiBold" TextWrapping="Wrap"/>
-                                                    </StackPanel>
-                                                    <StackPanel Grid.Column="1" Spacing="2">
-                                                        <TextBlock Classes="label" Text="Available"/>
-                                                        <TextBlock Text="{Binding AvailablePackageVersion}" FontWeight="SemiBold" TextWrapping="Wrap"/>
-                                                    </StackPanel>
-                                                </Grid>
-                                                <StackPanel Grid.Row="1" Spacing="2">
-                                                    <TextBlock Classes="label" Text="Status"/>
-                                                    <TextBlock Text="{Binding AircraftStatus}" FontWeight="SemiBold" TextWrapping="Wrap"/>
-                                                </StackPanel>
-                                                <TextBlock Grid.Row="2" Text="Use Update when tables are missing, outdated or need repair. Details are in the Advanced tab."
-                                                           Foreground="#667085"
-                                                           TextWrapping="Wrap"/>
-                                            </Grid>
-
-                                            <WrapPanel Grid.Row="2" ItemSpacing="8" LineSpacing="8">
-                                                <Button Content="Update"
-                                                        Classes="primary"
-                                                        Command="{Binding RunPackageActionCommand}"
-                                                        CommandParameter="Update"
-                                                        IsEnabled="{Binding ProductActionsEnabled}"/>
-                                                <Button Content="Restore"
+                                                <Button Content="Restore VNAV"
                                                         Command="{Binding RunPackageActionCommand}"
                                                         CommandParameter="Restore"
                                                         IsEnabled="{Binding ProductActionsEnabled}"/>
-                                                <Button Content="Advanced review"
-                                                        Command="{Binding DryRunCommand}"
-                                                        IsEnabled="{Binding ProductActionsEnabled}"/>
                                             </WrapPanel>
                                         </Grid>
                                     </Border>
 
-                                    <Border Grid.Row="1" Grid.ColumnSpan="2" Classes="task-card">
+                                    <Border Grid.Row="1" Classes="task-card">
                                         <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="12">
                                             <StackPanel Spacing="4">
                                                 <TextBlock Text="Views After CG Change" FontSize="18" FontWeight="SemiBold"/>
-                                                <TextBlock Text="{Binding ViewUtilitySummary}" Foreground="#667085" TextWrapping="Wrap"/>
+                                                <TextBlock Text="{Binding ViewUtilitySummary}" Foreground="{DynamicResource AppTextSecondaryBrush}" TextWrapping="Wrap"/>
                                             </StackPanel>
 
                                             <StackPanel Grid.Row="1" Spacing="10">
@@ -336,7 +326,7 @@
                                                             <DataTemplate x:DataType="aircraft:AircraftVariantViewAnalysis">
                                                                 <StackPanel Spacing="2" Margin="0,3">
                                                                     <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold"/>
-                                                                    <TextBlock Text="{Binding Status}" Foreground="#667085" FontSize="11"/>
+                                                                    <TextBlock Text="{Binding Status}" Foreground="{DynamicResource AppTextSecondaryBrush}" FontSize="11"/>
                                                                 </StackPanel>
                                                             </DataTemplate>
                                                         </ComboBox.ItemTemplate>
@@ -350,7 +340,7 @@
                                                     <TextBlock Classes="label" Text="Quick View baseline"/>
                                                     <TextBlock Text="{Binding QuickViewBaselineStatus}" FontWeight="SemiBold" TextWrapping="Wrap"/>
                                                 </StackPanel>
-                                                <TextBlock Text="{Binding QuickViewBaselineRecommendation}" Foreground="#667085" TextWrapping="Wrap"/>
+                                                <TextBlock Text="{Binding QuickViewBaselineRecommendation}" Foreground="{DynamicResource AppTextSecondaryBrush}" TextWrapping="Wrap"/>
                                             </StackPanel>
 
                                             <WrapPanel Grid.Row="2" ItemSpacing="8" LineSpacing="8">
@@ -465,7 +455,7 @@
                                     <TextBlock Classes="label" Text="Target script"/>
                                     <TextBlock Text="{Binding TargetScriptPath}" FontFamily="Menlo,Consolas,monospace" FontSize="12" TextWrapping="Wrap"/>
                                     <TextBlock Classes="label" Text="Repository"/>
-                                    <TextBlock Text="{Binding RepositoryUrl}" Foreground="#2563EB" TextWrapping="Wrap"/>
+                                    <TextBlock Text="{Binding RepositoryUrl}" Foreground="{DynamicResource AppLinkBrush}" TextWrapping="Wrap"/>
                                 </StackPanel>
                             </Border>
 
@@ -487,9 +477,9 @@
                                         </StackPanel>
                                     </Grid>
                                     <TextBlock Classes="label" Text="Source"/>
-                                    <TextBlock Text="{Binding UpstreamSource}" Foreground="#2563EB" TextWrapping="Wrap"/>
+                                    <TextBlock Text="{Binding UpstreamSource}" Foreground="{DynamicResource AppLinkBrush}" TextWrapping="Wrap"/>
                                     <TextBlock Classes="label" Text="Cache"/>
-                                    <TextBlock Text="{Binding UpstreamCacheRoot}" Foreground="#667085" TextWrapping="Wrap"/>
+                                    <TextBlock Text="{Binding UpstreamCacheRoot}" Foreground="{DynamicResource AppTextSecondaryBrush}" TextWrapping="Wrap"/>
                                     <WrapPanel ItemSpacing="8" LineSpacing="8">
                                         <Button Content="Check updates"
                                                 Command="{Binding RefreshAircraftUpdateCheckCommand}"
@@ -519,7 +509,7 @@
                                                     <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="Wrap"/>
                                                     <TextBlock Grid.Column="1" Text="{Binding State}"/>
                                                     <TextBlock Grid.Column="2" Text="{Binding Version}"/>
-                                                    <TextBlock Grid.Column="3" Text="{Binding Detail}" Foreground="#667085" TextWrapping="Wrap"/>
+                                                    <TextBlock Grid.Column="3" Text="{Binding Detail}" Foreground="{DynamicResource AppTextSecondaryBrush}" TextWrapping="Wrap"/>
                                                 </Grid>
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
@@ -550,7 +540,7 @@
                                             <TextBlock Text="{Binding QuickViewBaselineDelta}" FontFamily="Menlo,Consolas,monospace" FontSize="12" TextWrapping="Wrap"/>
                                         </StackPanel>
                                     </Grid>
-                                    <TextBlock Text="{Binding QuickViewBaselineDetail}" Foreground="#667085" TextWrapping="Wrap"/>
+                                    <TextBlock Text="{Binding QuickViewBaselineDetail}" Foreground="{DynamicResource AppTextSecondaryBrush}" TextWrapping="Wrap"/>
                                     <WrapPanel ItemSpacing="8" LineSpacing="8">
                                         <Button Content="Create Config Backup"
                                                 Command="{Binding CreateConfigBackupCommand}"
@@ -586,7 +576,7 @@
                                                     <TextBlock Text="{Binding Kind}" FontWeight="SemiBold"/>
                                                     <TextBlock Grid.Column="1" Text="{Binding Version}" FontFamily="Menlo,Consolas,monospace"/>
                                                     <TextBlock Grid.Column="2" Text="{Binding FileName}" TextWrapping="Wrap"/>
-                                                    <TextBlock Grid.Column="3" Text="{Binding SourceUrl}" Foreground="#667085" TextWrapping="Wrap"/>
+                                                    <TextBlock Grid.Column="3" Text="{Binding SourceUrl}" Foreground="{DynamicResource AppTextSecondaryBrush}" TextWrapping="Wrap"/>
                                                 </Grid>
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
@@ -600,7 +590,7 @@
                                                     <TextBlock Grid.Column="1" Text="{Binding Package.FileName}" TextWrapping="Wrap"/>
                                                     <TextBlock Grid.Column="2" Text="{Binding Package.Version}" FontFamily="Menlo,Consolas,monospace"/>
                                                     <TextBlock Grid.Column="3" Text="{Binding SizeBytes}" FontFamily="Menlo,Consolas,monospace"/>
-                                                    <TextBlock Grid.Column="4" Text="{Binding Sha256}" Foreground="#667085" TextWrapping="Wrap"/>
+                                                    <TextBlock Grid.Column="4" Text="{Binding Sha256}" Foreground="{DynamicResource AppTextSecondaryBrush}" TextWrapping="Wrap"/>
                                                 </Grid>
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
@@ -620,7 +610,7 @@
                                                 <TextBlock Text="{Binding Action}" FontWeight="SemiBold" TextWrapping="Wrap"/>
                                                 <TextBlock Grid.Column="1" Text="{Binding RelativePath}" TextWrapping="Wrap"/>
                                                 <TextBlock Grid.Column="2" Text="{Binding SizeBytes}" FontFamily="Menlo,Consolas,monospace"/>
-                                                <TextBlock Grid.Column="3" Text="{Binding Detail}" Foreground="#667085" TextWrapping="Wrap"/>
+                                                <TextBlock Grid.Column="3" Text="{Binding Detail}" Foreground="{DynamicResource AppTextSecondaryBrush}" TextWrapping="Wrap"/>
                                             </Grid>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
@@ -637,7 +627,7 @@
                                          MaxHeight="430">
                                     <ListBox.ItemTemplate>
                                         <DataTemplate x:DataType="aircraft:AircraftVariantViewAnalysis">
-                                            <Border BorderBrush="#E5E7EB"
+                                            <Border BorderBrush="{DynamicResource AppBorderBrush}"
                                                     BorderThickness="1"
                                                     CornerRadius="6"
                                                     Padding="10"
@@ -646,7 +636,7 @@
                                                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
                                                         <StackPanel Spacing="2">
                                                             <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold"/>
-                                                            <TextBlock Text="{Binding SourceRef}" Foreground="#667085" FontSize="12"/>
+                                                            <TextBlock Text="{Binding SourceRef}" Foreground="{DynamicResource AppTextSecondaryBrush}" FontSize="12"/>
                                                         </StackPanel>
                                                         <TextBlock Grid.Column="1" Text="{Binding Status}" FontWeight="SemiBold"/>
                                                     </Grid>
@@ -665,9 +655,9 @@
                                                         <TextBlock Text="{Binding DeltaDisplay}" FontFamily="Menlo,Consolas,monospace" FontSize="12" TextWrapping="Wrap"/>
                                                     </StackPanel>
                                                     <Grid ColumnDefinitions="*,*,*" ColumnSpacing="10">
-                                                        <TextBlock Text="{Binding IdentityStatus}" Foreground="#667085" TextWrapping="Wrap"/>
-                                                        <TextBlock Grid.Column="1" Text="{Binding QuickViewStatus}" Foreground="#667085" TextWrapping="Wrap"/>
-                                                        <TextBlock Grid.Column="2" Text="{Binding DefaultViewStatus}" Foreground="#667085" TextWrapping="Wrap"/>
+                                                        <TextBlock Text="{Binding IdentityStatus}" Foreground="{DynamicResource AppTextSecondaryBrush}" TextWrapping="Wrap"/>
+                                                        <TextBlock Grid.Column="1" Text="{Binding QuickViewStatus}" Foreground="{DynamicResource AppTextSecondaryBrush}" TextWrapping="Wrap"/>
+                                                        <TextBlock Grid.Column="2" Text="{Binding DefaultViewStatus}" Foreground="{DynamicResource AppTextSecondaryBrush}" TextWrapping="Wrap"/>
                                                     </Grid>
                                                 </StackPanel>
                                             </Border>
@@ -701,17 +691,17 @@
                             <StackPanel Spacing="4">
                                 <TextBlock Text="Settings" FontSize="22" FontWeight="SemiBold"/>
                                 <TextBlock Text="Directory settings are validated before saving. Existing restore records keep their original absolute backup paths."
-                                           Foreground="#667085"
+                                           Foreground="{DynamicResource AppTextSecondaryBrush}"
                                            TextWrapping="Wrap"/>
                             </StackPanel>
                         </Border>
 
-                        <Border Background="#F8FAFC"
-                                BorderBrush="#E2E8F0"
+                        <Border Background="{DynamicResource AppSurfaceMutedBrush}"
+                                BorderBrush="{DynamicResource AppBorderBrush}"
                                 BorderThickness="1"
                                 CornerRadius="6"
                                 Padding="12,10">
-                            <TextBlock Text="{Binding SettingsStatus}" Foreground="#475467" TextWrapping="Wrap"/>
+                            <TextBlock Text="{Binding SettingsStatus}" Foreground="{DynamicResource AppTextTertiaryBrush}" TextWrapping="Wrap"/>
                         </Border>
 
                         <Border Classes="card">

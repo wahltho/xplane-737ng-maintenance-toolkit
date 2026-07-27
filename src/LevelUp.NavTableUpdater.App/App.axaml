@@ -2,8 +2,60 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="LevelUp.NavTableUpdater.App.App"
              xmlns:local="using:LevelUp.NavTableUpdater.App"
-             RequestedThemeVariant="Light">
-             <!-- The current UI is explicitly light-themed so Linux AppImage builds stay readable under dark desktop themes. -->
+             RequestedThemeVariant="Default">
+
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="AppBackgroundBrush" Color="#F3F6FA"/>
+                    <SolidColorBrush x:Key="AppSurfaceBrush" Color="#FFFFFF"/>
+                    <SolidColorBrush x:Key="AppSurfaceMutedBrush" Color="#F8FAFC"/>
+                    <SolidColorBrush x:Key="AppInputBrush" Color="#FFFFFF"/>
+                    <SolidColorBrush x:Key="AppBorderBrush" Color="#D8DEE8"/>
+                    <SolidColorBrush x:Key="AppBorderStrongBrush" Color="#CBD5E1"/>
+                    <SolidColorBrush x:Key="AppTextPrimaryBrush" Color="#111827"/>
+                    <SolidColorBrush x:Key="AppTextSecondaryBrush" Color="#667085"/>
+                    <SolidColorBrush x:Key="AppTextTertiaryBrush" Color="#475467"/>
+                    <SolidColorBrush x:Key="AppSelectionBrush" Color="#E0F2FE"/>
+                    <SolidColorBrush x:Key="AppHoverBrush" Color="#F1F5F9"/>
+                    <SolidColorBrush x:Key="AppPrimaryBrush" Color="#2563EB"/>
+                    <SolidColorBrush x:Key="AppPrimaryForegroundBrush" Color="#FFFFFF"/>
+                    <SolidColorBrush x:Key="AppSecondaryButtonBrush" Color="#E5E7EB"/>
+                    <SolidColorBrush x:Key="AppSecondaryButtonForegroundBrush" Color="#111827"/>
+                    <SolidColorBrush x:Key="AppLinkBrush" Color="#2563EB"/>
+                    <SolidColorBrush x:Key="AppWarningBackgroundBrush" Color="#FFF7ED"/>
+                    <SolidColorBrush x:Key="AppWarningBorderBrush" Color="#FDBA74"/>
+                    <SolidColorBrush x:Key="AppWarningTextBrush" Color="#9A3412"/>
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="AppBackgroundBrush" Color="#151719"/>
+                    <SolidColorBrush x:Key="AppSurfaceBrush" Color="#202326"/>
+                    <SolidColorBrush x:Key="AppSurfaceMutedBrush" Color="#282C30"/>
+                    <SolidColorBrush x:Key="AppInputBrush" Color="#1C1F22"/>
+                    <SolidColorBrush x:Key="AppBorderBrush" Color="#3A4046"/>
+                    <SolidColorBrush x:Key="AppBorderStrongBrush" Color="#4C5560"/>
+                    <SolidColorBrush x:Key="AppTextPrimaryBrush" Color="#F3F4F6"/>
+                    <SolidColorBrush x:Key="AppTextSecondaryBrush" Color="#B6BDC7"/>
+                    <SolidColorBrush x:Key="AppTextTertiaryBrush" Color="#99A2AE"/>
+                    <SolidColorBrush x:Key="AppSelectionBrush" Color="#163B5C"/>
+                    <SolidColorBrush x:Key="AppHoverBrush" Color="#2B3137"/>
+                    <SolidColorBrush x:Key="AppPrimaryBrush" Color="#3B82F6"/>
+                    <SolidColorBrush x:Key="AppPrimaryForegroundBrush" Color="#FFFFFF"/>
+                    <SolidColorBrush x:Key="AppSecondaryButtonBrush" Color="#353A40"/>
+                    <SolidColorBrush x:Key="AppSecondaryButtonForegroundBrush" Color="#F3F4F6"/>
+                    <SolidColorBrush x:Key="AppLinkBrush" Color="#60A5FA"/>
+                    <SolidColorBrush x:Key="AppWarningBackgroundBrush" Color="#3A2818"/>
+                    <SolidColorBrush x:Key="AppWarningBorderBrush" Color="#A65F22"/>
+                    <SolidColorBrush x:Key="AppWarningTextBrush" Color="#FED7AA"/>
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+            <SolidColorBrush x:Key="AppHeaderBackgroundBrush" Color="#111827"/>
+            <SolidColorBrush x:Key="AppHeaderTextBrush" Color="#FFFFFF"/>
+            <SolidColorBrush x:Key="AppHeaderSecondaryBrush" Color="#CBD5E1"/>
+            <SolidColorBrush x:Key="AppLogoBackgroundBrush" Color="#FFFFFF"/>
+        </ResourceDictionary>
+    </Application.Resources>
 
     <Application.DataTemplates>
         <local:ViewLocator/>

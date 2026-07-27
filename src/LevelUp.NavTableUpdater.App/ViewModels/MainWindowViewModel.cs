@@ -929,25 +929,40 @@ public partial class MainWindowViewModel : ViewModelBase
 
         await RefreshAircraftUpdateCheck();
 
-        if (_lastUpstreamUpdateCheck is null || _lastUpstreamUpdateCheck.IsCustomDistribution)
+        var updateCheck = _lastUpstreamUpdateCheck;
+        if (updateCheck is null || updateCheck.IsCustomDistribution)
         {
             return;
         }
 
-        if (CanDownloadAircraftUpdatePackage)
+        if (updateCheck.RequiredPackages.Count > 0)
         {
-            await DownloadAircraftUpdatePackages();
-        }
+            if (CanDownloadAircraftUpdatePackage)
+            {
+                await DownloadAircraftUpdatePackages();
+            }
 
-        if (CanDryRunAircraftUpdatePackage)
-        {
+            if (!CanDryRunAircraftUpdatePackage)
+            {
+                AppendLog("Unified update stopped before VNAV follow-up because the required aircraft package is unavailable or invalid.");
+                return;
+            }
+
             await RunAircraftUpdateReviewAsync();
+            if (!CanApplyAircraftUpdatePackage)
+            {
+                AppendLog("Unified update stopped before VNAV follow-up because the aircraft package review did not produce an applicable plan.");
+                return;
+            }
+
+            var aircraftResult = await ConfirmAndApplyAircraftUpdateAsync(offerVnavFollowUp: false);
+            if (aircraftResult is null || !aircraftResult.Succeeded)
+            {
+                return;
+            }
         }
 
-        if (CanApplyAircraftUpdatePackage)
-        {
-            await ConfirmAndApplyAircraftUpdateAsync();
-        }
+        await OfferVnavFollowUpAsync();
     }
 
     [RelayCommand]
@@ -1135,7 +1150,8 @@ public partial class MainWindowViewModel : ViewModelBase
         await ConfirmAndApplyAircraftUpdateAsync();
     }
 
-    private async Task<MaintenanceOperationResult?> ConfirmAndApplyAircraftUpdateAsync()
+    private async Task<MaintenanceOperationResult?> ConfirmAndApplyAircraftUpdateAsync(
+        bool offerVnavFollowUp = true)
     {
         if (IsOperationRunning)
         {
@@ -1207,7 +1223,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 cancellationToken,
                 writePhaseStarting),
             canCancelBeforeWrite: true);
-        if (result?.Changed == true)
+        if (result?.Changed == true && offerVnavFollowUp)
         {
             await OfferVnavFollowUpAsync();
         }
