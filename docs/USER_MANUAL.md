@@ -9,7 +9,7 @@ tasks:
 - VNAV descent table package install, update, repair, restore and uninstall.
 - Quick View and default-view maintenance after aircraft CG changes.
 - Config backup and config restore for supported aircraft preference files.
-- Zibo upstream aircraft package review, cache, apply and restore.
+- Zibo and LevelUp aircraft package check, cache, review, apply and restore.
 
 The app does not replace X-Plane, Zibo, LevelUp or their official installers.
 It works on a selected local aircraft folder and writes only after validation,
@@ -90,11 +90,19 @@ only the actions that apply to the detected aircraft and available package
 sources.
 
 The `Aircraft Update` card handles upstream aircraft package planning and
-application. The first implemented aircraft package source is Zibo. The main
-`Update` button performs the safe sequence where possible: check the package
-index, download direct ZIP sources into the cache, review the cached packages,
-then apply them with backup and rollback. If a source does not expose a direct
-ZIP stream, import the exact required ZIP manually and retry.
+application. The main `Update` button performs the safe sequence where
+possible: check the product release source, download the required package into
+the cache, review its contents, ask for confirmation, then apply it with backup
+and rollback. If a source is unavailable, import the exact required package
+manually and retry.
+
+Zibo uses its public feed and the baseline/cumulative package model described
+below. LevelUp uses the authorized public `737NG-Updates` GitHub Release index.
+For LevelUp, an installation matching the declared baseline receives only the
+cumulative patch; an unknown or different baseline requires the exact full
+package. The release index, package manifests, archive sizes and SHA-256 hashes
+must all agree before download or review is enabled. The app also enforces the
+release's declared minimum toolkit version.
 
 The `VNAV Descent Tables` card handles manifest-owned descent table content and
 Lua hooks. Use `Update` when tables are missing, outdated or need repair. The
@@ -187,12 +195,15 @@ URL, the app
 tries the matching `.zip` URL first. Some sources may not expose a direct ZIP
 stream; in that case use `Import package...`.
 
-Use `Import ZIP` or `Import package...` to select a local package ZIP. The selected file name must
-match a required package in the current plan exactly. If the file dialog closes
-and nothing obvious happens, check the aircraft update status, cache status and
-Advanced tab for the import result. Package copying and integrity checks run in
-the background. They can be canceled before the verified package is committed
-to the toolkit cache; aircraft files are never changed by import.
+Use `Import ZIP` or `Import package...` to select a local package. The selected
+file name must match a required package in the current plan exactly. For an
+offline LevelUp test, the app also accepts the published `.manifest.json` or
+its adjacent `.7z` archive and builds the plan from that authoritative
+manifest. If the file dialog closes and nothing obvious happens, check the
+aircraft update status, cache status and Advanced tab for the import result.
+Package copying and integrity checks run in the background. They can be
+canceled before the verified package is committed to the toolkit cache;
+aircraft files are never changed by import.
 
 Use `Review aircraft changes` before applying. Review opens the cached packages
 and reports which files would be added, replaced or protected. No aircraft
@@ -323,8 +334,8 @@ distributions unless a dedicated update source is defined.
 - macOS builds are not notarized.
 - Zibo upstream ZIPs are verified against the local cache snapshot, not an
   official upstream hash manifest.
-- Aircraft update support currently targets Zibo package planning.
-- LevelUp can later use the same aircraft-update transaction layer if an
-  authorized package index/source is provided.
+- Online LevelUp aircraft update checks require the authorized public
+  `petrolpram/737NG-Updates` release endpoint to contain a published release.
+  Draft releases remain available only through manual manifest/archive import.
 - The diagnostics export folder is configurable; a full one-click diagnostic
   export workflow is still a planned product feature.

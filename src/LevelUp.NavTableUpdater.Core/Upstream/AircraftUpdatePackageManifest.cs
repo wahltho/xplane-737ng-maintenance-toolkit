@@ -44,10 +44,18 @@ public static partial class AircraftUpdatePackageManifestParser
             throw new FileNotFoundException("Aircraft update package manifest was not found.", fullPath);
         }
 
+        return Parse(File.ReadAllText(fullPath), fullPath);
+    }
+
+    public static AircraftUpdatePackageManifest Parse(string manifestJson, string manifestSource)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(manifestJson);
+        ArgumentException.ThrowIfNullOrWhiteSpace(manifestSource);
+
         PackageManifestDocument document;
         try
         {
-            document = JsonSerializer.Deserialize<PackageManifestDocument>(File.ReadAllText(fullPath), JsonOptions)
+            document = JsonSerializer.Deserialize<PackageManifestDocument>(manifestJson, JsonOptions)
                 ?? throw new InvalidDataException("Aircraft update package manifest is empty.");
         }
         catch (JsonException ex)
@@ -55,7 +63,7 @@ public static partial class AircraftUpdatePackageManifestParser
             throw new InvalidDataException($"Aircraft update package manifest is invalid JSON: {ex.Message}", ex);
         }
 
-        return Validate(document, fullPath);
+        return Validate(document, manifestSource);
     }
 
     private static AircraftUpdatePackageManifest Validate(PackageManifestDocument document, string manifestPath)

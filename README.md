@@ -47,6 +47,11 @@ Current capabilities:
   matching aircraft update ZIPs into a local cache, download direct ZIP sources
   when available, review cached ZIP contents in the background, then confirm
   and apply cached packages with backups, rollback and restore support.
+- It can read the authorized public LevelUp release index, select either the
+  exact full aircraft package or the matching cumulative patch, verify the
+  published manifest/archive hashes, and use the same review and transactional
+  update path. Manual LevelUp manifest/archive import remains available as an
+  offline fallback.
 - Package import, download and pre-write validation are cancellable. Once the
   confirmed aircraft write transaction starts, it completes or rolls back.
 - After a successful aircraft update, a separate prompt offers a required VNAV
@@ -57,10 +62,11 @@ Current capabilities:
 
 Review remains available for planned changes before write actions. Real write
 actions are limited to manifest-owned VNAV content, view-maintenance files and
-explicitly applied cached aircraft update packages. Direct ZIP download is attempted from the
-feed source URL and from a `.zip` candidate when the feed exposes `.zip.torrent`
-links; manual import remains the fallback for sources that do not expose a
-direct ZIP stream.
+explicitly applied cached aircraft update packages. For Zibo, direct ZIP
+download is attempted from the feed source URL and from a `.zip` candidate when
+the feed exposes `.zip.torrent` links. LevelUp uses explicit GitHub Release
+assets described by its public release index. Manual import remains the fallback
+when a source is unavailable.
 
 ## Build
 

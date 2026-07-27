@@ -32,6 +32,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly RestoreLatestBackupOperation _restoreLatestBackupOperation;
     private readonly VnavContentOperation _vnavContentOperation;
     private readonly AircraftUpstreamUpdateChecker _ziboUpdateChecker;
+    private readonly LevelUpReleaseUpdateChecker _levelUpUpdateChecker;
     private readonly LevelUpAircraftUpdatePackageLoader _levelUpUpdatePackageLoader = new();
     private readonly AircraftUpdateOperation _aircraftUpdateOperation;
     private AircraftUpdatePackageCache _aircraftUpdatePackageCache;
@@ -345,6 +346,10 @@ public partial class MainWindowViewModel : ViewModelBase
         _vnavContentOperation = new VnavContentOperation(_stateStore, CreatePayloadSource());
         _ziboUpdateChecker = new AircraftUpstreamUpdateChecker(
             new ZiboFeedAircraftUpdateIndexSource(_aircraftUpdateHttpClient));
+        var toolkitVersion = typeof(MainWindowViewModel).Assembly.GetName().Version
+            ?? throw new InvalidOperationException("Toolkit assembly version is unavailable.");
+        _levelUpUpdateChecker = new LevelUpReleaseUpdateChecker(
+            new LevelUpGitHubReleaseIndexSource(_aircraftUpdateHttpClient, toolkitVersion));
         _aircraftUpdateOperation = new AircraftUpdateOperation(_stateStore, _aircraftUpdateDryRunAnalyzer);
         ApplyManifest(_manifest);
         ApplyAnalysis(AircraftAnalysisResult.Empty(_manifest.PackageVersion));
@@ -922,20 +927,7 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
-        if (SelectedViewVariant is not null
-            && string.Equals(SelectedViewVariant.Family, LevelUpAircraftUpdatePackageLoader.Family, StringComparison.OrdinalIgnoreCase))
-        {
-            if (_lastUpstreamUpdateCheck is null)
-            {
-                RefreshUpstreamActionAvailability("Import a LevelUp update manifest or archive before running the update.");
-                AppendLog("LevelUp update requires a manifest-controlled package import first.");
-                return;
-            }
-        }
-        else
-        {
-            await RefreshAircraftUpdateCheck();
-        }
+        await RefreshAircraftUpdateCheck();
 
         if (_lastUpstreamUpdateCheck is null || _lastUpstreamUpdateCheck.IsCustomDistribution)
         {
@@ -972,20 +964,17 @@ public partial class MainWindowViewModel : ViewModelBase
         ApplyAnalysis(_analyzer.Analyze(CurrentProductAircraftFolderPath(), _manifest));
 
         var selectedVariant = SelectedViewVariant;
-        if (selectedVariant is not null
-            && string.Equals(selectedVariant.Family, LevelUpAircraftUpdatePackageLoader.Family, StringComparison.OrdinalIgnoreCase))
-        {
-            ApplyUpstreamReadiness(selectedVariant);
-            AppendLog("LevelUp update check uses a local manifest until a remote LU release index is configured.");
-            return;
-        }
-
         IsUpstreamCheckRunning = true;
         ActionsEnabled = false;
         _lastUpstreamUpdateCheck = null;
         _lastAircraftUpdateDryRun = null;
-        UpstreamUpdateStatus = "Checking Zibo feed";
-        UpstreamUpdateSummary = "Reading upstream index and planning baseline/cumulative package requirements.";
+        var isLevelUp = string.Equals(
+            selectedVariant?.Family,
+            LevelUpAircraftUpdatePackageLoader.Family,
+            StringComparison.OrdinalIgnoreCase);
+        var productName = isLevelUp ? "LevelUp" : "Zibo";
+        UpstreamUpdateStatus = $"Checking {productName} releases";
+        UpstreamUpdateSummary = "Reading the public release index and planning full/cumulative package requirements.";
         UpstreamPlanAction = "Checking";
         UpstreamRequiredPackages.Clear();
         UpstreamPackageCacheEntries.Clear();
@@ -996,9 +985,11 @@ public partial class MainWindowViewModel : ViewModelBase
 
         try
         {
-            var result = await _ziboUpdateChecker.CheckZiboAsync(selectedVariant);
+            var result = isLevelUp
+                ? await _levelUpUpdateChecker.CheckAsync(selectedVariant)
+                : await _ziboUpdateChecker.CheckZiboAsync(selectedVariant);
             ApplyUpstreamUpdateCheck(result);
-            AppendLog($"Zibo upstream check: {result.StateLabel} - {result.Summary}");
+            AppendLog($"{productName} upstream check: {result.StateLabel} - {result.Summary}");
         }
         catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or IOException or TaskCanceledException or System.Xml.XmlException)
         {
@@ -1017,7 +1008,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 "Read-only check failed before a package plan could be built.",
                 ex.Message
             ]);
-            AppendLog($"Zibo upstream check failed: {ex.Message}");
+            AppendLog($"{productName} upstream check failed: {ex.Message}");
         }
         finally
         {
@@ -2028,12 +2019,13 @@ public partial class MainWindowViewModel : ViewModelBase
 
         if (string.Equals(variant.Family, LevelUpAircraftUpdatePackageLoader.Family, StringComparison.OrdinalIgnoreCase))
         {
-            UpstreamSource = "Local LevelUp package manifest";
-            UpstreamUpdateStatus = "Ready for LU package";
-            UpstreamUpdateSummary = "Import a manifest-controlled LevelUp full or cumulative update package. The archive will be validated before review or apply.";
-            RefreshUpstreamActionAvailability("Import the LevelUp .manifest.json or its adjacent .7z archive to calculate the package plan.");
+            UpstreamSource = LevelUpGitHubReleaseIndexSource.DefaultIndexUrl;
+            UpstreamUpdateStatus = "Ready to check";
+            UpstreamUpdateSummary = "Check the public LevelUp release index for an exact full package or a matching cumulative patch.";
+            RefreshUpstreamActionAvailability("Check for updates, or import a LevelUp manifest/archive as an offline fallback.");
             UpstreamFindings.ReplaceWith([
-                "LevelUp aircraft packages use authoritative archive and payload SHA-256 values.",
+                "The check reads release metadata only; no aircraft files are changed.",
+                "LevelUp archives and payload files are verified against authoritative SHA-256 values before review.",
                 "Embedded Zibomod updates remain a separate layer and are not inferred from normal Zibo packages."
             ]);
             return;
@@ -2055,7 +2047,11 @@ public partial class MainWindowViewModel : ViewModelBase
         UpstreamAvailableVersion = result.AvailableVersionDisplay;
         UpstreamPlanAction = result.ActionDisplay;
         UpstreamUpdateMode = FormatAircraftUpdateMode(result.UpdateMode);
-        UpstreamSource = string.IsNullOrWhiteSpace(result.SourceUrl) ? ZiboUpstreamFeedParser.DefaultFeedUrl : result.SourceUrl;
+        UpstreamSource = string.IsNullOrWhiteSpace(result.SourceUrl)
+            ? string.Equals(result.Family, LevelUpAircraftUpdatePackageLoader.Family, StringComparison.OrdinalIgnoreCase)
+                ? LevelUpGitHubReleaseIndexSource.DefaultIndexUrl
+                : ZiboUpstreamFeedParser.DefaultFeedUrl
+            : result.SourceUrl;
         UpstreamLastChecked = DateTimeOffset.Now.ToString("HH:mm:ss");
         UpstreamRequiredPackages.ReplaceWith(result.RequiredPackages);
         RefreshUpstreamCacheEntries();
@@ -2160,7 +2156,7 @@ public partial class MainWindowViewModel : ViewModelBase
         if (_lastUpstreamUpdateCheck is null)
         {
             UpstreamActionStatus = isLevelUp
-                ? "Import a LevelUp update manifest or archive."
+                ? "Check the public LevelUp release index, or import a manifest/archive as an offline fallback."
                 : "Check for updates before importing packages.";
             return;
         }
