@@ -200,8 +200,12 @@ Use `Import ZIP` or `Import package...` to select a local package. The selected
 file name must match a required package in the current plan exactly. For an
 offline LevelUp test, the app also accepts the published `.manifest.json` or
 its adjacent `.7z` archive and builds the plan from that authoritative
-manifest. If the file dialog closes and nothing obvious happens, check the
-aircraft update status, cache status and Advanced tab for the import result.
+manifest. Both selections produce the same plan. Keep the manifest and archive
+together in the same folder. After a successful import, the main `Update`
+button uses that verified offline plan directly instead of replacing it with
+another online release check. If the file dialog closes and nothing obvious
+happens, check the aircraft update status, cache status and Advanced tab for the
+import result.
 Package copying and integrity checks run in the background. They can be
 canceled before the verified package is committed to the toolkit cache;
 aircraft files are never changed by import.
@@ -229,7 +233,15 @@ operation:
 After a successful aircraft update, the app rescans the selected target. If
 the VNAV package is missing, outdated or repairable, a separate confirmation
 offers the appropriate VNAV action. Skipping it leaves the aircraft update in
-place and does not merge the aircraft and VNAV transactions.
+place and does not merge the aircraft and VNAV transactions. The completion
+status reports the installed version and explicitly confirms that the existing
+aircraft folder name was retained. Aircraft folders are user-owned installation
+paths and are not renamed during an update.
+
+The main `Update` button is shown while an aircraft source can still be checked,
+an aircraft package action is available, or VNAV content can be safely
+installed, updated or repaired. It is hidden once the app has established that
+none of those actions can be performed.
 
 Use `Restore update` to restore the latest aircraft-update backup generation.
 Files that were added by the update are removed again during restore.
@@ -306,8 +318,16 @@ Close X-Plane fully, then retry the operation.
 
 `Import blocked`
 
-Use `Check for updates` in the Updates tab first. The ZIP file name must match one of
-the required packages in the current plan.
+For Zibo, check for updates first and select the exact package required by the
+current plan. For an offline LevelUp package, keep the manifest and `.7z`
+together and select either file. Review the Advanced findings if validation
+rejects the pair.
+
+`Online source unavailable`
+
+No public LevelUp aircraft release index is available yet. Use `Import package`
+with the supplied offline manifest or adjacent `.7z`. The technical HTTP detail
+remains in Advanced and the log.
 
 `Download failed`
 

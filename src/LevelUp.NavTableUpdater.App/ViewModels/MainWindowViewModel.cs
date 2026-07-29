@@ -18,6 +18,9 @@ namespace LevelUp.NavTableUpdater.App.ViewModels;
 
 public partial class MainWindowViewModel : ViewModelBase
 {
+    private const string DefaultRestartNotice =
+        "X-Plane must be fully restarted after a real install, update, repair, restore or uninstall.";
+
     private readonly AircraftDetector _detector = new();
     private readonly AircraftInstallAnalyzer _analyzer = new();
     private readonly AircraftViewAnalyzer _viewAnalyzer = new();
@@ -118,7 +121,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private bool restartNoticeVisible;
 
     [ObservableProperty]
-    private string restartNotice = "X-Plane must be fully restarted after a real install, update, repair, restore or uninstall.";
+    private string restartNotice = DefaultRestartNotice;
 
     [ObservableProperty]
     private string installLog = "";
@@ -131,6 +134,9 @@ public partial class MainWindowViewModel : ViewModelBase
 
     [ObservableProperty]
     private bool aircraftProductUpdateEnabled;
+
+    [ObservableProperty]
+    private bool unifiedUpdateVisible;
 
     [ObservableProperty]
     private bool operationPanelVisible;
@@ -927,10 +933,34 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
-        await RefreshAircraftUpdateCheck();
+        var reuseImportedPlan = false;
+        if (_lastUpstreamUpdateCheck is not null)
+        {
+            await RefreshUpstreamCacheEntriesAsync();
+            reuseImportedPlan = AircraftUpdatePlanReusePolicy.CanReuseValidatedLocalPlan(
+                _lastUpstreamUpdateCheck,
+                UpstreamPackageCacheEntries);
+        }
 
+        if (reuseImportedPlan)
+        {
+            RefreshUpstreamActionAvailability("Using the imported and verified LevelUp update package.");
+            AppendLog("Unified update: using the imported LevelUp package plan without replacing it with an online release check.");
+        }
+        else
+        {
+            await RefreshAircraftUpdateCheck();
+        }
+
+        var aircraftUpdateCompleted = false;
         var updateCheck = _lastUpstreamUpdateCheck;
-        if (updateCheck is null || updateCheck.IsCustomDistribution)
+        if (updateCheck is null)
+        {
+            await OfferVnavFollowUpAsync(aircraftUpdateCompleted: false);
+            return;
+        }
+
+        if (updateCheck.IsCustomDistribution)
         {
             return;
         }
@@ -960,9 +990,11 @@ public partial class MainWindowViewModel : ViewModelBase
             {
                 return;
             }
+
+            aircraftUpdateCompleted = aircraftResult.Changed;
         }
 
-        await OfferVnavFollowUpAsync();
+        await OfferVnavFollowUpAsync(aircraftUpdateCompleted);
     }
 
     [RelayCommand]
@@ -1008,8 +1040,10 @@ public partial class MainWindowViewModel : ViewModelBase
         }
         catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or IOException or TaskCanceledException or System.Xml.XmlException)
         {
-            UpstreamUpdateStatus = "Feed check failed";
-            UpstreamUpdateSummary = ex.Message;
+            UpstreamUpdateStatus = isLevelUp ? "Online source unavailable" : "Feed check failed";
+            UpstreamUpdateSummary = isLevelUp
+                ? "No public LevelUp aircraft release is available yet. Import the supplied manifest or adjacent .7z package to continue offline."
+                : ex.Message;
             UpstreamAvailableVersion = "-";
             UpstreamPlanAction = "Not checked";
             UpstreamUpdateMode = "-";
@@ -1018,12 +1052,21 @@ public partial class MainWindowViewModel : ViewModelBase
             UpstreamPackageCacheEntries.Clear();
             UpstreamDryRunEntries.Clear();
             UpstreamDryRunSummary = "No aircraft package review has been calculated.";
-            RefreshUpstreamActionAvailability("Import unavailable. Upstream package check failed before a plan was available.");
-            UpstreamFindings.ReplaceWith([
-                "Read-only check failed before a package plan could be built.",
-                ex.Message
-            ]);
+            RefreshUpstreamActionAvailability(isLevelUp
+                ? "Online LevelUp updates are not available yet. Use Import package for the supplied offline test package."
+                : "Import unavailable. Upstream package check failed before a plan was available.");
+            UpstreamFindings.ReplaceWith(isLevelUp
+                ? [
+                    "The public LevelUp release source is not available yet.",
+                    "Use Import package and select either the supplied manifest or its adjacent .7z archive.",
+                    $"Technical detail: {ex.Message}"
+                ]
+                : [
+                    "Read-only check failed before a package plan could be built.",
+                    ex.Message
+                ]);
             AppendLog($"{productName} upstream check failed: {ex.Message}");
+            RefreshUnifiedUpdateVisibility();
         }
         finally
         {
@@ -1222,10 +1265,11 @@ public partial class MainWindowViewModel : ViewModelBase
                 cacheEntries,
                 cancellationToken,
                 writePhaseStarting),
-            canCancelBeforeWrite: true);
+            canCancelBeforeWrite: true,
+            markLevelUpUpdateComplete: true);
         if (result?.Changed == true && offerVnavFollowUp)
         {
-            await OfferVnavFollowUpAsync();
+            await OfferVnavFollowUpAsync(aircraftUpdateCompleted: true);
         }
 
         return result;
@@ -1253,7 +1297,8 @@ public partial class MainWindowViewModel : ViewModelBase
             "Aircraft update restore blocked",
             selectedVariant,
             (_, _) => _aircraftUpdateOperation.RestoreLatest(selectedVariant),
-            canCancelBeforeWrite: false);
+            canCancelBeforeWrite: false,
+            markLevelUpUpdateComplete: false);
     }
 
     [RelayCommand]
@@ -1535,7 +1580,8 @@ public partial class MainWindowViewModel : ViewModelBase
         string blockedTitle,
         AircraftVariantViewAnalysis selectedVariant,
         Func<CancellationToken, Action, MaintenanceOperationResult> action,
-        bool canCancelBeforeWrite)
+        bool canCancelBeforeWrite,
+        bool markLevelUpUpdateComplete)
     {
         OperationPanelVisible = true;
         OperationLog = "";
@@ -1546,12 +1592,19 @@ public partial class MainWindowViewModel : ViewModelBase
         OperationSubtitle = $"Preparing aircraft package transaction for {selectedVariant.DisplayName}.";
         OperationProgressText = "0% - Validating target, cache, review and X-Plane process state";
         RestartNoticeVisible = false;
+        RestartNotice = DefaultRestartNotice;
 
         IsOperationRunning = true;
         ActionsEnabled = false;
         var stopwatch = Stopwatch.StartNew();
         var cancellationToken = canCancelBeforeWrite ? BeginCancellableOperation() : CancellationToken.None;
         MaintenanceOperationResult? operationResult = null;
+        var completedVersion = _lastUpstreamUpdateCheck?.AvailableVersionDisplay;
+        var isLevelUpUpdateApply = markLevelUpUpdateComplete
+            && string.Equals(
+                selectedVariant.Family,
+                LevelUpAircraftUpdatePackageLoader.Family,
+                StringComparison.OrdinalIgnoreCase);
 
         void WritePhaseStarting()
         {
@@ -1588,6 +1641,18 @@ public partial class MainWindowViewModel : ViewModelBase
                 ? result.Changed ? successTitle : $"{actionName} unchanged"
                 : blockedTitle;
             OperationSubtitle = result.Message;
+            if (result.Succeeded
+                && result.Changed
+                && isLevelUpUpdateApply)
+            {
+                var version = string.IsNullOrWhiteSpace(completedVersion) ? "the selected release" : completedVersion;
+                var folderName = Path.GetFileName(
+                    CurrentProductAircraftFolderPath().TrimEnd(
+                        Path.DirectorySeparatorChar,
+                        Path.AltDirectorySeparatorChar));
+                OperationSubtitle = $"{result.Message} Installed version: {version}. The existing aircraft folder '{folderName}' was intentionally retained.";
+                RestartNotice = $"LevelUp {version} was installed. The existing aircraft folder name was intentionally retained. Restart X-Plane before using the updated aircraft.";
+            }
             OperationProgress = result.Succeeded ? 100 : 0;
             OperationProgressText = result.Succeeded
                 ? result.Changed ? "100% - Aircraft update transaction completed and state recorded" : "100% - No file change required"
@@ -1644,16 +1709,55 @@ public partial class MainWindowViewModel : ViewModelBase
                 UpstreamDryRunSummary = operationResult.Changed
                     ? "Aircraft files changed. Check for updates to re-check the installed version."
                     : "No aircraft update file changes were applied.";
-                RefreshUpstreamActionAvailability(operationResult.Changed
-                    ? "Aircraft files changed. Check for updates to re-check the installed version."
-                    : "No aircraft update file changes were applied.");
+                if (operationResult.Changed
+                    && isLevelUpUpdateApply
+                    && _lastUpstreamUpdateCheck is { } completedCheck)
+                {
+                    var version = string.IsNullOrWhiteSpace(completedVersion) ? "the selected release" : completedVersion;
+                    UpstreamUpdateStatus = "Update complete";
+                    UpstreamUpdateSummary = $"LevelUp {version} was installed successfully. The existing aircraft folder name was retained.";
+                    UpstreamLocalVersion = version;
+                    UpstreamAvailableVersion = version;
+                    UpstreamPlanAction = "No action";
+                    UpstreamUpdateMode = "-";
+                    UpstreamLastChecked = DateTimeOffset.Now.ToString("HH:mm:ss");
+                    var completionFindings = new[]
+                    {
+                        $"Installed LevelUp version: {version}.",
+                        "The aircraft folder name is an installation path and was intentionally not renamed."
+                    };
+                    _lastUpstreamUpdateCheck = completedCheck with
+                    {
+                        StateLabel = "Up to date",
+                        Summary = UpstreamUpdateSummary,
+                        LocalVersionDisplay = version,
+                        AvailableVersionDisplay = version,
+                        Action = AircraftUpdatePlanAction.UpToDate,
+                        ActionDisplay = "No action",
+                        RequiredPackages = [],
+                        Findings = completionFindings
+                    };
+                    _lastAircraftUpdateDryRun = null;
+                    UpstreamRequiredPackages.Clear();
+                    UpstreamPackageCacheEntries.Clear();
+                    UpstreamDryRunEntries.Clear();
+                    UpstreamFindings.ReplaceWith(completionFindings);
+                    UpstreamDryRunSummary = "Aircraft update completed. The existing aircraft folder name was retained.";
+                    RefreshUpstreamActionAvailability("Aircraft update completed. No additional aircraft package action is required.");
+                }
+                else
+                {
+                    RefreshUpstreamActionAvailability(operationResult.Changed
+                        ? "Aircraft files changed. Check for updates to re-check the installed version."
+                        : "No aircraft update file changes were applied.");
+                }
             }
         }
 
         return operationResult;
     }
 
-    private async Task OfferVnavFollowUpAsync()
+    private async Task OfferVnavFollowUpAsync(bool aircraftUpdateCompleted)
     {
         var analysis = _lastAircraftAnalysis;
         var selectedVariant = SelectedViewVariant;
@@ -1680,7 +1784,9 @@ public partial class MainWindowViewModel : ViewModelBase
             string.Join(
                 Environment.NewLine,
                 [
-                    $"The aircraft update completed for {selectedVariant.DisplayName}.",
+                    aircraftUpdateCompleted
+                        ? $"The aircraft update completed for {selectedVariant.DisplayName}."
+                        : $"VNAV maintenance is available for {selectedVariant.DisplayName} independently of the aircraft package source.",
                     $"VNAV status after rescan: {analysis.StateLabel}",
                     $"Recommended action: {action}",
                     "",
@@ -1690,7 +1796,7 @@ public partial class MainWindowViewModel : ViewModelBase
             "Not now");
         if (!await _userInteractionService.ConfirmAsync(confirmation))
         {
-            AppendLog("VNAV follow-up skipped after aircraft update.");
+            AppendLog("VNAV maintenance action skipped.");
             return;
         }
 
@@ -1778,6 +1884,7 @@ public partial class MainWindowViewModel : ViewModelBase
         Components.ReplaceWith(result.Components);
         PlannedChanges.ReplaceWith(result.PlannedChanges);
         Findings.ReplaceWith(result.Findings);
+        RefreshUnifiedUpdateVisibility();
     }
 
     private void ApplyViewAnalysis(AircraftViewAnalysisResult result, string? preferredAcfPath = null)
@@ -2131,8 +2238,32 @@ public partial class MainWindowViewModel : ViewModelBase
         _operationCancellationSource = null;
     }
 
+    private void RefreshUnifiedUpdateVisibility()
+    {
+        var hasSelectedProduct = SelectedViewVariant is not null
+            && IsAircraftUpdateFamily(SelectedViewVariant.Family);
+        var canCheckAircraftSource = string.Equals(
+            UpstreamUpdateStatus,
+            "Ready to check",
+            StringComparison.Ordinal);
+        var hasAircraftPackageAction = _lastUpstreamUpdateCheck is
+        {
+            IsCustomDistribution: false,
+            HasUpdate: true
+        };
+        var hasVnavAction = _lastAircraftAnalysis?.IsSafeToPatch == true
+            && _lastAircraftAnalysis.State is InstallState.NotInstalled
+                or InstallState.RepairRequired
+                or InstallState.OutdatedMarkedInstallation
+                or InstallState.KnownLegacyInstallation;
+
+        UnifiedUpdateVisible = hasSelectedProduct
+            && (canCheckAircraftSource || hasAircraftPackageAction || hasVnavAction);
+    }
+
     private void RefreshUpstreamActionAvailability(string? statusOverride = null)
     {
+        RefreshUnifiedUpdateVisibility();
         var selectedVariant = SelectedViewVariant;
         var aircraftUpdateSupported = selectedVariant is not null && IsAircraftUpdateFamily(selectedVariant.Family);
         var isLevelUp = string.Equals(selectedVariant?.Family, LevelUpAircraftUpdatePackageLoader.Family, StringComparison.OrdinalIgnoreCase);

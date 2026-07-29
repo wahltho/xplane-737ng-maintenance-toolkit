@@ -55,8 +55,12 @@ Current capabilities:
 - Package import, download and pre-write validation are cancellable. Once the
   confirmed aircraft write transaction starts, it completes or rolls back.
 - The main `Update` action checks aircraft and VNAV package state in one user
-  flow. It can continue with VNAV-only maintenance when no aircraft update is
-  required.
+  flow. A validated offline LevelUp package remains active when `Update` is
+  clicked and is not replaced by an unavailable online release check. The flow
+  can continue with VNAV-only maintenance when no aircraft update is available
+  or required.
+- The main `Update` action is hidden after the app has established that neither
+  an aircraft-package action nor a safe VNAV action is available.
 - Aircraft and VNAV writes remain separate confirmed transactions with
   independent backup, rollback and restore state.
 - It distinguishes full aircraft updates, which include a full baseline ZIP,

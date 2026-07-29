@@ -294,6 +294,7 @@
                                                 <Button Content="Update"
                                                         Classes="primary"
                                                         Command="{Binding UpdateAircraftPackagesCommand}"
+                                                        IsVisible="{Binding UnifiedUpdateVisible}"
                                                         IsEnabled="{Binding ProductActionsEnabled}"/>
                                                 <Button Content="Import package"
                                                         Click="ImportAircraftUpdatePackage_Click"

@@ -98,6 +98,30 @@ public sealed class LevelUpAircraftUpdatePackageTests : IDisposable
     }
 
     [Fact]
+    public void Loader_ManifestAndArchiveSelectionsProduceEquivalentLocalPlan()
+    {
+        var fixture = CreatePackageFixture();
+        var variant = BuildVariant(fixture.AircraftPath, "2.S1.0");
+        var loader = new LevelUpAircraftUpdatePackageLoader();
+
+        var fromManifest = loader.Load(fixture.ManifestPath, variant);
+        var fromArchive = loader.Load(fixture.ArchivePath, variant);
+
+        Assert.Equal(fromManifest.ManifestPath, fromArchive.ManifestPath);
+        Assert.Equal(fromManifest.ArchivePath, fromArchive.ArchivePath);
+        Assert.Equal(fromManifest.UpdateCheck.StateLabel, fromArchive.UpdateCheck.StateLabel);
+        Assert.Equal(fromManifest.UpdateCheck.SourceUrl, fromArchive.UpdateCheck.SourceUrl);
+        Assert.Equal(fromManifest.UpdateCheck.LocalVersionDisplay, fromArchive.UpdateCheck.LocalVersionDisplay);
+        Assert.Equal(fromManifest.UpdateCheck.AvailableVersionDisplay, fromArchive.UpdateCheck.AvailableVersionDisplay);
+        Assert.Equal(fromManifest.UpdateCheck.Action, fromArchive.UpdateCheck.Action);
+        Assert.Equal(
+            Assert.Single(fromManifest.UpdateCheck.RequiredPackages).FileName,
+            Assert.Single(fromArchive.UpdateCheck.RequiredPackages).FileName);
+        Assert.Equal(fromManifest.Package?.FileName, fromArchive.Package?.FileName);
+        Assert.Equal(fromManifest.Package?.ExpectedSha256, fromArchive.Package?.ExpectedSha256);
+    }
+
+    [Fact]
     public void Loader_WithPublicV2S1RuntimeLayoutBuildsIncrementalPlan()
     {
         var fixture = CreatePackageFixture();

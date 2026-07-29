@@ -13,6 +13,10 @@ public sealed record AircraftUpstreamUpdateCheckResult(
     IReadOnlyList<AircraftUpdatePackage> RequiredPackages,
     IReadOnlyList<string> Findings)
 {
+    public bool HasUpdate =>
+        Action is AircraftUpdatePlanAction.ApplyCumulativePatch
+            or AircraftUpdatePlanAction.InstallBaselineAndCumulativePatch;
+
     public AircraftUpdateMode UpdateMode => RequiredPackages.Any(package => package.Kind == AircraftUpdatePackageKind.FullBaseline)
         ? AircraftUpdateMode.Full
         : RequiredPackages.Any(package => package.Kind == AircraftUpdatePackageKind.CumulativePatch)
