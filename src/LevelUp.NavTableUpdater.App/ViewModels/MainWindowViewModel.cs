@@ -18,9 +18,6 @@ namespace LevelUp.NavTableUpdater.App.ViewModels;
 
 public partial class MainWindowViewModel : ViewModelBase
 {
-    private const string DefaultRestartNotice =
-        "Restart X-Plane required: fully close and restart X-Plane before using the changed aircraft.";
-
     private readonly AircraftDetector _detector = new();
     private readonly AircraftInstallAnalyzer _analyzer = new();
     private readonly AircraftViewAnalyzer _viewAnalyzer = new();
@@ -118,12 +115,6 @@ public partial class MainWindowViewModel : ViewModelBase
 
     [ObservableProperty]
     private bool isSafeToPatch;
-
-    [ObservableProperty]
-    private bool restartNoticeVisible;
-
-    [ObservableProperty]
-    private string restartNotice = DefaultRestartNotice;
 
     [ObservableProperty]
     private string installLog = "";
@@ -589,7 +580,6 @@ public partial class MainWindowViewModel : ViewModelBase
         OperationTitle = title;
         OperationSubtitle = "Copying the selected package to the toolkit cache and verifying its integrity.";
         OperationProgressText = "20% - Reading, copying and hashing the package archive";
-        RestartNoticeVisible = false;
         IsOperationRunning = true;
         ActionsEnabled = false;
         StartOperationElapsedTimer();
@@ -667,7 +657,6 @@ public partial class MainWindowViewModel : ViewModelBase
         OperationTitle = "Downloading aircraft update";
         OperationSubtitle = $"Downloading {missingPackages.Length} required package(s) into the toolkit cache.";
         OperationProgressText = "10% - Downloading and validating package archives";
-        RestartNoticeVisible = false;
         var stopwatch = StartOperationElapsedTimer();
         var cancellationToken = BeginCancellableOperation();
         RefreshUpstreamActionAvailability($"Downloading {missingPackages.Length} required package(s) into the aircraft update cache.");
@@ -870,7 +859,7 @@ public partial class MainWindowViewModel : ViewModelBase
         if (string.Equals(action, "Restore", StringComparison.OrdinalIgnoreCase))
         {
             var product = AircraftProductIdentity.FromVariant(selectedVariant);
-            RunViewMaintenanceAction(
+            var restoreResult = RunViewMaintenanceAction(
                 "Restore VNAV backup",
                 "Preparing VNAV restore transaction",
                 "VNAV backup restored",
@@ -878,6 +867,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 selectedVariant,
                 () => _vnavContentOperation.RestoreLatest(selectedVariant),
                 targetDisplayName: product.DisplayName);
+            await ShowUpdateResultAsync(selectedVariant, aircraftResult: null, vnavResult: restoreResult);
             return;
         }
 
@@ -887,7 +877,8 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
-        await RunVnavContentAction(contentAction, selectedVariant);
+        var resultAfterAction = await RunVnavContentAction(contentAction, selectedVariant);
+        await ShowUpdateResultAsync(selectedVariant, aircraftResult: null, vnavResult: resultAfterAction);
     }
 
     [RelayCommand]
@@ -960,11 +951,16 @@ public partial class MainWindowViewModel : ViewModelBase
             await RefreshAircraftUpdateCheck();
         }
 
-        var aircraftUpdateCompleted = false;
+        MaintenanceOperationResult? aircraftResult = null;
         var updateCheck = _lastUpstreamUpdateCheck;
         if (updateCheck is null)
         {
-            await OfferVnavFollowUpAsync(aircraftUpdateCompleted: false);
+            var vnavOnlyResult = await OfferVnavFollowUpAsync(aircraftUpdateCompleted: false);
+            if (SelectedViewVariant is { } vnavOnlyVariant && vnavOnlyResult is not null)
+            {
+                await ShowUpdateResultAsync(vnavOnlyVariant, aircraftResult: null, vnavResult: vnavOnlyResult);
+            }
+
             return;
         }
 
@@ -993,16 +989,31 @@ public partial class MainWindowViewModel : ViewModelBase
                 return;
             }
 
-            var aircraftResult = await ConfirmAndApplyAircraftUpdateAsync(offerVnavFollowUp: false);
+            aircraftResult = await ConfirmAndApplyAircraftUpdateAsync(
+                offerVnavFollowUp: false,
+                showResultDialog: false);
             if (aircraftResult is null || !aircraftResult.Succeeded)
             {
+                if (aircraftResult is not null && SelectedViewVariant is { } blockedVariant)
+                {
+                    await ShowUpdateResultAsync(blockedVariant, aircraftResult, vnavResult: null);
+                }
+
                 return;
             }
-
-            aircraftUpdateCompleted = aircraftResult.Changed;
+        }
+        else
+        {
+            aircraftResult = MaintenanceOperationResult.NoChange(
+                "The aircraft package is already current.",
+                ["[NO-CHANGE] No aircraft update package is required by the current plan."]);
         }
 
-        await OfferVnavFollowUpAsync(aircraftUpdateCompleted);
+        var vnavResult = await OfferVnavFollowUpAsync(aircraftResult.Changed);
+        if (SelectedViewVariant is { } completedVariant)
+        {
+            await ShowUpdateResultAsync(completedVariant, aircraftResult, vnavResult);
+        }
     }
 
     [RelayCommand]
@@ -1144,8 +1155,6 @@ public partial class MainWindowViewModel : ViewModelBase
         OperationTitle = "Reviewing aircraft update";
         OperationSubtitle = "Validating package contents, hashes and target paths. No aircraft files are changed.";
         OperationProgressText = "15% - Reading and verifying cached package contents";
-        RestartNoticeVisible = false;
-
         IsOperationRunning = true;
         ActionsEnabled = false;
         var stopwatch = StartOperationElapsedTimer();
@@ -1203,7 +1212,8 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     private async Task<MaintenanceOperationResult?> ConfirmAndApplyAircraftUpdateAsync(
-        bool offerVnavFollowUp = true)
+        bool offerVnavFollowUp = true,
+        bool showResultDialog = true)
     {
         if (IsOperationRunning)
         {
@@ -1234,9 +1244,15 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             RefreshUpstreamActionAvailability("Review found no aircraft package changes to apply.");
             AppendLog("Apply aircraft update skipped: review found no file changes.");
-            return MaintenanceOperationResult.NoChange(
+            var noChangeResult = MaintenanceOperationResult.NoChange(
                 "No aircraft package changes need to be applied.",
                 ["[NO-CHANGE] The confirmed dry-run contained no aircraft file changes."]);
+            if (showResultDialog)
+            {
+                await ShowUpdateResultAsync(selectedVariant, noChangeResult, vnavResult: null);
+            }
+
+            return noChangeResult;
         }
 
         var confirmation = new ConfirmationRequest(
@@ -1276,9 +1292,15 @@ public partial class MainWindowViewModel : ViewModelBase
                 writePhaseStarting),
             canCancelBeforeWrite: true,
             markLevelUpUpdateComplete: true);
+        MaintenanceOperationResult? vnavResult = null;
         if (result?.Changed == true && offerVnavFollowUp)
         {
-            await OfferVnavFollowUpAsync(aircraftUpdateCompleted: true);
+            vnavResult = await OfferVnavFollowUpAsync(aircraftUpdateCompleted: true);
+        }
+
+        if (result is not null && showResultDialog)
+        {
+            await ShowUpdateResultAsync(selectedVariant, result, vnavResult);
         }
 
         return result;
@@ -1299,7 +1321,7 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
-        await RunAircraftUpdateAction(
+        var result = await RunAircraftUpdateAction(
             "Restore aircraft update",
             "Preparing aircraft update restore",
             "Aircraft update restored",
@@ -1308,6 +1330,10 @@ public partial class MainWindowViewModel : ViewModelBase
             (_, _) => _aircraftUpdateOperation.RestoreLatest(selectedVariant),
             canCancelBeforeWrite: false,
             markLevelUpUpdateComplete: false);
+        if (result is not null)
+        {
+            await ShowUpdateResultAsync(selectedVariant, result, vnavResult: null);
+        }
     }
 
     [RelayCommand]
@@ -1333,8 +1359,6 @@ public partial class MainWindowViewModel : ViewModelBase
         OperationTitle = "Apply QV0 to Default View";
         OperationSubtitle = $"Preparing default-view transaction for {selectedVariant.DisplayName}.";
         OperationProgressText = "0% - Validating target and X-Plane process state";
-        RestartNoticeVisible = false;
-
         IsOperationRunning = true;
         ActionsEnabled = false;
         var stopwatch = StartOperationElapsedTimer();
@@ -1356,8 +1380,6 @@ public partial class MainWindowViewModel : ViewModelBase
             OperationProgressText = result.Succeeded
                 ? result.Changed ? "100% - ACF updated and backup recorded" : "100% - No file change required"
                 : "0% - Transaction did not start";
-            RestartNoticeVisible = result.Changed;
-
             if (result.BackupPath is not null)
             {
                 AppendLog($"Apply QV0 to Default View: backup created at {result.BackupPath}");
@@ -1434,8 +1456,7 @@ public partial class MainWindowViewModel : ViewModelBase
             "Quick View baseline recorded",
             "Quick View baseline blocked",
             selectedVariant,
-            () => _adoptQuickViewBaselineOperation.Adopt(selectedVariant),
-            showRestartNoticeOnChanged: false);
+            () => _adoptQuickViewBaselineOperation.Adopt(selectedVariant));
     }
 
     [RelayCommand]
@@ -1483,8 +1504,7 @@ public partial class MainWindowViewModel : ViewModelBase
             "Config backup created",
             "Config backup blocked",
             selectedVariant,
-            () => _configBackupOperation.CreateBackup(selectedVariant),
-            showRestartNoticeOnChanged: false);
+            () => _configBackupOperation.CreateBackup(selectedVariant));
     }
 
     [RelayCommand]
@@ -1511,14 +1531,13 @@ public partial class MainWindowViewModel : ViewModelBase
             () => _configBackupOperation.RestoreLatestConfigBackup(selectedVariant));
     }
 
-    private void RunViewMaintenanceAction(
+    private MaintenanceOperationResult RunViewMaintenanceAction(
         string actionName,
         string preparingTitle,
         string successTitle,
         string blockedTitle,
         AircraftVariantViewAnalysis selectedVariant,
         Func<MaintenanceOperationResult> action,
-        bool showRestartNoticeOnChanged = true,
         string? targetDisplayName = null)
     {
         OperationPanelVisible = true;
@@ -1529,14 +1548,14 @@ public partial class MainWindowViewModel : ViewModelBase
         OperationTitle = preparingTitle;
         OperationSubtitle = $"Preparing transaction for {targetDisplayName ?? selectedVariant.DisplayName}.";
         OperationProgressText = "0% - Validating target and X-Plane process state";
-        RestartNoticeVisible = false;
-
         IsOperationRunning = true;
         ActionsEnabled = false;
         var stopwatch = StartOperationElapsedTimer();
+        MaintenanceOperationResult operationResult;
         try
         {
             var result = action();
+            operationResult = result;
             foreach (var line in result.Log)
             {
                 AppendOperationLog(line);
@@ -1552,8 +1571,6 @@ public partial class MainWindowViewModel : ViewModelBase
             OperationProgressText = result.Succeeded
                 ? result.Changed ? "100% - Transaction completed and backup state recorded" : "100% - No file change required"
                 : "0% - Transaction did not start";
-            RestartNoticeVisible = result.Changed && showRestartNoticeOnChanged;
-
             foreach (var backupPath in result.BackupPaths)
             {
                 AppendLog($"{actionName}: backup created at {backupPath}");
@@ -1563,6 +1580,13 @@ public partial class MainWindowViewModel : ViewModelBase
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or FileNotFoundException)
         {
+            operationResult = new MaintenanceOperationResult(
+                Succeeded: false,
+                Changed: false,
+                Status: "Failed",
+                Message: ex.Message,
+                BackupPaths: [],
+                Log: [$"[FAILED] {ex.Message}"]);
             OperationElapsed = FormatElapsed(stopwatch.Elapsed);
             OperationStatus = "Failed";
             OperationTitle = $"{actionName} failed";
@@ -1583,6 +1607,8 @@ public partial class MainWindowViewModel : ViewModelBase
             ApplyManifest(SelectManifest(viewResult));
             ApplyAnalysis(_analyzer.Analyze(CurrentProductAircraftFolderPath(), _manifest));
         }
+
+        return operationResult;
     }
 
     private async Task<MaintenanceOperationResult?> RunAircraftUpdateAction(
@@ -1603,9 +1629,6 @@ public partial class MainWindowViewModel : ViewModelBase
         OperationTitle = preparingTitle;
         OperationSubtitle = $"Preparing aircraft package transaction for {AircraftProductIdentity.FromVariant(selectedVariant).DisplayName}.";
         OperationProgressText = "0% - Validating target, cache, review and X-Plane process state";
-        RestartNoticeVisible = false;
-        RestartNotice = DefaultRestartNotice;
-
         IsOperationRunning = true;
         ActionsEnabled = false;
         var stopwatch = StartOperationElapsedTimer();
@@ -1663,14 +1686,11 @@ public partial class MainWindowViewModel : ViewModelBase
                         Path.DirectorySeparatorChar,
                         Path.AltDirectorySeparatorChar));
                 OperationSubtitle = $"{result.Message} Installed version: {version}. The existing aircraft folder '{folderName}' was intentionally retained.";
-                RestartNotice = $"Restart X-Plane required: LevelUp {version} was installed. The existing aircraft folder name was intentionally retained.";
             }
             OperationProgress = result.Succeeded ? 100 : 0;
             OperationProgressText = result.Succeeded
                 ? result.Changed ? "100% - Aircraft update transaction completed and state recorded" : "100% - No file change required"
                 : "0% - Transaction did not start or was rolled back";
-            RestartNoticeVisible = result.Changed;
-
             foreach (var backupPath in result.BackupPaths)
             {
                 AppendLog($"{actionName}: backup created at {backupPath}");
@@ -1691,6 +1711,13 @@ public partial class MainWindowViewModel : ViewModelBase
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or FileNotFoundException)
         {
+            operationResult = new MaintenanceOperationResult(
+                Succeeded: false,
+                Changed: false,
+                Status: "Failed",
+                Message: ex.Message,
+                BackupPaths: [],
+                Log: [$"[FAILED] {ex.Message}"]);
             OperationElapsed = FormatElapsed(stopwatch.Elapsed);
             OperationStatus = "Failed";
             OperationTitle = $"{actionName} failed";
@@ -1770,13 +1797,13 @@ public partial class MainWindowViewModel : ViewModelBase
         return operationResult;
     }
 
-    private async Task OfferVnavFollowUpAsync(bool aircraftUpdateCompleted)
+    private async Task<MaintenanceOperationResult?> OfferVnavFollowUpAsync(bool aircraftUpdateCompleted)
     {
         var analysis = _lastAircraftAnalysis;
         var selectedVariant = SelectedViewVariant;
         if (analysis is null || selectedVariant is null)
         {
-            return;
+            return null;
         }
 
         var action = analysis.State switch
@@ -1789,7 +1816,7 @@ public partial class MainWindowViewModel : ViewModelBase
         if (action is null || !analysis.IsSafeToPatch)
         {
             AppendLog($"VNAV follow-up not required or unavailable after aircraft update: {analysis.StateLabel}.");
-            return;
+            return null;
         }
 
         var confirmation = new ConfirmationRequest(
@@ -1810,13 +1837,15 @@ public partial class MainWindowViewModel : ViewModelBase
         if (!await _userInteractionService.ConfirmAsync(confirmation))
         {
             AppendLog("VNAV maintenance action skipped.");
-            return;
+            return null;
         }
 
-        await RunVnavContentAction(action.Value, selectedVariant);
+        return await RunVnavContentAction(action.Value, selectedVariant);
     }
 
-    private async Task RunVnavContentAction(VnavContentAction action, AircraftVariantViewAnalysis selectedVariant)
+    private async Task<MaintenanceOperationResult> RunVnavContentAction(
+        VnavContentAction action,
+        AircraftVariantViewAnalysis selectedVariant)
     {
         OperationPanelVisible = true;
         OperationLog = "";
@@ -1826,16 +1855,16 @@ public partial class MainWindowViewModel : ViewModelBase
         OperationTitle = $"VNAV {action} - Preparing transaction";
         OperationSubtitle = $"Preparing manifest transaction for {AircraftProductIdentity.FromVariant(selectedVariant).DisplayName}.";
         OperationProgressText = "0% - Validating target, X-Plane process state, manifest and payload source";
-        RestartNoticeVisible = false;
-
         IsOperationRunning = true;
         ActionsEnabled = false;
         var stopwatch = StartOperationElapsedTimer();
+        MaintenanceOperationResult operationResult;
         try
         {
             var manifest = await ResolveManifestForActionAsync(_manifest);
             ApplyManifest(manifest);
             var result = await _vnavContentOperation.RunAsync(action, selectedVariant, manifest);
+            operationResult = result;
             foreach (var line in result.Log)
             {
                 AppendOperationLog(line);
@@ -1851,8 +1880,6 @@ public partial class MainWindowViewModel : ViewModelBase
             OperationProgressText = result.Succeeded
                 ? result.Changed ? "100% - VNAV transaction completed and backup state recorded" : "100% - No file change required"
                 : "0% - Transaction did not start";
-            RestartNoticeVisible = result.Changed;
-
             foreach (var backupPath in result.BackupPaths)
             {
                 AppendLog($"VNAV {action}: backup created at {backupPath}");
@@ -1862,6 +1889,13 @@ public partial class MainWindowViewModel : ViewModelBase
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or HttpRequestException)
         {
+            operationResult = new MaintenanceOperationResult(
+                Succeeded: false,
+                Changed: false,
+                Status: "Failed",
+                Message: ex.Message,
+                BackupPaths: [],
+                Log: [$"[FAILED] {ex.Message}"]);
             OperationElapsed = FormatElapsed(stopwatch.Elapsed);
             OperationStatus = "Failed";
             OperationTitle = $"VNAV {action} failed";
@@ -1882,6 +1916,104 @@ public partial class MainWindowViewModel : ViewModelBase
             ApplyManifest(SelectManifest(viewResult));
             ApplyAnalysis(_analyzer.Analyze(CurrentProductAircraftFolderPath(), _manifest));
         }
+
+        return operationResult;
+    }
+
+    private async Task ShowUpdateResultAsync(
+        AircraftVariantViewAnalysis selectedVariant,
+        MaintenanceOperationResult? aircraftResult,
+        MaintenanceOperationResult? vnavResult)
+    {
+        var results = new[] { aircraftResult, vnavResult }
+            .Where(result => result is not null)
+            .Cast<MaintenanceOperationResult>()
+            .ToArray();
+        if (results.Length == 0)
+        {
+            return;
+        }
+
+        var anyChanged = results.Any(result => result.Changed);
+        var anyUnsuccessful = results.Any(result => !result.Succeeded);
+        var blockedByXPlane = results.Any(result =>
+            result.Message.Contains("X-Plane is running", StringComparison.OrdinalIgnoreCase));
+        var title = anyUnsuccessful
+            ? anyChanged
+                ? "Update partially completed"
+                : blockedByXPlane
+                    ? "Close X-Plane"
+                    : "Update could not be completed"
+            : anyChanged
+                ? "Update complete"
+                : "Already up to date";
+
+        var message = new List<string>
+        {
+            AircraftProductIdentity.FromVariant(selectedVariant).DisplayName
+        };
+        if (aircraftResult is { Changed: true }
+            && !string.IsNullOrWhiteSpace(UpstreamAvailableVersion)
+            && UpstreamAvailableVersion != "-")
+        {
+            message.Add($"Version: {UpstreamAvailableVersion}");
+        }
+
+        message.Add("");
+        if (aircraftResult is not null)
+        {
+            message.Add($"Aircraft package: {FormatUpdateStepResult(aircraftResult)}");
+        }
+
+        if (vnavResult is not null)
+        {
+            message.Add($"VNAV descent tables: {FormatUpdateStepResult(vnavResult)}");
+        }
+
+        var backupCount = results
+            .SelectMany(result => result.BackupPaths)
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Count();
+        if (backupCount > 0)
+        {
+            message.Add($"Backups created: {backupCount}");
+        }
+
+        message.Add("");
+        if (blockedByXPlane)
+        {
+            message.Add(anyChanged
+                ? "Some changes completed. Close X-Plane completely before retrying the remaining step."
+                : "Close X-Plane completely, then run Update again.");
+        }
+        else if (anyUnsuccessful)
+        {
+            message.Add("Review the Advanced tab and operation log for details before retrying.");
+        }
+        else if (anyChanged)
+        {
+            message.Add("You can now start X-Plane to load the changes.");
+        }
+        else
+        {
+            message.Add("No aircraft files needed to be changed.");
+        }
+
+        await _userInteractionService.ShowMessageAsync(
+            new MessageRequest(title, string.Join(Environment.NewLine, message)));
+    }
+
+    private static string FormatUpdateStepResult(MaintenanceOperationResult result)
+    {
+        if (!result.Succeeded)
+        {
+            return $"{result.Status} - {result.Message}";
+        }
+
+        return result.Changed
+            ? $"{result.Status} - {result.Message}"
+            : $"No change - {result.Message}";
     }
 
     private void ApplyAnalysis(AircraftAnalysisResult result)
@@ -2638,7 +2770,6 @@ public partial class MainWindowViewModel : ViewModelBase
         OperationLog = "";
         AppendOperationLog($"[BLOCKED] {action} blocked by target state: {result.StateLabel}");
         AppendOperationLog("[BLOCKED] No files changed.");
-        RestartNoticeVisible = false;
     }
 
     private void AppendOperationLog(string message)

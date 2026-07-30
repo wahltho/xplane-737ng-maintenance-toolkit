@@ -29,6 +29,7 @@
                     Spacing="10">
             <Button Content="{Binding CancelText}"
                     MinWidth="100"
+                    IsVisible="{Binding ShowCancel}"
                     Click="Cancel_Click"/>
             <Button Content="{Binding ConfirmText}"
                     MinWidth="130"
