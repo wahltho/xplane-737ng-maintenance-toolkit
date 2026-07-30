@@ -39,9 +39,10 @@ public sealed class VnavContentOperation
         PackageManifest manifest,
         CancellationToken cancellationToken = default)
     {
+        var product = AircraftProductIdentity.FromVariant(variant);
         var log = new List<string>
         {
-            $"[START] VNAV {action} for {variant.DisplayName}",
+            $"[START] VNAV {action} for {product.DisplayName}",
             $"[PACKAGE] {manifest.PackageId} {manifest.PackageVersion} ({manifest.ReleaseTag})"
         };
 
@@ -79,7 +80,7 @@ public sealed class VnavContentOperation
 
         try
         {
-            var targetScriptBackupPath = _stateStore.CreateBackupPath(variant, analysis.TargetScriptPath, createdUtc);
+            var targetScriptBackupPath = _stateStore.CreateProductBackupPath(variant, analysis.TargetScriptPath, createdUtc);
             var patchSummary = VnavLuaPatchTransaction.Apply(analysis.TargetScriptPath, manifest, payloads, targetScriptBackupPath);
             rollbackActions.Push(() => File.Copy(targetScriptBackupPath, analysis.TargetScriptPath, overwrite: true));
             backupRecords.Add(BuildBackupRecord("VnavContentPatch", analysis.TargetScriptPath, targetScriptBackupPath, createdUtc, variant, manifest));
@@ -102,7 +103,70 @@ public sealed class VnavContentOperation
         log.Add("[OK] VNAV content transaction completed.");
         return MaintenanceOperationResult.Applied(
             $"VNAV {action} completed for {manifest.PackageId} {manifest.PackageVersion}.",
-            backupRecords.Select(record => record.BackupPath).ToArray(),
+            backupRecords.Where(record => !string.IsNullOrWhiteSpace(record.BackupPath)).Select(record => record.BackupPath).ToArray(),
+            log);
+    }
+
+    public MaintenanceOperationResult RestoreLatest(AircraftVariantViewAnalysis variant)
+    {
+        ArgumentNullException.ThrowIfNull(variant);
+        var product = AircraftProductIdentity.FromVariant(variant);
+        var log = new List<string>
+        {
+            $"[START] Restore latest VNAV backup for {product.DisplayName}"
+        };
+
+        if (_isXPlaneRunning())
+        {
+            log.Add("[BLOCKED] X-Plane is running.");
+            return MaintenanceOperationResult.Blocked("X-Plane is running. Close X-Plane before restoring VNAV files.", log);
+        }
+
+        var target = _stateStore.TryGetProductTarget(variant);
+        if (target is null)
+        {
+            log.Add("[BLOCKED] No product-level VNAV state is recorded.");
+            return MaintenanceOperationResult.Blocked("No product-level VNAV backup is recorded.", log);
+        }
+
+        var restoreRecords = SelectLatestVnavGeneration(variant, target.Backups);
+        if (restoreRecords.Length == 0)
+        {
+            log.Add("[BLOCKED] No restorable VNAV backup generation was found.");
+            return MaintenanceOperationResult.Blocked("No restorable VNAV backup generation was found.", log);
+        }
+
+        var createdUtc = DateTimeOffset.UtcNow;
+        var preRestoreRecords = new List<BackupRecord>();
+        try
+        {
+            foreach (var record in restoreRecords.Reverse())
+            {
+                var preRestore = CaptureCurrentFile(variant, record, createdUtc, log);
+                preRestoreRecords.Add(preRestore);
+                RestoreRecord(record, log);
+            }
+
+            _stateStore.UpdateProductTarget(variant, state =>
+            {
+                state.InstalledContentPackageId = null;
+                state.InstalledContentPackageVersion = null;
+                state.LastContentOperationUtc = DateTimeOffset.UtcNow;
+                state.LastOperation = "VnavContentRestore";
+                state.Backups.AddRange(preRestoreRecords);
+            });
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            RollBackRestore(preRestoreRecords, log);
+            log.Add($"[FAILED] {ex.Message}");
+            return MaintenanceOperationResult.Blocked($"VNAV restore failed and rollback completed: {ex.Message}", log);
+        }
+
+        log.Add("[OK] VNAV restore completed.");
+        return MaintenanceOperationResult.Restored(
+            $"Restored {restoreRecords.Length} VNAV file state(s).",
+            preRestoreRecords.Where(record => !string.IsNullOrWhiteSpace(record.BackupPath)).Select(record => record.BackupPath).ToArray(),
             log);
     }
 
@@ -137,7 +201,7 @@ public sealed class VnavContentOperation
 
         try
         {
-            var targetScriptBackupPath = _stateStore.CreateBackupPath(variant, analysis.TargetScriptPath, createdUtc);
+            var targetScriptBackupPath = _stateStore.CreateProductBackupPath(variant, analysis.TargetScriptPath, createdUtc);
             var patchSummary = VnavLuaPatchTransaction.Uninstall(analysis.TargetScriptPath, manifest, targetScriptBackupPath);
             rollbackActions.Push(() => File.Copy(targetScriptBackupPath, analysis.TargetScriptPath, overwrite: true));
             backupRecords.Add(BuildBackupRecord("VnavContentUninstall", analysis.TargetScriptPath, targetScriptBackupPath, createdUtc, variant, manifest));
@@ -149,7 +213,7 @@ public sealed class VnavContentOperation
                 backupRecords.Add(record);
             }
 
-            _stateStore.UpdateTarget(variant, target =>
+            _stateStore.UpdateProductTarget(variant, target =>
             {
                 target.InstalledContentPackageId = null;
                 target.InstalledContentPackageVersion = null;
@@ -196,7 +260,7 @@ public sealed class VnavContentOperation
             string? backupPath = null;
             if (File.Exists(targetPath))
             {
-                backupPath = _stateStore.CreateBackupPath(variant, targetPath, createdUtc);
+                backupPath = _stateStore.CreateProductBackupPath(variant, targetPath, createdUtc);
                 Directory.CreateDirectory(Path.GetDirectoryName(backupPath)!);
                 File.Copy(targetPath, backupPath, overwrite: false);
                 rollbackActions.Push(() => File.Copy(backupPath, targetPath, overwrite: true));
@@ -217,10 +281,14 @@ public sealed class VnavContentOperation
             PackagePayloadValidator.ValidatePayload(payloadDefinition, File.ReadAllBytes(targetPath), targetPath);
             log.Add($"[PAYLOAD] Wrote {payload.FileName} from {payload.Source}.");
 
-            if (backupPath is not null)
-            {
-                yield return BuildBackupRecord("VnavContentPayload", targetPath, backupPath, createdUtc, variant, manifest);
-            }
+            yield return BuildBackupRecord(
+                "VnavContentPayload",
+                targetPath,
+                backupPath ?? "",
+                createdUtc,
+                variant,
+                manifest,
+                sourceExisted: backupPath is not null);
         }
     }
 
@@ -250,7 +318,7 @@ public sealed class VnavContentOperation
                 continue;
             }
 
-            var backupPath = _stateStore.CreateBackupPath(variant, targetPath, createdUtc);
+            var backupPath = _stateStore.CreateProductBackupPath(variant, targetPath, createdUtc);
             Directory.CreateDirectory(Path.GetDirectoryName(backupPath)!);
             File.Copy(targetPath, backupPath, overwrite: false);
             File.Delete(targetPath);
@@ -266,7 +334,7 @@ public sealed class VnavContentOperation
         string operation,
         IReadOnlyList<BackupRecord> backups)
     {
-        _stateStore.UpdateTarget(variant, target =>
+        _stateStore.UpdateProductTarget(variant, target =>
         {
             target.InstalledContentPackageId = manifest.PackageId;
             target.InstalledContentPackageVersion = manifest.PackageVersion;
@@ -282,7 +350,8 @@ public sealed class VnavContentOperation
         string backupPath,
         DateTimeOffset createdUtc,
         AircraftVariantViewAnalysis variant,
-        PackageManifest manifest) =>
+        PackageManifest manifest,
+        bool sourceExisted = true) =>
         new()
         {
             Operation = operation,
@@ -292,8 +361,123 @@ public sealed class VnavContentOperation
             CgYFeet = variant.CurrentCgYFeet,
             CgZFeet = variant.CurrentCgZFeet,
             PackageId = manifest.PackageId,
-            PackageVersion = manifest.PackageVersion
+            PackageVersion = manifest.PackageVersion,
+            SourceExisted = sourceExisted
         };
+
+    private BackupRecord CaptureCurrentFile(
+        AircraftVariantViewAnalysis variant,
+        BackupRecord restoreRecord,
+        DateTimeOffset createdUtc,
+        ICollection<string> log)
+    {
+        var sourceExists = File.Exists(restoreRecord.SourcePath);
+        var backupPath = "";
+        if (sourceExists)
+        {
+            var aircraftFolder = Path.GetFullPath(Path.GetDirectoryName(variant.AcfPath) ?? "");
+            var relativePath = Path.GetRelativePath(aircraftFolder, restoreRecord.SourcePath);
+            backupPath = _stateStore.CreateProductBackupPath(variant, restoreRecord.SourcePath, createdUtc, relativePath);
+            Directory.CreateDirectory(Path.GetDirectoryName(backupPath)!);
+            File.Copy(restoreRecord.SourcePath, backupPath, overwrite: false);
+            log.Add($"[BACKUP] Pre-restore image saved at {backupPath}");
+        }
+
+        return new BackupRecord
+        {
+            Operation = "VnavContentRestorePreImage",
+            SourcePath = restoreRecord.SourcePath,
+            BackupPath = backupPath,
+            CreatedUtc = createdUtc,
+            CgYFeet = variant.CurrentCgYFeet,
+            CgZFeet = variant.CurrentCgZFeet,
+            PackageId = restoreRecord.PackageId,
+            PackageVersion = restoreRecord.PackageVersion,
+            SourceExisted = sourceExists
+        };
+    }
+
+    private static void RestoreRecord(BackupRecord record, ICollection<string> log)
+    {
+        if (!record.SourceExisted)
+        {
+            if (File.Exists(record.SourcePath))
+            {
+                File.Delete(record.SourcePath);
+                log.Add($"[RESTORE] Removed added VNAV file {record.SourcePath}.");
+            }
+
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(record.BackupPath) || !File.Exists(record.BackupPath))
+        {
+            throw new FileNotFoundException("VNAV backup file is missing.", record.BackupPath);
+        }
+
+        Directory.CreateDirectory(Path.GetDirectoryName(record.SourcePath)!);
+        var tempPath = record.SourcePath + $".tmp-{Guid.NewGuid():N}";
+        try
+        {
+            File.Copy(record.BackupPath, tempPath, overwrite: false);
+            File.Move(tempPath, record.SourcePath, overwrite: true);
+        }
+        finally
+        {
+            if (File.Exists(tempPath))
+            {
+                File.Delete(tempPath);
+            }
+        }
+
+        log.Add($"[RESTORE] Restored {record.SourcePath}.");
+    }
+
+    private static void RollBackRestore(IReadOnlyList<BackupRecord> records, ICollection<string> log)
+    {
+        foreach (var record in records.Reverse())
+        {
+            RestoreRecord(record, log);
+            log.Add("[ROLLBACK] Reverted a VNAV restore file change.");
+        }
+    }
+
+    private static BackupRecord[] SelectLatestVnavGeneration(
+        AircraftVariantViewAnalysis variant,
+        IReadOnlyList<BackupRecord> records)
+    {
+        var candidates = records
+            .Where(record => (record.Operation is "VnavContentPatch"
+                or "VnavContentPayload"
+                or "VnavContentUninstall"
+                or "VnavContentUninstallPayload")
+                && IsInsideAircraftFolder(variant, record.SourcePath))
+            .ToArray();
+        if (candidates.Length == 0)
+        {
+            return [];
+        }
+
+        var latest = candidates.Max(record => record.CreatedUtc);
+        return candidates
+            .Where(record => record.CreatedUtc == latest)
+            .GroupBy(record => Path.GetFullPath(record.SourcePath), StringComparerForCurrentPlatform())
+            .Select(group => group.Last())
+            .OrderBy(record => record.SourcePath, StringComparerForCurrentPlatform())
+            .ToArray();
+    }
+
+    private static bool IsInsideAircraftFolder(AircraftVariantViewAnalysis variant, string sourcePath)
+    {
+        var aircraftFolder = Path.GetFullPath(Path.GetDirectoryName(variant.AcfPath) ?? "");
+        var sourceFullPath = Path.GetFullPath(sourcePath);
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        return sourceFullPath.Equals(aircraftFolder, comparison)
+            || sourceFullPath.StartsWith(aircraftFolder + Path.DirectorySeparatorChar, comparison);
+    }
+
+    private static StringComparer StringComparerForCurrentPlatform() =>
+        OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
 
     private static void RollBack(Stack<Action> rollbackActions, ICollection<string> log)
     {

@@ -19,7 +19,7 @@ namespace LevelUp.NavTableUpdater.App.ViewModels;
 public partial class MainWindowViewModel : ViewModelBase
 {
     private const string DefaultRestartNotice =
-        "X-Plane must be fully restarted after a real install, update, repair, restore or uninstall.";
+        "Restart X-Plane required: fully close and restart X-Plane before using the changed aircraft.";
 
     private readonly AircraftDetector _detector = new();
     private readonly AircraftInstallAnalyzer _analyzer = new();
@@ -49,6 +49,8 @@ public partial class MainWindowViewModel : ViewModelBase
     private AircraftUpdateDryRunResult? _lastAircraftUpdateDryRun;
     private AircraftAnalysisResult? _lastAircraftAnalysis;
     private CancellationTokenSource? _operationCancellationSource;
+    private Stopwatch? _operationElapsedStopwatch;
+    private DispatcherTimer? _operationElapsedTimer;
     private bool _isInitialized;
 
     [ObservableProperty]
@@ -512,6 +514,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
         finally
         {
+            StopOperationElapsedTimer();
             EndCancellableOperation();
             IsOperationRunning = false;
             ActionsEnabled = true;
@@ -569,6 +572,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
         finally
         {
+            StopOperationElapsedTimer();
             EndCancellableOperation();
             IsOperationRunning = false;
             ActionsEnabled = true;
@@ -588,6 +592,7 @@ public partial class MainWindowViewModel : ViewModelBase
         RestartNoticeVisible = false;
         IsOperationRunning = true;
         ActionsEnabled = false;
+        StartOperationElapsedTimer();
         return BeginCancellableOperation();
     }
 
@@ -663,7 +668,7 @@ public partial class MainWindowViewModel : ViewModelBase
         OperationSubtitle = $"Downloading {missingPackages.Length} required package(s) into the toolkit cache.";
         OperationProgressText = "10% - Downloading and validating package archives";
         RestartNoticeVisible = false;
-        var stopwatch = Stopwatch.StartNew();
+        var stopwatch = StartOperationElapsedTimer();
         var cancellationToken = BeginCancellableOperation();
         RefreshUpstreamActionAvailability($"Downloading {missingPackages.Length} required package(s) into the aircraft update cache.");
         UpstreamFindings.ReplaceWith(["Downloading required aircraft packages. No aircraft files are changed."]);
@@ -715,6 +720,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
         finally
         {
+            StopOperationElapsedTimer();
             EndCancellableOperation();
             IsUpstreamCheckRunning = false;
             ActionsEnabled = true;
@@ -863,13 +869,15 @@ public partial class MainWindowViewModel : ViewModelBase
 
         if (string.Equals(action, "Restore", StringComparison.OrdinalIgnoreCase))
         {
+            var product = AircraftProductIdentity.FromVariant(selectedVariant);
             RunViewMaintenanceAction(
-                "Restore latest backup",
-                "Preparing restore transaction",
-                "Backup restored",
-                "Restore blocked",
+                "Restore VNAV backup",
+                "Preparing VNAV restore transaction",
+                "VNAV backup restored",
+                "VNAV restore blocked",
                 selectedVariant,
-                () => _restoreLatestBackupOperation.Restore(selectedVariant));
+                () => _vnavContentOperation.RestoreLatest(selectedVariant),
+                targetDisplayName: product.DisplayName);
             return;
         }
 
@@ -1140,7 +1148,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
         IsOperationRunning = true;
         ActionsEnabled = false;
-        var stopwatch = Stopwatch.StartNew();
+        var stopwatch = StartOperationElapsedTimer();
         var cancellationToken = BeginCancellableOperation();
         try
         {
@@ -1181,6 +1189,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
         finally
         {
+            StopOperationElapsedTimer();
             EndCancellableOperation();
             IsOperationRunning = false;
             ActionsEnabled = true;
@@ -1235,9 +1244,9 @@ public partial class MainWindowViewModel : ViewModelBase
             string.Join(
                 Environment.NewLine,
                 [
-                    selectedVariant.DisplayName,
-                    $"Target: {CurrentProductAircraftFolderPath()}",
+                    AircraftProductIdentity.FromVariant(selectedVariant).DisplayName,
                     $"Version: {UpstreamLocalVersion} -> {UpstreamAvailableVersion}",
+                    $"Target: {CurrentProductAircraftFolderPath()}",
                     $"Changes: {dryRun.AddCount} add, {dryRun.ReplaceCount} replace, {dryRun.DeleteCount} delete",
                     $"Protected local entries: {dryRun.ProtectedCount + dryRun.LocalLiveryPreservedCount}",
                     "",
@@ -1328,7 +1337,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
         IsOperationRunning = true;
         ActionsEnabled = false;
-        var stopwatch = Stopwatch.StartNew();
+        var stopwatch = StartOperationElapsedTimer();
         try
         {
             var result = _applyDefaultViewOperation.Apply(selectedVariant);
@@ -1369,6 +1378,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
         finally
         {
+            StopOperationElapsedTimer();
             IsOperationRunning = false;
             ActionsEnabled = true;
             var selectedPath = selectedVariant.AcfPath;
@@ -1508,7 +1518,8 @@ public partial class MainWindowViewModel : ViewModelBase
         string blockedTitle,
         AircraftVariantViewAnalysis selectedVariant,
         Func<MaintenanceOperationResult> action,
-        bool showRestartNoticeOnChanged = true)
+        bool showRestartNoticeOnChanged = true,
+        string? targetDisplayName = null)
     {
         OperationPanelVisible = true;
         OperationLog = "";
@@ -1516,13 +1527,13 @@ public partial class MainWindowViewModel : ViewModelBase
         OperationProgress = 0;
         OperationStatus = "Transaction in progress";
         OperationTitle = preparingTitle;
-        OperationSubtitle = $"Preparing transaction for {selectedVariant.DisplayName}.";
+        OperationSubtitle = $"Preparing transaction for {targetDisplayName ?? selectedVariant.DisplayName}.";
         OperationProgressText = "0% - Validating target and X-Plane process state";
         RestartNoticeVisible = false;
 
         IsOperationRunning = true;
         ActionsEnabled = false;
-        var stopwatch = Stopwatch.StartNew();
+        var stopwatch = StartOperationElapsedTimer();
         try
         {
             var result = action();
@@ -1563,6 +1574,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
         finally
         {
+            StopOperationElapsedTimer();
             IsOperationRunning = false;
             ActionsEnabled = true;
             var selectedPath = selectedVariant.AcfPath;
@@ -1589,14 +1601,14 @@ public partial class MainWindowViewModel : ViewModelBase
         OperationProgress = 0;
         OperationStatus = "Transaction in progress";
         OperationTitle = preparingTitle;
-        OperationSubtitle = $"Preparing aircraft package transaction for {selectedVariant.DisplayName}.";
+        OperationSubtitle = $"Preparing aircraft package transaction for {AircraftProductIdentity.FromVariant(selectedVariant).DisplayName}.";
         OperationProgressText = "0% - Validating target, cache, review and X-Plane process state";
         RestartNoticeVisible = false;
         RestartNotice = DefaultRestartNotice;
 
         IsOperationRunning = true;
         ActionsEnabled = false;
-        var stopwatch = Stopwatch.StartNew();
+        var stopwatch = StartOperationElapsedTimer();
         var cancellationToken = canCancelBeforeWrite ? BeginCancellableOperation() : CancellationToken.None;
         MaintenanceOperationResult? operationResult = null;
         var completedVersion = _lastUpstreamUpdateCheck?.AvailableVersionDisplay;
@@ -1651,7 +1663,7 @@ public partial class MainWindowViewModel : ViewModelBase
                         Path.DirectorySeparatorChar,
                         Path.AltDirectorySeparatorChar));
                 OperationSubtitle = $"{result.Message} Installed version: {version}. The existing aircraft folder '{folderName}' was intentionally retained.";
-                RestartNotice = $"LevelUp {version} was installed. The existing aircraft folder name was intentionally retained. Restart X-Plane before using the updated aircraft.";
+                RestartNotice = $"Restart X-Plane required: LevelUp {version} was installed. The existing aircraft folder name was intentionally retained.";
             }
             OperationProgress = result.Succeeded ? 100 : 0;
             OperationProgressText = result.Succeeded
@@ -1690,6 +1702,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
         finally
         {
+            StopOperationElapsedTimer();
             if (canCancelBeforeWrite)
             {
                 EndCancellableOperation();
@@ -1785,8 +1798,8 @@ public partial class MainWindowViewModel : ViewModelBase
                 Environment.NewLine,
                 [
                     aircraftUpdateCompleted
-                        ? $"The aircraft update completed for {selectedVariant.DisplayName}."
-                        : $"VNAV maintenance is available for {selectedVariant.DisplayName} independently of the aircraft package source.",
+                        ? $"The aircraft update completed for {AircraftProductIdentity.FromVariant(selectedVariant).DisplayName}."
+                        : $"VNAV maintenance is available for {AircraftProductIdentity.FromVariant(selectedVariant).DisplayName} independently of the aircraft package source.",
                     $"VNAV status after rescan: {analysis.StateLabel}",
                     $"Recommended action: {action}",
                     "",
@@ -1811,13 +1824,13 @@ public partial class MainWindowViewModel : ViewModelBase
         OperationProgress = 0;
         OperationStatus = "Transaction in progress";
         OperationTitle = $"VNAV {action} - Preparing transaction";
-        OperationSubtitle = $"Preparing manifest transaction for {selectedVariant.DisplayName}.";
+        OperationSubtitle = $"Preparing manifest transaction for {AircraftProductIdentity.FromVariant(selectedVariant).DisplayName}.";
         OperationProgressText = "0% - Validating target, X-Plane process state, manifest and payload source";
         RestartNoticeVisible = false;
 
         IsOperationRunning = true;
         ActionsEnabled = false;
-        var stopwatch = Stopwatch.StartNew();
+        var stopwatch = StartOperationElapsedTimer();
         try
         {
             var manifest = await ResolveManifestForActionAsync(_manifest);
@@ -1860,6 +1873,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
         finally
         {
+            StopOperationElapsedTimer();
             IsOperationRunning = false;
             ActionsEnabled = true;
             var selectedPath = selectedVariant.AcfPath;
@@ -2637,6 +2651,45 @@ public partial class MainWindowViewModel : ViewModelBase
         return elapsed.TotalHours >= 1
             ? elapsed.ToString(@"hh\:mm\:ss")
             : elapsed.ToString(@"mm\:ss") + "s";
+    }
+
+    private Stopwatch StartOperationElapsedTimer()
+    {
+        StopOperationElapsedTimer();
+        OperationElapsed = "00:00s";
+        _operationElapsedStopwatch = Stopwatch.StartNew();
+        _operationElapsedTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(250)
+        };
+        _operationElapsedTimer.Tick += UpdateOperationElapsed;
+        _operationElapsedTimer.Start();
+        return _operationElapsedStopwatch;
+    }
+
+    private void StopOperationElapsedTimer()
+    {
+        if (_operationElapsedTimer is not null)
+        {
+            _operationElapsedTimer.Stop();
+            _operationElapsedTimer.Tick -= UpdateOperationElapsed;
+            _operationElapsedTimer = null;
+        }
+
+        if (_operationElapsedStopwatch is not null)
+        {
+            _operationElapsedStopwatch.Stop();
+            OperationElapsed = FormatElapsed(_operationElapsedStopwatch.Elapsed);
+            _operationElapsedStopwatch = null;
+        }
+    }
+
+    private void UpdateOperationElapsed(object? sender, EventArgs eventArgs)
+    {
+        if (_operationElapsedStopwatch is not null)
+        {
+            OperationElapsed = FormatElapsed(_operationElapsedStopwatch.Elapsed);
+        }
     }
 
     private void ApplyManifest(PackageManifest manifest)

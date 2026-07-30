@@ -82,6 +82,34 @@ public sealed class VnavContentOperationTests
         Assert.Equal(1, Count(script, "pcall(B738_variant_test_take_alt_dist,"));
     }
 
+    [Fact]
+    public async Task RestoreLatest_WhenAnotherVariantIsSelected_RestoresProductGeneration()
+    {
+        using var fixture = VnavFixture.Create(VnavFixture.UnpatchedLua, lineEnding: "\n");
+        var operation = fixture.CreateOperation();
+        var installVariant = fixture.SingleVariant();
+        var secondAcfPath = Path.Combine(fixture.Path, "737_80NG.acf");
+        File.Copy(installVariant.AcfPath, secondAcfPath);
+        var restoreVariant = installVariant with
+        {
+            AircraftId = "levelup-737-800",
+            DisplayName = "LevelUp 737-800",
+            AcfPath = secondAcfPath,
+            PrefsPath = Path.Combine(fixture.Path, "737_80NG_prefs.txt")
+        };
+        await operation.RunAsync(VnavContentAction.Install, installVariant, fixture.Manifest);
+
+        var result = operation.RestoreLatest(restoreVariant);
+
+        Assert.True(result.Succeeded);
+        Assert.True(result.Changed);
+        Assert.DoesNotContain("TEST_VNAV", File.ReadAllText(fixture.TargetScriptPath), StringComparison.Ordinal);
+        Assert.All(fixture.Manifest.Payloads, payload => Assert.False(File.Exists(Path.Combine(fixture.ScriptFolder, payload.FileName))));
+        var productState = Assert.Single(fixture.Store.Load().Aircraft.Values);
+        Assert.Equal("levelup-737ng-series", productState.AircraftId);
+        Assert.Equal("VnavContentRestore", productState.LastOperation);
+    }
+
     private static int Count(string text, string pattern)
     {
         var count = 0;

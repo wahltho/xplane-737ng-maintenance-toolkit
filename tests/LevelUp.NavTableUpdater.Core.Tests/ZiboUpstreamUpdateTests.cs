@@ -553,6 +553,42 @@ public sealed class ZiboUpstreamUpdateTests
     }
 
     [Fact]
+    public void RestoreLatest_WhenAnotherVariantIsSelected_UsesProductBackupState()
+    {
+        using var fixture = AircraftUpdateFixture.Create();
+        var existingPath = Path.Combine(fixture.AircraftPath, "existing.txt");
+        File.WriteAllText(existingPath, "original");
+        var patchPackage = BuildPatchPackage();
+        var patchZip = Path.Combine(fixture.Path, patchPackage.FileName);
+        CreateZip(patchZip, ("existing.txt", "updated"));
+        var cache = new AircraftUpdatePackageCache(Path.Combine(fixture.Path, "cache"));
+        var cachedPatch = cache.ImportZip(patchZip, patchPackage);
+        var store = TestToolStateStore.Create(fixture.Path);
+        var operation = new AircraftUpdateOperation(store, isXPlaneRunning: () => false);
+        var firstVariant = BuildVariant("levelup-737ng", "2.S1", fixture.AcfPath);
+        var secondAcfPath = Path.Combine(fixture.AircraftPath, "737_70NG.acf");
+        File.WriteAllText(secondAcfPath, "");
+        var secondVariant = BuildVariant("levelup-737ng", "2.S1", secondAcfPath) with
+        {
+            AircraftId = "levelup-737-700",
+            DisplayName = "LevelUp 737-700"
+        };
+        var check = BuildUpdateCheck(
+            AircraftUpdatePlanAction.ApplyCumulativePatch,
+            "Apply latest cumulative patch",
+            [patchPackage]);
+
+        operation.Apply(firstVariant, check, [cachedPatch]);
+        var result = operation.RestoreLatest(secondVariant);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal("original", File.ReadAllText(existingPath));
+        var state = Assert.Single(store.Load().Aircraft.Values);
+        Assert.Equal("levelup-737ng-series", state.AircraftId);
+        Assert.Equal("AircraftUpdateRestore", state.LastOperation);
+    }
+
+    [Fact]
     public void Apply_WhenCachedPackageHashChanged_BlocksBeforeWriting()
     {
         using var fixture = AircraftUpdateFixture.Create();

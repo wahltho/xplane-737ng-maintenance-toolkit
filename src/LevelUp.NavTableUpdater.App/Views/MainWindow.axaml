@@ -141,10 +141,14 @@
         <Border Grid.Row="1"
                 Background="{DynamicResource AppWarningBackgroundBrush}"
                 BorderBrush="{DynamicResource AppWarningBorderBrush}"
-                BorderThickness="0,0,0,1"
-                Padding="14,10"
+                BorderThickness="0,0,0,2"
+                Padding="16,12"
                 IsVisible="{Binding RestartNoticeVisible}">
-            <TextBlock Text="{Binding RestartNotice}" Foreground="{DynamicResource AppWarningTextBrush}" FontWeight="SemiBold"/>
+            <TextBlock Text="{Binding RestartNotice}"
+                       Foreground="{DynamicResource AppWarningTextBrush}"
+                       FontSize="15"
+                       FontWeight="Bold"
+                       TextWrapping="Wrap"/>
         </Border>
 
         <TabControl Grid.Row="2" Margin="16">
@@ -349,10 +353,10 @@
                                                         Classes="primary"
                                                         Command="{Binding AdaptQuickViewsForCgCommand}"
                                                         IsEnabled="{Binding CanAdaptQuickViewsForCg}"/>
-                                                <Button Content="Adopt baseline"
+                                                <Button Content="Adopt Current CG as Baseline"
                                                         Command="{Binding AdoptQuickViewBaselineCommand}"
                                                         IsEnabled="{Binding CanAdoptQuickViewBaseline}"/>
-                                                <Button Content="Use QV0 as default"
+                                                <Button Content="Use Quick View 0 as Default Viewpoint"
                                                         Command="{Binding ApplyQv0ToDefaultViewCommand}"
                                                         IsEnabled="{Binding ProductActionsEnabled}"/>
                                             </WrapPanel>

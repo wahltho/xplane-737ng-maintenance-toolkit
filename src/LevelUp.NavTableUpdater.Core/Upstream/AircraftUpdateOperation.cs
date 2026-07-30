@@ -40,9 +40,10 @@ public sealed class AircraftUpdateOperation
         cancellationToken.ThrowIfCancellationRequested();
 
         var aircraftFolder = Path.GetFullPath(Path.GetDirectoryName(variant.AcfPath) ?? "");
+        var product = AircraftProductIdentity.FromVariant(variant);
         var log = new List<string>
         {
-            $"[START] Apply aircraft update for {variant.DisplayName}",
+            $"[START] Apply aircraft update for {product.DisplayName}",
             $"[MODE] {FormatUpdateMode(updateCheck.UpdateMode)}",
             $"[PLAN] {updateCheck.ActionDisplay}: {updateCheck.Summary}"
         };
@@ -175,9 +176,10 @@ public sealed class AircraftUpdateOperation
         ArgumentNullException.ThrowIfNull(variant);
 
         var aircraftFolder = Path.GetFullPath(Path.GetDirectoryName(variant.AcfPath) ?? "");
+        var product = AircraftProductIdentity.FromVariant(variant);
         var log = new List<string>
         {
-            $"[START] Restore latest aircraft update for {variant.DisplayName}"
+            $"[START] Restore latest aircraft update for {product.DisplayName}"
         };
 
         if (_isXPlaneRunning())
@@ -192,18 +194,18 @@ public sealed class AircraftUpdateOperation
             return MaintenanceOperationResult.Blocked("Aircraft folder is missing.", log);
         }
 
-        var target = _stateStore.TryGetTarget(variant);
+        var target = _stateStore.TryGetProductTarget(variant);
         if (target is null)
         {
-            log.Add("[BLOCKED] No toolkit state is recorded for this aircraft variant.");
-            return MaintenanceOperationResult.Blocked("No toolkit state is recorded for this aircraft variant.", log);
+            log.Add("[BLOCKED] No toolkit state is recorded for this aircraft product.");
+            return MaintenanceOperationResult.Blocked("No toolkit state is recorded for this aircraft product.", log);
         }
 
         var restoreRecords = SelectLatestAircraftUpdateGeneration(variant, target.Backups);
         if (restoreRecords.Length == 0)
         {
-            log.Add("[BLOCKED] No aircraft update backup generation is recorded for this aircraft variant.");
-            return MaintenanceOperationResult.Blocked("No aircraft update backup generation is recorded for this aircraft variant.", log);
+            log.Add("[BLOCKED] No aircraft update backup generation is recorded for this aircraft product.");
+            return MaintenanceOperationResult.Blocked("No aircraft update backup generation is recorded for this aircraft product.", log);
         }
 
         var createdUtc = DateTimeOffset.UtcNow;
@@ -222,7 +224,7 @@ public sealed class AircraftUpdateOperation
                 RestorePreImage(record, log);
             }
 
-            _stateStore.UpdateTarget(variant, state =>
+            _stateStore.UpdateProductTarget(variant, state =>
             {
                 state.InstalledAircraftUpdateFamily = null;
                 state.InstalledAircraftUpdateVersion = null;
@@ -358,7 +360,7 @@ public sealed class AircraftUpdateOperation
         var metadata = new AircraftMaintenanceMetadata(
             SchemaVersion: 1,
             AircraftFamily: variant.Family,
-            Variant: variant.AircraftId,
+            Variant: null,
             Distribution: null,
             DistributionVersion: updateCheck.AvailableVersionDisplay,
             UpstreamFamily: updateCheck.Family,
@@ -399,7 +401,7 @@ public sealed class AircraftUpdateOperation
 
         if (existed)
         {
-            backupPath = _stateStore.CreateBackupPath(variant, targetPath, createdUtc, relativePath);
+            backupPath = _stateStore.CreateProductBackupPath(variant, targetPath, createdUtc, relativePath);
             Directory.CreateDirectory(Path.GetDirectoryName(backupPath)!);
             File.Copy(targetPath, backupPath, overwrite: false);
             var info = new FileInfo(targetPath);
@@ -438,7 +440,7 @@ public sealed class AircraftUpdateOperation
 
         var aircraftFolder = Path.GetFullPath(Path.GetDirectoryName(variant.AcfPath) ?? "");
         var relativePath = Path.GetRelativePath(aircraftFolder, restoreRecord.SourcePath);
-        var backupPath = _stateStore.CreateBackupPath(variant, restoreRecord.SourcePath, createdUtc, relativePath);
+        var backupPath = _stateStore.CreateProductBackupPath(variant, restoreRecord.SourcePath, createdUtc, relativePath);
         Directory.CreateDirectory(Path.GetDirectoryName(backupPath)!);
         File.Copy(restoreRecord.SourcePath, backupPath, overwrite: false);
         log.Add($"[BACKUP] Pre-restore image saved at {backupPath}");
@@ -466,7 +468,7 @@ public sealed class AircraftUpdateOperation
         IReadOnlyList<BackupRecord> backups,
         string operation)
     {
-        _stateStore.UpdateTarget(variant, target =>
+        _stateStore.UpdateProductTarget(variant, target =>
         {
             target.InstalledAircraftUpdateFamily = updateCheck.Family;
             target.InstalledAircraftUpdateVersion = updateCheck.AvailableVersionDisplay;
