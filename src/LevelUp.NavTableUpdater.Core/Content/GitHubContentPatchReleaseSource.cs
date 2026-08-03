@@ -221,30 +221,32 @@ public sealed class GitHubContentPatchReleaseSource
                 throw new InvalidDataException($"Release asset size differs from GitHub metadata: {release.AssetName}.");
             }
 
-            await using var input = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-            await using var output = new FileStream(tempPath, FileMode.CreateNew, FileAccess.Write, FileShare.None);
-            using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-            var buffer = new byte[81920];
-            long length = 0;
-            int read;
-            while ((read = await input.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
             {
-                length += read;
-                if (length > MaximumArchiveBytes || length > release.AssetSize)
+                await using var input = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+                await using var output = new FileStream(tempPath, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+                using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+                var buffer = new byte[81920];
+                long length = 0;
+                int read;
+                while ((read = await input.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
                 {
-                    throw new InvalidDataException($"Release asset exceeds its declared size: {release.AssetName}.");
+                    length += read;
+                    if (length > MaximumArchiveBytes || length > release.AssetSize)
+                    {
+                        throw new InvalidDataException($"Release asset exceeds its declared size: {release.AssetName}.");
+                    }
+
+                    hash.AppendData(buffer, 0, read);
+                    await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
                 }
 
-                hash.AppendData(buffer, 0, read);
-                await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
-            }
-
-            await output.FlushAsync(cancellationToken).ConfigureAwait(false);
-            var actualSha256 = Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
-            if (length != release.AssetSize
-                || !actualSha256.Equals(release.AssetSha256, StringComparison.OrdinalIgnoreCase))
-            {
-                throw new InvalidDataException($"Release asset failed size/SHA-256 validation: {release.AssetName}.");
+                await output.FlushAsync(cancellationToken).ConfigureAwait(false);
+                var actualSha256 = Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
+                if (length != release.AssetSize
+                    || !actualSha256.Equals(release.AssetSha256, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidDataException($"Release asset failed size/SHA-256 validation: {release.AssetName}.");
+                }
             }
 
             File.Move(tempPath, destinationPath, overwrite: true);

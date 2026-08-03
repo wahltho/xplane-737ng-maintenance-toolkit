@@ -105,7 +105,10 @@ public sealed class ContentPatchEngineTests
             IsSafe: true,
             "test");
 
-        Assert.ThrowsAny<IOException>(() => engine.Execute(plan, variant));
+        var exception = Record.Exception(() => engine.Execute(plan, variant));
+        Assert.True(
+            exception is IOException or UnauthorizedAccessException,
+            $"Expected a platform file-system exception, but received {exception?.GetType().FullName ?? "no exception"}.");
 
         Assert.Equal("original", File.ReadAllText(firstPath));
         Assert.Empty(store.Load().Aircraft);
