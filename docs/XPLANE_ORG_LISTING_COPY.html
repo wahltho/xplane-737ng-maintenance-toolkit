@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>X-Plane 737NG Maintenance Toolkit - X-Plane.org Listing Copy</title>
+  <style>
+    body {
+      max-width: 960px;
+      margin: 32px auto;
+      padding: 0 24px;
+      color: #202124;
+      background: #ffffff;
+      font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    h1 { font-size: 28px; }
+    h2 { margin-top: 30px; font-size: 22px; }
+    h3 { margin-top: 24px; font-size: 18px; }
+    li { margin: 5px 0; }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    pre { padding: 12px; overflow-x: auto; background: #f4f5f7; }
+  </style>
+</head>
+<body>
+  <h1>X-Plane.org Listing Copy</h1>
+
+  <h2>Title</h2>
+  <p>X-Plane 737NG Maintenance Toolkit</p>
+
+  <h2>Current Version</h2>
+  <p>0.4.0</p>
+
+  <h2>Short Description</h2>
+  <p>Cross-platform maintenance utility for supported Zibo and LevelUp 737NG aircraft in X-Plane 12, providing aircraft and VNAV updates, transactional backups, CG/view correction and optional tool management.</p>
+
+  <h2>Full Description</h2>
+  <p>The X-Plane 737NG Maintenance Toolkit is an independent community application for selected maintenance tasks affecting the Zibo 737-800X and LevelUp 737NG Series.</p>
+  <p>The normal workflow is product-neutral: select or auto-detect an aircraft installation, scan it, review the detected product and use the relevant maintenance action. Before writing files, the Toolkit validates package metadata, hashes and target paths, creates backups, preserves protected local configuration files and rolls back failed transactions where possible.</p>
+  <p>Current functions include:</p>
+  <ul>
+    <li>structural detection of supported Zibo and LevelUp installations</li>
+    <li>support for multiple X-Plane installations and manual folder selection</li>
+    <li>Zibo baseline/cumulative aircraft update planning and package handling</li>
+    <li>LevelUp full/cumulative updates from its authorized public GitHub release index</li>
+    <li>VNAV descent table install, update, repair, restore and uninstall</li>
+    <li>separate backup and restore state for aircraft, VNAV and tool transactions</li>
+    <li>Quick View correction after an aircraft CG change</li>
+    <li>optional correction of a matching X-Camera file</li>
+    <li>use of Quick View 0 as the aircraft default viewpoint</li>
+    <li>configuration backup and restore</li>
+    <li>cancellable download and review before a write transaction begins</li>
+    <li>detailed Advanced log and diagnostic export for support requests</li>
+    <li>automatic operating-system light and dark appearance</li>
+    <li>optional installation, update, repair and restore of supported X-Plane tools</li>
+    <li>stable and beta release channels for supported optional tools</li>
+  </ul>
+  <p>Version 0.4.0 currently offers the following optional tools:</p>
+  <ul>
+    <li>Yet Another Linda (YAL)</li>
+    <li>YAL HoppieHelper</li>
+  </ul>
+  <p>These tools are installed once per X-Plane installation and are available for supported Zibo and LevelUp aircraft. They remain entirely optional.</p>
+  <p>Aircraft packages, VNAV content, optional tools and Toolkit application releases are separate update layers. The app does not distribute a complete modified <code>B738.a_fms.lua</code>; VNAV hooks and authorized payload files are applied locally after validation.</p>
+  <p>This is not an official Laminar Research, Zibo or LevelUp product. It does not replace the aircraft developers' official distribution channels.</p>
+
+  <h2>Compatibility</h2>
+  <ul>
+    <li>X-Plane 12 only</li>
+    <li>Zibo 737-800X 2K and 4K</li>
+    <li>LevelUp 737-600, 737-700, 737-800, 737-900 and 737-900ER</li>
+    <li>Windows x64</li>
+    <li>macOS arm64 (Apple silicon)</li>
+    <li>Linux x64</li>
+  </ul>
+  <p>X-Plane 11 is not supported.</p>
+
+  <h2>Download</h2>
+  <p>Download the latest stable build and select the normal-use artifact for your platform:</p>
+  <p><a href="https://github.com/wahltho/xplane-737ng-maintenance-toolkit/releases/latest">https://github.com/wahltho/xplane-737ng-maintenance-toolkit/releases/latest</a></p>
+  <ul>
+    <li>Windows: <code>XPlane737NGMaintenanceToolkit-stable-win-x64-Setup.exe</code>, or the Windows portable ZIP</li>
+    <li>macOS Apple silicon: <code>XPlane737NGMaintenanceToolkit-stable-osx-arm64-Setup.pkg</code>, or the macOS portable ZIP</li>
+    <li>Linux x64: <code>XPlane737NGMaintenanceToolkit-stable-linux-x64.AppImage</code></li>
+  </ul>
+  <p>Do not download the <code>.nupkg</code>, <code>RELEASES-*</code> or <code>assets.*.json</code> files for a normal manual installation. Those assets are VeloPack release metadata.</p>
+
+  <h2>Installation</h2>
+  <h3>Windows</h3>
+  <ol>
+    <li>Run the Setup EXE, or extract the portable ZIP.</li>
+    <li>Start <code>XPlane737NGMaintenanceToolkit</code>.</li>
+  </ol>
+  <h3>macOS Apple silicon</h3>
+  <ol>
+    <li>Run the Setup PKG, or extract the portable ZIP.</li>
+    <li>Start the Toolkit application.</li>
+  </ol>
+  <h3>Linux x64</h3>
+  <ol>
+    <li>Download the AppImage.</li>
+    <li>Make it executable and start it:</li>
+  </ol>
+  <pre><code>chmod +x XPlane737NGMaintenanceToolkit-stable-linux-x64.AppImage
+./XPlane737NGMaintenanceToolkit-stable-linux-x64.AppImage</code></pre>
+  <p>The current builds are unsigned. Windows may display a SmartScreen warning, macOS may block the unsigned and non-notarized build, and the Linux AppImage is not separately signed.</p>
+  <p>Verify the download against <code>SHA256SUMS.txt</code> on the release page. If a verified macOS download is blocked, try to open it once, then use Apple's documented Privacy &amp; Security "Open Anyway" process:</p>
+  <p><a href="https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac">https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac</a></p>
+  <p>Version 0.4.0 does not automatically check for or install newer Toolkit versions. Download future app releases manually from the GitHub release page.</p>
+
+  <h2>First Use</h2>
+  <ol>
+    <li>Close X-Plane completely.</li>
+    <li>Start the Toolkit.</li>
+    <li>Click <code>Auto-detect</code>, or browse to an X-Plane, <code>Aircraft</code>, Zibo or LevelUp folder.</li>
+    <li>Select the required detected product when more than one is available.</li>
+    <li>Click <code>Scan selected folder</code>.</li>
+    <li>Review the displayed product and version state.</li>
+    <li>Use <code>Update</code> and read each confirmation before applying changes.</li>
+  </ol>
+  <p>The Toolkit blocks modifying actions while X-Plane is running. Restart X-Plane fully after an install, update, repair, restore or uninstall.</p>
+
+  <h2>Documentation And Support</h2>
+  <p>User manual:</p>
+  <p><a href="https://github.com/wahltho/xplane-737ng-maintenance-toolkit/blob/main/docs/USER_MANUAL.md">https://github.com/wahltho/xplane-737ng-maintenance-toolkit/blob/main/docs/USER_MANUAL.md</a></p>
+  <p>Source code and issue tracker:</p>
+  <p><a href="https://github.com/wahltho/xplane-737ng-maintenance-toolkit">https://github.com/wahltho/xplane-737ng-maintenance-toolkit</a></p>
+  <p><a href="https://github.com/wahltho/xplane-737ng-maintenance-toolkit/issues">https://github.com/wahltho/xplane-737ng-maintenance-toolkit/issues</a></p>
+  <p>When reporting a problem, use <code>Dump to file</code> on the Advanced tab and attach the exported operation log. Do not upload complete copyrighted aircraft files.</p>
+
+  <h2>License And Disclaimer</h2>
+  <p>The Toolkit source code is available under the MIT License. The application is provided as-is, without warranty of any kind. It can modify aircraft files after validation and backup; users should retain their own backups and use the tool at their own risk.</p>
+
+  <h2>Changelog</h2>
+  <h3>0.4.0</h3>
+  <ul>
+    <li>Added a product-gated Tools workflow for YAL and YAL HoppieHelper.</li>
+    <li>Added independent Stable and Beta channels with verified GitHub Release manifests, archives and payload hashes.</li>
+    <li>Added transactional tool install, update, repair and guarded restore while preserving manifest-declared user data and local unowned files.</li>
+    <li>Added a generic transactional content-patch engine while retaining the existing managed VNAV workflow for Zibo and LevelUp.</li>
+    <li>Added a trusted product-scoped package catalog without advertising an optional aircraft patch in this release.</li>
+  </ul>
+  <h3>0.3.10</h3>
+  <ul>
+    <li>Added clear completion dialogs for aircraft update and restore operations.</li>
+    <li>Added explicit blocked-operation feedback when X-Plane is running.</li>
+    <li>Improved final update status and installed-version reporting.</li>
+  </ul>
+  <h3>0.3.9</h3>
+  <ul>
+    <li>Corrected product-wide LevelUp update state and backup naming.</li>
+    <li>Improved update progress reporting and product-level confirmation text.</li>
+    <li>Clarified CG/view maintenance controls.</li>
+  </ul>
+  <h3>0.3.8</h3>
+  <ul>
+    <li>Corrected offline LevelUp package import and version detection.</li>
+    <li>Improved compatibility with the LevelUp manifest/archive package workflow.</li>
+  </ul>
+
+  <h2>Suggested X-Plane.org Tags</h2>
+  <p>X-Plane 12, Utilities, Zibo, LevelUp, 737NG, Updater, VNAV</p>
+</body>
+</html>
