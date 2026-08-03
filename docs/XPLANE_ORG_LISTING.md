@@ -6,7 +6,7 @@ X-Plane 737NG Maintenance Toolkit
 
 ## Current Version
 
-0.3.10
+0.4.0
 
 ## Short Description
 
@@ -40,6 +40,9 @@ Current functions include:
 - optional correction of a matching X-Camera file
 - use of Quick View 0 as the aircraft default viewpoint
 - configuration backup and restore
+- optional YAL and YAL HoppieHelper install, update, repair and restore for
+  compatible Zibo and LevelUp installations
+- independent Stable and Beta release channels for each optional tool
 - cancellable download and review before a write transaction begins
 - detailed Advanced log and export for support requests
 - operating-system light and dark appearance
@@ -109,7 +112,7 @@ Verify the download against `SHA256SUMS.txt` on the release page. If a verified
 macOS download is blocked, try to open it once, then use Apple's documented
 [Privacy & Security "Open Anyway" process](https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac).
 
-Version 0.3.10 does not automatically check for or install newer Toolkit
+Version 0.4.0 does not automatically check for or install newer Toolkit
 versions. Download future app releases manually from the GitHub release page.
 
 ## First Use
@@ -149,6 +152,18 @@ validation and backup; users should retain their own backups and use the tool at
 their own risk.
 
 ## Changelog
+
+### 0.4.0
+
+- Added a product-gated Tools workflow for YAL and YAL HoppieHelper.
+- Added independent Stable and Beta channels with verified GitHub Release
+  manifests, archives and payload hashes.
+- Added transactional tool install, update, repair and guarded restore while
+  preserving manifest-declared user data and local unowned files.
+- Added a generic transactional content-patch engine while retaining the
+  existing managed VNAV workflow for Zibo and LevelUp.
+- Added a trusted product-scoped package catalog without advertising an
+  optional aircraft patch in this release.
 
 ### 0.3.10
 

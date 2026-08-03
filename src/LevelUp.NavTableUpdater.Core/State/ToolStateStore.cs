@@ -48,7 +48,9 @@ public sealed class ToolStateStore
         }
 
         var json = File.ReadAllText(StatePath, Encoding.UTF8);
-        return JsonSerializer.Deserialize<ToolStateDocument>(json, JsonOptions) ?? new ToolStateDocument();
+        var document = JsonSerializer.Deserialize<ToolStateDocument>(json, JsonOptions) ?? new ToolStateDocument();
+        Normalize(document);
+        return document;
     }
 
     public void Save(ToolStateDocument document)
@@ -87,6 +89,65 @@ public sealed class ToolStateStore
     {
         var document = Load();
         return document.Aircraft.GetValueOrDefault(TargetKey(variant.AcfPath));
+    }
+
+    public ContentInstallationToolState? TryGetContentInstallation(string aircraftFolder)
+    {
+        var document = Load();
+        return document.ContentInstallations.GetValueOrDefault(PathKey(aircraftFolder));
+    }
+
+    public ToolInstallationState? TryGetToolInstallation(string xPlaneRoot, string packageId)
+    {
+        var document = Load();
+        return document.ToolInstallations.GetValueOrDefault(ToolKey(xPlaneRoot, packageId));
+    }
+
+    public void UpdateToolInstallation(string xPlaneRoot, string packageId, Action<ToolInstallationState> update)
+    {
+        var document = Load();
+        var fullRoot = Path.GetFullPath(xPlaneRoot);
+        var key = ToolKey(fullRoot, packageId);
+        if (!document.ToolInstallations.TryGetValue(key, out var installation))
+        {
+            installation = new ToolInstallationState
+            {
+                XPlaneRoot = fullRoot,
+                PackageId = packageId
+            };
+            document.ToolInstallations[key] = installation;
+        }
+
+        update(installation);
+        Save(document);
+    }
+
+    public string CreateToolBackupDirectory(string xPlaneRoot, string packageId, DateTimeOffset createdUtc)
+    {
+        var rootKey = ToolPathKey(xPlaneRoot)[..16];
+        var stamp = createdUtc.UtcDateTime.ToString("yyyyMMddTHHmmssfffZ");
+        return Path.Combine(
+            BackupRootPath,
+            "tools",
+            SanitizePathPart(packageId),
+            rootKey,
+            stamp);
+    }
+
+    public void UpdateContentInstallation(string aircraftFolder, Action<ContentInstallationToolState> update)
+    {
+        var document = Load();
+        var fullPath = Path.GetFullPath(aircraftFolder);
+        var key = PathKey(fullPath);
+        if (!document.ContentInstallations.TryGetValue(key, out var target))
+        {
+            target = new ContentInstallationToolState();
+            document.ContentInstallations[key] = target;
+        }
+
+        target.AircraftFolder = fullPath;
+        update(target);
+        Save(document);
     }
 
     public void UpdateTarget(AircraftVariantViewAnalysis variant, Action<AircraftToolState> update)
@@ -142,8 +203,7 @@ public sealed class ToolStateStore
 
     private static string TargetKey(string acfPath)
     {
-        var normalized = Path.GetFullPath(acfPath).ToUpperInvariant();
-        return HashKey(normalized);
+        return PathKey(acfPath);
     }
 
     private static string ProductTargetKey(AircraftVariantViewAnalysis variant)
@@ -156,6 +216,28 @@ public sealed class ToolStateStore
     private static string HashKey(string value)
     {
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(value));
+        return Convert.ToHexString(bytes).ToLowerInvariant();
+    }
+
+    private static string ToolKey(string xPlaneRoot, string packageId) =>
+        $"{ToolPathKey(xPlaneRoot)}:{packageId}";
+
+    private static string ToolPathKey(string path)
+    {
+        var normalized = Path.GetFullPath(path);
+        if (OperatingSystem.IsWindows() || OperatingSystem.IsMacOS())
+        {
+            normalized = normalized.ToUpperInvariant();
+        }
+
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(normalized));
+        return Convert.ToHexString(bytes).ToLowerInvariant();
+    }
+
+    private static string PathKey(string path)
+    {
+        var normalized = Path.GetFullPath(path).ToUpperInvariant();
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(normalized));
         return Convert.ToHexString(bytes).ToLowerInvariant();
     }
 
@@ -312,4 +394,67 @@ public sealed class ToolStateStore
         Path.GetFullPath(string.IsNullOrWhiteSpace(backupRootPath)
             ? DefaultBackupRootPath
             : backupRootPath);
+
+    private static void Normalize(ToolStateDocument document)
+    {
+        document.Aircraft ??= new Dictionary<string, AircraftToolState>(StringComparer.Ordinal);
+        document.ContentInstallations ??= new Dictionary<string, ContentInstallationToolState>(StringComparer.Ordinal);
+        document.ToolInstallations ??= new Dictionary<string, ToolInstallationState>(StringComparer.Ordinal);
+        foreach (var installation in document.ContentInstallations.Values)
+        {
+            installation.ContentComponents ??= new Dictionary<string, ContentComponentState>(StringComparer.Ordinal);
+            installation.Backups ??= [];
+        }
+
+        foreach (var target in document.Aircraft.Values)
+        {
+            target.ContentComponents ??= new Dictionary<string, ContentComponentState>(StringComparer.Ordinal);
+            target.Backups ??= [];
+            target.LastAircraftUpdatePackages ??= [];
+            if (!string.IsNullOrWhiteSpace(target.InstalledContentPackageId)
+                && !target.ContentComponents.ContainsKey(target.InstalledContentPackageId))
+            {
+                target.ContentComponents[target.InstalledContentPackageId] = new ContentComponentState
+                {
+                    ComponentId = target.InstalledContentPackageId,
+                    PackageVersion = target.InstalledContentPackageVersion ?? "",
+                    InstalledUtc = target.LastContentOperationUtc ?? DateTimeOffset.MinValue,
+                    LastOperationUtc = target.LastContentOperationUtc ?? DateTimeOffset.MinValue,
+                    LastOperation = target.LastOperation ?? "LegacyContentState"
+                };
+            }
+
+            if (!string.IsNullOrWhiteSpace(target.AircraftFolder) && target.ContentComponents.Count > 0)
+            {
+                var key = PathKey(target.AircraftFolder);
+                if (!document.ContentInstallations.TryGetValue(key, out var installation))
+                {
+                    installation = new ContentInstallationToolState
+                    {
+                        AircraftFolder = Path.GetFullPath(target.AircraftFolder)
+                    };
+                    document.ContentInstallations[key] = installation;
+                }
+
+                foreach (var component in target.ContentComponents)
+                {
+                    installation.ContentComponents.TryAdd(component.Key, component.Value);
+                }
+            }
+        }
+
+
+        foreach (var tool in document.ToolInstallations.Values)
+        {
+            tool.InstalledFiles ??= [];
+            tool.ProtectedPaths ??= [];
+            tool.Backups ??= [];
+            foreach (var backup in tool.Backups)
+            {
+                backup.InstalledFiles ??= [];
+            }
+        }
+
+        document.SchemaVersion = Math.Max(document.SchemaVersion, 3);
+    }
 }

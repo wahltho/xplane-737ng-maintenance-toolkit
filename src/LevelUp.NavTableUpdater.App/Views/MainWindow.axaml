@@ -4,6 +4,7 @@
         xmlns:core="using:LevelUp.NavTableUpdater.Core"
         xmlns:analysis="using:LevelUp.NavTableUpdater.Core.Analysis"
         xmlns:aircraft="using:LevelUp.NavTableUpdater.Core.Aircraft"
+        xmlns:content="using:LevelUp.NavTableUpdater.Core.Content"
         xmlns:upstream="using:LevelUp.NavTableUpdater.Core.Upstream"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -220,7 +221,7 @@
                                     </StackPanel>
                                 </Border>
 
-                                <Grid RowDefinitions="Auto,Auto" RowSpacing="12">
+                                <Grid RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="12">
                                     <Border Classes="task-card">
                                         <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="14">
                                             <StackPanel Spacing="4">
@@ -301,7 +302,162 @@
                                         </Grid>
                                     </Border>
 
-                                    <Border Grid.Row="1" Classes="task-card">
+                                    <Border Grid.Row="1"
+                                            Classes="task-card"
+                                            IsVisible="{Binding ContentPackageOverviewVisible}">
+                                        <Grid RowDefinitions="Auto,Auto,*" RowSpacing="12">
+                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                                                <StackPanel Spacing="4">
+                                                <TextBlock Text="Components &amp; Aircraft Patches" FontSize="18" FontWeight="SemiBold"/>
+                                                    <TextBlock Text="Packages are filtered for the selected product. Optional patches are never installed automatically."
+                                                               Foreground="{DynamicResource AppTextSecondaryBrush}"
+                                                               TextWrapping="Wrap"/>
+                                                </StackPanel>
+                                                <Button Grid.Column="1"
+                                                        Content="Check releases"
+                                                        Command="{Binding CheckContentPackageCatalogCommand}"
+                                                        IsEnabled="{Binding CanCheckContentPackageCatalog}"
+                                                        VerticalAlignment="Top"/>
+                                            </Grid>
+
+                                            <TextBlock Grid.Row="1"
+                                                       Text="{Binding ContentPackageCatalogStatus}"
+                                                       Foreground="{DynamicResource AppTextSecondaryBrush}"
+                                                       TextWrapping="Wrap"/>
+
+                                            <ItemsControl Grid.Row="2" ItemsSource="{Binding AvailableContentPackages}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:AvailableContentPackageStatus">
+                                                        <Border BorderBrush="{DynamicResource AppBorderBrush}"
+                                                                BorderThickness="0,1,0,0"
+                                                                Padding="0,12">
+                                                            <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="7">
+                                                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                                                                    <StackPanel Spacing="2">
+                                                                        <TextBlock Text="{Binding DisplayName}" FontSize="15" FontWeight="SemiBold"/>
+                                                                        <TextBlock Text="{Binding CategoryLabel}" Classes="label"/>
+                                                                    </StackPanel>
+                                                                    <WrapPanel Grid.Column="1" ItemSpacing="8" LineSpacing="8" VerticalAlignment="Center">
+                                                                        <TextBlock Text="Managed in Updates"
+                                                                                   Foreground="{DynamicResource AppTextSecondaryBrush}"
+                                                                                   VerticalAlignment="Center"
+                                                                                   IsVisible="{Binding IsManaged}"/>
+                                                                        <Button Content="Review"
+                                                                                Click="ReviewCatalogPatch_Click"
+                                                                                IsEnabled="{Binding CanAct}"
+                                                                                IsVisible="{Binding IsOptional}"/>
+                                                                        <Button Content="{Binding ActionLabel}"
+                                                                                Classes="primary"
+                                                                                Click="ApplyCatalogPatch_Click"
+                                                                                IsEnabled="{Binding CanAct}"
+                                                                                IsVisible="{Binding IsOptional}"/>
+                                                                    </WrapPanel>
+                                                                </Grid>
+                                                                <TextBlock Grid.Row="1"
+                                                                           Text="{Binding Description}"
+                                                                           Foreground="{DynamicResource AppTextSecondaryBrush}"
+                                                                           TextWrapping="Wrap"/>
+                                                                <Grid Grid.Row="2" ColumnDefinitions="Auto,Auto,*" ColumnSpacing="18">
+                                                                    <StackPanel Spacing="2">
+                                                                        <TextBlock Classes="label" Text="Installed"/>
+                                                                        <TextBlock Text="{Binding InstalledVersion}" FontWeight="SemiBold"/>
+                                                                    </StackPanel>
+                                                                    <StackPanel Grid.Column="1" Spacing="2">
+                                                                        <TextBlock Classes="label" Text="Available"/>
+                                                                        <TextBlock Text="{Binding AvailableVersion}" FontWeight="SemiBold"/>
+                                                                    </StackPanel>
+                                                                    <StackPanel Grid.Column="2" Spacing="2">
+                                                                        <TextBlock Classes="label" Text="Status"/>
+                                                                        <TextBlock Text="{Binding Status}" TextWrapping="Wrap"/>
+                                                                    </StackPanel>
+                                                                </Grid>
+                                                            </Grid>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </Grid>
+                                    </Border>
+
+                                    <Border Grid.Row="2"
+                                            Classes="task-card"
+                                            IsVisible="{Binding ToolPackageVisible}">
+                                        <Grid RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="12">
+                                            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="16">
+                                                <StackPanel Spacing="4">
+                                                    <TextBlock Text="Tools" FontSize="18" FontWeight="SemiBold"/>
+                                                    <TextBlock Text="Optional tools installed once per X-Plane installation and offered only for compatible detected products."
+                                                               Foreground="{DynamicResource AppTextSecondaryBrush}"
+                                                               TextWrapping="Wrap"/>
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1" Spacing="3" MinWidth="130">
+                                                    <TextBlock Classes="label" Text="Tool"/>
+                                                    <ComboBox ItemsSource="{Binding AvailableToolPackages}"
+                                                              SelectedItem="{Binding SelectedToolPackage}"
+                                                              MinWidth="190">
+                                                        <ComboBox.ItemTemplate>
+                                                            <DataTemplate x:DataType="content:ContentPackageCatalogEntry">
+                                                                <TextBlock Text="{Binding DisplayName}"/>
+                                                            </DataTemplate>
+                                                        </ComboBox.ItemTemplate>
+                                                    </ComboBox>
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="2" Spacing="3" MinWidth="130">
+                                                    <TextBlock Classes="label" Text="Release channel"/>
+                                                    <ComboBox ItemsSource="{Binding ToolReleaseChannelOptions}"
+                                                              SelectedItem="{Binding SelectedToolReleaseChannel}"/>
+                                                </StackPanel>
+                                            </Grid>
+
+                                            <StackPanel Grid.Row="1" Spacing="3">
+                                                <TextBlock Text="{Binding ToolPackageName}" FontSize="15" FontWeight="SemiBold"/>
+                                                <TextBlock Text="{Binding ToolPackageDescription}"
+                                                           Foreground="{DynamicResource AppTextSecondaryBrush}"
+                                                           TextWrapping="Wrap"/>
+                                            </StackPanel>
+
+                                            <Grid Grid.Row="2" ColumnDefinitions="Auto,Auto,*" ColumnSpacing="22">
+                                                <StackPanel Spacing="2">
+                                                    <TextBlock Classes="label" Text="Installed"/>
+                                                    <TextBlock Text="{Binding ToolInstalledVersion}" FontWeight="SemiBold"/>
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1" Spacing="2">
+                                                    <TextBlock Classes="label" Text="Available"/>
+                                                    <TextBlock Text="{Binding ToolAvailableVersion}" FontWeight="SemiBold"/>
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="2" Spacing="2">
+                                                    <TextBlock Classes="label" Text="Status"/>
+                                                    <TextBlock Text="{Binding ToolPackageStatus}" TextWrapping="Wrap"/>
+                                                </StackPanel>
+                                            </Grid>
+
+                                            <Grid Grid.Row="3" ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                                <StackPanel Spacing="3">
+                                                    <TextBlock Classes="label" Text="X-Plane installation"/>
+                                                    <TextBlock Classes="path" Text="{Binding ToolXPlaneRoot}"/>
+                                                    <TextBlock Classes="label" Text="Tool target" Margin="0,5,0,0"/>
+                                                    <TextBlock Classes="path" Text="{Binding ToolTargetPath}"/>
+                                                </StackPanel>
+                                                <WrapPanel Grid.Column="1"
+                                                           ItemSpacing="8"
+                                                           LineSpacing="8"
+                                                           VerticalAlignment="Bottom">
+                                                    <Button Content="Check release"
+                                                            Command="{Binding CheckToolReleaseCommand}"
+                                                            IsEnabled="{Binding CanCheckToolRelease}"/>
+                                                    <Button Content="{Binding ToolActionLabel}"
+                                                            Classes="primary"
+                                                            Command="{Binding RunToolPackageCommand}"
+                                                            IsEnabled="{Binding CanRunToolPackage}"/>
+                                                    <Button Content="Restore"
+                                                            Command="{Binding RestoreToolPackageCommand}"
+                                                            IsEnabled="{Binding CanRestoreToolPackage}"/>
+                                                </WrapPanel>
+                                            </Grid>
+                                        </Grid>
+                                    </Border>
+
+                                    <Border Grid.Row="3" Classes="task-card">
                                         <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="12">
                                             <StackPanel Spacing="4">
                                                 <TextBlock Text="Views After CG Change" FontSize="18" FontWeight="SemiBold"/>
@@ -438,6 +594,39 @@
                             <Button Grid.Column="1" Content="Dump to file" Command="{Binding ExportLogCommand}"/>
                             <Button Grid.Column="2" Content="Clear" Command="{Binding ClearLogCommand}"/>
                         </Grid>
+
+                        <Border Classes="card">
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                                <StackPanel Spacing="7">
+                                    <TextBlock Text="Optional Patches" FontSize="16" FontWeight="SemiBold"/>
+                                    <TextBlock Text="{Binding OptionalPatchName}" FontWeight="SemiBold"/>
+                                    <TextBlock Text="{Binding OptionalPatchStatus}"
+                                               Foreground="{DynamicResource AppTextSecondaryBrush}"
+                                               TextWrapping="Wrap"/>
+                                    <Border Classes="path-display">
+                                        <TextBlock Classes="path" Text="{Binding OptionalPatchPackagePath}"/>
+                                    </Border>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Spacing="8" VerticalAlignment="Bottom">
+                                    <Button Content="Select package" Click="BrowseOptionalPatchPackage_Click" IsEnabled="{Binding ActionsEnabled}"/>
+                                    <Button Content="Review"
+                                            Command="{Binding ReviewOptionalPatchCommand}"
+                                            IsEnabled="{Binding CanRunOptionalPatch}"/>
+                                    <Button Content="Install / update"
+                                            Command="{Binding RunOptionalPatchActionCommand}"
+                                            CommandParameter="Update"
+                                            IsEnabled="{Binding CanRunOptionalPatch}"/>
+                                    <Button Content="Repair"
+                                            Command="{Binding RunOptionalPatchActionCommand}"
+                                            CommandParameter="Repair"
+                                            IsEnabled="{Binding CanRunOptionalPatch}"/>
+                                    <Button Content="Uninstall"
+                                            Command="{Binding RunOptionalPatchActionCommand}"
+                                            CommandParameter="Uninstall"
+                                            IsEnabled="{Binding CanRunOptionalPatch}"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
 
                         <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
                             <Border Classes="card">
@@ -717,7 +906,7 @@
                                 <TextBlock Text="Package Sources" FontSize="16" FontWeight="SemiBold"/>
 
                                 <StackPanel Spacing="6">
-                                    <TextBlock Classes="label" Text="Aircraft update package cache folder"/>
+                                    <TextBlock Classes="label" Text="Downloaded package cache folder"/>
                                     <Border Classes="path-display">
                                         <TextBlock Classes="path" Text="{Binding AircraftUpdateCacheRootPath}"/>
                                     </Border>

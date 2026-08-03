@@ -18,6 +18,7 @@ public sealed class ToolkitSettingsStoreTests : IDisposable
         Assert.False(string.IsNullOrWhiteSpace(settings.AircraftUpdateCacheRootPath));
         Assert.False(string.IsNullOrWhiteSpace(settings.OfflinePackageRootPath));
         Assert.False(string.IsNullOrWhiteSpace(settings.DiagnosticsExportRootPath));
+        Assert.Empty(settings.ToolReleaseChannels);
     }
 
     [Fact]
@@ -36,7 +37,11 @@ public sealed class ToolkitSettingsStoreTests : IDisposable
             BackupRootPath = backupRoot,
             AircraftUpdateCacheRootPath = cacheRoot,
             OfflinePackageRootPath = packagesRoot,
-            DiagnosticsExportRootPath = diagnosticsRoot
+            DiagnosticsExportRootPath = diagnosticsRoot,
+            ToolReleaseChannels = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["wahltho.yal"] = "beta"
+            }
         });
 
         var settings = store.Load();
@@ -45,6 +50,7 @@ public sealed class ToolkitSettingsStoreTests : IDisposable
         Assert.Equal(Path.GetFullPath(cacheRoot), settings.AircraftUpdateCacheRootPath);
         Assert.Equal(Path.GetFullPath(packagesRoot), settings.OfflinePackageRootPath);
         Assert.Equal(Path.GetFullPath(diagnosticsRoot), settings.DiagnosticsExportRootPath);
+        Assert.Equal("beta", settings.ToolReleaseChannels["wahltho.yal"]);
         Assert.True(File.Exists(store.SettingsPath));
     }
 

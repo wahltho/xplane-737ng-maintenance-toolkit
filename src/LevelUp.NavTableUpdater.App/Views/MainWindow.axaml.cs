@@ -80,7 +80,7 @@ public partial class MainWindow : Window
     {
         var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
         {
-            Title = "Select aircraft update package cache folder",
+            Title = "Select downloaded package cache folder",
             AllowMultiple = false
         });
 
@@ -106,6 +106,44 @@ public partial class MainWindow : Window
         }
 
         viewModel.SetOfflinePackageRootPathFromBrowse(folders[0].Path.LocalPath);
+    }
+
+    private async void BrowseOptionalPatchPackage_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = "Select optional declarative patch package",
+            AllowMultiple = false
+        });
+
+        if (folders.Count == 0 || DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
+        viewModel.SetOptionalPatchPackagePathFromBrowse(folders[0].Path.LocalPath);
+    }
+
+    private async void ReviewCatalogPatch_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (sender is not Avalonia.Controls.Button { DataContext: AvailableContentPackageStatus item }
+            || DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
+        await viewModel.ReviewCatalogPatchAsync(item);
+    }
+
+    private async void ApplyCatalogPatch_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (sender is not Avalonia.Controls.Button { DataContext: AvailableContentPackageStatus item }
+            || DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
+        await viewModel.ApplyCatalogPatchAsync(item);
     }
 
     private async void BrowseDiagnosticsExportRoot_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)

@@ -1,13 +1,13 @@
 # X-Plane 737NG Maintenance Toolkit
 
 Cross-platform desktop app for Zibo and LevelUp 737NG maintenance tasks. It
-installs and maintains VNAV descent table packages and provides conservative
-view-maintenance utilities for supported aircraft variants.
+manages aircraft and VNAV packages, explicit optional patches, X-Plane-wide
+tools and conservative view maintenance for supported aircraft variants.
 
 This repository is the public development home for the app. The architecture
 keeps package content, aircraft patching, and application updates separate.
 
-Current public release: **0.3.10**
+Release version: **0.4.0**
 
 - [Download the latest stable release](https://github.com/wahltho/xplane-737ng-maintenance-toolkit/releases/latest)
 - [Read the user manual](docs/USER_MANUAL.md)
@@ -57,7 +57,7 @@ verified macOS download is blocked, follow Apple's documented
 [Privacy & Security "Open Anyway" process](https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac).
 
 Download future app releases manually from GitHub. VeloPack currently provides
-the application package and lifecycle integration; version 0.3.10 does not yet
+the application package and lifecycle integration; version 0.4.0 does not yet
 check for or download new Toolkit versions automatically. Aircraft and VNAV
 content updates are separate and can be checked from inside the app.
 
@@ -103,6 +103,28 @@ Current capabilities:
   preferences, camera CSVs, cfg files and toolkit metadata.
 - It can install, update, repair and uninstall manifest-owned VNAV Lua hooks and
   payload files after validation and backup.
+- It supports explicit optional schema-v2 patch packages through the same
+  transaction engine. Optional packages are never folded into the automatic
+  aircraft/VNAV update flow and require a separate user confirmation.
+- It ships a versioned trusted package catalog. The Start page filters managed
+  content and optional patches by the selected Zibo or LevelUp product. Trusted
+  optional entries can resolve their latest stable GitHub Release directly;
+  manual package-folder selection remains an Advanced fallback.
+- It offers optional X-Plane-wide tools for compatible detected products. YAL
+  is available for Zibo and LevelUp at `Resources/plugins/YAL`; YAL HoppieHelper
+  is also available for both products at `Resources/plugins/YAL_HoppieHelper`,
+  matching its published release manifest.
+- Tool Stable and Beta channels are selected independently per tool and from app
+  and aircraft updates. Release manifests, GitHub asset digests, archives and every
+  payload SHA-256 must agree before install, update or repair.
+- Tool updates preserve manifest-declared configuration and output paths plus
+  local unowned files, create generation backups and provide guarded restore.
+- GitHub optional-package archives are selected by an explicit asset pattern,
+  checked against GitHub's published size and SHA-256 digest, and safely
+  reduced to the declared manifest and payload files in the local cache.
+- Declarative optional packages may use only built-in exact-text, OBJ8,
+  bounded sparse-byte and PNG-region operations. Downloaded packages cannot
+  execute scripts inside the toolkit.
 - It can restore the latest recorded backup generation for the selected
   aircraft variant.
 - Before a VNAV write action it tries to refresh `package-manifest.txt` and
@@ -134,8 +156,9 @@ Current capabilities:
 - The UI follows the operating system's light or dark appearance.
 
 Review remains available for planned changes before write actions. Real write
-actions are limited to manifest-owned VNAV content, view-maintenance files and
-explicitly applied cached aircraft update packages. For Zibo, direct ZIP
+actions are limited to manifest-owned VNAV content, explicitly selected
+declarative patch packages, view-maintenance files and explicitly applied
+cached aircraft update packages. For Zibo, direct ZIP
 download is attempted from the feed source URL and from a `.zip` candidate when
 the feed exposes `.zip.torrent` links. LevelUp uses explicit GitHub Release
 assets described by its public release index. Manual import remains the fallback
@@ -179,6 +202,12 @@ Release assets remain the preferred package source for normal use.
 - Avalonia UI.
 - VeloPack SDK startup hook via `VelopackApp.Build().Run()`.
 - Manifest-driven package support for LevelUp and Zibo VNAV content.
+- Generic transactional content-patch engine with managed VNAV and explicit
+  opt-in lifecycle policies.
+- Product-scoped trusted content catalog with secure GitHub Release package
+  provisioning for optional declarative patches.
+- Product-gated, X-Plane-wide tool packages with separate Stable/Beta release
+  channels and transactional install/update/repair/restore.
 - Aircraft detection and install-state analysis.
 - Real backup-backed View Utility operations.
 - VeloPack packaging workflow.

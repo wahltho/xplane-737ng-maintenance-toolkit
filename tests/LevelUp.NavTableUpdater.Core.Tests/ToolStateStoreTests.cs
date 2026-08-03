@@ -127,6 +127,24 @@ public sealed class ToolStateStoreTests
             && state.Backups.Count == 1);
     }
 
+    [Fact]
+    public void ToolInstallationState_IsSeparatedByXPlaneRootAndPackage()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"xplane-737ng-state-tests-{Guid.NewGuid():N}");
+        var store = new ToolStateStore(Path.Combine(root, "state"), Path.Combine(root, "backups"));
+        var firstXPlane = Path.Combine(root, "xp-one");
+        var secondXPlane = Path.Combine(root, "xp-two");
+        Directory.CreateDirectory(firstXPlane);
+        Directory.CreateDirectory(secondXPlane);
+
+        store.UpdateToolInstallation(firstXPlane, "wahltho.yal", state => state.InstalledVersion = "4.7");
+        store.UpdateToolInstallation(secondXPlane, "wahltho.yal", state => state.InstalledVersion = "4.8-beta.1");
+
+        Assert.Equal("4.7", store.TryGetToolInstallation(firstXPlane, "wahltho.yal")?.InstalledVersion);
+        Assert.Equal("4.8-beta.1", store.TryGetToolInstallation(secondXPlane, "wahltho.yal")?.InstalledVersion);
+        Assert.Equal(3, store.Load().SchemaVersion);
+    }
+
     private static AircraftVariantViewAnalysis CreateVariant(
         string root,
         string aircraftId = "zibo-737-800x",

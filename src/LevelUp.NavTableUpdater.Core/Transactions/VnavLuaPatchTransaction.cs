@@ -5,6 +5,25 @@ namespace LevelUp.NavTableUpdater.Core.Transactions;
 
 internal static class VnavLuaPatchTransaction
 {
+    public static (byte[] Bytes, VnavLuaPatchSummary Summary) PrepareApply(
+        byte[] targetScriptBytes,
+        PackageManifest manifest,
+        IReadOnlyDictionary<string, PackagePayload> payloads)
+    {
+        var result = RewriteApply(TextDocument.Read(targetScriptBytes), manifest, payloads);
+        ValidateMarkedInstall(result.Document, manifest);
+        return (result.Document.ToBytes(), result.Summary);
+    }
+
+    public static (byte[] Bytes, VnavLuaPatchSummary Summary) PrepareUninstall(
+        byte[] targetScriptBytes,
+        PackageManifest manifest)
+    {
+        var result = RewriteUninstall(TextDocument.Read(targetScriptBytes), manifest);
+        ValidateUninstalled(result.Document, manifest);
+        return (result.Document.ToBytes(), result.Summary);
+    }
+
     public static VnavLuaPatchSummary Apply(
         string targetScriptPath,
         PackageManifest manifest,
@@ -159,7 +178,12 @@ internal static class VnavLuaPatchTransaction
 
     private static void ValidateMarkedInstall(string path, PackageManifest manifest)
     {
-        var lines = TextDocument.Read(path).Lines;
+        ValidateMarkedInstall(TextDocument.Read(path), manifest);
+    }
+
+    private static void ValidateMarkedInstall(TextDocument document, PackageManifest manifest)
+    {
+        var lines = document.Lines;
         foreach (var operation in manifest.PatchOperations)
         {
             var beginCount = CountContaining(lines, operation.BeginMarker);
@@ -173,7 +197,12 @@ internal static class VnavLuaPatchTransaction
 
     private static void ValidateUninstalled(string path, PackageManifest manifest)
     {
-        var lines = TextDocument.Read(path).Lines;
+        ValidateUninstalled(TextDocument.Read(path), manifest);
+    }
+
+    private static void ValidateUninstalled(TextDocument document, PackageManifest manifest)
+    {
+        var lines = document.Lines;
         foreach (var operation in manifest.PatchOperations)
         {
             var beginCount = CountContaining(lines, operation.BeginMarker);

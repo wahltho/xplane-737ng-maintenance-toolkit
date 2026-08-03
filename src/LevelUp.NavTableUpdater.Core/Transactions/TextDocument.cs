@@ -16,7 +16,11 @@ internal sealed class TextDocument
 
     public static TextDocument Read(string path)
     {
-        var bytes = File.ReadAllBytes(path);
+        return Read(File.ReadAllBytes(path));
+    }
+
+    public static TextDocument Read(byte[] bytes)
+    {
         var hasBom = bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF;
         var offset = hasBom ? 3 : 0;
         var text = Encoding.UTF8.GetString(bytes, offset, bytes.Length - offset);
@@ -25,8 +29,13 @@ internal sealed class TextDocument
 
     public void Write(string path)
     {
-        var encoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: HasUtf8Bom);
-        File.WriteAllText(path, string.Concat(Lines.Select(line => line.Body + line.Ending)), encoding);
+        File.WriteAllBytes(path, ToBytes());
+    }
+
+    public byte[] ToBytes()
+    {
+        var content = new UTF8Encoding(false).GetBytes(string.Concat(Lines.Select(line => line.Body + line.Ending)));
+        return HasUtf8Bom ? [0xEF, 0xBB, 0xBF, .. content] : content;
     }
 
     public TextDocument WithLines(IReadOnlyList<TextLine> lines) => new(lines, HasUtf8Bom);

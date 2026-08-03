@@ -58,7 +58,8 @@ public sealed class ToolkitSettingsStore
             BackupRootPath = ToolkitPaths.DefaultBackupRootPath,
             AircraftUpdateCacheRootPath = ToolkitPaths.DefaultAircraftUpdateCacheRootPath,
             OfflinePackageRootPath = ToolkitPaths.DefaultOfflinePackageRootPath,
-            DiagnosticsExportRootPath = ToolkitPaths.DefaultDiagnosticsExportRootPath
+            DiagnosticsExportRootPath = ToolkitPaths.DefaultDiagnosticsExportRootPath,
+            ToolReleaseChannels = new Dictionary<string, string>(StringComparer.Ordinal)
         };
 
     private static ToolkitSettingsDocument Normalize(ToolkitSettingsDocument document)
@@ -69,6 +70,20 @@ public sealed class ToolkitSettingsStore
         document.AircraftUpdateCacheRootPath = NormalizePath(document.AircraftUpdateCacheRootPath, ToolkitPaths.DefaultAircraftUpdateCacheRootPath);
         document.OfflinePackageRootPath = NormalizePath(document.OfflinePackageRootPath, ToolkitPaths.DefaultOfflinePackageRootPath);
         document.DiagnosticsExportRootPath = NormalizePath(document.DiagnosticsExportRootPath, ToolkitPaths.DefaultDiagnosticsExportRootPath);
+        document.ToolReleaseChannels ??= new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var packageId in document.ToolReleaseChannels.Keys.ToArray())
+        {
+            var channel = document.ToolReleaseChannels[packageId].Trim().ToLowerInvariant();
+            if (channel is not "stable" and not "beta")
+            {
+                document.ToolReleaseChannels.Remove(packageId);
+            }
+            else
+            {
+                document.ToolReleaseChannels[packageId] = channel;
+            }
+        }
+
         return document;
     }
 

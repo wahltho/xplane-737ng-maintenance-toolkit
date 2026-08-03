@@ -28,7 +28,10 @@ public sealed class VnavContentOperationTests
         var target = Assert.Single(fixture.Store.Load().Aircraft.Values);
         Assert.Equal("x-plane-test-vnav", target.InstalledContentPackageId);
         Assert.Equal("v1.0.0", target.InstalledContentPackageVersion);
-        Assert.Contains(target.Backups, backup => backup.Operation == "VnavContentPatch");
+        Assert.Contains(target.Backups, backup => backup.Operation == "ContentPatchInstall");
+        var component = Assert.Single(fixture.Store.Load().ContentInstallations.Values).ContentComponents.Values.Single();
+        Assert.Equal("x-plane-test-vnav", component.ComponentId);
+        Assert.Equal("v1.0.0", component.PackageVersion);
     }
 
     [Fact]
@@ -99,7 +102,7 @@ public sealed class VnavContentOperationTests
         };
         await operation.RunAsync(VnavContentAction.Install, installVariant, fixture.Manifest);
 
-        var result = operation.RestoreLatest(restoreVariant);
+        var result = operation.RestoreLatest(restoreVariant, fixture.Manifest);
 
         Assert.True(result.Succeeded);
         Assert.True(result.Changed);

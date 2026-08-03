@@ -1,7 +1,6 @@
 # X-Plane 737NG Maintenance Toolkit User Manual
 
-This manual describes the current public release of the X-Plane 737NG Maintenance
-Toolkit, version 0.3.10.
+This manual describes version 0.4.0 of the X-Plane 737NG Maintenance Toolkit.
 
 The toolkit is a desktop app for selected Zibo and LevelUp 737NG maintenance
 tasks:
@@ -10,6 +9,8 @@ tasks:
 - Quick View and default-view maintenance after aircraft CG changes.
 - Config backup and config restore for supported aircraft preference files.
 - Zibo and LevelUp aircraft package check, cache, review, apply and restore.
+- Optional X-Plane-wide tool install, update, repair and restore for supported
+  Zibo and LevelUp installations.
 
 The app does not replace X-Plane, Zibo, LevelUp or their official installers.
 It works on a selected local aircraft folder and writes only after validation,
@@ -26,7 +27,7 @@ Keep your own backups and use the tool at your own risk.
 
 ## Compatibility And Installation
 
-Version 0.3.10 supports:
+Version 0.4.0 supports:
 
 - X-Plane 12. X-Plane 11 is not supported.
 - Zibo 737-800X 2K and 4K variants.
@@ -68,7 +69,7 @@ verified macOS download is blocked, try to open it once, then follow Apple's
 documented [Privacy & Security "Open Anyway" process](https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac).
 
 Download future Toolkit releases manually from GitHub. VeloPack provides the
-application package and lifecycle integration, but version 0.3.10 does not yet
+application package and lifecycle integration, but version 0.4.0 does not yet
 check for or download new Toolkit versions automatically. This is separate from
 aircraft-package and VNAV-content updates performed inside the app.
 
@@ -117,10 +118,11 @@ The status areas on the `Start` tab show:
 
 ### Start
 
-This is the normal user workflow. It contains product selection and two
-maintenance cards for the selected product:
+This is the normal user workflow. It contains product selection and the
+following maintenance cards for the selected product:
 
 - `Updates`
+- `Tools`
 - `Views After CG Change`
 
 Zibo and LevelUp aircraft are treated as equal 737NG targets. The app enables
@@ -152,6 +154,44 @@ remain separate confirmed transactions with separate backup and restore state.
 VNAV content writes are limited to the manifest-owned Lua blocks and payload
 files. The app never distributes or writes a complete modified
 `B738.a_fms.lua`.
+
+When an optional package is explicitly listed in a future trusted catalog, an
+additional `Components & Aircraft Patches` card appears for compatible
+products. `Check releases` queries its latest stable GitHub Release. `Review`
+downloads and validates the selected release into the configured package cache,
+then calculates its file plan without changing the aircraft. `Install`,
+`Update` or `Repair` prepares the same verified package and still asks for an
+explicit confirmation before writing files. Version 0.4.0 does not advertise a
+bundled optional aircraft patch, so this card remains hidden.
+
+The `Tools` card is also product-gated, but its target is the containing X-Plane
+installation rather than the selected aircraft folder. Select the tool first:
+
+- `Yet Another Linda` (YAL) supports Zibo and LevelUp and is managed at
+  `Resources/plugins/YAL`.
+- `YAL HoppieHelper` supports Zibo and LevelUp, as declared by its published
+  release manifest, and is managed at `Resources/plugins/YAL_HoppieHelper`.
+
+If compatible products share the same X-Plane root, the app manages one copy of
+each selected tool for that installation.
+
+Choose `stable` for normal use or `beta` for an explicitly published tool
+prerelease, then click `Check release`. The selection is stored separately for
+each tool. The app reads the matching GitHub
+Release and verifies the manifest asset, archive size/SHA-256, exact archive
+file set and every payload hash. No `main` branch archive or GitHub source ZIP
+is used. Depending on local state, the primary action becomes `Install`,
+`Update` or `Repair` and always asks for confirmation before changing files.
+If the installed version is newer than the selected channel release, the app
+labels the action as an explicit channel switch rather than an update.
+
+Before replacement, the complete existing tool directory is backed up. Any
+manifest-protected paths and local files not owned by the release manifest are
+preserved. For YAL this includes `configuration.ini`, `wprefs.ini` and the
+`data/output` tree. `Restore`
+requires a recorded generation and stops if package-owned files changed after
+the last managed operation. Close X-Plane before all write and restore actions;
+restart it fully afterward.
 
 The `Views After CG Change` card contains view and configuration maintenance for
 the selected aircraft variant.
@@ -198,6 +238,18 @@ that normal users should not need for routine operation.
 `Review VNAV changes` calculates planned changes without writing files.
 Advanced VNAV actions such as `Install`, `Repair` and `Uninstall` are kept here
 instead of on the main `Start` page.
+
+The `Optional Patches` card is the Advanced manual/offline fallback. It accepts
+a folder containing a schema-v2 `package-manifest.json`. Selecting a package
+validates the manifest and all payload hashes. `Review` generates the complete
+file plan without writing files. `Install / update`, `Repair` and `Uninstall`
+always require a separate confirmation and use their own multi-file backup and
+rollback transaction.
+
+Optional patches are not part of the normal aircraft update button and are not
+offered automatically after an aircraft update. The 0.4.0 catalog does not
+advertise a concrete optional aircraft patch. VNAV tables retain their managed
+post-aircraft-update prompt.
 
 Use `Dump to file` to export the visible install and operation logs into the
 configured diagnostics export folder. If users need support, this is the file
@@ -309,15 +361,17 @@ normalized and tested for write access before saving.
 
 The selected aircraft folder is also stored in `settings.json` and is restored
 when the app starts. On Linux, the toolkit data folder follows
-`$XDG_CONFIG_HOME` or `~/.config`; the aircraft update ZIP cache follows
+`$XDG_CONFIG_HOME` or `~/.config`; the downloaded package cache follows
 `$XDG_CACHE_HOME` or `~/.cache`.
 
 Available settings:
 
 - `Backup folder`: stores real backup data and restore records. Do not delete
   this folder casually.
-- `Aircraft update package cache folder`: stores downloaded or imported
-  upstream aircraft update packages. This can be cleared and recreated.
+- `Downloaded package cache folder`: stores downloaded or imported upstream
+  aircraft update packages, verified optional content-package archives and
+  verified tool releases in separate subdirectories. This can be cleared and
+  recreated.
 - `Offline VNAV package folder`: optional local source for VNAV manifest
   payload files.
 - `Diagnostics export folder`: target folder reserved for diagnostic exports.
@@ -325,8 +379,8 @@ Available settings:
 Changing the backup folder affects future backups. Existing restore records
 keep their original absolute backup paths.
 
-`Clear Cache` removes the current aircraft update ZIP cache contents. It does
-not delete aircraft files and does not delete backups.
+`Clear Cache` removes the current aircraft, optional-package and tool-package
+cache contents. It does not delete installed files or backups.
 
 The log can be cleared from the `Advanced` tab. Clearing the visible log does not
 delete backup files or state records.
@@ -339,6 +393,19 @@ The app follows these safety rules for modifying operations:
 - The selected aircraft must be structurally recognized.
 - VNAV hooks are applied only when manifest markers and anchors are safe.
 - Required VNAV payload files must match manifest size and SHA-256.
+- Optional patch manifests and payloads must match schema, size and SHA-256.
+- Trusted optional package releases must match the bundled product catalog,
+  GitHub asset name pattern, published asset size and SHA-256 digest.
+- Optional ZIP extraction rejects traversal, symbolic links, case collisions,
+  duplicate manifests and oversized archives, and keeps only manifest-declared
+  payload files.
+- Optional packages can invoke only the toolkit's allowlisted declarative
+  operation handlers; package-provided scripts are never executed.
+- Optional targets require a supported source SHA-256 unless an allowlisted
+  handler explicitly performs structural source validation. Hashless exact-text
+  patches require every declared old or installed block exactly once.
+- Patch target paths cannot escape the aircraft root or traverse nested
+  symbolic links.
 - Aircraft update ZIP paths must stay inside the selected aircraft folder.
 - Protected local preference/config files are not overwritten by aircraft
   update ZIPs.
@@ -413,7 +480,7 @@ attempted and exported log. Do not upload complete copyrighted aircraft files.
 
 - App builds are unsigned releases.
 - macOS builds are not notarized.
-- Version 0.3.10 does not automatically check for or install new Toolkit
+- Version 0.4.0 does not automatically check for or install new Toolkit
   versions. Download newer app releases manually from GitHub.
 - Zibo upstream ZIPs are verified against the local cache snapshot, not an
   official upstream hash manifest.

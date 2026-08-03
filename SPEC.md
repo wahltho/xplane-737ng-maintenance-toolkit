@@ -54,10 +54,15 @@ There are two separate update layers.
 A shared release process is possible, but technical ownership must remain
 separated.
 
+Aircraft packages, explicit optional patches and X-Plane-wide tool packages are
+additional independent maintenance streams inside the external-content layer.
+They retain their own versions, manifests, sources and transaction state and do
+not become VeloPack app updates.
+
 ## Initial Scope
 
-The first public app should stay deliberately small, but the current beta scope
-already spans four clearly separated tool areas:
+The first public app should stay deliberately small, but the current scope
+already spans five clearly separated tool areas:
 
 - Single-page desktop app.
 - Auto-detect Zibo and LevelUp aircraft folders.
@@ -79,6 +84,8 @@ already spans four clearly separated tool areas:
 - Default-view update from Quick View 0.
 - Zibo upstream package review, import/download into cache, dry-run, apply and
   restore.
+- Product-gated X-Plane-wide tool packages with separate per-tool Stable/Beta
+  channels, currently YAL and YAL HoppieHelper for Zibo and LevelUp.
 - Separate settings for backup data, aircraft update ZIP cache, offline VNAV
   package source and diagnostics export target.
 - Simple install log.
@@ -107,6 +114,41 @@ Suggested module boundaries:
 - Patch engine.
 - Backup/restore/state store.
 - VeloPack app-update integration.
+
+The content layer uses one generic transaction engine. Package adapters build
+file plans; the engine owns path validation, backups, temporary writes,
+verification, rollback and installation state. The existing VNAV v1 manifest
+is adapted to this engine without changing its user workflow.
+
+Schema-v2 targets normally declare exact source SHA-256 values. A target may
+omit them only when its allowlisted handler explicitly validates the source
+structure. The initial exception is `exact-text-replacements-v1`, which
+requires every declared old or installed block exactly once. Binary, PNG and
+OBJ operations remain source-hash gated.
+
+Lifecycle policy is separate from technical patch operations:
+
+- VNAV tables are `Managed` and may be offered after an aircraft update.
+- Optional declarative packages are `ExplicitOptIn` and `Manual` only.
+- A package manifest cannot promote itself into an automatic workflow.
+- Optional tools are `ExplicitOptIn`, product-gated and never folded into an
+  aircraft, VNAV or VeloPack app update transaction.
+
+A bundled versioned content catalog is the trust root for discoverable
+packages. Each entry declares a stable package ID, explicit supported product
+IDs, lifecycle, source repository and distribution type. The catalog, not a
+downloaded package, decides whether a component is managed or optional.
+
+Tool packages use a separate distribution contract. Their trusted catalog entry
+declares `installScope: xPlaneInstallation`, a fixed target such as
+`Resources/plugins/YAL`, an optional version marker, supported products and
+supported release channels. A
+tool is shown only after Zibo or LevelUp is structurally detected, but it is
+installed once per resolved X-Plane root rather than once per aircraft or
+variant. The downloaded schema-v1 tool manifest must match the catalog identity,
+GitHub release tag, channel, repository, products, target and lifecycle flags.
+The archive and every file are size/SHA-256 verified and undeclared files or
+links are rejected.
 
 ## UI Flow
 
@@ -151,20 +193,51 @@ UI is organized as a target selector plus tabs.
 - Planned changes.
 - Install / Update / Repair / Restore / Uninstall actions.
 
-### 6. Activity
+### 6. Tools
+
+- Show optional tools only for compatible, detected products.
+- Allow selecting among multiple compatible tools without conflating their state.
+- Resolve the containing X-Plane root from the selected product path.
+- Keep Stable and Beta channels independent per tool and persist each selection.
+- Show installed and available version, verification state and exact global
+  target path.
+- Offer explicit check, install/update/repair and guarded restore actions.
+- Preserve manifest-declared user configuration/output paths and local files
+  not owned by the package.
+- Never install a second copy when Zibo and LevelUp share an X-Plane root.
+
+### 7. Activity
 
 - Show current write/restore transaction progress.
 - Show elapsed time and transaction console.
 
-### 7. Settings
+### Optional Patches
+
+- Show product-compatible optional packages in a dedicated Start-page overview,
+  outside the main aircraft/VNAV update action.
+- Keep manual schema-v2 package-folder import in Advanced as an offline and
+  development fallback.
+- Load a schema-v2 `package-manifest.json` and hash-validated JSON payloads.
+- Resolve trusted online entries only from their configured stable GitHub
+  Release and uniquely matched release asset.
+- Verify GitHub asset size and SHA-256 digest before safe extraction of only the
+  manifest and its declared payloads.
+- Offer review, install/update and repair from the catalog; keep uninstall in
+  Advanced.
+- Require a confirmation before every optional write or uninstall.
+- Never execute package-provided code.
+
+### 8. Settings
 
 - Configure backup root.
-- Configure aircraft update ZIP cache root.
+- Configure the shared downloaded-package cache root. Aircraft, optional patch
+  and tool packages use separate subdirectories below it.
 - Configure offline VNAV package root.
 - Configure diagnostics export root.
 - Show toolkit data, state and settings file paths.
+- Persist selected tool release channels separately from app/content channels.
 
-### 8. Logs
+### 9. Logs
 
 - Show session log.
 - Allow clearing the visible log without deleting state or backups.
@@ -215,6 +288,10 @@ must be classified as partially installed or repair-required.
 - Never overwrite unknown user/third-party changes.
 - Marker and anchor matches must be unique.
 - No patching if anchors are missing or duplicated.
+- Generic schema-v2 targets must use a registered built-in operation handler.
+- Target and payload paths must be relative, contained and free of nested
+  symbolic-link traversal.
+- Multi-file plans must be fully generated and verified before the first write.
 - No duplicate hook blocks.
 - Preserve LF/CRLF line endings.
 - Preserve file permissions where possible.
@@ -275,6 +352,7 @@ It should describe:
 - Release tag.
 - Release channel.
 - Source repository.
+- Explicit supported product IDs such as `zibo-737ng` and `levelup-737ng`.
 - Supported aircraft.
 - Supported X-Plane versions.
 - Target paths.

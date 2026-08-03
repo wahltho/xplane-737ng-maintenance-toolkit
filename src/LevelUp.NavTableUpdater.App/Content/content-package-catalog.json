@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "catalogVersion": "1.0.0",
+  "packages": [
+    {
+      "packageId": "x-plane-zibo-vnav-descent-tables",
+      "displayName": "VNAV descent tables",
+      "description": "Variant-aware VNAV descent table payloads and Lua hooks for Zibo 737-800X.",
+      "category": "managedContent",
+      "activation": "managed",
+      "supportedProducts": ["zibo-737ng"],
+      "repositoryUrl": "https://github.com/wahltho/X-Plane-ZIBO-Descent-Tables",
+      "restartRequired": true,
+      "distribution": {
+        "kind": "existingVnav"
+      }
+    },
+    {
+      "packageId": "x-plane-levelup-737ng-vnav-descent-tables",
+      "displayName": "VNAV descent tables",
+      "description": "Variant-aware VNAV descent table payloads and Lua hooks for LevelUp 737NG.",
+      "category": "managedContent",
+      "activation": "managed",
+      "supportedProducts": ["levelup-737ng"],
+      "repositoryUrl": "https://github.com/JT8D-17/X-Plane-LevelUp-737NG-Descent-Tables",
+      "restartRequired": true,
+      "distribution": {
+        "kind": "existingVnav"
+      }
+    },
+    {
+      "packageId": "wahltho.yal",
+      "displayName": "Yet Another Linda",
+      "description": "Virtual copilot and maintenance assistant for supported Zibo and LevelUp 737NG aircraft.",
+      "category": "tool",
+      "activation": "explicitOptIn",
+      "supportedProducts": ["zibo-737ng", "levelup-737ng"],
+      "repositoryUrl": "https://github.com/wahltho/YAL",
+      "restartRequired": true,
+      "installScope": "xPlaneInstallation",
+      "targetPath": "Resources/plugins/YAL",
+      "versionMarkerPath": "data/modules/configuration/version.ini",
+      "supportedChannels": ["stable", "beta"],
+      "distribution": {
+        "kind": "gitHubToolRelease",
+        "manifestAssetNamePattern": "YAL-*-manifest.json",
+        "manifestSchemaVersion": 1
+      }
+    },
+    {
+      "packageId": "wahltho.yal-hoppiehelper",
+      "displayName": "YAL HoppieHelper",
+      "description": "Optional Hoppie ACARS connectivity plugin for supported Zibo and LevelUp aircraft.",
+      "category": "tool",
+      "activation": "explicitOptIn",
+      "supportedProducts": ["zibo-737ng", "levelup-737ng"],
+      "repositoryUrl": "https://github.com/wahltho/YAL-Hoppie-Helper",
+      "restartRequired": true,
+      "installScope": "xPlaneInstallation",
+      "targetPath": "Resources/plugins/YAL_HoppieHelper",
+      "supportedChannels": ["stable", "beta"],
+      "distribution": {
+        "kind": "gitHubToolRelease",
+        "manifestAssetNamePattern": "YAL-HoppieHelper-*-manifest.json",
+        "manifestSchemaVersion": 1
+      }
+    }
+  ]
+}

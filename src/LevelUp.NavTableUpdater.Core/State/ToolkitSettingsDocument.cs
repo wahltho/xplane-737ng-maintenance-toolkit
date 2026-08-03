@@ -13,4 +13,6 @@ public sealed class ToolkitSettingsDocument
     public string OfflinePackageRootPath { get; set; } = "";
 
     public string DiagnosticsExportRootPath { get; set; } = "";
+
+    public Dictionary<string, string> ToolReleaseChannels { get; set; } = new(StringComparer.Ordinal);
 }
