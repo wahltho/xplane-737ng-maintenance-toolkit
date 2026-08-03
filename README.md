@@ -7,8 +7,73 @@ view-maintenance utilities for supported aircraft variants.
 This repository is the public development home for the app. The architecture
 keeps package content, aircraft patching, and application updates separate.
 
+Current public release: **0.3.10**
+
+- [Download the latest stable release](https://github.com/wahltho/xplane-737ng-maintenance-toolkit/releases/latest)
+- [Read the user manual](docs/USER_MANUAL.md)
+- [Use the prepared X-Plane.org listing](docs/XPLANE_ORG_LISTING.md)
+
+## Compatibility
+
+- X-Plane 12. X-Plane 11 is not supported.
+- Zibo 737-800X 2K and 4K variants.
+- LevelUp 737-600, 737-700, 737-800, 737-900 and 737-900ER.
+- Windows x64.
+- macOS arm64 (Apple silicon).
+- Linux x64.
+
+Aircraft detection is structural. A folder name alone is not accepted as proof
+of a supported installation.
+
+## Download And Installation
+
+Choose one normal-use artifact from the
+[latest GitHub Release](https://github.com/wahltho/xplane-737ng-maintenance-toolkit/releases/latest):
+
+| Platform | Recommended artifact | Portable alternative |
+| --- | --- | --- |
+| Windows x64 | `XPlane737NGMaintenanceToolkit-stable-win-x64-Setup.exe` | `XPlane737NGMaintenanceToolkit-stable-win-x64-Portable.zip` |
+| macOS arm64 | `XPlane737NGMaintenanceToolkit-stable-osx-arm64-Setup.pkg` | `XPlane737NGMaintenanceToolkit-stable-osx-arm64-Portable.zip` |
+| Linux x64 | `XPlane737NGMaintenanceToolkit-stable-linux-x64.AppImage` | None |
+
+On Windows or macOS, run the setup package or extract the portable ZIP and start
+the app from the extracted folder. On Linux, make the AppImage executable and
+run it:
+
+```bash
+chmod +x XPlane737NGMaintenanceToolkit-stable-linux-x64.AppImage
+./XPlane737NGMaintenanceToolkit-stable-linux-x64.AppImage
+```
+
 Current public packages are unsigned. Platform signing and notarization belong
 to the release policy for later signed distribution.
+
+- Windows may display a SmartScreen warning.
+- macOS may block the unsigned, non-notarized build.
+- Linux AppImage builds are not separately signed.
+
+Verify downloaded artifacts against `SHA256SUMS.txt` on the release page. If a
+verified macOS download is blocked, follow Apple's documented
+[Privacy & Security "Open Anyway" process](https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac).
+
+Download future app releases manually from GitHub. VeloPack currently provides
+the application package and lifecycle integration; version 0.3.10 does not yet
+check for or download new Toolkit versions automatically. Aircraft and VNAV
+content updates are separate and can be checked from inside the app.
+
+## First Use
+
+1. Close X-Plane.
+2. Start the Toolkit and use `Auto-detect`, or browse to an X-Plane, `Aircraft`,
+   Zibo or LevelUp folder.
+3. Select the required detected product when more than one is available.
+4. Click `Scan selected folder`.
+5. Use the main `Update` action and review each confirmation before files are
+   changed.
+
+The `Advanced` tab contains detailed review, recovery and diagnostic controls.
+The `Settings` tab contains backup, cache, offline-package and diagnostics
+directories.
 
 ## Disclaimer
 
@@ -76,19 +141,19 @@ the feed exposes `.zip.torrent` links. LevelUp uses explicit GitHub Release
 assets described by its public release index. Manual import remains the fallback
 when a source is unavailable.
 
-## Build
+## Development Build
 
 ```bash
 dotnet build LevelUp.NavTableUpdater.slnx
 ```
 
-## Test
+## Development Test
 
 ```bash
 dotnet test tests/LevelUp.NavTableUpdater.Core.Tests/LevelUp.NavTableUpdater.Core.Tests.csproj
 ```
 
-## Run
+## Development Run
 
 ```bash
 dotnet run --project src/LevelUp.NavTableUpdater.App/LevelUp.NavTableUpdater.App.csproj
@@ -127,6 +192,11 @@ The app references the `Velopack` NuGet package and calls
 `VelopackApp.Build().Run()` at the start of `Program.Main`, before Avalonia is
 initialized. That is the required application-side hook for install/update
 lifecycle handling.
+
+The current public app does not yet create an `UpdateManager` or perform an
+automatic app release check. Users install newer Toolkit versions manually.
+This is separate from the aircraft-package and VNAV-content update sources used
+inside the app.
 
 Packaging is available through the manual VeloPack GitHub Actions workflow.
 The workflow produces Windows, macOS and Linux VeloPack artifacts for the

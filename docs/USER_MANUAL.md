@@ -1,7 +1,7 @@
 # X-Plane 737NG Maintenance Toolkit User Manual
 
 This manual describes the current public release of the X-Plane 737NG Maintenance
-Toolkit.
+Toolkit, version 0.3.10.
 
 The toolkit is a desktop app for selected Zibo and LevelUp 737NG maintenance
 tasks:
@@ -24,6 +24,54 @@ product unless explicitly stated otherwise.
 The toolkit can modify aircraft installation files after validation and backup.
 Keep your own backups and use the tool at your own risk.
 
+## Compatibility And Installation
+
+Version 0.3.10 supports:
+
+- X-Plane 12. X-Plane 11 is not supported.
+- Zibo 737-800X 2K and 4K variants.
+- LevelUp 737-600, 737-700, 737-800, 737-900 and 737-900ER.
+- Windows x64.
+- macOS arm64 (Apple silicon).
+- Linux x64.
+
+Download the current stable release from:
+
+https://github.com/wahltho/xplane-737ng-maintenance-toolkit/releases/latest
+
+Choose one normal-use artifact for the target platform:
+
+| Platform | Recommended artifact | Portable alternative |
+| --- | --- | --- |
+| Windows x64 | `XPlane737NGMaintenanceToolkit-stable-win-x64-Setup.exe` | `XPlane737NGMaintenanceToolkit-stable-win-x64-Portable.zip` |
+| macOS arm64 | `XPlane737NGMaintenanceToolkit-stable-osx-arm64-Setup.pkg` | `XPlane737NGMaintenanceToolkit-stable-osx-arm64-Portable.zip` |
+| Linux x64 | `XPlane737NGMaintenanceToolkit-stable-linux-x64.AppImage` | None |
+
+On Windows or macOS, run the setup package or extract the portable ZIP and start
+the app from the extracted folder. On Linux, make the AppImage executable before
+starting it:
+
+```bash
+chmod +x XPlane737NGMaintenanceToolkit-stable-linux-x64.AppImage
+./XPlane737NGMaintenanceToolkit-stable-linux-x64.AppImage
+```
+
+Current release builds are unsigned:
+
+- Windows may show a SmartScreen warning.
+- macOS builds are unsigned and not notarized, so macOS may block the first
+  launch.
+- Linux AppImage builds are not separately signed.
+
+Verify downloaded artifacts against `SHA256SUMS.txt` on the release page. If a
+verified macOS download is blocked, try to open it once, then follow Apple's
+documented [Privacy & Security "Open Anyway" process](https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac).
+
+Download future Toolkit releases manually from GitHub. VeloPack provides the
+application package and lifecycle integration, but version 0.3.10 does not yet
+check for or download new Toolkit versions automatically. This is separate from
+aircraft-package and VNAV-content updates performed inside the app.
+
 ## Before You Start
 
 Close X-Plane before using any action that changes files. The app detects a
@@ -32,15 +80,6 @@ running X-Plane process and blocks write actions when X-Plane is open.
 After every real install, update, repair, restore or uninstall, restart
 X-Plane fully. Reloading Lua, reloading the aircraft or reloading plugins is
 not treated as enough.
-
-Current release builds are unsigned:
-
-- Windows may show a SmartScreen warning.
-- macOS builds are not notarized.
-- Linux AppImage builds are not separately signed.
-
-Use the released setup, package or portable artifact for your platform from
-the GitHub Release page.
 
 ## Selecting An Aircraft
 
@@ -117,14 +156,19 @@ files. The app never distributes or writes a complete modified
 The `Views After CG Change` card contains view and configuration maintenance for
 the selected aircraft variant.
 
-`Adapt Quick Views` adjusts X-Plane quick-view positions after an aircraft CG
-change. The app reads the ACF CG values in feet and the quick-view positions in
-meters, then applies the required conversion internally. A matching
-`X-Camera_<acf-stem>.csv` file is adjusted as well when one is present.
+`Fix` adjusts X-Plane quick-view positions after an aircraft CG change when the
+Toolkit has a reliable previous and current CG baseline. The app reads the ACF
+CG values in feet and the quick-view positions in meters, then applies the
+required conversion internally. A matching `X-Camera_<acf-stem>.csv` file is
+adjusted as well when one is present.
 
-`Apply QV0 to Default View` writes the aircraft ACF default view from Quick
-View 0. The app calculates the ACF default-view coordinates in feet from Quick
-View 0 and the current ACF CG.
+`Adopt Current CG as Baseline` records the current ACF CG as the local baseline
+without moving any view. Use it only when the current views are already correct
+and the Toolkit cannot identify their previous CG baseline reliably.
+
+`Use Quick View 0 as Default Viewpoint` writes the aircraft ACF default view
+from Quick View 0. The app calculates the ACF default-view coordinates in feet
+from Quick View 0 and the current ACF CG.
 
 `Create Config Backup` backs up supported root-level aircraft configuration
 files without changing aircraft files.
@@ -146,9 +190,9 @@ Supported config backup files include:
 - `version.txt`
 - `xplane-737ng-maintenance.json`
 
-### Log
+### Advanced
 
-The `Log` tab contains technical details, review output and recovery actions
+The `Advanced` tab contains technical details, review output and recovery actions
 that normal users should not need for routine operation.
 
 `Review VNAV changes` calculates planned changes without writing files.
@@ -194,9 +238,9 @@ Use `Download required packages` to let the app try to download required
 packages into the aircraft update cache. If the source exposes a `.zip.torrent`
 URL, the app
 tries the matching `.zip` URL first. Some sources may not expose a direct ZIP
-stream; in that case use `Import package...`.
+stream; in that case use `Import package`.
 
-Use `Import ZIP` or `Import package...` to select a local package. The selected
+Use `Import package` to select a local package. The selected
 file name must match a required package in the current plan exactly. For an
 offline LevelUp test, the app also accepts the published `.manifest.json` or
 its adjacent `.7z` archive and builds the plan from that authoritative
@@ -215,7 +259,7 @@ and reports which files would be added, replaced or protected. No aircraft
 files are changed during review. The review runs in the background and can be
 canceled.
 
-Use `Apply aircraft update` only after the cache contains every required
+Use `Apply cached update` only after the cache contains every required
 package and review is clean. A confirmation dialog summarizes the reviewed
 target, version transition and file counts before any write is allowed. The
 internal validation can still be canceled. When the write phase starts, Cancel
@@ -243,8 +287,9 @@ an aircraft package action is available, or VNAV content can be safely
 installed, updated or repaired. It is hidden once the app has established that
 none of those actions can be performed.
 
-Use `Restore update` to restore the latest aircraft-update backup generation.
-Files that were added by the update are removed again during restore.
+Use `Restore aircraft` on the Start tab to restore the latest aircraft-update
+backup generation. Files that were added by the update are removed again during
+restore. `Restore VNAV` restores the latest separate VNAV backup generation.
 
 Official Zibo package hashes are not available from the feed. The app verifies
 that the cached ZIP has not changed since import or download; it cannot verify
@@ -283,7 +328,7 @@ keep their original absolute backup paths.
 `Clear Cache` removes the current aircraft update ZIP cache contents. It does
 not delete aircraft files and does not delete backups.
 
-The log can be cleared from the `Log` tab. Clearing the visible log does not
+The log can be cleared from the `Advanced` tab. Clearing the visible log does not
 delete backup files or state records.
 
 ## Safety Rules
@@ -325,9 +370,11 @@ rejects the pair.
 
 `Online source unavailable`
 
-No public LevelUp aircraft release index is available yet. Use `Import package`
-with the supplied offline manifest or adjacent `.7z`. The technical HTTP detail
-remains in Advanced and the log.
+The public LevelUp release index or Zibo package source could not be reached.
+Check the network connection and retry. For LevelUp, an authorized manifest and
+its adjacent `.7z` archive can be imported as an offline fallback. For Zibo,
+download the exact package required by the current plan and use `Import package`.
+Technical HTTP details remain in Advanced and the log.
 
 `Download failed`
 
@@ -349,14 +396,30 @@ Review the Findings and Advanced tab before changing anything manually.
 Official upstream aircraft packages are shown as review-only for custom/no-Lua
 distributions unless a dedicated update source is defined.
 
+## Support And Diagnostics
+
+Use `Dump to file` on the Advanced tab to export the visible operation log into
+the configured diagnostics folder. Review the file before posting it and attach
+it when reporting a problem.
+
+Report Toolkit issues at:
+
+https://github.com/wahltho/xplane-737ng-maintenance-toolkit/issues
+
+Include the Toolkit version, operating system, detected product, operation being
+attempted and exported log. Do not upload complete copyrighted aircraft files.
+
 ## Current Limitations
 
 - App builds are unsigned releases.
 - macOS builds are not notarized.
+- Version 0.3.10 does not automatically check for or install new Toolkit
+  versions. Download newer app releases manually from GitHub.
 - Zibo upstream ZIPs are verified against the local cache snapshot, not an
   official upstream hash manifest.
 - Online LevelUp aircraft update checks require the authorized public
-  `petrolpram/737NG-Updates` release endpoint to contain a published release.
-  Draft releases remain available only through manual manifest/archive import.
-- The diagnostics export folder is configurable; a full one-click diagnostic
-  export workflow is still a planned product feature.
+  `petrolpram/737NG-Updates` endpoint to be reachable and to contain a published
+  compatible release. Draft or offline packages require manual
+  manifest/archive import.
+- `Dump to file` exports the current visible operation log. A broader bundled
+  diagnostic-report workflow is still a planned product feature.
