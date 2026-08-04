@@ -22,6 +22,25 @@ public static class ContentPatchCatalog
                 new HashSet<ContentPatchTrigger> { ContentPatchTrigger.Manual }),
             RestartRequired: true);
 
+    public static ContentPatchDescriptor OptionalPatch(ContentPackageCatalogEntry package)
+    {
+        ArgumentNullException.ThrowIfNull(package);
+        if (package.Category is not ContentPackageCategory.OptionalPatch
+            || package.Activation is not ContentPatchActivation.ExplicitOptIn)
+        {
+            throw new InvalidOperationException($"Content package {package.PackageId} is not an explicit optional patch.");
+        }
+
+        return new ContentPatchDescriptor(
+            package.PackageId,
+            package.DisplayName,
+            package.RepositoryUrl,
+            new ContentPatchLifecyclePolicy(
+                ContentPatchActivation.ExplicitOptIn,
+                new HashSet<ContentPatchTrigger> { ContentPatchTrigger.Manual }),
+            package.RestartRequired);
+    }
+
     public static bool MayOfferAfterAircraftUpdate(ContentPatchDescriptor descriptor) =>
         descriptor.Lifecycle.MayOfferAutomatically(ContentPatchTrigger.AfterAircraftUpdate);
 }

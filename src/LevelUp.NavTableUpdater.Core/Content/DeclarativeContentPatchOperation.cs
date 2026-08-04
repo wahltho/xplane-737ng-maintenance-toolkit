@@ -45,4 +45,17 @@ public sealed class DeclarativeContentPatchOperation
         var package = DeclarativePatchPackageLoader.LoadDirectory(packageDirectory);
         return await _planBuilder.BuildAsync(action, variant, package, cancellationToken).ConfigureAwait(false);
     }
+
+    public MaintenanceOperationResult Restore(
+        AircraftVariantViewAnalysis variant,
+        string packageDirectory)
+    {
+        var package = DeclarativePatchPackageLoader.LoadDirectory(packageDirectory);
+        return _engine.Restore(DeclarativePatchPlanBuilder.DescriptorFor(package.Manifest), variant);
+    }
+
+    public MaintenanceOperationResult Restore(
+        ContentPatchDescriptor descriptor,
+        AircraftVariantViewAnalysis variant) =>
+        _engine.Restore(descriptor, variant);
 }

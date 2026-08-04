@@ -1,6 +1,6 @@
 # X-Plane 737NG Maintenance Toolkit User Manual
 
-This manual describes version 0.4.0 of the X-Plane 737NG Maintenance Toolkit.
+This manual describes version 0.5.0 of the X-Plane 737NG Maintenance Toolkit.
 
 The toolkit is a desktop app for selected Zibo and LevelUp 737NG maintenance
 tasks:
@@ -11,6 +11,8 @@ tasks:
 - Zibo and LevelUp aircraft package check, cache, review, apply and restore.
 - Optional X-Plane-wide tool install, update, repair and restore for supported
   Zibo and LevelUp installations.
+- Explicit optional aircraft patches for compatible products.
+- Verified product resources extracted into a user-selected directory.
 
 The app does not replace X-Plane, Zibo, LevelUp or their official installers.
 It works on a selected local aircraft folder and writes only after validation,
@@ -27,7 +29,7 @@ Keep your own backups and use the tool at your own risk.
 
 ## Compatibility And Installation
 
-Version 0.4.0 supports:
+Version 0.5.0 supports:
 
 - X-Plane 12. X-Plane 11 is not supported.
 - Zibo 737-800X 2K and 4K variants.
@@ -69,7 +71,7 @@ verified macOS download is blocked, try to open it once, then follow Apple's
 documented [Privacy & Security "Open Anyway" process](https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac).
 
 Download future Toolkit releases manually from GitHub. VeloPack provides the
-application package and lifecycle integration, but version 0.4.0 does not yet
+application package and lifecycle integration, but version 0.5.0 does not yet
 check for or download new Toolkit versions automatically. This is separate from
 aircraft-package and VNAV-content updates performed inside the app.
 
@@ -122,7 +124,9 @@ This is the normal user workflow. It contains product selection and the
 following maintenance cards for the selected product:
 
 - `Updates`
+- `Components & Aircraft Patches` when a compatible optional patch is listed
 - `Tools`
+- `Resources` when a compatible resource package is listed
 - `Views After CG Change`
 
 Zibo and LevelUp aircraft are treated as equal 737NG targets. The app enables
@@ -155,14 +159,15 @@ VNAV content writes are limited to the manifest-owned Lua blocks and payload
 files. The app never distributes or writes a complete modified
 `B738.a_fms.lua`.
 
-When an optional package is explicitly listed in a future trusted catalog, an
+When an optional package is explicitly listed in the trusted catalog, an
 additional `Components & Aircraft Patches` card appears for compatible
 products. `Check releases` queries its latest stable GitHub Release. `Review`
 downloads and validates the selected release into the configured package cache,
 then calculates its file plan without changing the aircraft. `Install`,
 `Update` or `Repair` prepares the same verified package and still asks for an
-explicit confirmation before writing files. Version 0.4.0 does not advertise a
-bundled optional aircraft patch, so this card remains hidden.
+explicit confirmation before writing files. Version 0.5.0 offers the LevelUp
+FANS CDU package as an optional LevelUp-only patch. It remains separate from
+aircraft and VNAV updates and is never installed automatically.
 
 The `Tools` card is also product-gated, but its target is the containing X-Plane
 installation rather than the selected aircraft folder. Select the tool first:
@@ -192,6 +197,21 @@ preserved. For YAL this includes `configuration.ini`, `wprefs.ini` and the
 requires a recorded generation and stops if package-owned files changed after
 the last managed operation. Close X-Plane before all write and restore actions;
 restart it fully afterward.
+
+The `Resources` card manages large optional product assets independently from
+aircraft, VNAV and tool transactions. Version 0.5.0 offers the official
+LevelUp 737NG Paintkit 1.1.0 for detected LevelUp installations. Choose the
+parent extraction directory, click `Check release`, then use `Download` after
+reviewing the destination and required disk space. The Toolkit verifies the
+GitHub asset digest, manifest, archive size and SHA-256, safely extracts into a
+staging directory and validates all declared files before publishing the final
+`737NG V2_Paintkit` directory. It never extracts the Paintkit into the aircraft
+or X-Plane folder unless that location is explicitly selected.
+
+`Verify` checks the recorded installation, `Open folder` opens it in the file
+manager, and `Remove resource` is enabled only for an unchanged Toolkit-managed
+installation. Unknown, changed or additional files block automatic replacement
+or removal. The Paintkit is currently offered on the Stable channel only.
 
 The `Views After CG Change` card contains view and configuration maintenance for
 the selected aircraft variant.
@@ -247,9 +267,9 @@ always require a separate confirmation and use their own multi-file backup and
 rollback transaction.
 
 Optional patches are not part of the normal aircraft update button and are not
-offered automatically after an aircraft update. The 0.4.0 catalog does not
-advertise a concrete optional aircraft patch. VNAV tables retain their managed
-post-aircraft-update prompt.
+offered automatically after an aircraft update. The 0.5.0 catalog advertises
+the LevelUp FANS CDU patch only for a detected LevelUp product and requires an
+explicit action. VNAV tables retain their managed post-aircraft-update prompt.
 
 Use `Dump to file` to export the visible install and operation logs into the
 configured diagnostics export folder. If users need support, this is the file
@@ -480,7 +500,7 @@ attempted and exported log. Do not upload complete copyrighted aircraft files.
 
 - App builds are unsigned releases.
 - macOS builds are not notarized.
-- Version 0.4.0 does not automatically check for or install new Toolkit
+- Version 0.5.0 does not automatically check for or install new Toolkit
   versions. Download newer app releases manually from GitHub.
 - Zibo upstream ZIPs are verified against the local cache snapshot, not an
   official upstream hash manifest.

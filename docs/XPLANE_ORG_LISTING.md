@@ -10,11 +10,11 @@ X-Plane 737NG Maintenance Toolkit
 
 ## Current Version
 
-0.4.0
+0.5.0
 
 ## Short Description
 
-Cross-platform maintenance utility for supported Zibo and LevelUp 737NG aircraft in X-Plane 12, providing aircraft and VNAV updates, transactional backups, CG/view correction and optional tool management.
+Cross-platform maintenance utility for supported Zibo and LevelUp 737NG aircraft in X-Plane 12, providing aircraft and VNAV updates, transactional backups, CG/view correction, optional patches, tools and resources.
 
 ## Full Description
 
@@ -39,15 +39,19 @@ Current functions include:
 - automatic operating-system light and dark appearance
 - optional installation, update, repair and restore of supported X-Plane tools
 - stable and beta release channels for supported optional tools
+- explicit optional LevelUp FANS CDU patch management
+- verified LevelUp Paintkit download and extraction into a user-selected folder
 
-Version 0.4.0 currently offers the following optional tools:
+Version 0.5.0 currently offers:
 
 - Yet Another Linda (YAL)
 - YAL HoppieHelper
+- LevelUp FANS CDU patch
+- LevelUp 737NG Paintkit 1.1.0
 
-These tools are installed once per X-Plane installation and are available for supported Zibo and LevelUp aircraft. They remain entirely optional.
+YAL and YAL HoppieHelper are installed once per X-Plane installation and are available for supported Zibo and LevelUp aircraft. The FANS CDU patch and Paintkit are LevelUp-only. Every item remains optional.
 
-Aircraft packages, VNAV content, optional tools and Toolkit application releases are separate update layers. The app does not distribute a complete modified `B738.a_fms.lua`; VNAV hooks and authorized payload files are applied locally after validation.
+Aircraft packages, VNAV content, optional patches, tools, resources and Toolkit application releases are separate update layers. The app does not distribute a complete modified `B738.a_fms.lua`; VNAV hooks and authorized payload files are applied locally after validation.
 
 This is not an official Laminar Research, Zibo or LevelUp product. It does not replace the aircraft developers' official distribution channels.
 
@@ -102,7 +106,7 @@ Verify the download against `SHA256SUMS.txt` on the release page. If a verified 
 
 https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac
 
-Version 0.4.0 does not automatically check for or install newer Toolkit versions. Download future app releases manually from the GitHub release page.
+Version 0.5.0 does not automatically check for or install newer Toolkit versions. Download future app releases manually from the GitHub release page.
 
 ## First Use
 
@@ -135,6 +139,14 @@ When reporting a problem, use `Dump to file` on the Advanced tab and attach the 
 The Toolkit source code is available under the MIT License. The application is provided as-is, without warranty of any kind. It can modify aircraft files after validation and backup; users should retain their own backups and use the tool at their own risk.
 
 ## Changelog
+
+### 0.5.0
+
+- Added the LevelUp FANS CDU package as the first visible explicit optional aircraft patch.
+- Added a verified Resources workflow with user-selected extraction directories.
+- Added the official LevelUp 737NG Paintkit 1.1.0 as the first visible resource package.
+- Added guarded optional-patch restore and removal controls.
+- Added resource manifest, GitHub asset, archive traversal, file hash and installation-state validation.
 
 ### 0.4.0
 

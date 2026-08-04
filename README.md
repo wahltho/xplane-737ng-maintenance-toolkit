@@ -7,7 +7,7 @@ tools and conservative view maintenance for supported aircraft variants.
 This repository is the public development home for the app. The architecture
 keeps package content, aircraft patching, and application updates separate.
 
-Release version: **0.4.0**
+Release version: **0.5.0**
 
 - [Download the latest stable release](https://github.com/wahltho/xplane-737ng-maintenance-toolkit/releases/latest)
 - [Read the user manual](docs/USER_MANUAL.md)
@@ -57,7 +57,7 @@ verified macOS download is blocked, follow Apple's documented
 [Privacy & Security "Open Anyway" process](https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac).
 
 Download future app releases manually from GitHub. VeloPack currently provides
-the application package and lifecycle integration; version 0.4.0 does not yet
+the application package and lifecycle integration; version 0.5.0 does not yet
 check for or download new Toolkit versions automatically. Aircraft and VNAV
 content updates are separate and can be checked from inside the app.
 
@@ -106,6 +106,9 @@ Current capabilities:
 - It supports explicit optional schema-v2 patch packages through the same
   transaction engine. Optional packages are never folded into the automatic
   aircraft/VNAV update flow and require a separate user confirmation.
+- The bundled catalog offers the LevelUp FANS CDU package as an explicit,
+  optional LevelUp-only patch. Its manifest, payload hashes and supported
+  source structures are validated before any aircraft file is changed.
 - It ships a versioned trusted package catalog. The Start page filters managed
   content and optional patches by the selected Zibo or LevelUp product. Trusted
   optional entries can resolve their latest stable GitHub Release directly;
@@ -119,6 +122,9 @@ Current capabilities:
   payload SHA-256 must agree before install, update or repair.
 - Tool updates preserve manifest-declared configuration and output paths plus
   local unowned files, create generation backups and provide guarded restore.
+- It offers verified product resources independently from aircraft updates.
+  The LevelUp 737NG Paintkit can be downloaded from its official public
+  release and safely extracted into a user-selected directory outside X-Plane.
 - GitHub optional-package archives are selected by an explicit asset pattern,
   checked against GitHub's published size and SHA-256 digest, and safely
   reduced to the declared manifest and payload files in the local cache.

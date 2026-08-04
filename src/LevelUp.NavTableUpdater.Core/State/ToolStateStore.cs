@@ -122,6 +122,34 @@ public sealed class ToolStateStore
         Save(document);
     }
 
+    public ResourceInstallationState? TryGetResourceInstallation(string packageId)
+    {
+        var document = Load();
+        return document.ResourceInstallations.GetValueOrDefault(packageId);
+    }
+
+    public void UpdateResourceInstallation(string packageId, Action<ResourceInstallationState> update)
+    {
+        var document = Load();
+        if (!document.ResourceInstallations.TryGetValue(packageId, out var resource))
+        {
+            resource = new ResourceInstallationState { PackageId = packageId };
+            document.ResourceInstallations[packageId] = resource;
+        }
+
+        update(resource);
+        Save(document);
+    }
+
+    public void RemoveResourceInstallation(string packageId)
+    {
+        var document = Load();
+        if (document.ResourceInstallations.Remove(packageId))
+        {
+            Save(document);
+        }
+    }
+
     public string CreateToolBackupDirectory(string xPlaneRoot, string packageId, DateTimeOffset createdUtc)
     {
         var rootKey = ToolPathKey(xPlaneRoot)[..16];
@@ -400,6 +428,7 @@ public sealed class ToolStateStore
         document.Aircraft ??= new Dictionary<string, AircraftToolState>(StringComparer.Ordinal);
         document.ContentInstallations ??= new Dictionary<string, ContentInstallationToolState>(StringComparer.Ordinal);
         document.ToolInstallations ??= new Dictionary<string, ToolInstallationState>(StringComparer.Ordinal);
+        document.ResourceInstallations ??= new Dictionary<string, ResourceInstallationState>(StringComparer.Ordinal);
         foreach (var installation in document.ContentInstallations.Values)
         {
             installation.ContentComponents ??= new Dictionary<string, ContentComponentState>(StringComparer.Ordinal);
@@ -455,6 +484,11 @@ public sealed class ToolStateStore
             }
         }
 
-        document.SchemaVersion = Math.Max(document.SchemaVersion, 3);
+        foreach (var resource in document.ResourceInstallations.Values)
+        {
+            resource.InstalledFiles ??= [];
+        }
+
+        document.SchemaVersion = Math.Max(document.SchemaVersion, 4);
     }
 }

@@ -18,7 +18,8 @@ public sealed class ContentPatchCatalogTests
             package => Assert.Equal("levelup.vnav", package.PackageId),
             package => Assert.Equal("levelup.fans", package.PackageId),
             package => Assert.Equal("wahltho.yal", package.PackageId),
-            package => Assert.Equal("wahltho.yal-hoppiehelper", package.PackageId));
+            package => Assert.Equal("wahltho.yal-hoppiehelper", package.PackageId),
+            package => Assert.Equal("levelup.paintkit", package.PackageId));
         Assert.Collection(
             zibo,
             package => Assert.Equal("zibo.vnav", package.PackageId),
@@ -33,6 +34,11 @@ public sealed class ContentPatchCatalogTests
             levelUp,
             package => package.PackageId == "wahltho.yal-hoppiehelper"
                 && package.SupportedProducts.SequenceEqual(["zibo-737ng", "levelup-737ng"]));
+        Assert.Contains(
+            levelUp,
+            package => package.PackageId == "levelup.paintkit"
+                && package.Category is ContentPackageCategory.Resource
+                && package.Distribution.Kind is ContentPackageDistributionKind.GitHubResourceRelease);
     }
 
     [Fact]
@@ -72,6 +78,57 @@ public sealed class ContentPatchCatalogTests
         Assert.Equal(ContentPatchActivation.ExplicitOptIn, descriptor.Lifecycle.Activation);
         Assert.Contains(ContentPatchTrigger.Manual, descriptor.Lifecycle.Triggers);
         Assert.False(ContentPatchCatalog.MayOfferAfterAircraftUpdate(descriptor));
+    }
+
+    [Fact]
+    public void BundledCatalog_AdvertisesVerifiedFansCduReleaseContract()
+    {
+        var catalogPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..", "..", "..", "..", "..",
+            "src", "LevelUp.NavTableUpdater.App", "Content", "content-package-catalog.json"));
+        var catalog = ContentPackageCatalog.Parse(File.ReadAllText(catalogPath));
+
+        var fans = Assert.Single(
+            catalog.ForProduct("levelup-737ng"),
+            package => package.PackageId == ContentPatchCatalog.FansCdu.ComponentId);
+        var descriptor = ContentPatchCatalog.OptionalPatch(fans);
+
+        Assert.Equal("1.1.0", catalog.CatalogVersion);
+        Assert.Equal(ContentPackageCategory.OptionalPatch, fans.Category);
+        Assert.Equal(ContentPatchActivation.ExplicitOptIn, fans.Activation);
+        Assert.Equal("LevelUp-737NG-FANS-CDU-v*.zip", fans.Distribution.AssetNamePattern);
+        Assert.Equal(2, fans.Distribution.ManifestSchemaVersion);
+        Assert.Equal(ContentPatchCatalog.FansCdu.ComponentId, descriptor.ComponentId);
+        Assert.False(ContentPatchCatalog.MayOfferAfterAircraftUpdate(descriptor));
+    }
+
+    [Fact]
+    public void BundledCatalog_AdvertisesVerifiedLevelUpPaintkitReleaseContract()
+    {
+        var catalogPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..", "..", "..", "..", "..",
+            "src", "LevelUp.NavTableUpdater.App", "Content", "content-package-catalog.json"));
+        var catalog = ContentPackageCatalog.Parse(File.ReadAllText(catalogPath));
+
+        var paintkit = Assert.Single(
+            catalog.ForProduct("levelup-737ng"),
+            package => package.PackageId == "levelup.paintkit");
+
+        Assert.Equal("1.1.0", catalog.CatalogVersion);
+        Assert.Equal(ContentPackageCategory.Resource, paintkit.Category);
+        Assert.Equal(ContentPatchActivation.ExplicitOptIn, paintkit.Activation);
+        Assert.Equal(["levelup-737ng"], paintkit.SupportedProducts);
+        Assert.Equal("https://github.com/petrolpram/737NG-Updates", paintkit.RepositoryUrl);
+        Assert.Equal("userSelectedDirectory", paintkit.InstallScope);
+        Assert.Equal(["stable"], paintkit.SupportedChannels);
+        Assert.Equal(ContentPackageDistributionKind.GitHubResourceRelease, paintkit.Distribution.Kind);
+        Assert.Equal("LevelUp-737NG-Paintkit-*.7z", paintkit.Distribution.AssetNamePattern);
+        Assert.Equal(
+            "LevelUp-737NG-Paintkit-*-manifest.json",
+            paintkit.Distribution.ManifestAssetNamePattern);
+        Assert.Equal(1, paintkit.Distribution.ManifestSchemaVersion);
     }
 
     private static string BuildCatalog() =>
@@ -151,6 +208,24 @@ public sealed class ContentPatchCatalogTests
               "distribution": {
                 "kind": "gitHubToolRelease",
                 "manifestAssetNamePattern": "YAL-HoppieHelper-*-manifest.json",
+                "manifestSchemaVersion": 1
+              }
+            },
+            {
+              "packageId": "levelup.paintkit",
+              "displayName": "LevelUp Paintkit",
+              "description": "Optional paint resource.",
+              "category": "resource",
+              "activation": "explicitOptIn",
+              "supportedProducts": ["levelup-737ng"],
+              "repositoryUrl": "https://github.com/example/levelup-updates",
+              "restartRequired": false,
+              "installScope": "userSelectedDirectory",
+              "supportedChannels": ["stable"],
+              "distribution": {
+                "kind": "gitHubResourceRelease",
+                "assetNamePattern": "LevelUp-Paintkit-*.7z",
+                "manifestAssetNamePattern": "LevelUp-Paintkit-*-manifest.json",
                 "manifestSchemaVersion": 1
               }
             }

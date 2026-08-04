@@ -309,7 +309,7 @@ public sealed class DeclarativePatchPlanBuilder : IContentPatchPlanBuilder<Decla
             $"{descriptor.DisplayName} was uninstalled and original files were restored.");
     }
 
-    private static ContentPatchDescriptor DescriptorFor(DeclarativePatchManifest manifest)
+    internal static ContentPatchDescriptor DescriptorFor(DeclarativePatchManifest manifest)
     {
         if (manifest.PackageId.Equals(ContentPatchCatalog.FansCdu.ComponentId, StringComparison.Ordinal))
         {

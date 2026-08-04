@@ -124,6 +124,22 @@ public partial class MainWindow : Window
         viewModel.SetOptionalPatchPackagePathFromBrowse(folders[0].Path.LocalPath);
     }
 
+    private async void BrowseResourceDestination_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = "Select resource extraction location",
+            AllowMultiple = false
+        });
+
+        if (folders.Count == 0 || DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
+        viewModel.SetResourceDestinationPathFromBrowse(folders[0].Path.LocalPath);
+    }
+
     private async void ReviewCatalogPatch_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         if (sender is not Avalonia.Controls.Button { DataContext: AvailableContentPackageStatus item }
@@ -144,6 +160,28 @@ public partial class MainWindow : Window
         }
 
         await viewModel.ApplyCatalogPatchAsync(item);
+    }
+
+    private async void RestoreCatalogPatch_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (sender is not Avalonia.Controls.Button { DataContext: AvailableContentPackageStatus item }
+            || DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
+        await viewModel.RestoreCatalogPatchAsync(item);
+    }
+
+    private async void RemoveCatalogPatch_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (sender is not Avalonia.Controls.Button { DataContext: AvailableContentPackageStatus item }
+            || DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
+        await viewModel.RemoveCatalogPatchAsync(item);
     }
 
     private async void BrowseDiagnosticsExportRoot_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)

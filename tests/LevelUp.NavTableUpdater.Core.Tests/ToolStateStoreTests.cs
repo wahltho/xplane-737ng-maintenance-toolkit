@@ -142,7 +142,26 @@ public sealed class ToolStateStoreTests
 
         Assert.Equal("4.7", store.TryGetToolInstallation(firstXPlane, "wahltho.yal")?.InstalledVersion);
         Assert.Equal("4.8-beta.1", store.TryGetToolInstallation(secondXPlane, "wahltho.yal")?.InstalledVersion);
-        Assert.Equal(3, store.Load().SchemaVersion);
+        Assert.Equal(4, store.Load().SchemaVersion);
+    }
+
+    [Fact]
+    public void ResourceInstallationState_IsSeparatedFromToolInstallations()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"xplane-737ng-state-tests-{Guid.NewGuid():N}");
+        var store = new ToolStateStore(Path.Combine(root, "state"), Path.Combine(root, "backups"));
+
+        store.UpdateResourceInstallation("levelup.paintkit", state =>
+        {
+            state.PackageVersion = "2.S1";
+            state.TargetPath = Path.Combine(root, "LevelUp Paintkit");
+        });
+
+        Assert.Equal("2.S1", store.TryGetResourceInstallation("levelup.paintkit")?.PackageVersion);
+        Assert.Empty(store.Load().ToolInstallations);
+
+        store.RemoveResourceInstallation("levelup.paintkit");
+        Assert.Null(store.TryGetResourceInstallation("levelup.paintkit"));
     }
 
     private static AircraftVariantViewAnalysis CreateVariant(

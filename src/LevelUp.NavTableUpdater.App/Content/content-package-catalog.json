@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "catalogVersion": "1.0.0",
+  "catalogVersion": "1.1.0",
   "packages": [
     {
       "packageId": "x-plane-zibo-vnav-descent-tables",
@@ -26,6 +26,21 @@
       "restartRequired": true,
       "distribution": {
         "kind": "existingVnav"
+      }
+    },
+    {
+      "packageId": "wahltho.levelup-737ng.fans-cdu-3d",
+      "displayName": "LevelUp FANS CDU",
+      "description": "Optional switchable FANS CDU labels and tablet selection for the LevelUp 737NG Series.",
+      "category": "optionalPatch",
+      "activation": "explicitOptIn",
+      "supportedProducts": ["levelup-737ng"],
+      "repositoryUrl": "https://github.com/wahltho/X-Plane-LevelUp-737NG-FANS-CDU",
+      "restartRequired": true,
+      "distribution": {
+        "kind": "gitHubReleaseArchive",
+        "assetNamePattern": "LevelUp-737NG-FANS-CDU-v*.zip",
+        "manifestSchemaVersion": 2
       }
     },
     {
@@ -62,6 +77,24 @@
       "distribution": {
         "kind": "gitHubToolRelease",
         "manifestAssetNamePattern": "YAL-HoppieHelper-*-manifest.json",
+        "manifestSchemaVersion": 1
+      }
+    },
+    {
+      "packageId": "levelup.paintkit",
+      "displayName": "LevelUp 737NG Paintkit",
+      "description": "Official LevelUp 737NG V2 paint templates, downloaded and verified independently from aircraft updates.",
+      "category": "resource",
+      "activation": "explicitOptIn",
+      "supportedProducts": ["levelup-737ng"],
+      "repositoryUrl": "https://github.com/petrolpram/737NG-Updates",
+      "restartRequired": false,
+      "installScope": "userSelectedDirectory",
+      "supportedChannels": ["stable"],
+      "distribution": {
+        "kind": "gitHubResourceRelease",
+        "assetNamePattern": "LevelUp-737NG-Paintkit-*.7z",
+        "manifestAssetNamePattern": "LevelUp-737NG-Paintkit-*-manifest.json",
         "manifestSchemaVersion": 1
       }
     }

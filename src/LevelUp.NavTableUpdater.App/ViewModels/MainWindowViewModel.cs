@@ -11,6 +11,7 @@ using LevelUp.NavTableUpdater.Core.Content;
 using LevelUp.NavTableUpdater.Core.Detection;
 using LevelUp.NavTableUpdater.Core.Manifest;
 using LevelUp.NavTableUpdater.Core.Platform;
+using LevelUp.NavTableUpdater.Core.Resources;
 using LevelUp.NavTableUpdater.Core.State;
 using LevelUp.NavTableUpdater.Core.Tools;
 using LevelUp.NavTableUpdater.Core.Upstream;
@@ -46,11 +47,15 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly ContentPackageCatalog _contentPackageCatalog;
     private GitHubContentPatchReleaseSource _contentPatchReleaseSource;
     private GitHubToolPackageReleaseSource _toolPackageReleaseSource;
+    private GitHubResourcePackageReleaseSource _resourcePackageReleaseSource;
     private readonly ToolPackageManager _toolPackageManager;
+    private readonly ResourcePackageManager _resourcePackageManager;
     private readonly Dictionary<string, ContentPatchRelease> _contentPatchReleases = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _contentPatchReleaseErrors = new(StringComparer.Ordinal);
     private readonly Dictionary<string, ToolPackageRelease> _toolPackageReleases = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, ResourcePackageRelease> _resourcePackageReleases = new(StringComparer.Ordinal);
     private bool _synchronizingToolSelection;
+    private bool _synchronizingResourceSelection;
     private PackageManifest _manifest;
     private AircraftUpstreamUpdateCheckResult? _lastUpstreamUpdateCheck;
     private AircraftUpdateDryRunResult? _lastAircraftUpdateDryRun;
@@ -363,6 +368,60 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private bool isToolPackageOperationRunning;
 
+    [ObservableProperty]
+    private bool resourcePackageVisible;
+
+    [ObservableProperty]
+    private ContentPackageCatalogEntry? selectedResourcePackage;
+
+    [ObservableProperty]
+    private string resourcePackageName = "Resource";
+
+    [ObservableProperty]
+    private string resourcePackageDescription = "Optional verified download for the selected product.";
+
+    [ObservableProperty]
+    private string selectedResourceReleaseChannel = "stable";
+
+    [ObservableProperty]
+    private IReadOnlyList<string> resourceReleaseChannelOptions = ["stable"];
+
+    [ObservableProperty]
+    private string resourceDownloadedVersion = "-";
+
+    [ObservableProperty]
+    private string resourceAvailableVersion = "Not checked";
+
+    [ObservableProperty]
+    private string resourcePackageStatus = "Select a supported product.";
+
+    [ObservableProperty]
+    private string resourceDestinationPath = "";
+
+    [ObservableProperty]
+    private string resourceFilePath = "-";
+
+    [ObservableProperty]
+    private string resourceActionLabel = "Download";
+
+    [ObservableProperty]
+    private bool canCheckResourceRelease;
+
+    [ObservableProperty]
+    private bool canDownloadResourcePackage;
+
+    [ObservableProperty]
+    private bool canVerifyResourcePackage;
+
+    [ObservableProperty]
+    private bool canOpenResourceFolder;
+
+    [ObservableProperty]
+    private bool canRemoveResourcePackage;
+
+    [ObservableProperty]
+    private bool isResourcePackageOperationRunning;
+
     public ObservableCollection<AircraftCandidate> DetectedTargets { get; } = [];
 
     public ObservableCollection<ProductTargetStatus> ProductTargets { get; } = [];
@@ -392,6 +451,8 @@ public partial class MainWindowViewModel : ViewModelBase
     public ObservableCollection<AvailableContentPackageStatus> AvailableContentPackages { get; } = [];
 
     public ObservableCollection<ContentPackageCatalogEntry> AvailableToolPackages { get; } = [];
+
+    public ObservableCollection<ContentPackageCatalogEntry> AvailableResourcePackages { get; } = [];
 
     public IReadOnlyList<string> ToolReleaseChannelOptions { get; } = ["stable", "beta"];
 
@@ -427,7 +488,10 @@ public partial class MainWindowViewModel : ViewModelBase
         _toolPackageReleaseSource = new GitHubToolPackageReleaseSource(
             _aircraftUpdateHttpClient,
             _aircraftUpdatePackageCache.RootPath);
+        _resourcePackageReleaseSource = new GitHubResourcePackageReleaseSource(
+            _aircraftUpdateHttpClient);
         selectedToolReleaseChannel = "stable";
+        selectedResourceReleaseChannel = "stable";
         _manifest = _manifests[0];
         _quickViewBaselineAnalyzer = new QuickViewBaselineAnalyzer(_stateStore);
         _applyDefaultViewOperation = new ApplyDefaultViewFromQv0Operation(_stateStore);
@@ -438,6 +502,7 @@ public partial class MainWindowViewModel : ViewModelBase
         _vnavContentOperation = new VnavContentOperation(_stateStore, CreatePayloadSource());
         _declarativeContentPatchOperation = new DeclarativeContentPatchOperation(_stateStore);
         _toolPackageManager = new ToolPackageManager(_stateStore);
+        _resourcePackageManager = new ResourcePackageManager(_stateStore);
         _ziboUpdateChecker = new AircraftUpstreamUpdateChecker(
             new ZiboFeedAircraftUpdateIndexSource(_aircraftUpdateHttpClient));
         var toolkitVersion = typeof(MainWindowViewModel).Assembly.GetName().Version
@@ -839,6 +904,7 @@ public partial class MainWindowViewModel : ViewModelBase
             RefreshFilteredViewVariants();
             RefreshContentPackageOverview();
             RefreshToolPackageOverview();
+            RefreshResourcePackageOverview();
             return;
         }
 
@@ -847,6 +913,7 @@ public partial class MainWindowViewModel : ViewModelBase
             RefreshFilteredViewVariants();
             RefreshContentPackageOverview();
             RefreshToolPackageOverview();
+            RefreshResourcePackageOverview();
             return;
         }
 
@@ -854,6 +921,7 @@ public partial class MainWindowViewModel : ViewModelBase
         RefreshProductScopedPackageAnalysis();
         RefreshContentPackageOverview();
         RefreshToolPackageOverview();
+        RefreshResourcePackageOverview();
     }
 
     [RelayCommand]
@@ -992,11 +1060,19 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private async Task RunOptionalPatchAction(string action)
     {
-        if (IsOperationRunning || !Enum.TryParse<ContentPatchAction>(action, ignoreCase: true, out var patchAction))
+        if (IsOperationRunning)
         {
             return;
         }
 
+        var isRestore = string.Equals(action, "Restore", StringComparison.OrdinalIgnoreCase);
+        var patchAction = ContentPatchAction.Update;
+        if (!isRestore && !Enum.TryParse(action, ignoreCase: true, out patchAction))
+        {
+            return;
+        }
+
+        var operationName = isRestore ? "Restore" : patchAction.ToString();
         var selectedVariant = SelectedViewVariant;
         if (selectedVariant is null || string.IsNullOrWhiteSpace(OptionalPatchPackagePath))
         {
@@ -1017,7 +1093,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         var confirmation = new ConfirmationRequest(
-            $"{patchAction} optional patch?",
+            $"{operationName} optional patch?",
             string.Join(
                 Environment.NewLine,
                 [
@@ -1027,11 +1103,11 @@ public partial class MainWindowViewModel : ViewModelBase
                     "",
                     "This is an explicit optional transaction. Payloads are hash-validated; targets are hash- or structurally validated and backed up before any file is changed."
                 ]),
-            patchAction.ToString(),
+            operationName,
             "Cancel");
         if (!await _userInteractionService.ConfirmAsync(confirmation))
         {
-            AppendLog($"Optional patch {patchAction} canceled before validation and file writes.");
+            AppendLog($"Optional patch {operationName} canceled before validation and file writes.");
             return;
         }
 
@@ -1040,7 +1116,7 @@ public partial class MainWindowViewModel : ViewModelBase
         OperationElapsed = "00:00s";
         OperationProgress = 0;
         OperationStatus = "Transaction in progress";
-        OperationTitle = $"{OptionalPatchName} {patchAction}";
+        OperationTitle = $"{OptionalPatchName} {operationName}";
         OperationSubtitle = "Validating declarative targets and preparing a multi-file transaction.";
         OperationProgressText = "0% - Validating package, source hashes and operation handlers";
         IsOperationRunning = true;
@@ -1049,11 +1125,16 @@ public partial class MainWindowViewModel : ViewModelBase
         var stopwatch = Stopwatch.StartNew();
         try
         {
-            var result = await Task.Run(async () =>
-                await _declarativeContentPatchOperation.RunAsync(
-                    patchAction,
-                    selectedVariant,
-                    OptionalPatchPackagePath));
+            var result = isRestore
+                ? await Task.Run(() =>
+                    _declarativeContentPatchOperation.Restore(
+                        selectedVariant,
+                        OptionalPatchPackagePath))
+                : await Task.Run(async () =>
+                    await _declarativeContentPatchOperation.RunAsync(
+                        patchAction,
+                        selectedVariant,
+                        OptionalPatchPackagePath));
             foreach (var line in result.Log)
             {
                 AppendOperationLog(line);
@@ -1062,20 +1143,20 @@ public partial class MainWindowViewModel : ViewModelBase
             OperationElapsed = FormatElapsed(stopwatch.Elapsed);
             OperationStatus = result.Status;
             OperationTitle = result.Succeeded
-                ? result.Changed ? $"{OptionalPatchName} {patchAction} complete" : $"{OptionalPatchName} unchanged"
-                : $"{OptionalPatchName} {patchAction} blocked";
+                ? result.Changed ? $"{OptionalPatchName} {operationName} complete" : $"{OptionalPatchName} unchanged"
+                : $"{OptionalPatchName} {operationName} blocked";
             OperationSubtitle = result.Message;
             OperationProgress = result.Succeeded ? 100 : 0;
             OperationProgressText = result.Succeeded
                 ? result.Changed ? "100% - Optional patch transaction completed" : "100% - No file change required"
                 : "0% - Transaction did not start";
-            AppendLog($"Optional patch {patchAction}: {result.Message}");
+            AppendLog($"Optional patch {operationName}: {result.Message}");
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
             OperationElapsed = FormatElapsed(stopwatch.Elapsed);
             OperationStatus = "Failed";
-            OperationTitle = $"{OptionalPatchName} {patchAction} failed";
+            OperationTitle = $"{OptionalPatchName} {operationName} failed";
             OperationSubtitle = ex.Message;
             OperationProgress = 0;
             OperationProgressText = "0% - Transaction failed and was rolled back";
@@ -1228,6 +1309,96 @@ public partial class MainWindowViewModel : ViewModelBase
             _ => ContentPatchAction.Update.ToString()
         };
         await RunOptionalPatchAction(action);
+    }
+
+    public async Task RestoreCatalogPatchAsync(AvailableContentPackageStatus item)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        if (IsOperationRunning || !item.CanRestore || SelectedViewVariant is not { } selectedVariant)
+        {
+            return;
+        }
+
+        var productId = SelectedProduct?.IsDetected == true ? SelectedProduct.Family : null;
+        var catalogEntry = string.IsNullOrWhiteSpace(productId)
+            ? null
+            : _contentPackageCatalog.ForProduct(productId)
+                .SingleOrDefault(package => package.PackageId.Equals(item.PackageId, StringComparison.Ordinal));
+        if (catalogEntry is null || catalogEntry.Category is not ContentPackageCategory.OptionalPatch)
+        {
+            ContentPackageCatalogStatus = "Optional patch restore blocked: select the matching product installation.";
+            return;
+        }
+
+        var confirmation = new ConfirmationRequest(
+            $"Restore {catalogEntry.DisplayName}?",
+            string.Join(
+                Environment.NewLine,
+                [
+                    $"Aircraft: {AircraftProductIdentity.FromVariant(selectedVariant).DisplayName}",
+                    $"Component: {catalogEntry.DisplayName}",
+                    "",
+                    "The Toolkit will restore the exact pre-installation files only when every current target still matches its recorded installed hash."
+                ]),
+            "Restore",
+            "Cancel");
+        if (!await _userInteractionService.ConfirmAsync(confirmation))
+        {
+            AppendLog($"Optional patch restore canceled for {catalogEntry.DisplayName}.");
+            return;
+        }
+
+        OperationPanelVisible = true;
+        OperationLog = "";
+        OperationElapsed = "00:00s";
+        OperationProgress = 0;
+        OperationStatus = "Restore in progress";
+        OperationTitle = $"Restoring {catalogEntry.DisplayName}";
+        OperationSubtitle = "Validating recorded targets and exact pre-installation backups.";
+        OperationProgressText = "0% - Validating restore state";
+        IsOperationRunning = true;
+        ActionsEnabled = false;
+        var stopwatch = Stopwatch.StartNew();
+        try
+        {
+            var descriptor = ContentPatchCatalog.OptionalPatch(catalogEntry);
+            var result = await Task.Run(() =>
+                _declarativeContentPatchOperation.Restore(descriptor, selectedVariant));
+            foreach (var line in result.Log)
+            {
+                AppendOperationLog(line);
+            }
+
+            OperationElapsed = FormatElapsed(stopwatch.Elapsed);
+            OperationStatus = result.Status;
+            OperationTitle = result.Succeeded
+                ? $"{catalogEntry.DisplayName} restore complete"
+                : $"{catalogEntry.DisplayName} restore blocked";
+            OperationSubtitle = result.Message;
+            OperationProgress = result.Succeeded ? 100 : 0;
+            OperationProgressText = result.Succeeded
+                ? "100% - Exact pre-installation files restored"
+                : "0% - Restore did not change aircraft files";
+            AppendLog($"Optional patch restore: {result.Message}");
+        }
+        finally
+        {
+            IsOperationRunning = false;
+            ActionsEnabled = true;
+            RefreshOptionalPatchStatus();
+            RefreshContentPackageOverview();
+        }
+    }
+
+    public async Task RemoveCatalogPatchAsync(AvailableContentPackageStatus item)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        if (!item.CanRemove || !await PrepareCatalogPatchPackageAsync(item))
+        {
+            return;
+        }
+
+        await RunOptionalPatchAction(ContentPatchAction.Uninstall.ToString());
     }
 
     private async Task<bool> PrepareCatalogPatchPackageAsync(AvailableContentPackageStatus item)
@@ -2488,6 +2659,7 @@ public partial class MainWindowViewModel : ViewModelBase
         RefreshUnifiedUpdateVisibility();
         RefreshContentPackageOverview();
         RefreshToolPackageOverview();
+        RefreshResourcePackageOverview();
     }
 
     private void ApplyViewAnalysis(AircraftViewAnalysisResult result, string? preferredAcfPath = null)
@@ -2501,6 +2673,7 @@ public partial class MainWindowViewModel : ViewModelBase
         RefreshProductTargets(currentSelection);
         RefreshFilteredViewVariants(currentSelection);
         RefreshToolPackageOverview();
+        RefreshResourcePackageOverview();
     }
 
     partial void OnSelectedViewVariantChanged(AircraftVariantViewAnalysis? value)
@@ -2511,6 +2684,7 @@ public partial class MainWindowViewModel : ViewModelBase
         RefreshOptionalPatchStatus();
         RefreshContentPackageOverview();
         RefreshToolPackageOverview();
+        RefreshResourcePackageOverview();
     }
 
     private void RefreshOptionalPatchStatus()
@@ -2634,6 +2808,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 && !IsContentPackageCatalogCheckRunning
                 && SelectedViewVariant is not null
                 && package.SupportedProducts.Contains(SelectedViewVariant.Family, StringComparer.Ordinal);
+            var canRestore = canAct && state is not null;
             AvailableContentPackages.Add(new AvailableContentPackageStatus(
                 package.PackageId,
                 package.DisplayName,
@@ -2645,7 +2820,9 @@ public partial class MainWindowViewModel : ViewModelBase
                 package.RepositoryUrl,
                 IsOptional: !isManaged,
                 CanAct: canAct,
-                actionLabel));
+                actionLabel,
+                CanRestore: canRestore,
+                CanRemove: canRestore));
         }
 
         CanCheckContentPackageCatalog = ActionsEnabled
@@ -3044,6 +3221,426 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
+    partial void OnSelectedResourcePackageChanged(ContentPackageCatalogEntry? value)
+    {
+        if (_synchronizingResourceSelection)
+        {
+            return;
+        }
+
+        var channel = NormalizeResourceReleaseChannel(
+            value,
+            value is null
+                ? "stable"
+                : _settings.ToolReleaseChannels.GetValueOrDefault(value.PackageId, "stable"));
+        _synchronizingResourceSelection = true;
+        try
+        {
+            ResourceReleaseChannelOptions = ResourceReleaseChannels(value);
+            SelectedResourceReleaseChannel = channel;
+            ResourceDestinationPath = value is null
+                ? ""
+                : _stateStore.TryGetResourceInstallation(value.PackageId)?.DestinationDirectory ?? "";
+        }
+        finally
+        {
+            _synchronizingResourceSelection = false;
+        }
+
+        RefreshResourcePackageOverview();
+    }
+
+    partial void OnSelectedResourceReleaseChannelChanged(string value)
+    {
+        if (_synchronizingResourceSelection)
+        {
+            return;
+        }
+
+        var entry = SelectedResourceCatalogEntry();
+        var normalized = NormalizeResourceReleaseChannel(entry, value);
+        if (!string.Equals(value, normalized, StringComparison.Ordinal))
+        {
+            SelectedResourceReleaseChannel = normalized;
+            return;
+        }
+
+        if (entry is null)
+        {
+            return;
+        }
+
+        _settings.ToolReleaseChannels[entry.PackageId] = normalized;
+        _settingsStore.Save(_settings);
+        RefreshResourcePackageOverview();
+    }
+
+    public void SetResourceDestinationPathFromBrowse(string path)
+    {
+        ResourceDestinationPath = Path.GetFullPath(path);
+        ResourcePackageStatus = "Extraction location selected. Check the release before installing.";
+        RefreshResourcePackageOverview(preserveStatus: true);
+    }
+
+    [RelayCommand]
+    private async Task CheckResourceRelease()
+    {
+        var entry = SelectedResourceCatalogEntry();
+        if (entry is null || IsResourcePackageOperationRunning || IsOperationRunning)
+        {
+            return;
+        }
+
+        IsResourcePackageOperationRunning = true;
+        ActionsEnabled = false;
+        ResourcePackageStatus = $"Checking the {SelectedResourceReleaseChannel} {entry.DisplayName} release.";
+        var channel = ParseResourceReleaseChannel();
+        try
+        {
+            var release = await _resourcePackageReleaseSource.GetLatestAsync(entry, channel);
+            var key = ResourceReleaseKey(entry.PackageId, channel);
+            if (release is null)
+            {
+                _resourcePackageReleases.Remove(key);
+                ResourcePackageStatus = $"No {SelectedResourceReleaseChannel} resource release is currently available.";
+                AppendLog($"Resource release check: no {SelectedResourceReleaseChannel} release is available for {entry.DisplayName}.");
+            }
+            else
+            {
+                _resourcePackageReleases[key] = release;
+                ResourcePackageStatus = $"{SelectedResourceReleaseChannel} release {release.Manifest.PackageVersion} is available.";
+                AppendLog($"Resource release check: {entry.DisplayName} {release.Manifest.PackageVersion} ({SelectedResourceReleaseChannel}).");
+            }
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidDataException or InvalidOperationException)
+        {
+            ResourcePackageStatus = $"Resource release check failed: {ex.Message}";
+            AppendLog($"Resource release check failed for {entry.DisplayName}: {ex.Message}");
+        }
+        finally
+        {
+            IsResourcePackageOperationRunning = false;
+            ActionsEnabled = true;
+            RefreshResourcePackageOverview(preserveStatus: true);
+        }
+    }
+
+    [RelayCommand]
+    private async Task DownloadResourcePackage()
+    {
+        var entry = SelectedResourceCatalogEntry();
+        var channel = ParseResourceReleaseChannel();
+        var release = entry is null
+            ? null
+            : _resourcePackageReleases.GetValueOrDefault(ResourceReleaseKey(entry.PackageId, channel));
+        if (entry is null
+            || release is null
+            || string.IsNullOrWhiteSpace(ResourceDestinationPath)
+            || IsResourcePackageOperationRunning
+            || IsOperationRunning)
+        {
+            return;
+        }
+
+        try
+        {
+            await Task.Run(
+                () => _resourcePackageManager.ValidateDestination(entry, release, ResourceDestinationPath));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or InvalidOperationException)
+        {
+            ResourcePackageStatus = $"Resource destination is not available: {ex.Message}";
+            AppendLog($"Resource destination validation failed: {ex.Message}");
+            return;
+        }
+
+        var confirmation = new ConfirmationRequest(
+            $"Install {entry.DisplayName}?",
+            $"{entry.DisplayName} {release.Manifest.PackageVersion} will be downloaded, verified and extracted to:\n{Path.Combine(ResourceDestinationPath, release.Manifest.TargetDirectory)}\n\nNo X-Plane or aircraft files will be changed.",
+            "Install");
+        if (!await _userInteractionService.ConfirmAsync(confirmation))
+        {
+            ResourcePackageStatus = "Resource installation canceled. No files were changed.";
+            return;
+        }
+
+        IsResourcePackageOperationRunning = true;
+        ActionsEnabled = false;
+        IsOperationRunning = true;
+        OperationPanelVisible = true;
+        OperationTitle = $"Installing {entry.DisplayName}";
+        OperationSubtitle = "Downloading and validating the official resource archive.";
+        OperationProgress = 15;
+        OperationProgressText = "15% - Verifying release metadata and resource archive";
+        OperationStatus = "Resource installation in progress";
+        OperationLog = "";
+        var cancellationToken = BeginCancellableOperation();
+        try
+        {
+            var source = _resourcePackageReleaseSource;
+            var provisioned = await Task.Run(
+                async () => await source.DownloadAsync(
+                    entry,
+                    release,
+                    ResourceDestinationPath,
+                    cancellationToken),
+                cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            OperationProgress = 70;
+            OperationSubtitle = "Securely extracting and verifying every resource file.";
+            OperationProgressText = "70% - Extracting verified resource into staging";
+            var result = await Task.Run(
+                () => _resourcePackageManager.InstallToDirectory(
+                    entry,
+                    provisioned,
+                    ResourceDestinationPath,
+                    cancellationToken),
+                cancellationToken);
+            OperationProgress = 100;
+            OperationStatus = "Completed";
+            OperationTitle = $"{entry.DisplayName} installed";
+            OperationSubtitle = result.Message;
+            OperationProgressText = "100% - Resource installation completed and verified";
+            ResourcePackageStatus = result.Message;
+            ResourceFilePath = result.InstalledPath;
+            AppendLog($"Resource installation: {result.Message} Path: {result.InstalledPath}");
+        }
+        catch (OperationCanceledException)
+        {
+            OperationProgress = 0;
+            OperationStatus = "Canceled";
+            OperationTitle = "Resource installation canceled";
+            OperationSubtitle = "No installed resource directory was changed.";
+            OperationProgressText = "0% - Installation canceled before final placement";
+            ResourcePackageStatus = "Resource installation canceled. No installed resource directory was changed.";
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException or UnauthorizedAccessException or InvalidDataException or InvalidOperationException)
+        {
+            OperationProgress = 0;
+            OperationStatus = "Failed";
+            OperationTitle = $"{entry.DisplayName} installation failed";
+            OperationSubtitle = ex.Message;
+            OperationProgressText = "0% - Resource installation failed";
+            ResourcePackageStatus = $"Resource installation failed: {ex.Message}";
+            AppendLog($"Resource installation failed: {ex.Message}");
+        }
+        finally
+        {
+            EndCancellableOperation();
+            IsOperationRunning = false;
+            IsResourcePackageOperationRunning = false;
+            ActionsEnabled = true;
+            RefreshResourcePackageOverview(preserveStatus: true);
+        }
+    }
+
+    [RelayCommand]
+    private async Task VerifyResourcePackage()
+    {
+        var entry = SelectedResourceCatalogEntry();
+        if (entry is null || IsResourcePackageOperationRunning || IsOperationRunning)
+        {
+            return;
+        }
+
+        IsResourcePackageOperationRunning = true;
+        ActionsEnabled = false;
+        ResourcePackageStatus = $"Verifying the recorded {entry.DisplayName} installation.";
+        try
+        {
+            var release = _resourcePackageReleases.GetValueOrDefault(
+                ResourceReleaseKey(entry.PackageId, ParseResourceReleaseChannel()));
+            var inspection = await Task.Run(() => _resourcePackageManager.Inspect(entry, release, verifyHash: true));
+            ResourcePackageStatus = inspection.Status;
+            AppendLog($"Resource verification: {entry.DisplayName}: {inspection.Status}");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or InvalidOperationException)
+        {
+            ResourcePackageStatus = $"Resource verification failed: {ex.Message}";
+            AppendLog($"Resource verification failed: {ex.Message}");
+        }
+        finally
+        {
+            IsResourcePackageOperationRunning = false;
+            ActionsEnabled = true;
+            RefreshResourcePackageOverview(preserveStatus: true);
+        }
+    }
+
+    [RelayCommand]
+    private void OpenResourceFolder()
+    {
+        var state = SelectedResourceCatalogEntry() is { } entry
+            ? _stateStore.TryGetResourceInstallation(entry.PackageId)
+            : null;
+        if (state is null || !Directory.Exists(state.TargetPath))
+        {
+            ResourcePackageStatus = "The recorded resource installation folder is not available.";
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = state.TargetPath,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            ResourcePackageStatus = $"Resource folder could not be opened: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    private async Task RemoveResourcePackage()
+    {
+        var entry = SelectedResourceCatalogEntry();
+        if (entry is null || IsResourcePackageOperationRunning || IsOperationRunning)
+        {
+            return;
+        }
+
+        var confirmation = new ConfirmationRequest(
+            $"Remove installed {entry.DisplayName}?",
+            "Only the exact resource directory previously installed and still fully verified by the Toolkit will be removed. Changed or additional files block removal. No X-Plane files will be changed.",
+            "Remove");
+        if (!await _userInteractionService.ConfirmAsync(confirmation))
+        {
+            ResourcePackageStatus = "Resource removal canceled.";
+            return;
+        }
+
+        IsResourcePackageOperationRunning = true;
+        ActionsEnabled = false;
+        try
+        {
+            var result = await Task.Run(() => _resourcePackageManager.Remove(entry));
+            ResourcePackageStatus = result.Message;
+            AppendLog($"Resource removal: {result.Message}");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or InvalidOperationException)
+        {
+            ResourcePackageStatus = $"Resource removal failed: {ex.Message}";
+            AppendLog($"Resource removal failed: {ex.Message}");
+        }
+        finally
+        {
+            IsResourcePackageOperationRunning = false;
+            ActionsEnabled = true;
+            RefreshResourcePackageOverview(preserveStatus: true);
+        }
+    }
+
+    private void RefreshResourcePackageOverview(bool preserveStatus = false)
+    {
+        SynchronizeAvailableResourcePackages();
+        var entry = SelectedResourceCatalogEntry();
+        ResourcePackageVisible = entry is not null;
+        if (entry is null)
+        {
+            ResourceDownloadedVersion = "-";
+            ResourceAvailableVersion = "Not checked";
+            ResourceFilePath = "-";
+            ResourcePackageStatus = "Resources are available only for compatible detected products.";
+            CanCheckResourceRelease = false;
+            CanDownloadResourcePackage = false;
+            CanVerifyResourcePackage = false;
+            CanOpenResourceFolder = false;
+            CanRemoveResourcePackage = false;
+            return;
+        }
+
+        ResourcePackageName = entry.DisplayName;
+        ResourcePackageDescription = entry.Description;
+        var channel = ParseResourceReleaseChannel();
+        var release = _resourcePackageReleases.GetValueOrDefault(ResourceReleaseKey(entry.PackageId, channel));
+        var inspection = _resourcePackageManager.Inspect(entry, release);
+        ResourceDownloadedVersion = inspection.InstalledVersion;
+        ResourceAvailableVersion = inspection.AvailableVersion;
+        ResourceFilePath = string.IsNullOrWhiteSpace(inspection.InstalledPath) ? "-" : inspection.InstalledPath;
+        if (string.IsNullOrWhiteSpace(ResourceDestinationPath)
+            && !string.IsNullOrWhiteSpace(inspection.DestinationDirectory))
+        {
+            ResourceDestinationPath = inspection.DestinationDirectory;
+        }
+
+        ResourceActionLabel = inspection.State is ResourcePackageState.UpdateAvailable
+            ? "Update"
+            : "Install";
+        if (!preserveStatus)
+        {
+            ResourcePackageStatus = inspection.Status;
+        }
+
+        var available = ActionsEnabled && !IsOperationRunning && !IsResourcePackageOperationRunning;
+        CanCheckResourceRelease = available;
+        CanDownloadResourcePackage = available
+            && release is not null
+            && !string.IsNullOrWhiteSpace(ResourceDestinationPath)
+            && inspection.CanInstall;
+        CanVerifyResourcePackage = available && !string.IsNullOrWhiteSpace(inspection.InstalledPath);
+        CanOpenResourceFolder = available && Directory.Exists(inspection.InstalledPath);
+        CanRemoveResourcePackage = available && _stateStore.TryGetResourceInstallation(entry.PackageId) is not null;
+    }
+
+    private ContentPackageCatalogEntry? SelectedResourceCatalogEntry()
+    {
+        var product = SelectedProduct;
+        var entry = SelectedResourcePackage;
+        return product?.IsDetected == true
+            && entry?.Category is ContentPackageCategory.Resource
+            && entry.SupportedProducts.Contains(product.Family, StringComparer.Ordinal)
+                ? entry
+                : null;
+    }
+
+    private void SynchronizeAvailableResourcePackages()
+    {
+        var product = SelectedProduct;
+        var resources = product?.IsDetected == true
+            ? _contentPackageCatalog.ForProduct(product.Family)
+                .Where(package => package.Category is ContentPackageCategory.Resource)
+                .ToArray()
+            : [];
+        var selectedPackageId = SelectedResourcePackage?.PackageId;
+        var selected = resources.FirstOrDefault(package =>
+                package.PackageId.Equals(selectedPackageId, StringComparison.Ordinal))
+            ?? resources.FirstOrDefault();
+
+        _synchronizingResourceSelection = true;
+        try
+        {
+            var listChanged = AvailableResourcePackages.Count != resources.Length
+                || AvailableResourcePackages.Zip(resources).Any(pair =>
+                    !pair.First.PackageId.Equals(pair.Second.PackageId, StringComparison.Ordinal));
+            if (listChanged)
+            {
+                AvailableResourcePackages.ReplaceWith(resources);
+            }
+
+            if (!ReferenceEquals(SelectedResourcePackage, selected))
+            {
+                SelectedResourcePackage = selected;
+                ResourceDestinationPath = selected is null
+                    ? ""
+                    : _stateStore.TryGetResourceInstallation(selected.PackageId)?.DestinationDirectory ?? "";
+            }
+
+            ResourceReleaseChannelOptions = ResourceReleaseChannels(selected);
+            SelectedResourceReleaseChannel = NormalizeResourceReleaseChannel(
+                selected,
+                selected is null
+                    ? "stable"
+                    : _settings.ToolReleaseChannels.GetValueOrDefault(selected.PackageId, "stable"));
+        }
+        finally
+        {
+            _synchronizingResourceSelection = false;
+        }
+    }
+
     private string? ResolveCurrentXPlaneRoot() =>
         XPlaneInstallationLocator.Resolve(
             SelectedAircraftPath,
@@ -3055,10 +3652,38 @@ public partial class MainWindowViewModel : ViewModelBase
             ? ToolReleaseChannel.Beta
             : ToolReleaseChannel.Stable;
 
+    private ResourceReleaseChannel ParseResourceReleaseChannel() =>
+        SelectedResourceReleaseChannel.Equals("beta", StringComparison.OrdinalIgnoreCase)
+            ? ResourceReleaseChannel.Beta
+            : ResourceReleaseChannel.Stable;
+
     private static string NormalizeToolReleaseChannel(string value) =>
         value.Trim().Equals("beta", StringComparison.OrdinalIgnoreCase) ? "beta" : "stable";
 
+    private static IReadOnlyList<string> ResourceReleaseChannels(ContentPackageCatalogEntry? entry)
+    {
+        var channels = entry?.SupportedChannels
+            .Select(NormalizeToolReleaseChannel)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        return channels is { Length: > 0 } ? channels : ["stable"];
+    }
+
+    private static string NormalizeResourceReleaseChannel(
+        ContentPackageCatalogEntry? entry,
+        string value)
+    {
+        var normalized = NormalizeToolReleaseChannel(value);
+        var channels = ResourceReleaseChannels(entry);
+        return channels.Contains(normalized, StringComparer.Ordinal)
+            ? normalized
+            : channels[0];
+    }
+
     private static string ToolReleaseKey(string packageId, ToolReleaseChannel channel) =>
+        $"{packageId}:{channel.ToString().ToLowerInvariant()}";
+
+    private static string ResourceReleaseKey(string packageId, ResourceReleaseChannel channel) =>
         $"{packageId}:{channel.ToString().ToLowerInvariant()}";
 
     private void RefreshProductTargets(string? preferredAcfPath = null)
@@ -3365,6 +3990,7 @@ public partial class MainWindowViewModel : ViewModelBase
         RefreshOptionalPatchStatus();
         RefreshContentPackageOverview();
         RefreshToolPackageOverview();
+        RefreshResourcePackageOverview();
     }
 
     [RelayCommand]
@@ -4000,7 +4626,9 @@ public sealed record AvailableContentPackageStatus(
     string RepositoryUrl,
     bool IsOptional,
     bool CanAct,
-    string ActionLabel)
+    string ActionLabel,
+    bool CanRestore,
+    bool CanRemove)
 {
     public bool IsManaged => !IsOptional;
 }

@@ -9,7 +9,8 @@ public enum ContentPackageCategory
     Unknown,
     ManagedContent,
     OptionalPatch,
-    Tool
+    Tool,
+    Resource
 }
 
 public enum ContentPackageDistributionKind
@@ -17,7 +18,8 @@ public enum ContentPackageDistributionKind
     Unknown,
     ExistingVnav,
     GitHubReleaseArchive,
-    GitHubToolRelease
+    GitHubToolRelease,
+    GitHubResourceRelease
 }
 
 public sealed class ContentPackageCatalogDocument
@@ -169,6 +171,8 @@ public sealed class ContentPackageCatalog
             || (package.Category is ContentPackageCategory.OptionalPatch
                 && package.Activation is not ContentPatchActivation.ExplicitOptIn)
             || (package.Category is ContentPackageCategory.Tool
+                && package.Activation is not ContentPatchActivation.ExplicitOptIn)
+            || (package.Category is ContentPackageCategory.Resource
                 && package.Activation is not ContentPatchActivation.ExplicitOptIn))
         {
             throw new InvalidDataException($"Content package {package.PackageId} has inconsistent category and activation metadata.");
@@ -201,6 +205,26 @@ public sealed class ContentPackageCatalog
                 || package.SupportedChannels.Any(channel => channel is not "stable" and not "beta"))
             {
                 throw new InvalidDataException($"Content package {package.PackageId} has unsafe GitHub tool release metadata.");
+            }
+
+            return;
+        }
+
+        if (package.Distribution.Kind is ContentPackageDistributionKind.GitHubResourceRelease)
+        {
+            if (package.Category is not ContentPackageCategory.Resource
+                || package.Distribution.ManifestSchemaVersion != 1
+                || !IsSafeAssetPattern(package.Distribution.AssetNamePattern, ".7z")
+                || !IsSafeAssetPattern(package.Distribution.ManifestAssetNamePattern, ".json")
+                || !string.Equals(package.InstallScope, "userSelectedDirectory", StringComparison.Ordinal)
+                || !string.IsNullOrWhiteSpace(package.TargetPath)
+                || !string.IsNullOrWhiteSpace(package.VersionMarkerPath)
+                || package.RestartRequired
+                || package.SupportedChannels.Count == 0
+                || package.SupportedChannels.Count != package.SupportedChannels.Distinct(StringComparer.Ordinal).Count()
+                || package.SupportedChannels.Any(channel => channel is not "stable" and not "beta"))
+            {
+                throw new InvalidDataException($"Content package {package.PackageId} has unsafe GitHub resource release metadata.");
             }
 
             return;

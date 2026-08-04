@@ -221,7 +221,7 @@
                                     </StackPanel>
                                 </Border>
 
-                                <Grid RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="12">
+                                <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="12">
                                     <Border Classes="task-card">
                                         <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="14">
                                             <StackPanel Spacing="4">
@@ -351,6 +351,14 @@
                                                                                 Click="ApplyCatalogPatch_Click"
                                                                                 IsEnabled="{Binding CanAct}"
                                                                                 IsVisible="{Binding IsOptional}"/>
+                                                                        <Button Content="Restore"
+                                                                                Click="RestoreCatalogPatch_Click"
+                                                                                IsEnabled="{Binding CanRestore}"
+                                                                                IsVisible="{Binding IsOptional}"/>
+                                                                        <Button Content="Remove"
+                                                                                Click="RemoveCatalogPatch_Click"
+                                                                                IsEnabled="{Binding CanRemove}"
+                                                                                IsVisible="{Binding IsOptional}"/>
                                                                     </WrapPanel>
                                                                 </Grid>
                                                                 <TextBlock Grid.Row="1"
@@ -457,7 +465,98 @@
                                         </Grid>
                                     </Border>
 
-                                    <Border Grid.Row="3" Classes="task-card">
+                                    <Border Grid.Row="3"
+                                            Classes="task-card"
+                                            IsVisible="{Binding ResourcePackageVisible}">
+                                        <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="12">
+                                            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="16">
+                                                <StackPanel Spacing="4">
+                                                    <TextBlock Text="Resources" FontSize="18" FontWeight="SemiBold"/>
+                                                    <TextBlock Text="Optional verified resources for the selected product. Resources are extracted outside X-Plane and never modify aircraft files."
+                                                               Foreground="{DynamicResource AppTextSecondaryBrush}"
+                                                               TextWrapping="Wrap"/>
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1" Spacing="3" MinWidth="130">
+                                                    <TextBlock Classes="label" Text="Resource"/>
+                                                    <ComboBox ItemsSource="{Binding AvailableResourcePackages}"
+                                                              SelectedItem="{Binding SelectedResourcePackage}"
+                                                              MinWidth="190">
+                                                        <ComboBox.ItemTemplate>
+                                                            <DataTemplate x:DataType="content:ContentPackageCatalogEntry">
+                                                                <TextBlock Text="{Binding DisplayName}"/>
+                                                            </DataTemplate>
+                                                        </ComboBox.ItemTemplate>
+                                                    </ComboBox>
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="2" Spacing="3" MinWidth="130">
+                                                    <TextBlock Classes="label" Text="Release channel"/>
+                                                    <ComboBox ItemsSource="{Binding ResourceReleaseChannelOptions}"
+                                                              SelectedItem="{Binding SelectedResourceReleaseChannel}"/>
+                                                </StackPanel>
+                                            </Grid>
+
+                                            <StackPanel Grid.Row="1" Spacing="3">
+                                                <TextBlock Text="{Binding ResourcePackageName}" FontSize="15" FontWeight="SemiBold"/>
+                                                <TextBlock Text="{Binding ResourcePackageDescription}"
+                                                           Foreground="{DynamicResource AppTextSecondaryBrush}"
+                                                           TextWrapping="Wrap"/>
+                                            </StackPanel>
+
+                                            <Grid Grid.Row="2" ColumnDefinitions="Auto,Auto,*" ColumnSpacing="22">
+                                                <StackPanel Spacing="2">
+                                                    <TextBlock Classes="label" Text="Installed"/>
+                                                    <TextBlock Text="{Binding ResourceDownloadedVersion}" FontWeight="SemiBold"/>
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1" Spacing="2">
+                                                    <TextBlock Classes="label" Text="Available"/>
+                                                    <TextBlock Text="{Binding ResourceAvailableVersion}" FontWeight="SemiBold"/>
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="2" Spacing="2">
+                                                    <TextBlock Classes="label" Text="Status"/>
+                                                    <TextBlock Text="{Binding ResourcePackageStatus}" TextWrapping="Wrap"/>
+                                                </StackPanel>
+                                            </Grid>
+
+                                            <Grid Grid.Row="3" ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                                                <StackPanel Spacing="3">
+                                                    <TextBlock Classes="label" Text="Extraction location"/>
+                                                    <TextBlock Classes="path"
+                                                               Text="{Binding ResourceDestinationPath}"
+                                                               TextWrapping="Wrap"/>
+                                                    <TextBlock Classes="label" Text="Installed folder" Margin="0,5,0,0"/>
+                                                    <TextBlock Classes="path"
+                                                               Text="{Binding ResourceFilePath}"
+                                                               TextWrapping="Wrap"/>
+                                                </StackPanel>
+                                                <Button Grid.Column="1"
+                                                        Content="Choose destination"
+                                                        Click="BrowseResourceDestination_Click"
+                                                        IsEnabled="{Binding ActionsEnabled}"
+                                                        VerticalAlignment="Top"/>
+                                            </Grid>
+
+                                            <WrapPanel Grid.Row="4" ItemSpacing="8" LineSpacing="8">
+                                                <Button Content="Check release"
+                                                        Command="{Binding CheckResourceReleaseCommand}"
+                                                        IsEnabled="{Binding CanCheckResourceRelease}"/>
+                                                <Button Content="{Binding ResourceActionLabel}"
+                                                        Classes="primary"
+                                                        Command="{Binding DownloadResourcePackageCommand}"
+                                                        IsEnabled="{Binding CanDownloadResourcePackage}"/>
+                                                <Button Content="Verify"
+                                                        Command="{Binding VerifyResourcePackageCommand}"
+                                                        IsEnabled="{Binding CanVerifyResourcePackage}"/>
+                                                <Button Content="Open folder"
+                                                        Command="{Binding OpenResourceFolderCommand}"
+                                                        IsEnabled="{Binding CanOpenResourceFolder}"/>
+                                                <Button Content="Remove resource"
+                                                        Command="{Binding RemoveResourcePackageCommand}"
+                                                        IsEnabled="{Binding CanRemoveResourcePackage}"/>
+                                            </WrapPanel>
+                                        </Grid>
+                                    </Border>
+
+                                    <Border Grid.Row="4" Classes="task-card">
                                         <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="12">
                                             <StackPanel Spacing="4">
                                                 <TextBlock Text="Views After CG Change" FontSize="18" FontWeight="SemiBold"/>
@@ -619,6 +718,10 @@
                                     <Button Content="Repair"
                                             Command="{Binding RunOptionalPatchActionCommand}"
                                             CommandParameter="Repair"
+                                            IsEnabled="{Binding CanRunOptionalPatch}"/>
+                                    <Button Content="Restore"
+                                            Command="{Binding RunOptionalPatchActionCommand}"
+                                            CommandParameter="Restore"
                                             IsEnabled="{Binding CanRunOptionalPatch}"/>
                                     <Button Content="Uninstall"
                                             Command="{Binding RunOptionalPatchActionCommand}"

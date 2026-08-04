@@ -130,6 +130,23 @@ public sealed class DeclarativeContentPatchOperationTests
     }
 
     [Fact]
+    public async Task InstallAndRestore_OptionalExactTextPatch_RoundTripsOriginalAndState()
+    {
+        using var fixture = Fixture.Create();
+        var original = File.ReadAllBytes(fixture.TargetPath);
+        var operation = new DeclarativeContentPatchOperation(fixture.Store, isXPlaneRunning: () => false);
+        var installed = await operation.RunAsync(ContentPatchAction.Install, fixture.Variant, fixture.PackageDirectory);
+
+        var restored = operation.Restore(fixture.Variant, fixture.PackageDirectory);
+
+        Assert.True(installed.Succeeded);
+        Assert.True(restored.Succeeded);
+        Assert.True(restored.Changed);
+        Assert.Equal(original, File.ReadAllBytes(fixture.TargetPath));
+        Assert.Empty(Assert.Single(fixture.Store.Load().ContentInstallations.Values).ContentComponents);
+    }
+
+    [Fact]
     public async Task Uninstall_WhenInstalledTargetWasChanged_BlocksWithoutOverwritingUserChange()
     {
         using var fixture = Fixture.Create();
