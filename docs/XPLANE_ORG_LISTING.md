@@ -10,7 +10,7 @@ X-Plane 737NG Maintenance Toolkit
 
 ## Current Version
 
-0.5.0
+0.6.0
 
 ## Short Description
 
@@ -33,6 +33,8 @@ Current functions include:
 - Quick View correction after an aircraft CG change
 - optional correction of a matching X-Camera file
 - use of Quick View 0 as the aircraft default viewpoint
+- CG-corrected Quick View and Default Viewpoint transfer across all variants in
+  one detected LevelUp installation
 - configuration backup and restore
 - cancellable download and review before a write transaction begins
 - detailed Advanced log and diagnostic export for support requests
@@ -42,7 +44,7 @@ Current functions include:
 - explicit optional LevelUp FANS CDU patch management
 - verified LevelUp Paintkit download and extraction into a user-selected folder
 
-Version 0.5.0 currently offers:
+Version 0.6.0 currently offers:
 
 - Yet Another Linda (YAL)
 - YAL HoppieHelper
@@ -106,7 +108,7 @@ Verify the download against `SHA256SUMS.txt` on the release page. If a verified 
 
 https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac
 
-Version 0.5.0 does not automatically check for or install newer Toolkit versions. Download future app releases manually from the GitHub release page.
+Version 0.6.0 does not automatically check for or install newer Toolkit versions. Download future app releases manually from the GitHub release page.
 
 ## First Use
 
@@ -139,6 +141,14 @@ When reporting a problem, use `Dump to file` on the Advanced tab and attach the 
 The Toolkit source code is available under the MIT License. The application is provided as-is, without warranty of any kind. It can modify aircraft files after validation and backup; users should retain their own backups and use the tool at their own risk.
 
 ## Changelog
+
+### 0.6.0
+
+- Added a confirmed LevelUp fleet view transfer from one selected source
+  variant to all other variants in the same aircraft folder.
+- Added per-target feet-to-meters CG correction for transferred Quick Views.
+- Added QV0-derived Default Viewpoints, per-file backups, all-target
+  pre-validation and rollback for the fleet transaction.
 
 ### 0.5.0
 

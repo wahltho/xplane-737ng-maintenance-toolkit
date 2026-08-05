@@ -82,6 +82,8 @@ already spans five clearly separated tool areas:
   CSVs, root cfg files and toolkit metadata.
 - Quick View adaptation after ACF CG changes.
 - Default-view update from Quick View 0.
+- LevelUp fleet transfer from one selected variant to all other variants in the
+  same installation, with per-target CG correction, backups and rollback.
 - Zibo upstream package review, import/download into cache, dry-run, apply and
   restore.
 - Product-gated X-Plane-wide tool packages with separate per-tool Stable/Beta
@@ -175,6 +177,9 @@ UI is organized as a target selector plus tabs.
   default-view status.
 - Offer Quick View CG adaptation.
 - Offer Quick View 0 to default-view application.
+- For LevelUp, offer a confirmed transfer of Quick Views and the QV0-derived
+  default viewpoint from the selected source variant to all other detected
+  variants in the same aircraft folder.
 - Offer config backup, config restore and latest-backup restore.
 
 ### 4. Aircraft Updates

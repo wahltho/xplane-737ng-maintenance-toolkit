@@ -601,6 +601,11 @@
                                                 <Button Content="Use Quick View 0 as Default Viewpoint"
                                                         Command="{Binding ApplyQv0ToDefaultViewCommand}"
                                                         IsEnabled="{Binding ProductActionsEnabled}"/>
+                                                <Button Content="Copy Views to Other LevelUp Variants"
+                                                        Command="{Binding CopyViewsToLevelUpFleetCommand}"
+                                                        IsVisible="{Binding LevelUpFleetViewTransferVisible}"
+                                                        IsEnabled="{Binding CanCopyViewsToLevelUpFleet}"
+                                                        ToolTip.Tip="Copies the selected variant's Quick Views to the other LevelUp variants in this aircraft folder and corrects them for each CG."/>
                                             </WrapPanel>
                                         </Grid>
                                     </Border>

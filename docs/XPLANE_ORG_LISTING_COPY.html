@@ -29,7 +29,7 @@
   <p>X-Plane 737NG Maintenance Toolkit</p>
 
   <h2>Current Version</h2>
-  <p>0.5.0</p>
+  <p>0.6.0</p>
 
   <h2>Short Description</h2>
   <p>Cross-platform maintenance utility for supported Zibo and LevelUp 737NG aircraft in X-Plane 12, providing aircraft and VNAV updates, transactional backups, CG/view correction, optional patches, tools and resources.</p>
@@ -48,6 +48,7 @@
     <li>Quick View correction after an aircraft CG change</li>
     <li>optional correction of a matching X-Camera file</li>
     <li>use of Quick View 0 as the aircraft default viewpoint</li>
+    <li>CG-corrected Quick View and Default Viewpoint transfer across all variants in one detected LevelUp installation</li>
     <li>configuration backup and restore</li>
     <li>cancellable download and review before a write transaction begins</li>
     <li>detailed Advanced log and diagnostic export for support requests</li>
@@ -57,7 +58,7 @@
     <li>explicit optional LevelUp FANS CDU patch management</li>
     <li>verified LevelUp Paintkit download and extraction into a user-selected folder</li>
   </ul>
-  <p>Version 0.5.0 currently offers:</p>
+  <p>Version 0.6.0 currently offers:</p>
   <ul>
     <li>Yet Another Linda (YAL)</li>
     <li>YAL HoppieHelper</li>
@@ -110,7 +111,7 @@
   <p>The current builds are unsigned. Windows may display a SmartScreen warning, macOS may block the unsigned and non-notarized build, and the Linux AppImage is not separately signed.</p>
   <p>Verify the download against <code>SHA256SUMS.txt</code> on the release page. If a verified macOS download is blocked, try to open it once, then use Apple's documented Privacy &amp; Security "Open Anyway" process:</p>
   <p><a href="https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac">https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac</a></p>
-  <p>Version 0.5.0 does not automatically check for or install newer Toolkit versions. Download future app releases manually from the GitHub release page.</p>
+  <p>Version 0.6.0 does not automatically check for or install newer Toolkit versions. Download future app releases manually from the GitHub release page.</p>
 
   <h2>First Use</h2>
   <ol>
@@ -136,6 +137,12 @@
   <p>The Toolkit source code is available under the MIT License. The application is provided as-is, without warranty of any kind. It can modify aircraft files after validation and backup; users should retain their own backups and use the tool at their own risk.</p>
 
   <h2>Changelog</h2>
+  <h3>0.6.0</h3>
+  <ul>
+    <li>Added a confirmed LevelUp fleet view transfer from one selected source variant to all other variants in the same aircraft folder.</li>
+    <li>Added per-target feet-to-meters CG correction for transferred Quick Views.</li>
+    <li>Added QV0-derived Default Viewpoints, per-file backups, all-target pre-validation and rollback for the fleet transaction.</li>
+  </ul>
   <h3>0.5.0</h3>
   <ul>
     <li>Added the LevelUp FANS CDU package as the first visible explicit optional aircraft patch.</li>

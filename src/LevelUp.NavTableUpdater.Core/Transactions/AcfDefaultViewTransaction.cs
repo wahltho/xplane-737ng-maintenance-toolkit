@@ -5,15 +5,16 @@ namespace LevelUp.NavTableUpdater.Core.Transactions;
 
 internal static class AcfDefaultViewTransaction
 {
+    public static void Validate(string acfPath)
+    {
+        var defaultView = AircraftFileParser.ReadAcfMetadata(acfPath).DefaultView
+            ?? throw new InvalidOperationException("ACF default-view fields are incomplete.");
+        Rewrite(TextDocument.Read(acfPath), BuildReplacements(defaultView));
+    }
+
     public static void Apply(string acfPath, DefaultView defaultView, string backupPath)
     {
-        var replacements = new Dictionary<string, string>(StringComparer.Ordinal)
-        {
-            ["acf/_pe_xyz/0"] = Format(defaultView.XFeet),
-            ["acf/_pe_xyz/1"] = Format(defaultView.YFeet),
-            ["acf/_pe_xyz/2"] = Format(defaultView.ZFeet),
-            ["acf/_ang_offset/0,1"] = Format(defaultView.PitchDegrees)
-        };
+        var replacements = BuildReplacements(defaultView);
 
         TextFileRewrite.Apply(
             acfPath,
@@ -34,6 +35,15 @@ internal static class AcfDefaultViewTransaction
     }
 
     private static string Format(double value) => value.ToString("0.000000000", CultureInfo.InvariantCulture);
+
+    private static Dictionary<string, string> BuildReplacements(DefaultView defaultView) =>
+        new(StringComparer.Ordinal)
+        {
+            ["acf/_pe_xyz/0"] = Format(defaultView.XFeet),
+            ["acf/_pe_xyz/1"] = Format(defaultView.YFeet),
+            ["acf/_pe_xyz/2"] = Format(defaultView.ZFeet),
+            ["acf/_ang_offset/0,1"] = Format(defaultView.PitchDegrees)
+        };
 
     private static bool NearlyEqual(double left, double right) => Math.Abs(left - right) <= 0.000001;
 

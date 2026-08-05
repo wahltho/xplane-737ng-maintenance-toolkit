@@ -198,6 +198,32 @@ public sealed class ToolStateStore
         Save(document);
     }
 
+    public void UpdateTargets(
+        IReadOnlyList<AircraftVariantViewAnalysis> variants,
+        Action<AircraftVariantViewAnalysis, AircraftToolState> update)
+    {
+        var document = Load();
+        foreach (var variant in variants)
+        {
+            var key = TargetKey(variant.AcfPath);
+            if (!document.Aircraft.TryGetValue(key, out var target))
+            {
+                target = new AircraftToolState();
+                document.Aircraft[key] = target;
+            }
+
+            target.AircraftId = variant.AircraftId;
+            target.AircraftFolder = Path.GetDirectoryName(variant.AcfPath) ?? "";
+            target.AcfPath = variant.AcfPath;
+            target.PrefsPath = variant.PrefsPath;
+            target.LastObservedCgYFeet = variant.CurrentCgYFeet;
+            target.LastObservedCgZFeet = variant.CurrentCgZFeet;
+            update(variant, target);
+        }
+
+        Save(document);
+    }
+
     public AircraftToolState? TryGetProductTarget(AircraftVariantViewAnalysis variant)
     {
         var document = Load();

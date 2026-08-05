@@ -7,7 +7,7 @@ tools and conservative view maintenance for supported aircraft variants.
 This repository is the public development home for the app. The architecture
 keeps package content, aircraft patching, and application updates separate.
 
-Release version: **0.5.0**
+Release version: **0.6.0**
 
 - [Download the latest stable release](https://github.com/wahltho/xplane-737ng-maintenance-toolkit/releases/latest)
 - [Read the user manual](docs/USER_MANUAL.md)
@@ -57,7 +57,7 @@ verified macOS download is blocked, follow Apple's documented
 [Privacy & Security "Open Anyway" process](https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac).
 
 Download future app releases manually from GitHub. VeloPack currently provides
-the application package and lifecycle integration; version 0.5.0 does not yet
+the application package and lifecycle integration; version 0.6.0 does not yet
 check for or download new Toolkit versions automatically. Aircraft and VNAV
 content updates are separate and can be checked from inside the app.
 
@@ -99,6 +99,10 @@ Current capabilities:
   backup.
 - It can optionally adapt a matching `X-Camera_<acf-stem>.csv` file when one is
   present.
+- For LevelUp installations, it can copy every Quick View from one selected
+  variant to all other variants in the same aircraft folder. Each target is
+  corrected for its ACF CG and receives a Default Viewpoint derived from the
+  transferred Quick View 0 in one rollback-protected fleet transaction.
 - It can create and restore dedicated config backups for root-level aircraft
   preferences, camera CSVs, cfg files and toolkit metadata.
 - It can install, update, repair and uninstall manifest-owned VNAV Lua hooks and

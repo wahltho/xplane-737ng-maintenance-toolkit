@@ -30,6 +30,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly ApplyDefaultViewFromQv0Operation _applyDefaultViewOperation;
     private readonly ApplyQuickViewCgAdaptOperation _applyQuickViewCgAdaptOperation;
     private readonly AdoptQuickViewBaselineOperation _adoptQuickViewBaselineOperation;
+    private readonly LevelUpFleetViewTransferOperation _levelUpFleetViewTransferOperation;
     private readonly ConfigBackupOperation _configBackupOperation;
     private readonly RestoreLatestBackupOperation _restoreLatestBackupOperation;
     private readonly VnavContentOperation _vnavContentOperation;
@@ -211,6 +212,12 @@ public partial class MainWindowViewModel : ViewModelBase
 
     [ObservableProperty]
     private bool canAdaptQuickViewsForCg;
+
+    [ObservableProperty]
+    private bool levelUpFleetViewTransferVisible;
+
+    [ObservableProperty]
+    private bool canCopyViewsToLevelUpFleet;
 
     [ObservableProperty]
     private string upstreamUpdateStatus = "No Zibo aircraft selected";
@@ -497,6 +504,7 @@ public partial class MainWindowViewModel : ViewModelBase
         _applyDefaultViewOperation = new ApplyDefaultViewFromQv0Operation(_stateStore);
         _applyQuickViewCgAdaptOperation = new ApplyQuickViewCgAdaptOperation(_stateStore, _quickViewBaselineAnalyzer);
         _adoptQuickViewBaselineOperation = new AdoptQuickViewBaselineOperation(_stateStore);
+        _levelUpFleetViewTransferOperation = new LevelUpFleetViewTransferOperation(_stateStore);
         _configBackupOperation = new ConfigBackupOperation(_stateStore);
         _restoreLatestBackupOperation = new RestoreLatestBackupOperation(_stateStore);
         _vnavContentOperation = new VnavContentOperation(_stateStore, CreatePayloadSource());
@@ -2076,6 +2084,59 @@ public partial class MainWindowViewModel : ViewModelBase
             "Quick View baseline blocked",
             selectedVariant,
             () => _adoptQuickViewBaselineOperation.Adopt(selectedVariant));
+    }
+
+    [RelayCommand]
+    private async Task CopyViewsToLevelUpFleet()
+    {
+        if (IsOperationRunning)
+        {
+            return;
+        }
+
+        var source = SelectedViewVariant;
+        if (source is null)
+        {
+            AppendLog("Copy views to LevelUp fleet: blocked because no source variant is selected.");
+            return;
+        }
+
+        var targets = GetLevelUpFleetTransferTargets(source);
+        if (targets.Count == 0)
+        {
+            AppendLog("Copy views to LevelUp fleet: no other LevelUp variant is available in this aircraft folder.");
+            return;
+        }
+
+        var targetNames = string.Join(Environment.NewLine, targets.Select(target => $"- {target.DisplayName}"));
+        var confirmed = await _userInteractionService.ConfirmAsync(
+            new ConfirmationRequest(
+                "Copy views to other LevelUp variants?",
+                $"Source: {source.DisplayName}\n\nTargets:\n{targetNames}\n\n"
+                + "All Quick Views will be copied with CG correction. Each target Default Viewpoint will be set from the transferred Quick View 0. "
+                + "Every changed target file will be backed up before writing.",
+                "Copy views"));
+        if (!confirmed)
+        {
+            AppendLog("Copy views to LevelUp fleet: canceled before validation.");
+            return;
+        }
+
+        var result = RunViewMaintenanceAction(
+            "Copy views to LevelUp fleet",
+            "Preparing LevelUp fleet view transaction",
+            "LevelUp fleet views updated",
+            "LevelUp fleet view transfer blocked",
+            source,
+            () => _levelUpFleetViewTransferOperation.Apply(source, FilteredViewVariants.ToArray()),
+            "LevelUp 737NG Series");
+
+        await _userInteractionService.ShowMessageAsync(
+            new MessageRequest(
+                result.Succeeded ? "LevelUp fleet view transfer complete" : "LevelUp fleet view transfer not applied",
+                result.Succeeded && result.Changed
+                    ? $"{result.Message}\n\nStart X-Plane only after all maintenance operations are complete."
+                    : result.Message));
     }
 
     [RelayCommand]
@@ -3891,6 +3952,30 @@ public partial class MainWindowViewModel : ViewModelBase
         QuickViewBaselineDetail = assessment.Detail;
         CanAdoptQuickViewBaseline = ActionsEnabled && variant is not null && assessment.CanAdoptCurrent;
         CanAdaptQuickViewsForCg = ActionsEnabled && variant is not null && assessment.CanAdapt;
+        var fleetTargets = variant is null ? [] : GetLevelUpFleetTransferTargets(variant);
+        LevelUpFleetViewTransferVisible = variant is not null
+            && string.Equals(variant.Family, AircraftProductIds.LevelUp737Ng, StringComparison.OrdinalIgnoreCase)
+            && fleetTargets.Count > 0;
+        CanCopyViewsToLevelUpFleet = ActionsEnabled
+            && LevelUpFleetViewTransferVisible
+            && string.Equals(variant?.QuickViewStatus, "QV0 readable", StringComparison.Ordinal);
+    }
+
+    private IReadOnlyList<AircraftVariantViewAnalysis> GetLevelUpFleetTransferTargets(
+        AircraftVariantViewAnalysis source)
+    {
+        if (!string.Equals(source.Family, AircraftProductIds.LevelUp737Ng, StringComparison.OrdinalIgnoreCase))
+        {
+            return [];
+        }
+
+        var sourceFolder = GetAircraftFolderPath(source);
+        return FilteredViewVariants
+            .Where(variant => string.Equals(variant.Family, AircraftProductIds.LevelUp737Ng, StringComparison.OrdinalIgnoreCase))
+            .Where(variant => PathsEqual(GetAircraftFolderPath(variant), sourceFolder))
+            .Where(variant => !PathsEqual(variant.AcfPath, source.AcfPath))
+            .OrderBy(variant => variant.DisplayName, StringComparer.Ordinal)
+            .ToArray();
     }
 
     private void ApplyUpstreamReadiness(AircraftVariantViewAnalysis? variant)
