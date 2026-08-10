@@ -29,7 +29,7 @@
   <p>X-Plane 737NG Maintenance Toolkit</p>
 
   <h2>Current Version</h2>
-  <p>0.6.1</p>
+  <p>0.7.0</p>
 
   <h2>Short Description</h2>
   <p>Cross-platform maintenance utility for supported Zibo and LevelUp 737NG aircraft in X-Plane 12, providing aircraft and VNAV updates, transactional backups, CG/view correction, optional patches, tools and resources.</p>
@@ -55,17 +55,19 @@
     <li>automatic operating-system light and dark appearance</li>
     <li>optional installation, update, repair and restore of supported X-Plane tools</li>
     <li>stable and beta release channels for supported optional tools</li>
+    <li>aircraft-scoped Optimized XLua install, update, repair and restore while preserving aircraft-owned Lua scripts</li>
     <li>explicit optional LevelUp FANS CDU patch management</li>
     <li>verified LevelUp Paintkit download and extraction into a user-selected folder</li>
   </ul>
-  <p>Version 0.6.1 currently offers:</p>
+  <p>Version 0.7.0 currently offers:</p>
   <ul>
+    <li>Optimized XLua 1.3.7r3</li>
     <li>Yet Another Linda (YAL)</li>
     <li>YAL HoppieHelper</li>
     <li>LevelUp FANS CDU patch</li>
     <li>LevelUp 737NG Paintkit 1.1.0</li>
   </ul>
-  <p>YAL and YAL HoppieHelper are installed once per X-Plane installation and are available for supported Zibo and LevelUp aircraft. The FANS CDU patch and Paintkit are LevelUp-only. Every item remains optional.</p>
+  <p>Optimized XLua is managed separately for each selected Zibo or LevelUp aircraft and preserves the complete aircraft-owned <code>plugins/xlua/scripts</code> tree. YAL and YAL HoppieHelper are installed once per X-Plane installation and are available for both products. The FANS CDU patch and Paintkit are LevelUp-only. Every item remains optional.</p>
   <p>Aircraft packages, VNAV content, optional patches, tools, resources and Toolkit application releases are separate update layers. The app does not distribute a complete modified <code>B738.a_fms.lua</code>; VNAV hooks and authorized payload files are applied locally after validation.</p>
   <p>This is not an official Laminar Research, Zibo or LevelUp product. It does not replace the aircraft developers' official distribution channels.</p>
 
@@ -111,7 +113,7 @@
   <p>The current builds are unsigned. Windows may display a SmartScreen warning, macOS may block the unsigned and non-notarized build, and the Linux AppImage is not separately signed.</p>
   <p>Verify the download against <code>SHA256SUMS.txt</code> on the release page. If a verified macOS download is blocked, try to open it once, then use Apple's documented Privacy &amp; Security "Open Anyway" process:</p>
   <p><a href="https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac">https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac</a></p>
-  <p>Version 0.6.1 does not automatically check for or install newer Toolkit versions. Download future app releases manually from the GitHub release page.</p>
+  <p>Version 0.7.0 does not automatically check for or install newer Toolkit versions. Download future app releases manually from the GitHub release page.</p>
 
   <h2>First Use</h2>
   <ol>
@@ -137,6 +139,13 @@
   <p>The Toolkit source code is available under the MIT License. The application is provided as-is, without warranty of any kind. It can modify aircraft files after validation and backup; users should retain their own backups and use the tool at their own risk.</p>
 
   <h2>Changelog</h2>
+  <h3>0.7.0</h3>
+  <ul>
+    <li>Added Optimized XLua 1.3.7r3 as an optional aircraft-scoped component for supported Zibo and LevelUp installations.</li>
+    <li>Added verified Stable/Beta release discovery, transactional install, update, repair, backup and guarded restore for aircraft components.</li>
+    <li>Preserved the complete aircraft-owned <code>plugins/xlua/scripts</code> tree during XLua component operations.</li>
+    <li>Added hash-verified XLua preservation across incremental and clean-baseline aircraft updates; missing or changed managed files require repair first.</li>
+  </ul>
   <h3>0.6.1</h3>
   <ul>
     <li>Reworked cross-baseline Zibo updates as clean staged aircraft replacements instead of overlays onto an older baseline.</li>

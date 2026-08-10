@@ -10,7 +10,7 @@ X-Plane 737NG Maintenance Toolkit
 
 ## Current Version
 
-0.6.1
+0.7.0
 
 ## Short Description
 
@@ -41,17 +41,20 @@ Current functions include:
 - automatic operating-system light and dark appearance
 - optional installation, update, repair and restore of supported X-Plane tools
 - stable and beta release channels for supported optional tools
+- aircraft-scoped Optimized XLua install, update, repair and restore while
+  preserving aircraft-owned Lua scripts
 - explicit optional LevelUp FANS CDU patch management
 - verified LevelUp Paintkit download and extraction into a user-selected folder
 
-Version 0.6.1 currently offers:
+Version 0.7.0 currently offers:
 
+- Optimized XLua 1.3.7r3
 - Yet Another Linda (YAL)
 - YAL HoppieHelper
 - LevelUp FANS CDU patch
 - LevelUp 737NG Paintkit 1.1.0
 
-YAL and YAL HoppieHelper are installed once per X-Plane installation and are available for supported Zibo and LevelUp aircraft. The FANS CDU patch and Paintkit are LevelUp-only. Every item remains optional.
+Optimized XLua is managed separately for each selected Zibo or LevelUp aircraft and preserves the complete aircraft-owned `plugins/xlua/scripts` tree. YAL and YAL HoppieHelper are installed once per X-Plane installation and are available for both products. The FANS CDU patch and Paintkit are LevelUp-only. Every item remains optional.
 
 Aircraft packages, VNAV content, optional patches, tools, resources and Toolkit application releases are separate update layers. The app does not distribute a complete modified `B738.a_fms.lua`; VNAV hooks and authorized payload files are applied locally after validation.
 
@@ -108,7 +111,7 @@ Verify the download against `SHA256SUMS.txt` on the release page. If a verified 
 
 https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac
 
-Version 0.6.1 does not automatically check for or install newer Toolkit versions. Download future app releases manually from the GitHub release page.
+Version 0.7.0 does not automatically check for or install newer Toolkit versions. Download future app releases manually from the GitHub release page.
 
 ## First Use
 
@@ -141,6 +144,17 @@ When reporting a problem, use `Dump to file` on the Advanced tab and attach the 
 The Toolkit source code is available under the MIT License. The application is provided as-is, without warranty of any kind. It can modify aircraft files after validation and backup; users should retain their own backups and use the tool at their own risk.
 
 ## Changelog
+
+### 0.7.0
+
+- Added Optimized XLua 1.3.7r3 as an optional aircraft-scoped component for
+  supported Zibo and LevelUp installations.
+- Added verified Stable/Beta release discovery, transactional install, update,
+  repair, backup and guarded restore for aircraft components.
+- Preserved the complete aircraft-owned `plugins/xlua/scripts` tree during
+  XLua component operations.
+- Added hash-verified XLua preservation across incremental and clean-baseline
+  aircraft updates; missing or changed managed files require repair first.
 
 ### 0.6.1
 

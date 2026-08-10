@@ -358,6 +358,9 @@ public partial class MainWindowViewModel : ViewModelBase
     private string toolXPlaneRoot = "-";
 
     [ObservableProperty]
+    private string toolInstallScopeLabel = "X-Plane installation";
+
+    [ObservableProperty]
     private string toolTargetPath = "-";
 
     [ObservableProperty]
@@ -1789,7 +1792,18 @@ public partial class MainWindowViewModel : ViewModelBase
         try
         {
             var result = await Task.Run(
-                () => _aircraftUpdateDryRunAnalyzer.Analyze(aircraftFolder, cacheEntries, cancellationToken),
+                () =>
+                {
+                    var preservationPlans = CaptureAircraftComponentPreservationPlans();
+                    var preservedPaths = preservationPlans
+                        .SelectMany(plan => plan.RelativePaths)
+                        .ToHashSet(ManagedComponentPathComparer);
+                    return _aircraftUpdateDryRunAnalyzer.Analyze(
+                        aircraftFolder,
+                        cacheEntries,
+                        cancellationToken,
+                        preservedPaths);
+                },
                 cancellationToken);
             _lastAircraftUpdateDryRun = result;
             UpstreamDryRunSummary = result.Summary;
@@ -1827,6 +1841,20 @@ public partial class MainWindowViewModel : ViewModelBase
             OperationProgressText = "0% - Review canceled before the write phase";
             RefreshUpstreamActionAvailability("Review canceled. No aircraft files were changed.");
             AppendLog("Aircraft package review canceled before any aircraft files were changed.");
+            return null;
+        }
+        catch (InvalidDataException ex)
+        {
+            UpstreamDryRunSummary = "Aircraft update review was blocked by an installed aircraft component.";
+            UpstreamFindings.ReplaceWith([ex.Message]);
+            OperationElapsed = FormatElapsed(stopwatch.Elapsed);
+            OperationProgress = 0;
+            OperationStatus = "Review blocked";
+            OperationTitle = "Aircraft component requires repair";
+            OperationSubtitle = ex.Message;
+            OperationProgressText = "0% - Repair the managed aircraft component before updating";
+            RefreshUpstreamActionAvailability("Review blocked. Repair the managed aircraft component before updating.");
+            AppendLog($"Aircraft package review blocked: {ex.Message}");
             return null;
         }
         finally
@@ -1927,7 +1955,8 @@ public partial class MainWindowViewModel : ViewModelBase
                 updateCheck,
                 cacheEntries,
                 cancellationToken,
-                writePhaseStarting),
+                writePhaseStarting,
+                CaptureAircraftComponentPreservationPlans()),
             canCancelBeforeWrite: true,
             markLevelUpUpdateComplete: true);
         MaintenanceOperationResult? vnavResult = null;
@@ -3014,7 +3043,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private async Task RunToolPackage()
     {
         var entry = SelectedToolCatalogEntry();
-        var xPlaneRoot = ResolveCurrentXPlaneRoot();
+        var xPlaneRoot = ResolveToolInstallRoot(entry);
         var release = entry is null
             ? null
             : _toolPackageReleases.GetValueOrDefault(ToolReleaseKey(entry.PackageId, ParseToolReleaseChannel()));
@@ -3038,7 +3067,7 @@ public partial class MainWindowViewModel : ViewModelBase
         };
         if (action is null)
         {
-            ToolPackageStatus = $"Tool action is not available: {inspection.Status}.";
+            ToolPackageStatus = $"Component or tool action is not available: {inspection.Status}.";
             return;
         }
 
@@ -3047,12 +3076,12 @@ public partial class MainWindowViewModel : ViewModelBase
             : action.Value.ToString();
         var confirmation = new ConfirmationRequest(
             $"{verb} {entry.DisplayName}?",
-            $"{entry.DisplayName} {release.Manifest.PackageVersion} ({release.Manifest.Channel}) will be installed under:\n{xPlaneRoot}\n\nExisting tool files will be backed up. Manifest-protected and unowned local files will be preserved. X-Plane must be closed and restarted afterward.",
+            $"{entry.DisplayName} {release.Manifest.PackageVersion} ({release.Manifest.Channel}) will be installed under:\n{xPlaneRoot}\n\nExisting component files will be backed up. Manifest-protected and unowned local files will be preserved. X-Plane must be closed and restarted afterward.",
             verb);
         if (!await _userInteractionService.ConfirmAsync(confirmation))
         {
             ToolPackageStatus = $"{verb} canceled. No X-Plane files were changed.";
-            AppendLog($"Tool package {verb.ToLowerInvariant()} canceled before download and file changes.");
+            AppendLog($"Component or tool package {verb.ToLowerInvariant()} canceled before download and file changes.");
             return;
         }
 
@@ -3064,7 +3093,7 @@ public partial class MainWindowViewModel : ViewModelBase
         OperationSubtitle = "Downloading and validating the official release package.";
         OperationProgress = 15;
         OperationProgressText = "15% - Verifying release metadata and package archive";
-        OperationStatus = "Tool package in progress";
+        OperationStatus = "Component or tool package in progress";
         OperationLog = "";
         var cancellationToken = BeginCancellableOperation();
         try
@@ -3089,15 +3118,15 @@ public partial class MainWindowViewModel : ViewModelBase
             OperationStatus = result.Status;
             OperationTitle = result.Succeeded ? $"{entry.DisplayName} {result.Status.ToLowerInvariant()}" : $"{entry.DisplayName} blocked";
             OperationSubtitle = result.Message;
-            OperationProgressText = result.Succeeded ? "100% - Tool package transaction completed" : "0% - No tool files were changed";
+            OperationProgressText = result.Succeeded ? "100% - Package transaction completed" : "0% - No component or tool files were changed";
             ToolPackageStatus = result.Message;
-            AppendLog($"Tool package {action}: {result.Message}");
+            AppendLog($"Component or tool package {action}: {result.Message}");
         }
         catch (OperationCanceledException)
         {
             OperationProgress = 0;
             OperationStatus = "Canceled";
-            OperationTitle = "Tool package operation canceled";
+            OperationTitle = "Component or tool package operation canceled";
             OperationSubtitle = "No X-Plane plugin files were changed.";
             OperationProgressText = "0% - Canceled before the file transaction";
             ToolPackageStatus = "Operation canceled. No X-Plane plugin files were changed.";
@@ -3110,7 +3139,7 @@ public partial class MainWindowViewModel : ViewModelBase
             OperationSubtitle = ex.Message;
             OperationProgressText = "0% - The transaction failed and was rolled back";
             ToolPackageStatus = $"Tool operation failed: {ex.Message}";
-            AppendLog($"Tool package operation failed: {ex.Message}");
+            AppendLog($"Component or tool package operation failed: {ex.Message}");
         }
         finally
         {
@@ -3126,7 +3155,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private async Task RestoreToolPackage()
     {
         var entry = SelectedToolCatalogEntry();
-        var xPlaneRoot = ResolveCurrentXPlaneRoot();
+        var xPlaneRoot = ResolveToolInstallRoot(entry);
         if (entry is null
             || string.IsNullOrWhiteSpace(xPlaneRoot)
             || !CanRestoreToolPackage
@@ -3138,7 +3167,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
         var confirmation = new ConfirmationRequest(
             $"Restore {entry.DisplayName}?",
-            $"The latest valid {entry.DisplayName} backup for this X-Plane installation will be restored. Restore is blocked if package-owned files changed afterward.\n\n{xPlaneRoot}",
+            $"The latest valid {entry.DisplayName} backup for this installation will be restored. Restore is blocked if package-owned files changed afterward.\n\n{xPlaneRoot}",
             "Restore");
         if (!await _userInteractionService.ConfirmAsync(confirmation))
         {
@@ -3168,9 +3197,9 @@ public partial class MainWindowViewModel : ViewModelBase
             OperationStatus = result.Status;
             OperationTitle = result.Succeeded ? $"{entry.DisplayName} restored" : $"{entry.DisplayName} restore blocked";
             OperationSubtitle = result.Message;
-            OperationProgressText = result.Succeeded ? "100% - Restore transaction completed" : "0% - No tool files were changed";
+            OperationProgressText = result.Succeeded ? "100% - Restore transaction completed" : "0% - No component or tool files were changed";
             ToolPackageStatus = result.Message;
-            AppendLog($"Tool package restore: {result.Message}");
+            AppendLog($"Component or tool package restore: {result.Message}");
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or InvalidOperationException)
         {
@@ -3180,7 +3209,7 @@ public partial class MainWindowViewModel : ViewModelBase
             OperationSubtitle = ex.Message;
             OperationProgressText = "0% - Restore failed and the previous state was retained";
             ToolPackageStatus = $"Restore failed: {ex.Message}";
-            AppendLog($"Tool package restore failed: {ex.Message}");
+            AppendLog($"Component or tool package restore failed: {ex.Message}");
         }
         finally
         {
@@ -3202,7 +3231,7 @@ public partial class MainWindowViewModel : ViewModelBase
             ToolAvailableVersion = "Not checked";
             ToolXPlaneRoot = "-";
             ToolTargetPath = "-";
-            ToolPackageStatus = "Tools are available only for detected Zibo or LevelUp products.";
+            ToolPackageStatus = "Components and tools are available only for detected Zibo or LevelUp products.";
             CanCheckToolRelease = false;
             CanRunToolPackage = false;
             CanRestoreToolPackage = false;
@@ -3213,12 +3242,15 @@ public partial class MainWindowViewModel : ViewModelBase
         ToolPackageDescription = entry.Description;
         var channel = ParseToolReleaseChannel();
         var release = _toolPackageReleases.GetValueOrDefault(ToolReleaseKey(entry.PackageId, channel));
-        var xPlaneRoot = ResolveCurrentXPlaneRoot();
+        var xPlaneRoot = ResolveToolInstallRoot(entry);
         var inspection = _toolPackageManager.Inspect(entry, xPlaneRoot, release);
         ToolInstalledVersion = inspection.InstalledVersion;
         ToolAvailableVersion = inspection.AvailableVersion;
         ToolXPlaneRoot = string.IsNullOrWhiteSpace(inspection.XPlaneRoot) ? "Not resolved" : inspection.XPlaneRoot;
         ToolTargetPath = string.IsNullOrWhiteSpace(inspection.TargetPath) ? "Not resolved" : inspection.TargetPath;
+        ToolInstallScopeLabel = entry.InstallScope == "aircraftInstallation"
+            ? "Aircraft installation"
+            : "X-Plane installation";
         ToolActionLabel = inspection.State switch
         {
             ToolPackageInstallState.NotInstalled => "Install",
@@ -3255,7 +3287,7 @@ public partial class MainWindowViewModel : ViewModelBase
         var product = SelectedProduct;
         var entry = SelectedToolPackage;
         return product?.IsDetected == true
-            && entry?.Category is ContentPackageCategory.Tool
+            && entry?.Category is ContentPackageCategory.Tool or ContentPackageCategory.AircraftComponent
             && entry.SupportedProducts.Contains(product.Family, StringComparer.Ordinal)
                 ? entry
                 : null;
@@ -3266,7 +3298,7 @@ public partial class MainWindowViewModel : ViewModelBase
         var product = SelectedProduct;
         var tools = product?.IsDetected == true
             ? _contentPackageCatalog.ForProduct(product.Family)
-                .Where(package => package.Category is ContentPackageCategory.Tool)
+                .Where(package => package.Category is ContentPackageCategory.Tool or ContentPackageCategory.AircraftComponent)
                 .ToArray()
             : [];
         var selectedPackageId = SelectedToolPackage?.PackageId;
@@ -3723,6 +3755,49 @@ public partial class MainWindowViewModel : ViewModelBase
             SelectedAircraftPath,
             SelectedProduct?.AircraftFolderPath,
             SelectedViewVariant?.AcfPath);
+
+    private string? ResolveToolInstallRoot(ContentPackageCatalogEntry? entry) =>
+        entry?.InstallScope == "aircraftInstallation"
+            ? CurrentProductAircraftFolderPath()
+            : ResolveCurrentXPlaneRoot();
+
+    private IReadOnlyList<AircraftUpdatePreservationPlan> CaptureAircraftComponentPreservationPlans()
+    {
+        var product = SelectedProduct;
+        if (product?.IsDetected != true)
+        {
+            return [];
+        }
+
+        var aircraftRoot = CurrentProductAircraftFolderPath();
+        var plans = new List<AircraftUpdatePreservationPlan>();
+        foreach (var component in _contentPackageCatalog.ForProduct(product.Family)
+            .Where(package => package.Category is ContentPackageCategory.AircraftComponent))
+        {
+            var plan = AircraftUpdatePreservationPlan.Capture(component, aircraftRoot, _stateStore);
+            if (plan is not null)
+            {
+                plans.Add(plan);
+            }
+        }
+
+        var duplicatePath = plans
+            .SelectMany(plan => plan.RelativePaths.Select(path => (plan.PackageId, Path: path)))
+            .GroupBy(entry => entry.Path, ManagedComponentPathComparer)
+            .FirstOrDefault(group => group.Count() > 1);
+        if (duplicatePath is not null)
+        {
+            throw new InvalidDataException(
+                $"Managed aircraft components claim the same path {duplicatePath.Key}: {string.Join(", ", duplicatePath.Select(entry => entry.PackageId))}.");
+        }
+
+        return plans;
+    }
+
+    private static StringComparer ManagedComponentPathComparer =>
+        OperatingSystem.IsWindows() || OperatingSystem.IsMacOS()
+            ? StringComparer.OrdinalIgnoreCase
+            : StringComparer.Ordinal;
 
     private ToolReleaseChannel ParseToolReleaseChannel() =>
         SelectedToolReleaseChannel.Equals("beta", StringComparison.OrdinalIgnoreCase)

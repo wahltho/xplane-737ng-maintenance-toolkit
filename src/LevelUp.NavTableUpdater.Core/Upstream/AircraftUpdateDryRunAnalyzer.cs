@@ -8,19 +8,28 @@ public sealed class AircraftUpdateDryRunAnalyzer
     public AircraftUpdateDryRunResult Analyze(
         string aircraftFolder,
         IEnumerable<AircraftUpdatePackageCacheEntry> cachedPackages,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IReadOnlySet<string>? managedComponentPaths = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(aircraftFolder);
         ArgumentNullException.ThrowIfNull(cachedPackages);
         cancellationToken.ThrowIfCancellationRequested();
 
         var targetRoot = Path.GetFullPath(aircraftFolder);
+        var managedPaths = (managedComponentPaths ?? new HashSet<string>())
+            .Select(path => AircraftUpdatePath.NormalizeRelativePath(path)
+                ?? throw new InvalidDataException($"Unsafe managed aircraft component path: {path}"))
+            .ToHashSet(AircraftUpdateLocalContentPolicy.PathComparer);
         var entries = new List<AircraftUpdateDryRunEntry>();
         var packageLiveryRoots = new HashSet<string>(StringComparerForCurrentPlatform());
         var findings = new List<string>
         {
             "Dry-run only. No aircraft files are extracted, backed up, or changed."
         };
+        if (managedPaths.Count > 0)
+        {
+            findings.Add($"Will retain {managedPaths.Count} verified toolkit-managed aircraft component file(s).");
+        }
 
         if (!Directory.Exists(targetRoot))
         {
@@ -44,12 +53,12 @@ public sealed class AircraftUpdateDryRunAnalyzer
                 continue;
             }
 
-            AnalyzePackage(targetRoot, cachedPackage, entries, findings, packageLiveryRoots, cancellationToken);
+            AnalyzePackage(targetRoot, cachedPackage, entries, findings, packageLiveryRoots, managedPaths, cancellationToken);
         }
 
         if (packageEntries.Any(entry => entry.Package.Kind == AircraftUpdatePackageKind.FullBaseline))
         {
-            AddCleanBaselineEntries(targetRoot, entries, packageLiveryRoots, findings, cancellationToken);
+            AddCleanBaselineEntries(targetRoot, entries, packageLiveryRoots, managedPaths, findings, cancellationToken);
         }
         else
         {
@@ -63,7 +72,7 @@ public sealed class AircraftUpdateDryRunAnalyzer
             : $"Aircraft update dry-run: {entries.Count(entry => entry.Action == AircraftUpdateDryRunEntryAction.Add)} add, "
                 + $"{entries.Count(entry => entry.Action == AircraftUpdateDryRunEntryAction.Replace)} replace, "
                 + $"{entries.Count(entry => entry.Action == AircraftUpdateDryRunEntryAction.Delete)} delete, "
-                + $"{entries.Count(entry => entry.Action is AircraftUpdateDryRunEntryAction.PreserveProtectedLocalFile or AircraftUpdateDryRunEntryAction.PreserveToolkitMetadata)} protected"
+                + $"{entries.Count(entry => entry.Action is AircraftUpdateDryRunEntryAction.PreserveProtectedLocalFile or AircraftUpdateDryRunEntryAction.PreserveManagedComponent or AircraftUpdateDryRunEntryAction.PreserveToolkitMetadata)} protected"
                 + (entries.All(entry => entry.Action != AircraftUpdateDryRunEntryAction.PreserveLocalLivery)
                     ? "."
                     : $", {entries.Count(entry => entry.Action == AircraftUpdateDryRunEntryAction.PreserveLocalLivery)} local livery preserved.");
@@ -77,6 +86,7 @@ public sealed class AircraftUpdateDryRunAnalyzer
         ICollection<AircraftUpdateDryRunEntry> entries,
         ICollection<string> findings,
         ISet<string> packageLiveryRoots,
+        IReadOnlySet<string> managedComponentPaths,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -88,11 +98,11 @@ public sealed class AircraftUpdateDryRunAnalyzer
 
             if (cachedPackage.Package.Manifest is null)
             {
-                AnalyzeLegacyArchive(targetRoot, cachedPackage.Package, fileEntries, entries, packageLiveryRoots, cancellationToken);
+                AnalyzeLegacyArchive(targetRoot, cachedPackage.Package, fileEntries, entries, packageLiveryRoots, managedComponentPaths, cancellationToken);
                 return;
             }
 
-            AnalyzeManifestArchive(targetRoot, cachedPackage.Package, fileEntries, entries, findings, packageLiveryRoots, cancellationToken);
+            AnalyzeManifestArchive(targetRoot, cachedPackage.Package, fileEntries, entries, findings, packageLiveryRoots, managedComponentPaths, cancellationToken);
         }
         catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException)
         {
@@ -112,6 +122,7 @@ public sealed class AircraftUpdateDryRunAnalyzer
         IReadOnlyList<AircraftPackageArchiveEntry> archiveEntries,
         ICollection<AircraftUpdateDryRunEntry> entries,
         ISet<string> packageLiveryRoots,
+        IReadOnlySet<string> managedComponentPaths,
         CancellationToken cancellationToken)
     {
         var contentRoot = AircraftUpdatePath.DetectContentRoot(package, archiveEntries);
@@ -119,7 +130,7 @@ public sealed class AircraftUpdateDryRunAnalyzer
         {
             cancellationToken.ThrowIfCancellationRequested();
             var normalizedPath = AircraftUpdatePath.MapArchivePath(archiveEntry.Path, contentRoot);
-            AnalyzeWriteEntry(targetRoot, package.FileName, archiveEntry.Path, normalizedPath, archiveEntry.Size, entries, packageLiveryRoots);
+            AnalyzeWriteEntry(targetRoot, package.FileName, archiveEntry.Path, normalizedPath, archiveEntry.Size, entries, packageLiveryRoots, managedComponentPaths);
         }
     }
 
@@ -130,6 +141,7 @@ public sealed class AircraftUpdateDryRunAnalyzer
         ICollection<AircraftUpdateDryRunEntry> entries,
         ICollection<string> findings,
         ISet<string> packageLiveryRoots,
+        IReadOnlySet<string> managedComponentPaths,
         CancellationToken cancellationToken)
     {
         var manifest = package.Manifest!;
@@ -187,7 +199,7 @@ public sealed class AircraftUpdateDryRunAnalyzer
             }
 
             verified++;
-            AnalyzeWriteEntry(targetRoot, package.FileName, archiveEntry.Path, relativePath, archiveEntry.Size, entries, packageLiveryRoots);
+            AnalyzeWriteEntry(targetRoot, package.FileName, archiveEntry.Path, relativePath, archiveEntry.Size, entries, packageLiveryRoots, managedComponentPaths);
         }
 
         foreach (var missing in manifest.Files.Where(file => !seenPaths.Contains(file.Path)))
@@ -204,7 +216,7 @@ public sealed class AircraftUpdateDryRunAnalyzer
         foreach (var deletedPath in manifest.DeletedPaths)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            AnalyzeDeleteEntry(targetRoot, package.FileName, deletedPath, entries);
+            AnalyzeDeleteEntry(targetRoot, package.FileName, deletedPath, entries, managedComponentPaths);
         }
 
         findings.Add($"Verified {verified} archive payload file(s) against manifest size and SHA-256.");
@@ -218,7 +230,8 @@ public sealed class AircraftUpdateDryRunAnalyzer
         string? normalizedPath,
         long size,
         ICollection<AircraftUpdateDryRunEntry> entries,
-        ISet<string> packageLiveryRoots)
+        ISet<string> packageLiveryRoots,
+        IReadOnlySet<string> managedComponentPaths)
     {
         if (normalizedPath is null)
         {
@@ -253,7 +266,7 @@ public sealed class AircraftUpdateDryRunAnalyzer
             return;
         }
 
-        var action = ClassifyWriteAction(normalizedPath, targetPath);
+        var action = ClassifyWriteAction(normalizedPath, targetPath, managedComponentPaths);
         entries.Add(new AircraftUpdateDryRunEntry(
             packageFileName,
             normalizedPath,
@@ -266,8 +279,33 @@ public sealed class AircraftUpdateDryRunAnalyzer
         string targetRoot,
         string packageFileName,
         string relativePath,
-        ICollection<AircraftUpdateDryRunEntry> entries)
+        ICollection<AircraftUpdateDryRunEntry> entries,
+        IReadOnlySet<string> managedComponentPaths)
     {
+        var normalizedPath = AircraftUpdatePath.NormalizeRelativePath(relativePath);
+        if (normalizedPath is not null && managedComponentPaths.Contains(normalizedPath))
+        {
+            entries.Add(new AircraftUpdateDryRunEntry(
+                packageFileName,
+                normalizedPath,
+                AircraftUpdateDryRunEntryAction.PreserveManagedComponent,
+                0,
+                "A verified toolkit-managed aircraft component will be retained."));
+            return;
+        }
+
+        if (normalizedPath is not null
+            && managedComponentPaths.Any(path => IsAncestorPath(normalizedPath, path)))
+        {
+            entries.Add(new AircraftUpdateDryRunEntry(
+                packageFileName,
+                normalizedPath,
+                AircraftUpdateDryRunEntryAction.BlockedInvalidPackage,
+                0,
+                "Manifest attempts to delete a directory containing a managed aircraft component."));
+            return;
+        }
+
         if (AircraftUpdateLocalContentPolicy.IsProtectedLocalFile(relativePath)
             || string.Equals(Path.GetFileName(relativePath), AircraftMaintenanceMetadata.FileName, StringComparison.OrdinalIgnoreCase))
         {
@@ -328,7 +366,10 @@ public sealed class AircraftUpdateDryRunAnalyzer
             : "Payload SHA-256 differs from the package manifest.";
     }
 
-    private static AircraftUpdateDryRunEntryAction ClassifyWriteAction(string relativePath, string targetPath)
+    private static AircraftUpdateDryRunEntryAction ClassifyWriteAction(
+        string relativePath,
+        string targetPath,
+        IReadOnlySet<string> managedComponentPaths)
     {
         if (string.Equals(Path.GetFileName(relativePath), AircraftMaintenanceMetadata.FileName, StringComparison.OrdinalIgnoreCase))
         {
@@ -338,6 +379,11 @@ public sealed class AircraftUpdateDryRunAnalyzer
         if (AircraftUpdateLocalContentPolicy.IsProtectedLocalFile(relativePath))
         {
             return AircraftUpdateDryRunEntryAction.PreserveProtectedLocalFile;
+        }
+
+        if (managedComponentPaths.Contains(relativePath))
+        {
+            return AircraftUpdateDryRunEntryAction.PreserveManagedComponent;
         }
 
         return File.Exists(targetPath)
@@ -353,6 +399,7 @@ public sealed class AircraftUpdateDryRunAnalyzer
             AircraftUpdateDryRunEntryAction.Replace when AircraftUpdateLocalContentPolicy.IsLiveryPath(relativePath) => $"Would replace package-owned livery file {targetPath} after backup; local changes to this package-owned file would be overwritten.",
             AircraftUpdateDryRunEntryAction.Replace => $"Would replace {targetPath} after backup.",
             AircraftUpdateDryRunEntryAction.PreserveProtectedLocalFile => $"Protected local preference/config file would not be overwritten: {targetPath}.",
+            AircraftUpdateDryRunEntryAction.PreserveManagedComponent => $"Verified toolkit-managed aircraft component file will be retained: {targetPath}.",
             AircraftUpdateDryRunEntryAction.PreserveToolkitMetadata => $"Toolkit metadata is owned locally and would not be overwritten: {targetPath}.",
             AircraftUpdateDryRunEntryAction.PreserveLocalLivery => $"Local livery is not part of the package set and will be preserved: {targetPath}.",
             AircraftUpdateDryRunEntryAction.BlockedUnsafePath => "Unsafe archive path.",
@@ -409,6 +456,7 @@ public sealed class AircraftUpdateDryRunAnalyzer
         string targetRoot,
         ICollection<AircraftUpdateDryRunEntry> entries,
         ISet<string> packageLiveryRoots,
+        IReadOnlySet<string> managedComponentPaths,
         ICollection<string> findings,
         CancellationToken cancellationToken)
     {
@@ -418,6 +466,7 @@ public sealed class AircraftUpdateDryRunAnalyzer
             if (entry.Action is AircraftUpdateDryRunEntryAction.Add
                 or AircraftUpdateDryRunEntryAction.Replace
                 or AircraftUpdateDryRunEntryAction.PreserveProtectedLocalFile
+                or AircraftUpdateDryRunEntryAction.PreserveManagedComponent
                 or AircraftUpdateDryRunEntryAction.PreserveToolkitMetadata)
             {
                 finalPackagePaths.Add(entry.RelativePath);
@@ -510,6 +559,18 @@ public sealed class AircraftUpdateDryRunAnalyzer
                     continue;
                 }
 
+                if (managedComponentPaths.Contains(relativePath))
+                {
+                    entries.Add(new AircraftUpdateDryRunEntry(
+                        "(local)",
+                        relativePath,
+                        AircraftUpdateDryRunEntryAction.PreserveManagedComponent,
+                        new FileInfo(path).Length,
+                        $"Verified toolkit-managed aircraft component file will be migrated into the clean baseline: {path}."));
+                    protectedCount++;
+                    continue;
+                }
+
                 if (string.Equals(Path.GetFileName(relativePath), AircraftMaintenanceMetadata.FileName, StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
@@ -531,4 +592,14 @@ public sealed class AircraftUpdateDryRunAnalyzer
 
     private static StringComparer StringComparerForCurrentPlatform() =>
         OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+
+    private static bool IsAncestorPath(string candidate, string descendant)
+    {
+        var comparison = OperatingSystem.IsWindows() || OperatingSystem.IsMacOS()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+        return descendant.StartsWith(
+            candidate.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar,
+            comparison);
+    }
 }

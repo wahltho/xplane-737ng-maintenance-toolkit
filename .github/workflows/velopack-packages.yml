@@ -9,7 +9,7 @@ on:
       app_version:
         description: App version to pack.
         required: true
-        default: 0.6.1
+        default: 0.7.0
       channel:
         description: VeloPack channel prefix.
         required: true

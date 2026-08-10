@@ -24,6 +24,7 @@ internal sealed class AircraftFullBaselineReplacement
         IReadOnlyList<AircraftUpdatePackageCacheEntry> cachedPackages,
         CancellationToken cancellationToken,
         Action? writePhaseStarting,
+        IReadOnlyList<AircraftUpdatePreservationPlan> preservationPlans,
         ICollection<string> log)
     {
         if (cachedPackages.Count == 0
@@ -56,6 +57,11 @@ internal sealed class AircraftFullBaselineReplacement
 
             MigrateProtectedLocalFiles(targetFolder, stagePath, cancellationToken, log);
             MigrateLocalLiveries(targetFolder, stagePath, cancellationToken, log);
+            foreach (var plan in preservationPlans)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                plan.ApplyTo(stagePath, log);
+            }
             WriteToolkitMetadata(stagePath, variant, updateCheck);
             ValidateStagedAircraft(stagePath, variant);
             cancellationToken.ThrowIfCancellationRequested();

@@ -110,7 +110,7 @@ public static class ToolPackageManifestParser
             || string.IsNullOrWhiteSpace(manifest.PackageVersion)
             || string.IsNullOrWhiteSpace(manifest.ReleaseTag)
             || manifest.Channel is not "stable" and not "beta"
-            || !string.Equals(manifest.InstallScope, "xPlaneInstallation", StringComparison.Ordinal)
+            || manifest.InstallScope is not "xPlaneInstallation" and not "aircraftInstallation"
             || !manifest.RestartRequired)
         {
             throw new InvalidDataException("Tool package manifest identity or lifecycle metadata is incomplete.");

@@ -7,7 +7,7 @@ tools and conservative view maintenance for supported aircraft variants.
 This repository is the public development home for the app. The architecture
 keeps package content, aircraft patching, and application updates separate.
 
-Release version: **0.6.1**
+Release version: **0.7.0**
 
 - [Download the latest stable release](https://github.com/wahltho/xplane-737ng-maintenance-toolkit/releases/latest)
 - [Read the user manual](docs/USER_MANUAL.md)
@@ -57,7 +57,7 @@ verified macOS download is blocked, follow Apple's documented
 [Privacy & Security "Open Anyway" process](https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac).
 
 Download future app releases manually from GitHub. VeloPack currently provides
-the application package and lifecycle integration; version 0.6.1 does not yet
+the application package and lifecycle integration; version 0.7.0 does not yet
 check for or download new Toolkit versions automatically. Aircraft and VNAV
 content updates are separate and can be checked from inside the app.
 
@@ -117,15 +117,20 @@ Current capabilities:
   content and optional patches by the selected Zibo or LevelUp product. Trusted
   optional entries can resolve their latest stable GitHub Release directly;
   manual package-folder selection remains an Advanced fallback.
-- It offers optional X-Plane-wide tools for compatible detected products. YAL
-  is available for Zibo and LevelUp at `Resources/plugins/YAL`; YAL HoppieHelper
-  is also available for both products at `Resources/plugins/YAL_HoppieHelper`,
-  matching its published release manifest.
-- Tool Stable and Beta channels are selected independently per tool and from app
-  and aircraft updates. Release manifests, GitHub asset digests, archives and every
-  payload SHA-256 must agree before install, update or repair.
-- Tool updates preserve manifest-declared configuration and output paths plus
-  local unowned files, create generation backups and provide guarded restore.
+- It offers optional aircraft components and X-Plane-wide tools for compatible
+  detected products. Optimized XLua is managed separately for each selected
+  Zibo or LevelUp aircraft at `plugins/xlua`, while preserving the complete
+  aircraft-owned `scripts` tree. YAL is available for both products at
+  `Resources/plugins/YAL`; YAL HoppieHelper is also available for both products
+  at `Resources/plugins/YAL_HoppieHelper`, matching its published release
+  manifest.
+- Stable and Beta channels are selected independently per optional component or
+  tool and from app and aircraft updates. Release manifests, GitHub asset
+  digests, archives and every payload SHA-256 must agree before install, update
+  or repair.
+- Component and tool updates preserve manifest-declared configuration and
+  output paths plus local unowned files, create generation backups and provide
+  guarded restore.
 - It offers verified product resources independently from aircraft updates.
   The LevelUp 737NG Paintkit can be downloaded from its official public
   release and safely extracted into a user-selected directory outside X-Plane.
@@ -166,6 +171,10 @@ Current capabilities:
   image, migrate only protected preferences and local liveries, retain the
   complete previous directory and activate the new baseline by transactional
   directory exchange.
+- A verified aircraft-scoped component such as Optimized XLua is retained
+  inside the same incremental or full-baseline aircraft transaction. Unknown
+  or locally modified component binaries block the aircraft update until the
+  component is repaired.
 - The UI follows the operating system's light or dark appearance.
 
 Review remains available for planned changes before write actions. Real write
@@ -219,8 +228,9 @@ Release assets remain the preferred package source for normal use.
   opt-in lifecycle policies.
 - Product-scoped trusted content catalog with secure GitHub Release package
   provisioning for optional declarative patches.
-- Product-gated, X-Plane-wide tool packages with separate Stable/Beta release
-  channels and transactional install/update/repair/restore.
+- Product-gated aircraft components and X-Plane-wide tool packages with
+  separate Stable/Beta release channels and transactional
+  install/update/repair/restore.
 - Aircraft detection and install-state analysis.
 - Real backup-backed View Utility operations.
 - VeloPack packaging workflow.

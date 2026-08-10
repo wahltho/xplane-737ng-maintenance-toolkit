@@ -32,11 +32,13 @@ public sealed class AircraftUpdateOperation
         AircraftUpstreamUpdateCheckResult updateCheck,
         IReadOnlyList<AircraftUpdatePackageCacheEntry> cachedPackages,
         CancellationToken cancellationToken = default,
-        Action? writePhaseStarting = null)
+        Action? writePhaseStarting = null,
+        IReadOnlyList<AircraftUpdatePreservationPlan>? preservationPlans = null)
     {
         ArgumentNullException.ThrowIfNull(variant);
         ArgumentNullException.ThrowIfNull(updateCheck);
         ArgumentNullException.ThrowIfNull(cachedPackages);
+        preservationPlans ??= [];
         cancellationToken.ThrowIfCancellationRequested();
 
         var aircraftFolder = Path.GetFullPath(Path.GetDirectoryName(variant.AcfPath) ?? "");
@@ -95,7 +97,14 @@ public sealed class AircraftUpdateOperation
         log.Add(orderedCacheEntries.All(entry => !string.IsNullOrWhiteSpace(entry.Package.ExpectedSha256))
             ? "[INTEGRITY] Package archives are verified against authoritative manifest size and SHA-256 values."
             : "[INTEGRITY] Legacy packages are verified against the local cache snapshot; the source feed provides no authoritative package hashes.");
-        var dryRun = _dryRunAnalyzer.Analyze(aircraftFolder, orderedCacheEntries, cancellationToken);
+        var managedPaths = preservationPlans
+            .SelectMany(plan => plan.RelativePaths)
+            .ToHashSet(AircraftUpdateLocalContentPolicy.PathComparer);
+        var dryRun = _dryRunAnalyzer.Analyze(
+            aircraftFolder,
+            orderedCacheEntries,
+            cancellationToken,
+            managedPaths);
         foreach (var finding in dryRun.Findings)
         {
             log.Add($"[DRY-RUN] {finding}");
@@ -119,6 +128,7 @@ public sealed class AircraftUpdateOperation
                     orderedCacheEntries,
                     cancellationToken,
                     writePhaseStarting,
+                    preservationPlans,
                     log);
             }
             catch (OperationCanceledException)
@@ -147,6 +157,11 @@ public sealed class AircraftUpdateOperation
         }
 
         cancellationToken.ThrowIfCancellationRequested();
+        foreach (var plan in preservationPlans)
+        {
+            log.Add($"[PRESERVE] Retaining {plan.Files.Count} verified file(s) from {plan.PackageId} {plan.PackageVersion}.");
+        }
+
         writePhaseStarting?.Invoke();
         var createdUtc = DateTimeOffset.UtcNow;
         var backupRecords = new List<BackupRecord>();

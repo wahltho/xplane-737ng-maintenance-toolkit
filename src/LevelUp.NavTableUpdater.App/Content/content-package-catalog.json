@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "catalogVersion": "1.1.0",
+  "catalogVersion": "1.2.0",
   "packages": [
     {
       "packageId": "x-plane-zibo-vnav-descent-tables",
@@ -41,6 +41,24 @@
         "kind": "gitHubReleaseArchive",
         "assetNamePattern": "LevelUp-737NG-FANS-CDU-v*.zip",
         "manifestSchemaVersion": 2
+      }
+    },
+    {
+      "packageId": "wahltho.optimized-xlua",
+      "displayName": "Optimized XLua",
+      "description": "Optional optimized XLua runtime managed per supported Zibo or LevelUp aircraft installation.",
+      "category": "aircraftComponent",
+      "activation": "explicitOptIn",
+      "supportedProducts": ["zibo-737ng", "levelup-737ng"],
+      "repositoryUrl": "https://github.com/wahltho/XLua",
+      "restartRequired": true,
+      "installScope": "aircraftInstallation",
+      "targetPath": "plugins/xlua",
+      "supportedChannels": ["stable", "beta"],
+      "distribution": {
+        "kind": "gitHubToolRelease",
+        "manifestAssetNamePattern": "Xlua.*-manifest.json",
+        "manifestSchemaVersion": 1
       }
     },
     {

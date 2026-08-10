@@ -730,7 +730,8 @@ public sealed class ZiboUpstreamUpdateTests
             [cachedFull],
             CancellationToken.None,
             writePhaseStarting: null,
-            new List<string>()));
+            preservationPlans: [],
+            log: new List<string>()));
 
         Assert.Equal("original", File.ReadAllText(existingPath));
         Assert.DoesNotContain(

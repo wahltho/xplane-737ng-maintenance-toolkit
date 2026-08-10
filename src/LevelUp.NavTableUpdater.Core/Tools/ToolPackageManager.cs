@@ -32,7 +32,7 @@ public sealed class ToolPackageManager
         ToolPackageRelease? release)
     {
         var toolName = catalogEntry.DisplayName;
-        if (string.IsNullOrWhiteSpace(xPlaneRoot) || !XPlaneInstallationLocator.LooksLikeXPlaneRoot(xPlaneRoot))
+        if (string.IsNullOrWhiteSpace(xPlaneRoot) || !LooksLikeInstallRoot(catalogEntry, xPlaneRoot))
         {
             return new ToolPackageInspection(
                 ToolPackageInstallState.TargetUnavailable,
@@ -40,7 +40,9 @@ public sealed class ToolPackageManager
                 "",
                 "-",
                 release?.Manifest.PackageVersion ?? "Not checked",
-                "Select an X-Plane installation containing a supported Zibo or LevelUp aircraft.",
+                catalogEntry.InstallScope == "aircraftInstallation"
+                    ? "Select a supported Zibo or LevelUp aircraft installation."
+                    : "Select an X-Plane installation containing a supported Zibo or LevelUp aircraft.",
                 []);
         }
 
@@ -171,10 +173,10 @@ public sealed class ToolPackageManager
             return MaintenanceOperationResult.Blocked("X-Plane is running. Close X-Plane before changing plugins.", log);
         }
 
-        if (!XPlaneInstallationLocator.LooksLikeXPlaneRoot(xPlaneRoot))
+        if (!LooksLikeInstallRoot(catalogEntry, xPlaneRoot))
         {
-            log.Add("[BLOCKED] X-Plane installation structure is invalid.");
-            return MaintenanceOperationResult.Blocked("The selected X-Plane installation root is invalid.", log);
+            log.Add("[BLOCKED] Package installation scope is invalid.");
+            return MaintenanceOperationResult.Blocked("The selected package installation scope is invalid.", log);
         }
 
         var manifest = package.Release.Manifest;
@@ -775,11 +777,36 @@ public sealed class ToolPackageManager
     private static void ValidatePackageForCatalog(ContentPackageCatalogEntry catalog, ToolPackageManifest manifest)
     {
         if (!catalog.PackageId.Equals(manifest.PackageId, StringComparison.Ordinal)
+            || !catalog.InstallScope.Equals(manifest.InstallScope, StringComparison.Ordinal)
             || !catalog.TargetPath.Equals(manifest.TargetPath, StringComparison.Ordinal)
             || !catalog.RepositoryUrl.TrimEnd('/').Equals(manifest.Repository.TrimEnd('/'), StringComparison.OrdinalIgnoreCase)
             || !manifest.SupportedProducts.ToHashSet(StringComparer.Ordinal).SetEquals(catalog.SupportedProducts))
         {
             throw new InvalidDataException($"Tool package does not match trusted catalog entry {catalog.PackageId}.");
+        }
+    }
+
+    private static bool LooksLikeInstallRoot(ContentPackageCatalogEntry catalogEntry, string root)
+    {
+        if (catalogEntry.InstallScope == "xPlaneInstallation")
+        {
+            return XPlaneInstallationLocator.LooksLikeXPlaneRoot(root);
+        }
+
+        if (catalogEntry.InstallScope != "aircraftInstallation" || !Directory.Exists(root))
+        {
+            return false;
+        }
+
+        try
+        {
+            var fullRoot = Path.GetFullPath(root);
+            return Directory.EnumerateFiles(fullRoot, "*.acf", SearchOption.TopDirectoryOnly).Any()
+                && Directory.Exists(Path.Combine(fullRoot, "plugins", "xlua", "scripts"));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
         }
     }
 

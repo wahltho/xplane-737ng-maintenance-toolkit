@@ -9,6 +9,7 @@ public enum ContentPackageCategory
     Unknown,
     ManagedContent,
     OptionalPatch,
+    AircraftComponent,
     Tool,
     Resource
 }
@@ -172,6 +173,8 @@ public sealed class ContentPackageCatalog
                 && package.Activation is not ContentPatchActivation.ExplicitOptIn)
             || (package.Category is ContentPackageCategory.Tool
                 && package.Activation is not ContentPatchActivation.ExplicitOptIn)
+            || (package.Category is ContentPackageCategory.AircraftComponent
+                && package.Activation is not ContentPatchActivation.ExplicitOptIn)
             || (package.Category is ContentPackageCategory.Resource
                 && package.Activation is not ContentPatchActivation.ExplicitOptIn))
         {
@@ -193,10 +196,15 @@ public sealed class ContentPackageCatalog
 
         if (package.Distribution.Kind is ContentPackageDistributionKind.GitHubToolRelease)
         {
-            if (package.Category is not ContentPackageCategory.Tool
+            var supportedCategory = package.Category is ContentPackageCategory.Tool
+                or ContentPackageCategory.AircraftComponent;
+            var expectedScope = package.Category is ContentPackageCategory.AircraftComponent
+                ? "aircraftInstallation"
+                : "xPlaneInstallation";
+            if (!supportedCategory
                 || package.Distribution.ManifestSchemaVersion != 1
                 || !IsSafeAssetPattern(package.Distribution.ManifestAssetNamePattern, ".json")
-                || !string.Equals(package.InstallScope, "xPlaneInstallation", StringComparison.Ordinal)
+                || !string.Equals(package.InstallScope, expectedScope, StringComparison.Ordinal)
                 || !IsSafeRelativePath(package.TargetPath)
                 || (!string.IsNullOrWhiteSpace(package.VersionMarkerPath)
                     && !IsSafeRelativePath(package.VersionMarkerPath))

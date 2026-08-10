@@ -7,6 +7,7 @@ public enum AircraftUpdateDryRunEntryAction
     Delete,
     AlreadyAbsent,
     PreserveProtectedLocalFile,
+    PreserveManagedComponent,
     PreserveToolkitMetadata,
     PreserveLocalLivery,
     BlockedUnsafePath,
@@ -33,6 +34,7 @@ public sealed record AircraftUpdateDryRunResult(
     public int DeleteCount => Entries.Count(entry => entry.Action == AircraftUpdateDryRunEntryAction.Delete);
 
     public int ProtectedCount => Entries.Count(entry => entry.Action is AircraftUpdateDryRunEntryAction.PreserveProtectedLocalFile
+        or AircraftUpdateDryRunEntryAction.PreserveManagedComponent
         or AircraftUpdateDryRunEntryAction.PreserveToolkitMetadata);
 
     public int LocalLiveryPreservedCount => Entries.Count(entry => entry.Action == AircraftUpdateDryRunEntryAction.PreserveLocalLivery);

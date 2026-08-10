@@ -195,6 +195,61 @@ public sealed class ToolPackageManagerTests
         Assert.Contains("symbolic link", inspection.Status, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public void AircraftComponentUpdate_PreservesAircraftOwnedScriptsAndUsesAircraftStateScope()
+    {
+        using var fixture = new Fixture();
+        var aircraftRoot = Path.Combine(fixture.XPlaneRoot, "Aircraft", "B737-800X");
+        Directory.CreateDirectory(Path.Combine(aircraftRoot, "plugins", "xlua", "scripts", "B738.test"));
+        File.WriteAllText(Path.Combine(aircraftRoot, "b738_4k.acf"), "acf");
+        var scriptPath = Path.Combine(aircraftRoot, "plugins", "xlua", "scripts", "B738.test", "B738.test.lua");
+        File.WriteAllText(scriptPath, "aircraft script");
+        fixture.Catalog.Category = ContentPackageCategory.AircraftComponent;
+        fixture.Catalog.InstallScope = "aircraftInstallation";
+        fixture.Catalog.TargetPath = "plugins/xlua";
+        fixture.Catalog.VersionMarkerPath = "";
+        var package = fixture.CreatePackage("1.3.7r3", "optimized runtime", "init lua", includeVersionFile: false);
+
+        var result = fixture.Manager.Apply(fixture.Catalog, package, aircraftRoot, ToolPackageAction.Update);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal("aircraft script", File.ReadAllText(scriptPath));
+        Assert.Equal(
+            "optimized runtime",
+            File.ReadAllText(Path.Combine(aircraftRoot, "plugins", "xlua", "data", "modules", "main.lua")));
+        Assert.Equal(
+            "1.3.7r3",
+            fixture.StateStore.TryGetToolInstallation(aircraftRoot, fixture.Catalog.PackageId)?.InstalledVersion);
+        Assert.Null(fixture.StateStore.TryGetToolInstallation(fixture.XPlaneRoot, fixture.Catalog.PackageId));
+    }
+
+    [Fact]
+    public void AircraftComponentUpdate_RejectsXPlaneScopedManifest()
+    {
+        using var fixture = new Fixture();
+        var aircraftRoot = Path.Combine(fixture.XPlaneRoot, "Aircraft", "B737-800X");
+        Directory.CreateDirectory(Path.Combine(aircraftRoot, "plugins", "xlua", "scripts"));
+        File.WriteAllText(Path.Combine(aircraftRoot, "b738_4k.acf"), "acf");
+        fixture.Catalog.Category = ContentPackageCategory.AircraftComponent;
+        fixture.Catalog.InstallScope = "aircraftInstallation";
+        fixture.Catalog.TargetPath = "plugins/xlua";
+        fixture.Catalog.VersionMarkerPath = "";
+        var mislabeledPackage = fixture.CreatePackage(
+            "1.3.7r3",
+            "optimized runtime",
+            "init lua",
+            includeVersionFile: false);
+        mislabeledPackage.Release.Manifest.InstallScope = "xPlaneInstallation";
+
+        var error = Assert.Throws<InvalidDataException>(() => fixture.Manager.Apply(
+            fixture.Catalog,
+            mislabeledPackage,
+            aircraftRoot,
+            ToolPackageAction.Update));
+
+        Assert.Contains("trusted catalog", error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
     private sealed class Fixture : IDisposable
     {
         public Fixture(bool xPlaneRunning = false)

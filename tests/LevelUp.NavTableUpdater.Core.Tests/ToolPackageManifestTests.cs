@@ -32,6 +32,19 @@ public sealed class ToolPackageManifestTests
         Assert.Contains("unsafe", error.Message, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public void Parse_AircraftInstallationScope_AcceptsManifest()
+    {
+        var json = BuildManifest(Encoding.UTF8.GetBytes("payload"))
+            .Replace("xPlaneInstallation", "aircraftInstallation", StringComparison.Ordinal)
+            .Replace("Resources/plugins/YAL", "plugins/xlua", StringComparison.Ordinal);
+
+        var manifest = ToolPackageManifestParser.Parse(Encoding.UTF8.GetBytes(json));
+
+        Assert.Equal("aircraftInstallation", manifest.InstallScope);
+        Assert.Equal("plugins/xlua", manifest.TargetPath);
+    }
+
     internal static string BuildManifest(byte[] packageFile, string channel = "stable", string version = "4.7")
     {
         var archiveHash = new string('a', 64);

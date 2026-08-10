@@ -393,13 +393,13 @@
                                         <Grid RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="12">
                                             <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="16">
                                                 <StackPanel Spacing="4">
-                                                    <TextBlock Text="Tools" FontSize="18" FontWeight="SemiBold"/>
-                                                    <TextBlock Text="Optional tools installed once per X-Plane installation and offered only for compatible detected products."
+                                                    <TextBlock Text="Components &amp; Tools" FontSize="18" FontWeight="SemiBold"/>
+                                                    <TextBlock Text="Optional aircraft components and X-Plane tools offered only for compatible detected products."
                                                                Foreground="{DynamicResource AppTextSecondaryBrush}"
                                                                TextWrapping="Wrap"/>
                                                 </StackPanel>
                                                 <StackPanel Grid.Column="1" Spacing="3" MinWidth="130">
-                                                    <TextBlock Classes="label" Text="Tool"/>
+                                                    <TextBlock Classes="label" Text="Component or tool"/>
                                                     <ComboBox ItemsSource="{Binding AvailableToolPackages}"
                                                               SelectedItem="{Binding SelectedToolPackage}"
                                                               MinWidth="190">
@@ -441,9 +441,9 @@
 
                                             <Grid Grid.Row="3" ColumnDefinitions="*,Auto" ColumnSpacing="16">
                                                 <StackPanel Spacing="3">
-                                                    <TextBlock Classes="label" Text="X-Plane installation"/>
+                                                    <TextBlock Classes="label" Text="{Binding ToolInstallScopeLabel}"/>
                                                     <TextBlock Classes="path" Text="{Binding ToolXPlaneRoot}"/>
-                                                    <TextBlock Classes="label" Text="Tool target" Margin="0,5,0,0"/>
+                                                    <TextBlock Classes="label" Text="Installation target" Margin="0,5,0,0"/>
                                                     <TextBlock Classes="path" Text="{Binding ToolTargetPath}"/>
                                                 </StackPanel>
                                                 <WrapPanel Grid.Column="1"

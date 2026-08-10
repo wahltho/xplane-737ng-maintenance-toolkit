@@ -466,7 +466,9 @@ public sealed class GitHubToolPackageReleaseSource
 
     private static void ValidateCatalogEntry(ContentPackageCatalogEntry entry, ToolReleaseChannel channel)
     {
-        if (entry.Category is not ContentPackageCategory.Tool
+        var supportedCategory = entry.Category is ContentPackageCategory.Tool
+            or ContentPackageCategory.AircraftComponent;
+        if (!supportedCategory
             || entry.Distribution.Kind is not ContentPackageDistributionKind.GitHubToolRelease
             || !entry.SupportedChannels.Contains(ChannelName(channel), StringComparer.Ordinal))
         {
