@@ -5,12 +5,6 @@ namespace LevelUp.NavTableUpdater.Core.Upstream;
 
 public sealed class AircraftUpdateDryRunAnalyzer
 {
-    private static readonly string[] ProtectedFileNames =
-    [
-        "b738_config.txt",
-        "b738x.cfg"
-    ];
-
     public AircraftUpdateDryRunResult Analyze(
         string aircraftFolder,
         IEnumerable<AircraftUpdatePackageCacheEntry> cachedPackages,
@@ -34,7 +28,8 @@ public sealed class AircraftUpdateDryRunAnalyzer
             return new AircraftUpdateDryRunResult(false, "Aircraft folder is missing.", entries, findings);
         }
 
-        foreach (var cachedPackage in cachedPackages)
+        var packageEntries = cachedPackages.ToArray();
+        foreach (var cachedPackage in packageEntries)
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (!cachedPackage.IsCached || !File.Exists(cachedPackage.CachePath))
@@ -52,7 +47,14 @@ public sealed class AircraftUpdateDryRunAnalyzer
             AnalyzePackage(targetRoot, cachedPackage, entries, findings, packageLiveryRoots, cancellationToken);
         }
 
-        AddPreservedLocalLiveryEntries(targetRoot, packageLiveryRoots, entries, findings, cancellationToken);
+        if (packageEntries.Any(entry => entry.Package.Kind == AircraftUpdatePackageKind.FullBaseline))
+        {
+            AddCleanBaselineEntries(targetRoot, entries, packageLiveryRoots, findings, cancellationToken);
+        }
+        else
+        {
+            AddPreservedLocalLiveryEntries(targetRoot, packageLiveryRoots, entries, findings, cancellationToken);
+        }
 
         var blockedCount = entries.Count(entry => entry.Action is AircraftUpdateDryRunEntryAction.BlockedUnsafePath
             or AircraftUpdateDryRunEntryAction.BlockedInvalidPackage);
@@ -86,7 +88,7 @@ public sealed class AircraftUpdateDryRunAnalyzer
 
             if (cachedPackage.Package.Manifest is null)
             {
-                AnalyzeLegacyArchive(targetRoot, cachedPackage.Package.FileName, fileEntries, entries, packageLiveryRoots, cancellationToken);
+                AnalyzeLegacyArchive(targetRoot, cachedPackage.Package, fileEntries, entries, packageLiveryRoots, cancellationToken);
                 return;
             }
 
@@ -106,17 +108,18 @@ public sealed class AircraftUpdateDryRunAnalyzer
 
     private static void AnalyzeLegacyArchive(
         string targetRoot,
-        string packageFileName,
-        IEnumerable<AircraftPackageArchiveEntry> archiveEntries,
+        AircraftUpdatePackage package,
+        IReadOnlyList<AircraftPackageArchiveEntry> archiveEntries,
         ICollection<AircraftUpdateDryRunEntry> entries,
         ISet<string> packageLiveryRoots,
         CancellationToken cancellationToken)
     {
+        var contentRoot = AircraftUpdatePath.DetectContentRoot(package, archiveEntries);
         foreach (var archiveEntry in archiveEntries)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var normalizedPath = AircraftUpdatePath.NormalizeRelativePath(archiveEntry.Path);
-            AnalyzeWriteEntry(targetRoot, packageFileName, archiveEntry.Path, normalizedPath, archiveEntry.Size, entries, packageLiveryRoots);
+            var normalizedPath = AircraftUpdatePath.MapArchivePath(archiveEntry.Path, contentRoot);
+            AnalyzeWriteEntry(targetRoot, package.FileName, archiveEntry.Path, normalizedPath, archiveEntry.Size, entries, packageLiveryRoots);
         }
     }
 
@@ -228,7 +231,7 @@ public sealed class AircraftUpdateDryRunAnalyzer
             return;
         }
 
-        var liveryRoot = GetLiveryRoot(normalizedPath);
+        var liveryRoot = AircraftUpdateLocalContentPolicy.GetLiveryRoot(normalizedPath);
         if (liveryRoot is not null)
         {
             packageLiveryRoots.Add(liveryRoot);
@@ -265,7 +268,7 @@ public sealed class AircraftUpdateDryRunAnalyzer
         string relativePath,
         ICollection<AircraftUpdateDryRunEntry> entries)
     {
-        if (IsProtectedLocalFile(relativePath)
+        if (AircraftUpdateLocalContentPolicy.IsProtectedLocalFile(relativePath)
             || string.Equals(Path.GetFileName(relativePath), AircraftMaintenanceMetadata.FileName, StringComparison.OrdinalIgnoreCase))
         {
             entries.Add(new AircraftUpdateDryRunEntry(
@@ -332,7 +335,7 @@ public sealed class AircraftUpdateDryRunAnalyzer
             return AircraftUpdateDryRunEntryAction.PreserveToolkitMetadata;
         }
 
-        if (IsProtectedLocalFile(relativePath))
+        if (AircraftUpdateLocalContentPolicy.IsProtectedLocalFile(relativePath))
         {
             return AircraftUpdateDryRunEntryAction.PreserveProtectedLocalFile;
         }
@@ -345,9 +348,9 @@ public sealed class AircraftUpdateDryRunAnalyzer
     private static string BuildDetail(AircraftUpdateDryRunEntryAction action, string relativePath, string targetPath) =>
         action switch
         {
-            AircraftUpdateDryRunEntryAction.Add when IsLiveryPath(relativePath) => $"Would add package-owned livery file {targetPath}.",
+            AircraftUpdateDryRunEntryAction.Add when AircraftUpdateLocalContentPolicy.IsLiveryPath(relativePath) => $"Would add package-owned livery file {targetPath}.",
             AircraftUpdateDryRunEntryAction.Add => $"Would add {targetPath}.",
-            AircraftUpdateDryRunEntryAction.Replace when IsLiveryPath(relativePath) => $"Would replace package-owned livery file {targetPath} after backup; local changes to this package-owned file would be overwritten.",
+            AircraftUpdateDryRunEntryAction.Replace when AircraftUpdateLocalContentPolicy.IsLiveryPath(relativePath) => $"Would replace package-owned livery file {targetPath} after backup; local changes to this package-owned file would be overwritten.",
             AircraftUpdateDryRunEntryAction.Replace => $"Would replace {targetPath} after backup.",
             AircraftUpdateDryRunEntryAction.PreserveProtectedLocalFile => $"Protected local preference/config file would not be overwritten: {targetPath}.",
             AircraftUpdateDryRunEntryAction.PreserveToolkitMetadata => $"Toolkit metadata is owned locally and would not be overwritten: {targetPath}.",
@@ -381,7 +384,7 @@ public sealed class AircraftUpdateDryRunAnalyzer
             cancellationToken.ThrowIfCancellationRequested();
             var relativePath = Path.GetRelativePath(targetRoot, entry);
             var normalizedPath = relativePath.Replace('\\', Path.DirectorySeparatorChar).Replace('/', Path.DirectorySeparatorChar);
-            var liveryRoot = GetLiveryRoot(normalizedPath);
+            var liveryRoot = AircraftUpdateLocalContentPolicy.GetLiveryRoot(normalizedPath);
             if (liveryRoot is null || packageLiveryRoots.Contains(liveryRoot))
             {
                 continue;
@@ -402,39 +405,129 @@ public sealed class AircraftUpdateDryRunAnalyzer
         }
     }
 
-    private static bool IsProtectedLocalFile(string relativePath)
+    private static void AddCleanBaselineEntries(
+        string targetRoot,
+        ICollection<AircraftUpdateDryRunEntry> entries,
+        ISet<string> packageLiveryRoots,
+        ICollection<string> findings,
+        CancellationToken cancellationToken)
     {
-        var fileName = Path.GetFileName(relativePath);
-        if (ProtectedFileNames.Any(name => string.Equals(name, fileName, StringComparison.OrdinalIgnoreCase)))
+        var finalPackagePaths = new HashSet<string>(StringComparerForCurrentPlatform());
+        foreach (var entry in entries.Where(entry => entry.PackageFileName != "(local)"))
         {
-            return true;
+            if (entry.Action is AircraftUpdateDryRunEntryAction.Add
+                or AircraftUpdateDryRunEntryAction.Replace
+                or AircraftUpdateDryRunEntryAction.PreserveProtectedLocalFile
+                or AircraftUpdateDryRunEntryAction.PreserveToolkitMetadata)
+            {
+                finalPackagePaths.Add(entry.RelativePath);
+            }
+            else if (entry.Action is AircraftUpdateDryRunEntryAction.Delete
+                or AircraftUpdateDryRunEntryAction.AlreadyAbsent)
+            {
+                finalPackagePaths.Remove(entry.RelativePath);
+            }
         }
 
-        if (fileName.EndsWith("_prefs.txt", StringComparison.OrdinalIgnoreCase)
-            || fileName.EndsWith("_vrconfig.txt", StringComparison.OrdinalIgnoreCase)
-            || (fileName.StartsWith("X-Camera_", StringComparison.OrdinalIgnoreCase) && fileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase)))
+        var alreadyClassified = new HashSet<string>(
+            entries.Select(entry => entry.RelativePath),
+            StringComparerForCurrentPlatform());
+        var pendingDirectories = new Stack<string>();
+        pendingDirectories.Push(targetRoot);
+        var obsolete = 0;
+        var protectedCount = 0;
+        var localLiveries = 0;
+
+        while (pendingDirectories.Count > 0)
         {
-            return true;
+            cancellationToken.ThrowIfCancellationRequested();
+            var directory = pendingDirectories.Pop();
+            foreach (var path in Directory.EnumerateFileSystemEntries(directory))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var relativePath = Path.GetRelativePath(targetRoot, path);
+                var info = Directory.Exists(path) ? (FileSystemInfo)new DirectoryInfo(path) : new FileInfo(path);
+                if (info.LinkTarget is not null || info.Attributes.HasFlag(FileAttributes.ReparsePoint))
+                {
+                    var liveryRoot = AircraftUpdateLocalContentPolicy.GetLiveryRoot(relativePath);
+                    var mustPreserve = AircraftUpdateLocalContentPolicy.CouldContainProtectedLocalContent(relativePath)
+                        || liveryRoot is not null && !packageLiveryRoots.Contains(liveryRoot);
+                    entries.Add(new AircraftUpdateDryRunEntry(
+                        "(local)",
+                        relativePath,
+                        mustPreserve
+                            ? AircraftUpdateDryRunEntryAction.BlockedUnsafePath
+                            : AircraftUpdateDryRunEntryAction.Delete,
+                        0,
+                        mustPreserve
+                            ? "A protected local entry is a symbolic link and cannot be migrated safely during a clean baseline replacement."
+                            : "The old installation link will not be carried into the clean baseline."));
+                    if (!mustPreserve)
+                    {
+                        obsolete++;
+                    }
+
+                    continue;
+                }
+
+                if (Directory.Exists(path))
+                {
+                    var liveryRoot = AircraftUpdateLocalContentPolicy.GetLiveryRoot(relativePath);
+                    if (liveryRoot is not null && !packageLiveryRoots.Contains(liveryRoot))
+                    {
+                        if (alreadyClassified.Add(liveryRoot))
+                        {
+                            entries.Add(new AircraftUpdateDryRunEntry(
+                                "(local)",
+                                liveryRoot,
+                                AircraftUpdateDryRunEntryAction.PreserveLocalLivery,
+                                0,
+                                $"Local livery will be migrated into the clean baseline: {path}."));
+                            localLiveries++;
+                        }
+
+                        continue;
+                    }
+
+                    pendingDirectories.Push(path);
+                    continue;
+                }
+
+                if (finalPackagePaths.Contains(relativePath) || !alreadyClassified.Add(relativePath))
+                {
+                    continue;
+                }
+
+                if (AircraftUpdateLocalContentPolicy.IsProtectedLocalFile(relativePath))
+                {
+                    entries.Add(new AircraftUpdateDryRunEntry(
+                        "(local)",
+                        relativePath,
+                        AircraftUpdateDryRunEntryAction.PreserveProtectedLocalFile,
+                        new FileInfo(path).Length,
+                        $"Protected local preference/config file will be migrated into the clean baseline: {path}."));
+                    protectedCount++;
+                    continue;
+                }
+
+                if (string.Equals(Path.GetFileName(relativePath), AircraftMaintenanceMetadata.FileName, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                entries.Add(new AircraftUpdateDryRunEntry(
+                    "(clean baseline)",
+                    relativePath,
+                    AircraftUpdateDryRunEntryAction.Delete,
+                    new FileInfo(path).Length,
+                    $"Old baseline file will not be carried into the clean installation: {path}."));
+                obsolete++;
+            }
         }
 
-        var normalized = relativePath.Replace('\\', '/');
-        return normalized.StartsWith("Output/preferences/", StringComparison.OrdinalIgnoreCase)
-            || normalized.Contains("/Output/preferences/", StringComparison.OrdinalIgnoreCase);
+        findings.Add($"Clean baseline replacement will omit {obsolete} obsolete old-baseline entr{(obsolete == 1 ? "y" : "ies")}.");
+        findings.Add($"Clean baseline replacement will migrate {protectedCount} additional protected file(s) and {localLiveries} local livery entr{(localLiveries == 1 ? "y" : "ies")}.");
     }
-
-    private static string? GetLiveryRoot(string relativePath)
-    {
-        var normalized = relativePath.Replace('\\', '/').Trim('/');
-        var segments = normalized.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        if (segments.Length < 2 || !string.Equals(segments[0], "liveries", StringComparison.OrdinalIgnoreCase))
-        {
-            return null;
-        }
-
-        return $"{segments[0]}{Path.DirectorySeparatorChar}{segments[1]}";
-    }
-
-    private static bool IsLiveryPath(string relativePath) => GetLiveryRoot(relativePath) is not null;
 
     private static StringComparer StringComparerForCurrentPlatform() =>
         OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;

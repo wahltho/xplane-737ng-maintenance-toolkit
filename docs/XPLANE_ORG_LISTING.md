@@ -10,7 +10,7 @@ X-Plane 737NG Maintenance Toolkit
 
 ## Current Version
 
-0.6.0
+0.6.1
 
 ## Short Description
 
@@ -44,7 +44,7 @@ Current functions include:
 - explicit optional LevelUp FANS CDU patch management
 - verified LevelUp Paintkit download and extraction into a user-selected folder
 
-Version 0.6.0 currently offers:
+Version 0.6.1 currently offers:
 
 - Yet Another Linda (YAL)
 - YAL HoppieHelper
@@ -108,7 +108,7 @@ Verify the download against `SHA256SUMS.txt` on the release page. If a verified 
 
 https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac
 
-Version 0.6.0 does not automatically check for or install newer Toolkit versions. Download future app releases manually from the GitHub release page.
+Version 0.6.1 does not automatically check for or install newer Toolkit versions. Download future app releases manually from the GitHub release page.
 
 ## First Use
 
@@ -141,6 +141,17 @@ When reporting a problem, use `Dump to file` on the Advanced tab and attach the 
 The Toolkit source code is available under the MIT License. The application is provided as-is, without warranty of any kind. It can modify aircraft files after validation and backup; users should retain their own backups and use the tool at their own risk.
 
 ## Changelog
+
+### 0.6.1
+
+- Reworked cross-baseline Zibo updates as clean staged aircraft replacements
+  instead of overlays onto an older baseline.
+- Added exact full-directory backup, transactional activation, rollback and
+  full-directory restore for clean baseline updates.
+- Added ZIP content-root detection, obsolete baseline-file removal and guarded
+  migration of protected preferences and local liveries.
+- Limited very large review lists to 500 visible details while retaining full
+  plan totals.
 
 ### 0.6.0
 

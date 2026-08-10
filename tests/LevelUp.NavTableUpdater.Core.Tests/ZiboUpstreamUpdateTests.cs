@@ -420,8 +420,36 @@ public sealed class ZiboUpstreamUpdateTests
             && entry.Detail.Contains("package-owned livery file", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(result.Entries, entry => entry.Action == AircraftUpdateDryRunEntryAction.PreserveLocalLivery
             && ToSlashPath(entry.RelativePath) == "liveries/User Extra"
-            && entry.Detail.Contains("will be preserved", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(result.Findings, finding => finding.Contains("Preserved 1 local livery", StringComparison.Ordinal));
+            && entry.Detail.Contains("migrated", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Findings, finding => finding.Contains("1 local livery", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void DryRun_FullReplacementBlocksLinkedLocalLiveryDirectory()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = AircraftUpdateFixture.Create();
+        var externalLiveries = Path.Combine(fixture.Path, "external-liveries");
+        Directory.CreateDirectory(externalLiveries);
+        Directory.CreateSymbolicLink(Path.Combine(fixture.AircraftPath, "liveries"), externalLiveries);
+        var package = BuildFullPackage();
+        var zipPath = Path.Combine(fixture.Path, package.FileName);
+        CreateZip(
+            zipPath,
+            ("b738_4k.acf", "baseline acf"),
+            ("plugins/zibomod/plugin.xpl", "plugin"));
+        var cache = new AircraftUpdatePackageCache(Path.Combine(fixture.Path, "cache"));
+        var imported = cache.ImportZip(zipPath, package);
+
+        var result = new AircraftUpdateDryRunAnalyzer().Analyze(fixture.AircraftPath, [imported]);
+
+        Assert.False(result.Succeeded);
+        Assert.Contains(result.Entries, entry => entry.RelativePath == "liveries"
+            && entry.Action == AircraftUpdateDryRunEntryAction.BlockedUnsafePath);
     }
 
     [Fact]
@@ -429,8 +457,13 @@ public sealed class ZiboUpstreamUpdateTests
     {
         using var fixture = AircraftUpdateFixture.Create();
         var existingPath = Path.Combine(fixture.AircraftPath, "existing.txt");
+        var obsoletePath = Path.Combine(fixture.AircraftPath, "obsolete-4.03-file.txt");
+        var localLiveryPath = Path.Combine(fixture.AircraftPath, "liveries", "My Livery", "objects", "paint.txt");
         var protectedPrefsPath = Path.Combine(fixture.AircraftPath, "b738_4k_prefs.txt");
         File.WriteAllText(existingPath, "original");
+        File.WriteAllText(obsoletePath, "obsolete");
+        Directory.CreateDirectory(Path.GetDirectoryName(localLiveryPath)!);
+        File.WriteAllText(localLiveryPath, "local paint");
         File.WriteAllText(protectedPrefsPath, "local prefs");
         File.WriteAllText(Path.Combine(fixture.AircraftPath, "version.txt"), "4.04.12");
         var fullPackage = BuildFullPackage();
@@ -439,9 +472,11 @@ public sealed class ZiboUpstreamUpdateTests
         var patchZip = Path.Combine(fixture.Path, patchPackage.FileName);
         CreateZip(
             fullZip,
-            ("existing.txt", "from full"),
-            ("baseline-only.txt", "baseline"),
-            ("b738_4k_prefs.txt", "package prefs"));
+            ("B737-800X/b738_4k.acf", "baseline acf"),
+            ("B737-800X/plugins/zibomod/64/mac.xpl", "plugin"),
+            ("B737-800X/existing.txt", "from full"),
+            ("B737-800X/baseline-only.txt", "baseline"),
+            ("B737-800X/b738_4k_prefs.txt", "package prefs"));
         CreateZip(
             patchZip,
             ("existing.txt", "from patch"),
@@ -456,6 +491,12 @@ public sealed class ZiboUpstreamUpdateTests
             "Install full baseline plus latest cumulative patch",
             [fullPackage, patchPackage]);
 
+        var dryRun = new AircraftUpdateDryRunAnalyzer().Analyze(fixture.AircraftPath, [cachedFull, cachedPatch]);
+
+        Assert.True(dryRun.Succeeded);
+        Assert.Contains(dryRun.Entries, entry => entry.Action == AircraftUpdateDryRunEntryAction.Delete
+            && entry.RelativePath == "obsolete-4.03-file.txt");
+
         var result = operation.Apply(BuildVariant("zibo-737ng", "4.04.12", fixture.AcfPath), check, [cachedFull, cachedPatch]);
 
         Assert.True(result.Succeeded);
@@ -464,6 +505,9 @@ public sealed class ZiboUpstreamUpdateTests
         Assert.Equal("baseline", File.ReadAllText(Path.Combine(fixture.AircraftPath, "baseline-only.txt")));
         Assert.Equal("patch", File.ReadAllText(Path.Combine(fixture.AircraftPath, "patch-only.txt")));
         Assert.Equal("local prefs", File.ReadAllText(protectedPrefsPath));
+        Assert.Equal("local paint", File.ReadAllText(localLiveryPath));
+        Assert.False(File.Exists(obsoletePath));
+        Assert.False(Directory.Exists(Path.Combine(fixture.AircraftPath, "B737-800X")));
         Assert.True(File.Exists(Path.Combine(fixture.AircraftPath, AircraftMaintenanceMetadata.FileName)));
 
         var state = Assert.Single(store.Load().Aircraft.Values);
@@ -471,9 +515,16 @@ public sealed class ZiboUpstreamUpdateTests
         Assert.Equal("Full", state.LastAircraftUpdateMode);
         Assert.Equal("4.05.35", state.InstalledAircraftUpdateVersion);
         Assert.Equal([fullPackage.FileName, patchPackage.FileName], state.LastAircraftUpdatePackages);
-        Assert.Contains(state.Backups, record => record.SourcePath == existingPath && record.SourceExisted);
-        Assert.Contains(state.Backups, record => record.SourcePath.EndsWith("baseline-only.txt", StringComparison.Ordinal) && !record.SourceExisted);
-        Assert.Contains(state.Backups, record => record.SourcePath.EndsWith(AircraftMaintenanceMetadata.FileName, StringComparison.Ordinal) && !record.SourceExisted);
+        var directoryBackup = Assert.Single(state.Backups, record => record.Operation == "AircraftUpdateFullDirectory");
+        Assert.True(Directory.Exists(directoryBackup.BackupPath));
+        Assert.Equal("obsolete", File.ReadAllText(Path.Combine(directoryBackup.BackupPath, "obsolete-4.03-file.txt")));
+
+        var restored = operation.RestoreLatest(BuildVariant("zibo-737ng", "4.05.35", fixture.AcfPath));
+
+        Assert.True(restored.Succeeded);
+        Assert.Equal("original", File.ReadAllText(existingPath));
+        Assert.Equal("obsolete", File.ReadAllText(obsoletePath));
+        Assert.False(File.Exists(Path.Combine(fixture.AircraftPath, "baseline-only.txt")));
     }
 
     [Fact]
@@ -614,7 +665,7 @@ public sealed class ZiboUpstreamUpdateTests
     }
 
     [Fact]
-    public void Apply_WhenWriteFails_RollsBackEarlierFiles()
+    public void Apply_WhenStagingFails_LeavesOriginalDirectoryUntouched()
     {
         using var fixture = AircraftUpdateFixture.Create();
         var existingPath = Path.Combine(fixture.AircraftPath, "existing.txt");
@@ -625,7 +676,12 @@ public sealed class ZiboUpstreamUpdateTests
         var patchPackage = BuildPatchPackage();
         var fullZip = Path.Combine(fixture.Path, fullPackage.FileName);
         var patchZip = Path.Combine(fixture.Path, patchPackage.FileName);
-        CreateZip(fullZip, ("existing.txt", "from full"));
+        CreateZip(
+            fullZip,
+            ("b738_4k.acf", "baseline acf"),
+            ("plugins/zibomod/plugin.xpl", "plugin"),
+            ("existing.txt", "from full"),
+            ("blocked-target/child.txt", "creates directory"));
         CreateZip(patchZip, ("blocked-target", "cannot replace directory with file"));
         var cache = new AircraftUpdatePackageCache(Path.Combine(fixture.Path, "cache"));
         var cachedFull = cache.ImportZip(fullZip, fullPackage);
@@ -641,7 +697,46 @@ public sealed class ZiboUpstreamUpdateTests
         Assert.False(result.Succeeded);
         Assert.Equal("original", File.ReadAllText(existingPath));
         Assert.True(Directory.Exists(blockedTargetPath));
-        Assert.Contains(result.Log, line => line.Contains("ROLLBACK", StringComparison.Ordinal));
+        Assert.DoesNotContain(Directory.EnumerateFileSystemEntries(Path.GetDirectoryName(fixture.AircraftPath)!),
+            path => Path.GetFileName(path).Contains("toolkit-backup", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void FullReplacement_WhenActivationFailsAfterMovingTarget_RestoresOriginalDirectory()
+    {
+        using var fixture = AircraftUpdateFixture.Create();
+        var existingPath = Path.Combine(fixture.AircraftPath, "existing.txt");
+        File.WriteAllText(existingPath, "original");
+        var fullPackage = BuildFullPackage();
+        var fullZip = Path.Combine(fixture.Path, fullPackage.FileName);
+        CreateZip(
+            fullZip,
+            ("B737-800X/b738_4k.acf", "baseline acf"),
+            ("B737-800X/plugins/zibomod/plugin.xpl", "plugin"),
+            ("B737-800X/existing.txt", "replacement"));
+        var cache = new AircraftUpdatePackageCache(Path.Combine(fixture.Path, "cache"));
+        var cachedFull = cache.ImportZip(fullZip, fullPackage);
+        var check = BuildUpdateCheck(
+            AircraftUpdatePlanAction.InstallBaselineAndCumulativePatch,
+            "Install full baseline",
+            [fullPackage]);
+        var operation = new AircraftFullBaselineReplacement(
+            TestToolStateStore.Create(fixture.Path),
+            afterTargetMoved: () => throw new IOException("Injected activation failure."));
+
+        Assert.Throws<IOException>(() => operation.Apply(
+            BuildVariant("zibo-737ng", "4.03.8", fixture.AcfPath),
+            check,
+            [cachedFull],
+            CancellationToken.None,
+            writePhaseStarting: null,
+            new List<string>()));
+
+        Assert.Equal("original", File.ReadAllText(existingPath));
+        Assert.DoesNotContain(
+            Directory.EnumerateFileSystemEntries(Path.GetDirectoryName(fixture.AircraftPath)!),
+            path => Path.GetFileName(path).Contains("toolkit-backup", StringComparison.Ordinal)
+                || Path.GetFileName(path).Contains("toolkit-stage", StringComparison.Ordinal));
     }
 
     [Theory]

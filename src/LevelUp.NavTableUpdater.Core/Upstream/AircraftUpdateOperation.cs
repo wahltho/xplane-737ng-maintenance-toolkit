@@ -109,6 +109,31 @@ public sealed class AircraftUpdateOperation
             return MaintenanceOperationResult.Blocked(dryRun.Summary, log);
         }
 
+        if (updateCheck.UpdateMode == AircraftUpdateMode.Full)
+        {
+            try
+            {
+                return new AircraftFullBaselineReplacement(_stateStore).Apply(
+                    variant,
+                    updateCheck,
+                    orderedCacheEntries,
+                    cancellationToken,
+                    writePhaseStarting,
+                    log);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or InvalidDataException)
+            {
+                log.Add($"[FAILED] {ex.Message}");
+                return MaintenanceOperationResult.Blocked(
+                    $"Clean baseline replacement failed and the previous aircraft directory was retained: {ex.Message}",
+                    log);
+            }
+        }
+
         var changeEntries = dryRun.Entries
             .Where(entry => entry.Action is AircraftUpdateDryRunEntryAction.Add
                 or AircraftUpdateDryRunEntryAction.Replace
@@ -202,6 +227,26 @@ public sealed class AircraftUpdateOperation
         }
 
         var restoreRecords = SelectLatestAircraftUpdateGeneration(variant, target.Backups);
+        var directoryGeneration = SelectLatestFullDirectoryGeneration(variant, target.Backups);
+        var latestFileGenerationUtc = restoreRecords.Length == 0
+            ? (DateTimeOffset?)null
+            : restoreRecords.Max(record => record.CreatedUtc);
+        if (directoryGeneration is not null
+            && (!latestFileGenerationUtc.HasValue || directoryGeneration.CreatedUtc > latestFileGenerationUtc.Value))
+        {
+            try
+            {
+                return new AircraftFullBaselineReplacement(_stateStore).Restore(variant, directoryGeneration, log);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or InvalidDataException)
+            {
+                log.Add($"[FAILED] {ex.Message}");
+                return MaintenanceOperationResult.Blocked(
+                    $"Aircraft baseline restore failed and the current aircraft directory was retained: {ex.Message}",
+                    log);
+            }
+        }
+
         if (restoreRecords.Length == 0)
         {
             log.Add("[BLOCKED] No aircraft update backup generation is recorded for this aircraft product.");
@@ -641,6 +686,21 @@ public sealed class AircraftUpdateOperation
             .Select(group => group.Last())
             .OrderBy(record => record.SourcePath, StringComparerForCurrentPlatform())
             .ToArray();
+    }
+
+    private static BackupRecord? SelectLatestFullDirectoryGeneration(
+        AircraftVariantViewAnalysis variant,
+        IReadOnlyList<BackupRecord> records)
+    {
+        var aircraftFolder = Path.GetFullPath(Path.GetDirectoryName(variant.AcfPath) ?? "");
+        var physicalFolder = AircraftUpdatePath.ResolvePhysicalPath(aircraftFolder);
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        return records
+            .Where(record => string.Equals(record.Operation, "AircraftUpdateFullDirectory", StringComparison.Ordinal)
+                && Directory.Exists(record.BackupPath)
+                && string.Equals(Path.GetFullPath(record.SourcePath), physicalFolder, comparison))
+            .OrderByDescending(record => record.CreatedUtc)
+            .FirstOrDefault();
     }
 
     private static bool IsInsideAircraftFolder(AircraftVariantViewAnalysis variant, string sourcePath)

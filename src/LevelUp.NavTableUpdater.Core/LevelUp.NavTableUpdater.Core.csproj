@@ -10,4 +10,8 @@
     <PackageReference Include="SharpCompress" Version="0.50.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="LevelUp.NavTableUpdater.Core.Tests" />
+  </ItemGroup>
+
 </Project>

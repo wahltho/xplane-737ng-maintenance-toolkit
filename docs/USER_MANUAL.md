@@ -1,6 +1,6 @@
 # X-Plane 737NG Maintenance Toolkit User Manual
 
-This manual describes version 0.6.0 of the X-Plane 737NG Maintenance Toolkit.
+This manual describes version 0.6.1 of the X-Plane 737NG Maintenance Toolkit.
 
 The toolkit is a desktop app for selected Zibo and LevelUp 737NG maintenance
 tasks:
@@ -30,7 +30,7 @@ Keep your own backups and use the tool at your own risk.
 
 ## Compatibility And Installation
 
-Version 0.6.0 supports:
+Version 0.6.1 supports:
 
 - X-Plane 12. X-Plane 11 is not supported.
 - Zibo 737-800X 2K and 4K variants.
@@ -72,7 +72,7 @@ verified macOS download is blocked, try to open it once, then follow Apple's
 documented [Privacy & Security "Open Anyway" process](https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac).
 
 Download future Toolkit releases manually from GitHub. VeloPack provides the
-application package and lifecycle integration, but version 0.6.0 does not yet
+application package and lifecycle integration, but version 0.6.1 does not yet
 check for or download new Toolkit versions automatically. This is separate from
 aircraft-package and VNAV-content updates performed inside the app.
 
@@ -166,7 +166,7 @@ products. `Check releases` queries its latest stable GitHub Release. `Review`
 downloads and validates the selected release into the configured package cache,
 then calculates its file plan without changing the aircraft. `Install`,
 `Update` or `Repair` prepares the same verified package and still asks for an
-explicit confirmation before writing files. Version 0.6.0 offers the LevelUp
+explicit confirmation before writing files. Version 0.6.1 offers the LevelUp
 FANS CDU package as an optional LevelUp-only patch. It remains separate from
 aircraft and VNAV updates and is never installed automatically.
 
@@ -200,7 +200,7 @@ the last managed operation. Close X-Plane before all write and restore actions;
 restart it fully afterward.
 
 The `Resources` card manages large optional product assets independently from
-aircraft, VNAV and tool transactions. Version 0.6.0 offers the official
+aircraft, VNAV and tool transactions. Version 0.6.1 offers the official
 LevelUp 737NG Paintkit 1.1.0 for detected LevelUp installations. Choose the
 parent extraction directory, click `Check release`, then use `Download` after
 reviewing the destination and required disk space. The Toolkit verifies the
@@ -278,7 +278,7 @@ always require a separate confirmation and use their own multi-file backup and
 rollback transaction.
 
 Optional patches are not part of the normal aircraft update button and are not
-offered automatically after an aircraft update. The 0.6.0 catalog advertises
+offered automatically after an aircraft update. The 0.6.1 catalog advertises
 the LevelUp FANS CDU patch only for a detected LevelUp product and requires an
 explicit action. VNAV tables retain their managed post-aircraft-update prompt.
 
@@ -309,7 +309,10 @@ The aircraft package details section shows:
 Zibo packages are modeled as baseline plus cumulative patch:
 
 - `Full` means the plan includes a full baseline ZIP. If a cumulative patch is
-  available for the same baseline, both packages are required.
+  available for the same baseline, both packages are required. The Toolkit
+  builds a fresh aircraft image in a staging directory, applies the cumulative
+  patch there, validates the result and then exchanges the complete aircraft
+  directory. It does not overlay a new baseline onto files from an older one.
 - `Incremental` means the local aircraft is already on the current baseline
   and only the latest cumulative patch ZIP is required.
 
@@ -338,9 +341,12 @@ canceled before the verified package is committed to the toolkit cache;
 aircraft files are never changed by import.
 
 Use `Review aircraft changes` before applying. Review opens the cached packages
-and reports which files would be added, replaced or protected. No aircraft
-files are changed during review. The review runs in the background and can be
-canceled.
+and reports which files would be added, replaced, removed or protected. For a
+full baseline replacement, files that belong only to the old baseline are
+reported as removed, while protected preferences and local liveries are
+reported as migrated. No aircraft files are changed during review. The review
+runs in the background and can be canceled. Very large plans show only the
+first 500 detail rows in the UI; the totals cover the complete plan.
 
 Use `Apply cached update` only after the cache contains every required
 package and review is clean. A confirmation dialog summarizes the reviewed
@@ -352,10 +358,14 @@ operation:
 - blocks when X-Plane is running
 - verifies cached ZIP size and SHA-256 against the recorded cache snapshot
 - performs an internal review pass before writing
-- backs up replaced files and tracks files added by the update
+- uses per-file backups for incremental updates
+- retains the exact complete previous aircraft directory for a full baseline
+  replacement
 - preserves protected local config and preference files
+- preserves local liveries that are not included in the new package
 - writes toolkit metadata after a successful update
-- rolls back changed files if the transaction fails
+- rolls back changed files or the complete directory exchange if the
+  transaction fails
 
 After a successful aircraft update, the app rescans the selected target. If
 the VNAV package is missing, outdated or repairable, a separate confirmation
@@ -371,8 +381,11 @@ installed, updated or repaired. It is hidden once the app has established that
 none of those actions can be performed.
 
 Use `Restore aircraft` on the Start tab to restore the latest aircraft-update
-backup generation. Files that were added by the update are removed again during
-restore. `Restore VNAV` restores the latest separate VNAV backup generation.
+backup generation. Incremental restore replaces backed-up files and removes
+files added by the update. Full-baseline restore transactionally exchanges the
+complete aircraft directory with its exact retained predecessor and keeps a
+pre-restore directory so later legitimate changes are not discarded.
+`Restore VNAV` restores the latest separate VNAV backup generation.
 
 Official Zibo package hashes are not available from the feed. The app verifies
 that the cached ZIP has not changed since import or download; it cannot verify
@@ -410,6 +423,12 @@ Available settings:
 Changing the backup folder affects future backups. Existing restore records
 keep their original absolute backup paths.
 
+Full aircraft-baseline replacements are the exception: their complete and
+exact directory backups are retained beside the aircraft directory so the
+final activation and restore can use same-filesystem directory moves. These
+backup directory paths are recorded in Toolkit state and must not be renamed or
+deleted while restore is required.
+
 `Clear Cache` removes the current aircraft, optional-package and tool-package
 cache contents. It does not delete installed files or backups.
 
@@ -440,6 +459,8 @@ The app follows these safety rules for modifying operations:
 - Aircraft update ZIP paths must stay inside the selected aircraft folder.
 - Protected local preference/config files are not overwritten by aircraft
   update ZIPs.
+- Full baseline updates reject unsafe protected-content or local-livery links
+  instead of following them during migration.
 - A backup or restore record is created before replacing existing files.
 - Failed write transactions attempt rollback.
 - A full X-Plane restart is required after changes.
@@ -511,7 +532,7 @@ attempted and exported log. Do not upload complete copyrighted aircraft files.
 
 - App builds are unsigned releases.
 - macOS builds are not notarized.
-- Version 0.6.0 does not automatically check for or install new Toolkit
+- Version 0.6.1 does not automatically check for or install new Toolkit
   versions. Download newer app releases manually from GitHub.
 - Zibo upstream ZIPs are verified against the local cache snapshot, not an
   official upstream hash manifest.

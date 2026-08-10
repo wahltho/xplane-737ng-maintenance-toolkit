@@ -1793,8 +1793,14 @@ public partial class MainWindowViewModel : ViewModelBase
                 cancellationToken);
             _lastAircraftUpdateDryRun = result;
             UpstreamDryRunSummary = result.Summary;
-            UpstreamDryRunEntries.ReplaceWith(result.Entries);
+            const int visibleEntryLimit = 500;
+            UpstreamDryRunEntries.ReplaceWith(result.Entries.Take(visibleEntryLimit));
             UpstreamFindings.ReplaceWith(result.Findings);
+            if (result.Entries.Count > visibleEntryLimit)
+            {
+                UpstreamFindings.Add(
+                    $"The review list shows the first {visibleEntryLimit} of {result.Entries.Count} entries. The totals above cover the complete plan.");
+            }
             OperationElapsed = FormatElapsed(stopwatch.Elapsed);
             OperationProgress = 100;
             OperationStatus = result.Succeeded ? "Review complete" : "Review blocked";
@@ -1882,6 +1888,10 @@ public partial class MainWindowViewModel : ViewModelBase
             return noChangeResult;
         }
 
+        var isCleanBaselineReplacement = _lastUpstreamUpdateCheck.UpdateMode == AircraftUpdateMode.Full;
+        var transactionDescription = isCleanBaselineReplacement
+            ? "A fresh aircraft image will be staged from the full baseline and cumulative patch. Protected preferences and local liveries will be migrated, the complete current aircraft directory will be retained as a restore backup, and then the directories will be swapped."
+            : "Backups are created before existing aircraft files are replaced or deleted.";
         var confirmation = new ConfirmationRequest(
             "Apply aircraft update?",
             string.Join(
@@ -1893,7 +1903,8 @@ public partial class MainWindowViewModel : ViewModelBase
                     $"Changes: {dryRun.AddCount} add, {dryRun.ReplaceCount} replace, {dryRun.DeleteCount} delete",
                     $"Protected local entries: {dryRun.ProtectedCount + dryRun.LocalLiveryPreservedCount}",
                     "",
-                    "Backups are created before existing aircraft files are replaced or deleted. Once writing starts, the transaction cannot be canceled and will either complete or roll back."
+                    transactionDescription,
+                    "Once the final write phase starts, the transaction cannot be canceled and will either complete or roll back."
                 ]),
             "Apply update");
         if (!await _userInteractionService.ConfirmAsync(confirmation))
@@ -2333,9 +2344,14 @@ public partial class MainWindowViewModel : ViewModelBase
                 CanCancelOperation = false;
                 OperationProgress = 55;
                 OperationStatus = "Writing aircraft files";
-                OperationTitle = "Applying aircraft update";
-                OperationSubtitle = "The write transaction is running and will complete or roll back.";
-                OperationProgressText = "55% - Validation complete; creating backups and applying reviewed changes";
+                var cleanBaseline = _lastUpstreamUpdateCheck?.UpdateMode == AircraftUpdateMode.Full;
+                OperationTitle = cleanBaseline ? "Replacing aircraft baseline" : "Applying aircraft update";
+                OperationSubtitle = cleanBaseline
+                    ? "The fresh aircraft image is validated. The complete current directory is now being exchanged transactionally."
+                    : "The write transaction is running and will complete or roll back.";
+                OperationProgressText = cleanBaseline
+                    ? "75% - Staging complete; retaining current directory and activating clean baseline"
+                    : "55% - Validation complete; creating backups and applying reviewed changes";
             }).GetAwaiter().GetResult();
         }
 

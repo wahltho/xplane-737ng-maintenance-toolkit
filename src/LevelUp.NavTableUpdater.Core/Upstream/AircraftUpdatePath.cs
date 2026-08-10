@@ -2,6 +2,18 @@ namespace LevelUp.NavTableUpdater.Core.Upstream;
 
 internal static class AircraftUpdatePath
 {
+    private static readonly HashSet<string> KnownAircraftRootEntries = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "cockpit_3d",
+        "cockpit",
+        "airfoils",
+        "fmod",
+        "liveries",
+        "objects",
+        "plugins",
+        "sounds"
+    };
+
     public static string? NormalizeRelativePath(string? path)
     {
         if (string.IsNullOrWhiteSpace(path))
@@ -61,6 +73,45 @@ internal static class AircraftUpdatePath
         return string.Join(Path.DirectorySeparatorChar, archiveSegments[rootSegments.Length..]);
     }
 
+    public static string? DetectContentRoot(
+        AircraftUpdatePackage package,
+        IReadOnlyList<AircraftPackageArchiveEntry> archiveEntries)
+    {
+        if (!string.IsNullOrWhiteSpace(package.Manifest?.ContentRoot))
+        {
+            return package.Manifest.ContentRoot;
+        }
+
+        var paths = archiveEntries
+            .Where(entry => !entry.IsDirectory)
+            .Select(entry => NormalizeRelativePath(entry.Path))
+            .Where(path => path is not null)
+            .Select(path => path!)
+            .Where(path => !path.StartsWith("__MACOSX" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        if (paths.Length == 0)
+        {
+            return null;
+        }
+
+        var splitPaths = paths
+            .Select(path => path.Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries))
+            .ToArray();
+        if (splitPaths.Any(segments => segments.Length < 2))
+        {
+            return null;
+        }
+
+        var firstSegment = splitPaths[0][0];
+        if (KnownAircraftRootEntries.Contains(firstSegment)
+            || splitPaths.Any(segments => !string.Equals(segments[0], firstSegment, StringComparison.OrdinalIgnoreCase)))
+        {
+            return null;
+        }
+
+        return firstSegment;
+    }
+
     public static string ResolveTargetPath(string targetRoot, string relativePath)
     {
         var normalizedPath = NormalizeRelativePath(relativePath)
@@ -78,6 +129,8 @@ internal static class AircraftUpdatePath
 
         return targetPath;
     }
+
+    public static string ResolvePhysicalPath(string path) => ResolveExistingLinks(Path.GetFullPath(path));
 
     private static string ResolveExistingLinks(string path)
     {
