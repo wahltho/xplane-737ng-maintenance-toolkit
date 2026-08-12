@@ -33,6 +33,8 @@ public sealed class ToolPackageManifest
 
     public string InstallScope { get; set; } = "";
 
+    public string Layout { get; set; } = "";
+
     public string TargetPath { get; set; } = "";
 
     public List<string> SupportedProducts { get; set; } = [];

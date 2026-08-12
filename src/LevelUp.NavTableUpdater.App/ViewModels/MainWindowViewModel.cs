@@ -51,6 +51,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private GitHubToolPackageReleaseSource _toolPackageReleaseSource;
     private GitHubResourcePackageReleaseSource _resourcePackageReleaseSource;
     private readonly ToolPackageManager _toolPackageManager;
+    private readonly XPlaneOverlayPackageManager _xPlaneOverlayPackageManager;
     private readonly ResourcePackageManager _resourcePackageManager;
     private readonly Dictionary<string, ContentPatchRelease> _contentPatchReleases = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _contentPatchReleaseErrors = new(StringComparer.Ordinal);
@@ -496,7 +497,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public ObservableCollection<ContentPackageCatalogEntry> AvailableResourcePackages { get; } = [];
 
-    public IReadOnlyList<string> ToolReleaseChannelOptions { get; } = ["stable", "beta"];
+    public ObservableCollection<string> ToolReleaseChannelOptions { get; } = ["stable"];
 
     public ApplicationUpdateViewModel ApplicationUpdate { get; }
 
@@ -557,6 +558,7 @@ public partial class MainWindowViewModel : ViewModelBase
         _vnavContentOperation = new VnavContentOperation(_stateStore, CreatePayloadSource());
         _declarativeContentPatchOperation = new DeclarativeContentPatchOperation(_stateStore);
         _toolPackageManager = new ToolPackageManager(_stateStore);
+        _xPlaneOverlayPackageManager = new XPlaneOverlayPackageManager(_stateStore);
         _resourcePackageManager = new ResourcePackageManager(_stateStore);
         _ziboUpdateChecker = new AircraftUpstreamUpdateChecker(
             new ZiboFeedAircraftUpdateIndexSource(_aircraftUpdateHttpClient));
@@ -3453,13 +3455,15 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
-        var channel = value is null
-            ? "stable"
-            : NormalizeToolReleaseChannel(
-                _settings.ToolReleaseChannels.GetValueOrDefault(value.PackageId, "stable"));
+        var channel = NormalizeToolReleaseChannel(
+            value,
+            value is null
+                ? "stable"
+                : _settings.ToolReleaseChannels.GetValueOrDefault(value.PackageId, "stable"));
         _synchronizingToolSelection = true;
         try
         {
+            ToolReleaseChannelOptions.ReplaceWith(ToolReleaseChannels(value));
             SelectedToolReleaseChannel = channel;
         }
         finally
@@ -3477,14 +3481,14 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
-        var normalized = NormalizeToolReleaseChannel(value);
+        var entry = SelectedToolCatalogEntry();
+        var normalized = NormalizeToolReleaseChannel(entry, value);
         if (!string.Equals(value, normalized, StringComparison.Ordinal))
         {
             SelectedToolReleaseChannel = normalized;
             return;
         }
 
-        var entry = SelectedToolCatalogEntry();
         if (entry is null)
         {
             return;
@@ -3555,7 +3559,7 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
-        var inspection = _toolPackageManager.Inspect(entry, xPlaneRoot, release);
+        var inspection = InspectToolPackage(entry, xPlaneRoot, release);
         var action = inspection.State switch
         {
             ToolPackageInstallState.NotInstalled => ToolPackageAction.Install,
@@ -3606,8 +3610,7 @@ public partial class MainWindowViewModel : ViewModelBase
             OperationSubtitle = $"Creating a backup and staging the verified {entry.DisplayName} installation.";
             OperationProgressText = $"55% - Backing up and staging {entry.DisplayName}";
             CanCancelOperation = false;
-            var result = await Task.Run(
-                () => _toolPackageManager.Apply(entry, provisioned, xPlaneRoot, action.Value));
+            var result = await Task.Run(() => ApplyToolPackage(entry, provisioned, xPlaneRoot, action.Value));
             foreach (var line in result.Log)
             {
                 AppendOperationLog(line);
@@ -3686,7 +3689,7 @@ public partial class MainWindowViewModel : ViewModelBase
         OperationLog = "";
         try
         {
-            var result = await Task.Run(() => _toolPackageManager.Restore(entry, xPlaneRoot));
+            var result = await Task.Run(() => RestoreToolPackage(entry, xPlaneRoot));
             foreach (var line in result.Log)
             {
                 AppendOperationLog(line);
@@ -3742,7 +3745,7 @@ public partial class MainWindowViewModel : ViewModelBase
         var channel = ParseToolReleaseChannel();
         var release = _toolPackageReleases.GetValueOrDefault(ToolReleaseKey(entry.PackageId, channel));
         var xPlaneRoot = ResolveToolInstallRoot(entry);
-        var inspection = _toolPackageManager.Inspect(entry, xPlaneRoot, release);
+        var inspection = InspectToolPackage(entry, xPlaneRoot, release);
         ToolInstalledVersion = inspection.InstalledVersion;
         ToolAvailableVersion = inspection.AvailableVersion;
         ToolXPlaneRoot = string.IsNullOrWhiteSpace(inspection.XPlaneRoot) ? "Not resolved" : inspection.XPlaneRoot;
@@ -3778,8 +3781,36 @@ public partial class MainWindowViewModel : ViewModelBase
             ? null
             : _stateStore.TryGetToolInstallation(xPlaneRoot, entry.PackageId);
         CanRestoreToolPackage = CanCheckToolRelease
-            && state?.Backups.Any(backup => !backup.SourceExisted || Directory.Exists(backup.BackupPath)) == true;
+            && state?.Backups.Any(backup => Directory.Exists(backup.BackupPath)
+                || (!backup.SourceExisted && backup.OverlayFiles.Count == 0)) == true;
     }
+
+    private ToolPackageInspection InspectToolPackage(
+        ContentPackageCatalogEntry entry,
+        string? installRoot,
+        ToolPackageRelease? release) =>
+        IsXPlaneOverlayPackage(entry)
+            ? _xPlaneOverlayPackageManager.Inspect(entry, installRoot, release)
+            : _toolPackageManager.Inspect(entry, installRoot, release);
+
+    private MaintenanceOperationResult ApplyToolPackage(
+        ContentPackageCatalogEntry entry,
+        ToolPackageProvisionResult package,
+        string installRoot,
+        ToolPackageAction action) =>
+        IsXPlaneOverlayPackage(entry)
+            ? _xPlaneOverlayPackageManager.Apply(entry, package, installRoot, action)
+            : _toolPackageManager.Apply(entry, package, installRoot, action);
+
+    private MaintenanceOperationResult RestoreToolPackage(
+        ContentPackageCatalogEntry entry,
+        string installRoot) =>
+        IsXPlaneOverlayPackage(entry)
+            ? _xPlaneOverlayPackageManager.Restore(entry, installRoot)
+            : _toolPackageManager.Restore(entry, installRoot);
+
+    private static bool IsXPlaneOverlayPackage(ContentPackageCatalogEntry entry) =>
+        entry.Distribution.Kind is ContentPackageDistributionKind.GitHubXPlaneOverlayRelease;
 
     private ContentPackageCatalogEntry? SelectedToolCatalogEntry()
     {
@@ -3817,10 +3848,12 @@ public partial class MainWindowViewModel : ViewModelBase
             }
 
             SelectedToolPackage = selected;
-            var channel = selected is null
-                ? "stable"
-                : NormalizeToolReleaseChannel(
-                    _settings.ToolReleaseChannels.GetValueOrDefault(selected.PackageId, "stable"));
+            var channel = NormalizeToolReleaseChannel(
+                selected,
+                selected is null
+                    ? "stable"
+                    : _settings.ToolReleaseChannels.GetValueOrDefault(selected.PackageId, "stable"));
+            ToolReleaseChannelOptions.ReplaceWith(ToolReleaseChannels(selected));
             SelectedToolReleaseChannel = channel;
         }
         finally
@@ -4374,6 +4407,26 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private static string NormalizeToolReleaseChannel(string value) =>
         value.Trim().Equals("beta", StringComparison.OrdinalIgnoreCase) ? "beta" : "stable";
+
+    private static IReadOnlyList<string> ToolReleaseChannels(ContentPackageCatalogEntry? entry)
+    {
+        var channels = entry?.SupportedChannels
+            .Select(NormalizeToolReleaseChannel)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        return channels is { Length: > 0 } ? channels : ["stable"];
+    }
+
+    private static string NormalizeToolReleaseChannel(
+        ContentPackageCatalogEntry? entry,
+        string value)
+    {
+        var normalized = NormalizeToolReleaseChannel(value);
+        var channels = ToolReleaseChannels(entry);
+        return channels.Contains(normalized, StringComparer.Ordinal)
+            ? normalized
+            : channels[0];
+    }
 
     private static IReadOnlyList<string> ResourceReleaseChannels(ContentPackageCatalogEntry? entry)
     {

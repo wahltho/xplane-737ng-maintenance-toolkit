@@ -94,7 +94,7 @@ public sealed class ContentPatchCatalogTests
             package => package.PackageId == ContentPatchCatalog.FansCdu.ComponentId);
         var descriptor = ContentPatchCatalog.OptionalPatch(fans);
 
-        Assert.Equal("1.2.0", catalog.CatalogVersion);
+        Assert.Equal("1.3.0", catalog.CatalogVersion);
         Assert.Equal(ContentPackageCategory.OptionalPatch, fans.Category);
         Assert.Equal(ContentPatchActivation.ExplicitOptIn, fans.Activation);
         Assert.Equal("LevelUp-737NG-FANS-CDU-v*.zip", fans.Distribution.AssetNamePattern);
@@ -116,7 +116,7 @@ public sealed class ContentPatchCatalogTests
             catalog.ForProduct("levelup-737ng"),
             package => package.PackageId == "levelup.paintkit");
 
-        Assert.Equal("1.2.0", catalog.CatalogVersion);
+        Assert.Equal("1.3.0", catalog.CatalogVersion);
         Assert.Equal(ContentPackageCategory.Resource, paintkit.Category);
         Assert.Equal(ContentPatchActivation.ExplicitOptIn, paintkit.Activation);
         Assert.Equal(["levelup-737ng"], paintkit.SupportedProducts);
@@ -151,6 +151,31 @@ public sealed class ContentPatchCatalogTests
         Assert.Equal("plugins/xlua", xlua.TargetPath);
         Assert.Equal(ContentPackageDistributionKind.GitHubToolRelease, xlua.Distribution.Kind);
         Assert.Equal("Xlua.*-manifest.json", xlua.Distribution.ManifestAssetNamePattern);
+    }
+
+    [Fact]
+    public void BundledCatalog_AdvertisesRealbenchLoggerAsProductNeutralXPlaneOverlay()
+    {
+        var catalogPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..", "..", "..", "..", "..",
+            "src", "LevelUp.NavTableUpdater.App", "Content", "content-package-catalog.json"));
+        var catalog = ContentPackageCatalog.Parse(File.ReadAllText(catalogPath));
+
+        var logger = Assert.Single(
+            catalog.ForProduct("zibo-737ng"),
+            package => package.PackageId == "wahltho.737ng-realbench-logger");
+
+        Assert.Contains(logger, catalog.ForProduct("levelup-737ng"));
+        Assert.Equal(ContentPackageCategory.Tool, logger.Category);
+        Assert.Equal(ContentPatchActivation.ExplicitOptIn, logger.Activation);
+        Assert.Equal(["zibo-737ng", "levelup-737ng"], logger.SupportedProducts);
+        Assert.Equal("xPlaneInstallation", logger.InstallScope);
+        Assert.Empty(logger.TargetPath);
+        Assert.Equal(["stable"], logger.SupportedChannels);
+        Assert.Equal(ContentPackageDistributionKind.GitHubXPlaneOverlayRelease, logger.Distribution.Kind);
+        Assert.Equal("737NGRealbenchLogger-*-manifest.json", logger.Distribution.ManifestAssetNamePattern);
+        Assert.Equal(2, logger.Distribution.ManifestSchemaVersion);
     }
 
     private static string BuildCatalog() =>

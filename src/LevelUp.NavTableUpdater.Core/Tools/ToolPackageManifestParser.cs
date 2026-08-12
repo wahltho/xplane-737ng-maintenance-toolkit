@@ -90,7 +90,12 @@ public static class ToolPackageManifestParser
         manifest.Channel = manifest.Channel.Trim().ToLowerInvariant();
         manifest.Repository = manifest.Repository.TrimEnd('/');
         manifest.InstallScope = manifest.InstallScope.Trim();
-        manifest.TargetPath = NormalizeRelativePath(manifest.TargetPath);
+        manifest.Layout = string.IsNullOrWhiteSpace(manifest.Layout) && manifest.SchemaVersion == 1
+            ? "directory"
+            : manifest.Layout.Trim();
+        manifest.TargetPath = string.IsNullOrWhiteSpace(manifest.TargetPath)
+            ? ""
+            : NormalizeRelativePath(manifest.TargetPath);
         manifest.Archive.FileName = manifest.Archive.FileName.Trim();
         manifest.Archive.RootPath = manifest.Archive.RootPath.Trim().Trim('/');
         manifest.Archive.Sha256 = manifest.Archive.Sha256.Trim().ToLowerInvariant();
@@ -105,12 +110,19 @@ public static class ToolPackageManifestParser
 
     private static void Validate(ToolPackageManifest manifest)
     {
-        if (manifest.SchemaVersion != 1
+        var directoryLayout = manifest.SchemaVersion == 1
+            && manifest.Layout == "directory"
+            && manifest.InstallScope is "xPlaneInstallation" or "aircraftInstallation"
+            && !string.IsNullOrWhiteSpace(manifest.TargetPath);
+        var overlayLayout = manifest.SchemaVersion == 2
+            && manifest.Layout == "xPlaneOverlay"
+            && manifest.InstallScope == "xPlaneInstallation"
+            && string.IsNullOrWhiteSpace(manifest.TargetPath);
+        if (!directoryLayout && !overlayLayout
             || string.IsNullOrWhiteSpace(manifest.PackageId)
             || string.IsNullOrWhiteSpace(manifest.PackageVersion)
             || string.IsNullOrWhiteSpace(manifest.ReleaseTag)
             || manifest.Channel is not "stable" and not "beta"
-            || manifest.InstallScope is not "xPlaneInstallation" and not "aircraftInstallation"
             || !manifest.RestartRequired)
         {
             throw new InvalidDataException("Tool package manifest identity or lifecycle metadata is incomplete.");
@@ -130,10 +142,13 @@ public static class ToolPackageManifestParser
             throw new InvalidDataException("Tool package manifest has invalid product compatibility metadata.");
         }
 
+        var validArchiveRoot = directoryLayout
+            ? !string.IsNullOrWhiteSpace(manifest.Archive.RootPath)
+                && !manifest.Archive.RootPath.Contains('/')
+                && !manifest.Archive.RootPath.Contains('\\')
+            : string.IsNullOrWhiteSpace(manifest.Archive.RootPath);
         if (!IsSafeFileName(manifest.Archive.FileName, ".zip")
-            || string.IsNullOrWhiteSpace(manifest.Archive.RootPath)
-            || manifest.Archive.RootPath.Contains('/')
-            || manifest.Archive.RootPath.Contains('\\')
+            || !validArchiveRoot
             || manifest.Archive.Size <= 0
             || !IsSha256(manifest.Archive.Sha256))
         {
@@ -157,6 +172,11 @@ public static class ToolPackageManifestParser
         if (manifest.ProtectedPaths.Count != manifest.ProtectedPaths.Distinct(PathComparer).Count())
         {
             throw new InvalidDataException("Tool package manifest contains duplicate protected paths.");
+        }
+
+        if (overlayLayout && manifest.Files.Any(file => IsProtectedPath(manifest, file.Path)))
+        {
+            throw new InvalidDataException("Overlay package files must not overlap protected generated-data paths.");
         }
     }
 

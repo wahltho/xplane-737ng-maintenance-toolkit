@@ -297,8 +297,10 @@ public sealed class GitHubToolPackageReleaseSource
             }
 
             var archivePathNormalized = NormalizeArchivePath(entry.FullName);
-            var prefix = manifest.Archive.RootPath + "/";
-            if (!archivePathNormalized.StartsWith(prefix, StringComparison.Ordinal))
+            var prefix = string.IsNullOrWhiteSpace(manifest.Archive.RootPath)
+                ? ""
+                : manifest.Archive.RootPath + "/";
+            if (prefix.Length > 0 && !archivePathNormalized.StartsWith(prefix, StringComparison.Ordinal))
             {
                 throw new InvalidDataException($"Tool archive entry is outside the declared root: {entry.FullName}.");
             }
@@ -468,8 +470,10 @@ public sealed class GitHubToolPackageReleaseSource
     {
         var supportedCategory = entry.Category is ContentPackageCategory.Tool
             or ContentPackageCategory.AircraftComponent;
+        var supportedDistribution = entry.Distribution.Kind is ContentPackageDistributionKind.GitHubToolRelease
+            or ContentPackageDistributionKind.GitHubXPlaneOverlayRelease;
         if (!supportedCategory
-            || entry.Distribution.Kind is not ContentPackageDistributionKind.GitHubToolRelease
+            || !supportedDistribution
             || !entry.SupportedChannels.Contains(ChannelName(channel), StringComparer.Ordinal))
         {
             throw new InvalidOperationException($"Catalog entry {entry.PackageId} is not configured for the requested tool release channel.");

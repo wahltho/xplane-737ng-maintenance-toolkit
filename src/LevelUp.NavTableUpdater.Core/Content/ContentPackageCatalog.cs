@@ -20,6 +20,7 @@ public enum ContentPackageDistributionKind
     ExistingVnav,
     GitHubReleaseArchive,
     GitHubToolRelease,
+    GitHubXPlaneOverlayRelease,
     GitHubResourceRelease
 }
 
@@ -213,6 +214,24 @@ public sealed class ContentPackageCatalog
                 || package.SupportedChannels.Any(channel => channel is not "stable" and not "beta"))
             {
                 throw new InvalidDataException($"Content package {package.PackageId} has unsafe GitHub tool release metadata.");
+            }
+
+            return;
+        }
+
+        if (package.Distribution.Kind is ContentPackageDistributionKind.GitHubXPlaneOverlayRelease)
+        {
+            if (package.Category is not ContentPackageCategory.Tool
+                || package.Distribution.ManifestSchemaVersion != 2
+                || !IsSafeAssetPattern(package.Distribution.ManifestAssetNamePattern, ".json")
+                || !string.Equals(package.InstallScope, "xPlaneInstallation", StringComparison.Ordinal)
+                || !string.IsNullOrWhiteSpace(package.TargetPath)
+                || !string.IsNullOrWhiteSpace(package.VersionMarkerPath)
+                || package.SupportedChannels.Count == 0
+                || package.SupportedChannels.Count != package.SupportedChannels.Distinct(StringComparer.Ordinal).Count()
+                || package.SupportedChannels.Any(channel => channel is not "stable" and not "beta"))
+            {
+                throw new InvalidDataException($"Content package {package.PackageId} has unsafe X-Plane overlay release metadata.");
             }
 
             return;

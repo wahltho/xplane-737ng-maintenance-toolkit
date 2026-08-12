@@ -507,6 +507,7 @@ public sealed class ToolStateStore
             foreach (var backup in tool.Backups)
             {
                 backup.InstalledFiles ??= [];
+                backup.OverlayFiles ??= [];
             }
         }
 
@@ -515,6 +516,6 @@ public sealed class ToolStateStore
             resource.InstalledFiles ??= [];
         }
 
-        document.SchemaVersion = Math.Max(document.SchemaVersion, 4);
+        document.SchemaVersion = Math.Max(document.SchemaVersion, 5);
     }
 }

@@ -1,6 +1,6 @@
 # X-Plane 737NG Maintenance Toolkit User Manual
 
-This manual describes version 0.9.0 of the X-Plane 737NG Maintenance Toolkit.
+This manual describes version 0.10.0 of the X-Plane 737NG Maintenance Toolkit.
 
 The toolkit is a desktop app for selected Zibo and LevelUp 737NG maintenance
 tasks:
@@ -30,7 +30,7 @@ Keep your own backups and use the tool at your own risk.
 
 ## Compatibility And Installation
 
-Version 0.9.0 supports:
+Version 0.10.0 supports:
 
 - X-Plane 12. X-Plane 11 is not supported.
 - Zibo 737-800X 2K and 4K variants.
@@ -210,7 +210,7 @@ products. `Check releases` queries its latest stable GitHub Release. `Review`
 downloads and validates the selected release into the configured package cache,
 then calculates its file plan without changing the aircraft. `Install`,
 `Update` or `Repair` prepares the same verified package and still asks for an
-explicit confirmation before writing files. Version 0.9.0 offers the LevelUp
+explicit confirmation before writing files. Version 0.10.0 offers the LevelUp
 FANS CDU package as an optional LevelUp-only patch. It remains separate from
 aircraft and VNAV updates and is never installed automatically.
 
@@ -227,6 +227,10 @@ installation:
   `Resources/plugins/YAL`.
 - `YAL HoppieHelper` supports Zibo and LevelUp, as declared by its published
   release manifest, and is managed at `Resources/plugins/YAL_HoppieHelper`.
+- `737NG Realbench Logger` supports Zibo and LevelUp. It installs the declared
+  DataRefMonitor runtime, Realbench profile and required preference file across
+  the selected X-Plane installation. Generated logs remain local until the user
+  shares them manually.
 
 If compatible products share the same X-Plane root, the app manages one copy of
 each selected X-Plane-wide tool for that installation. Aircraft components are
@@ -257,8 +261,16 @@ requires a recorded generation and stops if package-owned files changed after
 the last managed operation. Close X-Plane before all write and restore actions;
 restart it fully afterward.
 
+The Realbench Logger uses a file-wise X-Plane overlay rather than owning one
+complete plugin directory. Its manifest declares every managed runtime file by
+path, size and SHA-256. Install, update and repair back up only those files;
+unrelated DataRefMonitor profiles and generated files under
+`Output/DataRefMonitor` are preserved. Restore stops if a managed file changed
+after the Toolkit operation, then restores the exact previous state of each
+owned file.
+
 The `Resources` card manages large optional product assets independently from
-aircraft, VNAV and tool transactions. Version 0.9.0 offers the official
+aircraft, VNAV and tool transactions. Version 0.10.0 offers the official
 LevelUp 737NG Paintkit 1.1.0 for detected LevelUp installations. Choose the
 parent extraction directory, click `Check release`, then use `Download` after
 reviewing the destination and required disk space. The Toolkit verifies the
@@ -336,7 +348,7 @@ always require a separate confirmation and use their own multi-file backup and
 rollback transaction.
 
 Optional patches are not part of the normal aircraft update button and are not
-offered automatically after an aircraft update. The 0.9.0 catalog advertises
+offered automatically after an aircraft update. The 0.10.0 catalog advertises
 the LevelUp FANS CDU patch only for a detected LevelUp product and requires an
 explicit action. VNAV tables retain their managed post-aircraft-update prompt.
 

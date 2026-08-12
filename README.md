@@ -7,7 +7,7 @@ tools and conservative view maintenance for supported aircraft variants.
 This repository is the public development home for the app. The architecture
 keeps package content, aircraft patching, and application updates separate.
 
-Release version: **0.9.0**
+Release version: **0.10.0**
 
 - [Download the latest stable release](https://github.com/wahltho/xplane-737ng-maintenance-toolkit/releases/latest)
 - [Read the user manual](docs/USER_MANUAL.md)
@@ -124,6 +124,11 @@ Current capabilities:
   `Resources/plugins/YAL`; YAL HoppieHelper is also available for both products
   at `Resources/plugins/YAL_HoppieHelper`, matching its published release
   manifest.
+- It offers the optional 737NG Realbench Logger for both products as a verified
+  X-Plane-root overlay. The Toolkit owns only the declared DataRefMonitor
+  runtime, profile and preference files; unrelated profiles and generated logs
+  under `Output/DataRefMonitor` are preserved during install, repair and
+  restore.
 - Stable and Beta channels are selected independently per optional component or
   tool and from app and aircraft updates. Release manifests, GitHub asset
   digests, archives and every payload SHA-256 must agree before install, update
@@ -245,6 +250,8 @@ Release assets remain the preferred package source for normal use.
 - Product-gated aircraft components and X-Plane-wide tool packages with
   separate Stable/Beta release channels and transactional
   install/update/repair/restore.
+- File-wise X-Plane-root overlay packages for tools whose declared runtime
+  files span multiple simulator directories without claiming generated data.
 - Aircraft detection and install-state analysis.
 - Real backup-backed View Utility operations.
 - VeloPack packaging workflow.

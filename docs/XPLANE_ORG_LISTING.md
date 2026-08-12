@@ -10,7 +10,7 @@ X-Plane 737NG Maintenance Toolkit
 
 ## Current Version
 
-0.9.0
+0.10.0
 
 ## Short Description
 
@@ -43,6 +43,8 @@ Current functions include:
 - detailed Advanced log and diagnostic export for support requests
 - automatic operating-system light and dark appearance
 - optional installation, update, repair and restore of supported X-Plane tools
+- verified file-wise installation, repair and restore of the optional 737NG
+  Realbench Logger while preserving unrelated DataRefMonitor profiles and logs
 - stable and beta release channels for supported optional tools
 - aircraft-scoped Optimized XLua install, update, repair and restore while
   preserving aircraft-owned Lua scripts
@@ -51,15 +53,16 @@ Current functions include:
 - background Toolkit application update checks with cancellable verified
   download and confirmed restart through VeloPack
 
-Version 0.9.0 currently offers:
+Version 0.10.0 currently offers:
 
 - Optimized XLua 1.3.7r3
 - Yet Another Linda (YAL)
 - YAL HoppieHelper
+- 737NG Realbench Logger 0.1.3
 - LevelUp FANS CDU patch
 - LevelUp 737NG Paintkit 1.1.0
 
-Optimized XLua is managed separately for each selected Zibo or LevelUp aircraft and preserves the complete aircraft-owned `plugins/xlua/scripts` tree. YAL and YAL HoppieHelper are installed once per X-Plane installation and are available for both products. The FANS CDU patch and Paintkit are LevelUp-only. Every item remains optional.
+Optimized XLua is managed separately for each selected Zibo or LevelUp aircraft and preserves the complete aircraft-owned `plugins/xlua/scripts` tree. YAL, YAL HoppieHelper and the Realbench Logger are installed once per X-Plane installation and are available for both products. The Logger preserves unrelated DataRefMonitor profiles and generated logs. The FANS CDU patch and Paintkit are LevelUp-only. Every item remains optional.
 
 Aircraft packages, VNAV content, optional patches, tools, resources and Toolkit application releases are separate update layers. The app does not distribute a complete modified `B738.a_fms.lua`; VNAV hooks and authorized payload files are applied locally after validation.
 
@@ -151,6 +154,17 @@ When reporting a problem, use `Dump to file` on the Advanced tab and attach the 
 The Toolkit source code is available under the MIT License. The application is provided as-is, without warranty of any kind. It can modify aircraft files after validation and backup; users should retain their own backups and use the tool at their own risk.
 
 ## Changelog
+
+### 0.10.0
+
+- Added the optional 737NG Realbench Logger for supported Zibo and LevelUp
+  installations.
+- Added verified schema-v2 X-Plane-root overlay packages whose owned files may
+  span multiple simulator directories.
+- Added file-wise transactional backup, install, update, repair and guarded
+  restore while preserving generated logs and unrelated local files.
+- Limited each tool's release-channel selector to channels declared by its
+  trusted catalog entry.
 
 ### 0.9.0
 

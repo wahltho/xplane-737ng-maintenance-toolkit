@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "catalogVersion": "1.2.0",
+  "catalogVersion": "1.3.0",
   "packages": [
     {
       "packageId": "x-plane-zibo-vnav-descent-tables",
@@ -96,6 +96,24 @@
         "kind": "gitHubToolRelease",
         "manifestAssetNamePattern": "YAL-HoppieHelper-*-manifest.json",
         "manifestSchemaVersion": 1
+      }
+    },
+    {
+      "packageId": "wahltho.737ng-realbench-logger",
+      "displayName": "737NG Realbench Logger",
+      "description": "Optional local flight-data logger for the Realbench study. Logs remain on the user's computer until shared manually.",
+      "category": "tool",
+      "activation": "explicitOptIn",
+      "supportedProducts": ["zibo-737ng", "levelup-737ng"],
+      "repositoryUrl": "https://github.com/wahltho/Zibo-LevelUp-Realbench-Logger",
+      "restartRequired": true,
+      "installScope": "xPlaneInstallation",
+      "targetPath": "",
+      "supportedChannels": ["stable"],
+      "distribution": {
+        "kind": "gitHubXPlaneOverlayRelease",
+        "manifestAssetNamePattern": "737NGRealbenchLogger-*-manifest.json",
+        "manifestSchemaVersion": 2
       }
     },
     {
