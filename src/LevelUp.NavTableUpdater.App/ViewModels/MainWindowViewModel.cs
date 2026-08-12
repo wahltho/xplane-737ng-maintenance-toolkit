@@ -498,14 +498,24 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public IReadOnlyList<string> ToolReleaseChannelOptions { get; } = ["stable", "beta"];
 
+    public ApplicationUpdateViewModel ApplicationUpdate { get; }
+
     public MainWindowViewModel()
-        : this(RejectingUserInteractionService.Instance)
+        : this(RejectingUserInteractionService.Instance, new VelopackApplicationUpdateService())
     {
     }
 
-    public MainWindowViewModel(IUserInteractionService userInteractionService)
+    public MainWindowViewModel(
+        IUserInteractionService userInteractionService,
+        IApplicationUpdateService? applicationUpdateService = null)
     {
         _userInteractionService = userInteractionService ?? throw new ArgumentNullException(nameof(userInteractionService));
+        ApplicationUpdate = new ApplicationUpdateViewModel(
+            applicationUpdateService ?? new VelopackApplicationUpdateService(),
+            _userInteractionService,
+            () => ActionsEnabled && !IsOperationRunning && !IsUpstreamCheckRunning,
+            value => ActionsEnabled = value,
+            AppendLog);
         FreshInstallProducts.ReplaceWith(AircraftFreshInstallProduct.All);
         SelectedFreshInstallProduct = FreshInstallProducts.FirstOrDefault();
         _settings = _settingsStore.Load();
@@ -586,7 +596,9 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         _isInitialized = true;
+        var applicationUpdateCheck = ApplicationUpdate.CheckForUpdatesAsync();
         await AutoDetect();
+        await applicationUpdateCheck;
     }
 
     public void SetBackupRootPathFromBrowse(string path)

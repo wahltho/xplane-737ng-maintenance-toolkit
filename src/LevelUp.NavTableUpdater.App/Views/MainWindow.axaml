@@ -118,7 +118,7 @@
         </Style>
     </Window.Styles>
 
-    <Grid RowDefinitions="Auto,*" Background="{DynamicResource AppBackgroundBrush}">
+    <Grid RowDefinitions="Auto,Auto,*" Background="{DynamicResource AppBackgroundBrush}">
         <Border Grid.Row="0" Background="{DynamicResource AppHeaderBackgroundBrush}" Padding="18,10">
             <Grid ColumnDefinitions="*,Auto">
                 <StackPanel Spacing="2">
@@ -139,7 +139,46 @@
             </Grid>
         </Border>
 
-        <TabControl Grid.Row="1" Margin="16">
+        <Border Grid.Row="1"
+                IsVisible="{Binding ApplicationUpdate.BannerVisible}"
+                Background="{DynamicResource AppSelectionBrush}"
+                BorderBrush="{DynamicResource AppBorderStrongBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="18,10">
+            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="16" RowSpacing="8">
+                <StackPanel Spacing="2">
+                    <TextBlock Text="{Binding ApplicationUpdate.Title}" FontWeight="SemiBold" FontSize="15"/>
+                    <TextBlock Text="{Binding ApplicationUpdate.Status}"
+                               Foreground="{DynamicResource AppTextSecondaryBrush}"
+                               TextWrapping="Wrap"/>
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <Button Content="Release notes" Command="{Binding ApplicationUpdate.OpenReleaseCommand}"/>
+                    <Button Content="Later" Command="{Binding ApplicationUpdate.DismissCommand}" IsEnabled="{Binding !ApplicationUpdate.IsBusy}"/>
+                    <Button Content="Download"
+                            Classes="primary"
+                            Command="{Binding ApplicationUpdate.DownloadCommand}"
+                            IsVisible="{Binding ApplicationUpdate.DownloadVisible}"
+                            IsEnabled="{Binding ActionsEnabled}"/>
+                    <Button Content="Cancel"
+                            Command="{Binding ApplicationUpdate.CancelCommand}"
+                            IsVisible="{Binding ApplicationUpdate.CancelVisible}"/>
+                    <Button Content="Restart and update"
+                            Classes="primary"
+                            Command="{Binding ApplicationUpdate.ApplyCommand}"
+                            IsVisible="{Binding ApplicationUpdate.RestartVisible}"
+                            IsEnabled="{Binding ActionsEnabled}"/>
+                </StackPanel>
+                <ProgressBar Grid.Row="1"
+                             Grid.ColumnSpan="2"
+                             IsVisible="{Binding ApplicationUpdate.ProgressVisible}"
+                             Minimum="0"
+                             Maximum="100"
+                             Value="{Binding ApplicationUpdate.Progress}"/>
+            </Grid>
+        </Border>
+
+        <TabControl Grid.Row="2" Margin="16">
             <TabItem Header="Start">
                 <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
                     <StackPanel Spacing="16">

@@ -10,7 +10,7 @@ X-Plane 737NG Maintenance Toolkit
 
 ## Current Version
 
-0.8.2
+0.9.0
 
 ## Short Description
 
@@ -48,8 +48,10 @@ Current functions include:
   preserving aircraft-owned Lua scripts
 - explicit optional LevelUp FANS CDU patch management
 - verified LevelUp Paintkit download and extraction into a user-selected folder
+- background Toolkit application update checks with cancellable verified
+  download and confirmed restart through VeloPack
 
-Version 0.8.2 currently offers:
+Version 0.9.0 currently offers:
 
 - Optimized XLua 1.3.7r3
 - Yet Another Linda (YAL)
@@ -116,7 +118,7 @@ Verify the download against `SHA256SUMS.txt` on the release page. If a verified 
 
 https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac
 
-Version 0.8.2 does not automatically check for or install newer Toolkit versions. Download future app releases manually from the GitHub release page.
+VeloPack-managed installations check for stable Toolkit updates in the background. Available updates are downloaded and verified only after user action and applied through an explicitly confirmed restart. App updates remain separate from aircraft and content maintenance.
 
 ## First Use
 
@@ -149,6 +151,15 @@ When reporting a problem, use `Dump to file` on the Advanced tab and attach the 
 The Toolkit source code is available under the MIT License. The application is provided as-is, without warranty of any kind. It can modify aircraft files after validation and backup; users should retain their own backups and use the tool at their own risk.
 
 ## Changelog
+
+### 0.9.0
+
+- Added background stable-channel Toolkit update checks through VeloPack and
+  GitHub Releases.
+- Added a dedicated update banner with release notes, Later, cancellable
+  download progress and explicit Restart and update actions.
+- Kept application updates isolated from aircraft, VNAV, patch, tool and
+  resource transactions; failures do not block maintenance functions.
 
 ### 0.8.2
 

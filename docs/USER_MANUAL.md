@@ -1,6 +1,6 @@
 # X-Plane 737NG Maintenance Toolkit User Manual
 
-This manual describes version 0.8.2 of the X-Plane 737NG Maintenance Toolkit.
+This manual describes version 0.9.0 of the X-Plane 737NG Maintenance Toolkit.
 
 The toolkit is a desktop app for selected Zibo and LevelUp 737NG maintenance
 tasks:
@@ -30,7 +30,7 @@ Keep your own backups and use the tool at your own risk.
 
 ## Compatibility And Installation
 
-Version 0.8.2 supports:
+Version 0.9.0 supports:
 
 - X-Plane 12. X-Plane 11 is not supported.
 - Zibo 737-800X 2K and 4K variants.
@@ -71,10 +71,13 @@ Verify downloaded artifacts against `SHA256SUMS.txt` on the release page. If a
 verified macOS download is blocked, try to open it once, then follow Apple's
 documented [Privacy & Security "Open Anyway" process](https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac).
 
-Download future Toolkit releases manually from GitHub. VeloPack provides the
-application package and lifecycle integration, but version 0.8.2 does not yet
-check for or download new Toolkit versions automatically. This is separate from
-aircraft-package and VNAV-content updates performed inside the app.
+VeloPack-managed installations check for stable Toolkit updates in the
+background. An available update appears in a banner below the application
+header. `Download` retrieves and verifies the application package with visible
+progress and cancellation. `Restart and update` applies it only after explicit
+confirmation. `Later` dismisses the banner for the current session. Failures do
+not block normal maintenance functions. This application update is separate
+from aircraft, VNAV, patch, tool and resource updates.
 
 ## Before You Start
 
@@ -207,7 +210,7 @@ products. `Check releases` queries its latest stable GitHub Release. `Review`
 downloads and validates the selected release into the configured package cache,
 then calculates its file plan without changing the aircraft. `Install`,
 `Update` or `Repair` prepares the same verified package and still asks for an
-explicit confirmation before writing files. Version 0.8.2 offers the LevelUp
+explicit confirmation before writing files. Version 0.9.0 offers the LevelUp
 FANS CDU package as an optional LevelUp-only patch. It remains separate from
 aircraft and VNAV updates and is never installed automatically.
 
@@ -255,7 +258,7 @@ the last managed operation. Close X-Plane before all write and restore actions;
 restart it fully afterward.
 
 The `Resources` card manages large optional product assets independently from
-aircraft, VNAV and tool transactions. Version 0.8.2 offers the official
+aircraft, VNAV and tool transactions. Version 0.9.0 offers the official
 LevelUp 737NG Paintkit 1.1.0 for detected LevelUp installations. Choose the
 parent extraction directory, click `Check release`, then use `Download` after
 reviewing the destination and required disk space. The Toolkit verifies the
@@ -333,7 +336,7 @@ always require a separate confirmation and use their own multi-file backup and
 rollback transaction.
 
 Optional patches are not part of the normal aircraft update button and are not
-offered automatically after an aircraft update. The 0.8.2 catalog advertises
+offered automatically after an aircraft update. The 0.9.0 catalog advertises
 the LevelUp FANS CDU patch only for a detected LevelUp product and requires an
 explicit action. VNAV tables retain their managed post-aircraft-update prompt.
 
@@ -594,8 +597,9 @@ attempted and exported log. Do not upload complete copyrighted aircraft files.
 
 - App builds are unsigned releases.
 - macOS builds are not notarized.
-- Version 0.8.2 does not automatically check for or install new Toolkit
-  versions. Download newer app releases manually from GitHub.
+- In-app application updates require a VeloPack-managed installation. An
+  unmanaged development/manual launch continues to use the GitHub Releases
+  page for application updates.
 - Zibo upstream ZIPs are verified against the local cache snapshot, not an
   official upstream hash manifest.
 - Online LevelUp aircraft update checks require the authorized public

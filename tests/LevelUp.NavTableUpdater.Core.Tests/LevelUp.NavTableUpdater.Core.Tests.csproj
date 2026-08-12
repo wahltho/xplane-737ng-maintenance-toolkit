@@ -19,6 +19,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\LevelUp.NavTableUpdater.App\LevelUp.NavTableUpdater.App.csproj" />
     <ProjectReference Include="..\..\src\LevelUp.NavTableUpdater.Core\LevelUp.NavTableUpdater.Core.csproj" />
   </ItemGroup>
 

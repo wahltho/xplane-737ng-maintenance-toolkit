@@ -7,7 +7,7 @@ tools and conservative view maintenance for supported aircraft variants.
 This repository is the public development home for the app. The architecture
 keeps package content, aircraft patching, and application updates separate.
 
-Release version: **0.8.2**
+Release version: **0.9.0**
 
 - [Download the latest stable release](https://github.com/wahltho/xplane-737ng-maintenance-toolkit/releases/latest)
 - [Read the user manual](docs/USER_MANUAL.md)
@@ -56,10 +56,10 @@ Verify downloaded artifacts against `SHA256SUMS.txt` on the release page. If a
 verified macOS download is blocked, follow Apple's documented
 [Privacy & Security "Open Anyway" process](https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac).
 
-Download future app releases manually from GitHub. VeloPack currently provides
-the application package and lifecycle integration; version 0.8.2 does not yet
-check for or download new Toolkit versions automatically. Aircraft and VNAV
-content updates are separate and can be checked from inside the app.
+VeloPack-managed installations check for stable Toolkit updates in the
+background. When an update is available, the app offers a cancellable verified
+download followed by an explicitly confirmed restart. Aircraft, VNAV, patch,
+tool and resource updates remain separate from Toolkit application updates.
 
 ## First Use
 
@@ -259,10 +259,13 @@ The app references the `Velopack` NuGet package and calls
 initialized. That is the required application-side hook for install/update
 lifecycle handling.
 
-The current public app does not yet create an `UpdateManager` or perform an
-automatic app release check. Users install newer Toolkit versions manually.
-This is separate from the aircraft-package and VNAV-content update sources used
-inside the app.
+The app creates a VeloPack `UpdateManager` backed by the public GitHub Releases
+source. Managed installations check the package channel in the background,
+show an update banner only when a newer stable version is available, download
+and verify the selected VeloPack package with progress/cancellation, and apply
+it only after explicit restart confirmation. An update failure never blocks
+normal maintenance functions. This remains separate from aircraft-package,
+VNAV-content, optional-patch, tool and resource update sources.
 
 Packaging is available through the manual VeloPack GitHub Actions workflow.
 The workflow produces Windows, macOS and Linux VeloPack artifacts for the

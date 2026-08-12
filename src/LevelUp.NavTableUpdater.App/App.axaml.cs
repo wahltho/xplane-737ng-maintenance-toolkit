@@ -22,7 +22,9 @@ public partial class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             var mainWindow = new MainWindow();
-            mainWindow.DataContext = new MainWindowViewModel(new MainWindowUserInteractionService(mainWindow));
+            mainWindow.DataContext = new MainWindowViewModel(
+                new MainWindowUserInteractionService(mainWindow),
+                new VelopackApplicationUpdateService());
             desktop.MainWindow = mainWindow;
         }
 
