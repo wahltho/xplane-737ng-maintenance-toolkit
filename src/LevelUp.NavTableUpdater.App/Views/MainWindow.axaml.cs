@@ -60,6 +60,30 @@ public partial class MainWindow : Window
         await viewModel.ImportAircraftUpdatePackageAsync(files[0].Path.LocalPath);
     }
 
+    private async void ImportFreshInstallPackage_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Import full aircraft package or manifest",
+            AllowMultiple = false,
+            FileTypeFilter =
+            [
+                new FilePickerFileType("Aircraft installation packages")
+                {
+                    Patterns = ["*.zip", "*.7z", "*.manifest.json"],
+                    MimeTypes = ["application/zip", "application/x-zip-compressed", "application/x-7z-compressed", "application/json"]
+                }
+            ]
+        });
+
+        if (files.Count == 0 || DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
+        await viewModel.ImportFreshInstallPackageAsync(files[0].Path.LocalPath);
+    }
+
     private async void BrowseBackupRoot_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions

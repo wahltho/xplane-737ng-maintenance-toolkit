@@ -10,7 +10,7 @@ X-Plane 737NG Maintenance Toolkit
 
 ## Current Version
 
-0.7.0
+0.8.0
 
 ## Short Description
 
@@ -28,6 +28,8 @@ Current functions include:
 - support for multiple X-Plane installations and manual folder selection
 - Zibo baseline/cumulative aircraft update planning and package handling
 - LevelUp full/cumulative updates from its authorized public GitHub release index
+- complete fresh installation of Zibo or LevelUp into an unused X-Plane 12
+  Aircraft subfolder, using a validated staging image before activation
 - VNAV descent table install, update, repair, restore and uninstall
 - separate backup and restore state for aircraft, VNAV and tool transactions
 - Quick View correction after an aircraft CG change
@@ -46,7 +48,7 @@ Current functions include:
 - explicit optional LevelUp FANS CDU patch management
 - verified LevelUp Paintkit download and extraction into a user-selected folder
 
-Version 0.7.0 currently offers:
+Version 0.8.0 currently offers:
 
 - Optimized XLua 1.3.7r3
 - Yet Another Linda (YAL)
@@ -111,7 +113,7 @@ Verify the download against `SHA256SUMS.txt` on the release page. If a verified 
 
 https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac
 
-Version 0.7.0 does not automatically check for or install newer Toolkit versions. Download future app releases manually from the GitHub release page.
+Version 0.8.0 does not automatically check for or install newer Toolkit versions. Download future app releases manually from the GitHub release page.
 
 ## First Use
 
@@ -144,6 +146,17 @@ When reporting a problem, use `Dump to file` on the Advanced tab and attach the 
 The Toolkit source code is available under the MIT License. The application is provided as-is, without warranty of any kind. It can modify aircraft files after validation and backup; users should retain their own backups and use the tool at their own risk.
 
 ## Changelog
+
+### 0.8.0
+
+- Added complete fresh-aircraft installation for Zibo 737-800X and LevelUp
+  737NG Series into an unused X-Plane 12 Aircraft subfolder.
+- Added verified LevelUp full-package resolution and download through the
+  authorized public release index.
+- Added Zibo full-baseline plus latest-cumulative-patch planning with exact
+  offline package import when the official feed exposes torrent links.
+- Added cancellable staging, dry-run review, product-identity validation and
+  atomic activation without overwriting an existing aircraft folder.
 
 ### 0.7.0
 

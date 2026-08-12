@@ -76,6 +76,34 @@ public sealed class AircraftUpstreamUpdateChecker
             findings);
     }
 
+    public async Task<AircraftUpstreamUpdateCheckResult> CheckZiboFreshInstallAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var findings = new List<string>
+        {
+            "Fresh-install planning only. No aircraft files are downloaded, extracted, or changed."
+        };
+        var index = await _indexSource.LoadAsync(cancellationToken);
+        var plan = _planner.Plan(index, localVersion: null);
+        findings.Add($"Index packages recognized: {index.Packages.Count}.");
+        findings.Add(plan.RequiredPackages.Count == 0
+            ? "The feed did not provide a complete fresh-install package plan."
+            : "A fresh install requires the full baseline and the latest cumulative patch for that baseline.");
+
+        return new AircraftUpstreamUpdateCheckResult(
+            plan.HasUpdate ? "Ready to install" : BuildStateLabel(plan.Action),
+            BuildSummaryWithMode(plan),
+            index.Family,
+            index.SourceUrl,
+            LocalVersionDisplay: "Not installed",
+            plan.AvailableVersion?.ToString() ?? "-",
+            plan.Action,
+            plan.HasUpdate ? "Install full baseline and latest cumulative patch" : BuildActionDisplay(plan.Action),
+            IsCustomDistribution: false,
+            plan.RequiredPackages,
+            findings);
+    }
+
     private static AircraftMaintenanceMetadata? ReadMaintenanceMetadata(
         AircraftVariantViewAnalysis variant,
         ICollection<string> findings)

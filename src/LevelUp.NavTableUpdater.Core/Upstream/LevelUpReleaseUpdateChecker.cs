@@ -153,6 +153,57 @@ public sealed class LevelUpReleaseUpdateChecker
             findings);
     }
 
+    public async Task<AircraftUpstreamUpdateCheckResult> CheckFreshInstallAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var findings = new List<string>
+        {
+            "Fresh-install planning only. No aircraft files are downloaded, extracted, or changed."
+        };
+        var index = await _indexSource.LoadAsync(cancellationToken);
+        var packages = index.Packages
+            .Where(package => string.Equals(
+                package.Family,
+                LevelUpAircraftUpdatePackageLoader.Family,
+                StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        findings.Add($"Release packages recognized: {packages.Length}.");
+
+        var latestSequence = packages.Select(package => package.Version.Patch).DefaultIfEmpty().Max();
+        var full = packages.SingleOrDefault(package =>
+            package.Kind == AircraftUpdatePackageKind.FullBaseline
+            && package.Version.Patch == latestSequence);
+        var availableVersion = full?.ReleaseVersion;
+        if (full is null || string.IsNullOrWhiteSpace(availableVersion))
+        {
+            findings.Add("The release index does not contain an exact full package for the latest release.");
+            return BuildResult(
+                "Package missing",
+                "The LevelUp release index contains no usable full package for a fresh install.",
+                index,
+                localVersion: null,
+                availableVersion: "-",
+                AircraftUpdatePlanAction.MissingRequiredPackage,
+                "Blocked by incomplete index",
+                isCustomDistribution: false,
+                [],
+                findings);
+        }
+
+        findings.Add("The exact full LevelUp release package will be used for the fresh install.");
+        return BuildResult(
+            "Ready to install",
+            $"Install full LevelUp package {full.FileName} as {availableVersion}.",
+            index,
+            localVersion: "Not installed",
+            availableVersion,
+            AircraftUpdatePlanAction.InstallBaselineAndCumulativePatch,
+            "Install exact full release package",
+            isCustomDistribution: false,
+            [full],
+            findings);
+    }
+
     private static AircraftUpstreamUpdateCheckResult BuildResult(
         string stateLabel,
         string summary,

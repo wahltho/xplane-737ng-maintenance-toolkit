@@ -39,6 +39,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly LevelUpReleaseUpdateChecker _levelUpUpdateChecker;
     private readonly LevelUpAircraftUpdatePackageLoader _levelUpUpdatePackageLoader = new();
     private readonly AircraftUpdateOperation _aircraftUpdateOperation;
+    private readonly AircraftFreshInstallOperation _aircraftFreshInstallOperation;
     private AircraftUpdatePackageCache _aircraftUpdatePackageCache;
     private readonly AircraftUpdateDryRunAnalyzer _aircraftUpdateDryRunAnalyzer = new();
     private readonly IUserInteractionService _userInteractionService;
@@ -60,6 +61,9 @@ public partial class MainWindowViewModel : ViewModelBase
     private PackageManifest _manifest;
     private AircraftUpstreamUpdateCheckResult? _lastUpstreamUpdateCheck;
     private AircraftUpdateDryRunResult? _lastAircraftUpdateDryRun;
+    private AircraftUpstreamUpdateCheckResult? _lastFreshInstallCheck;
+    private AircraftUpdateDryRunResult? _lastFreshInstallDryRun;
+    private string? _freshInstallResolvedXPlaneRoot;
     private AircraftAnalysisResult? _lastAircraftAnalysis;
     private CancellationTokenSource? _operationCancellationSource;
     private Stopwatch? _operationElapsedStopwatch;
@@ -271,6 +275,30 @@ public partial class MainWindowViewModel : ViewModelBase
     private bool canRestoreAircraftUpdate;
 
     [ObservableProperty]
+    private bool freshInstallVisible;
+
+    [ObservableProperty]
+    private AircraftFreshInstallProduct? selectedFreshInstallProduct;
+
+    [ObservableProperty]
+    private string freshInstallXPlaneRoot = "-";
+
+    [ObservableProperty]
+    private string freshInstallTargetPath = "";
+
+    [ObservableProperty]
+    private string freshInstallStatus = "Select an X-Plane 12 folder to install a new aircraft.";
+
+    [ObservableProperty]
+    private string freshInstallAvailableVersion = "Not checked";
+
+    [ObservableProperty]
+    private bool canInstallFreshAircraft;
+
+    [ObservableProperty]
+    private bool canImportFreshInstallPackage;
+
+    [ObservableProperty]
     private string backupRootPath = "";
 
     [ObservableProperty]
@@ -458,6 +486,10 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public ObservableCollection<string> UpstreamFindings { get; } = [];
 
+    public ObservableCollection<AircraftFreshInstallProduct> FreshInstallProducts { get; } = [];
+
+    public ObservableCollection<AircraftUpdatePackageCacheEntry> FreshInstallPackageCacheEntries { get; } = [];
+
     public ObservableCollection<AvailableContentPackageStatus> AvailableContentPackages { get; } = [];
 
     public ObservableCollection<ContentPackageCatalogEntry> AvailableToolPackages { get; } = [];
@@ -474,6 +506,8 @@ public partial class MainWindowViewModel : ViewModelBase
     public MainWindowViewModel(IUserInteractionService userInteractionService)
     {
         _userInteractionService = userInteractionService ?? throw new ArgumentNullException(nameof(userInteractionService));
+        FreshInstallProducts.ReplaceWith(AircraftFreshInstallProduct.All);
+        SelectedFreshInstallProduct = FreshInstallProducts.FirstOrDefault();
         _settings = _settingsStore.Load();
         _stateStore = ToolStateStore.CreateDefault(_settings.BackupRootPath);
         _aircraftUpdatePackageCache = new AircraftUpdatePackageCache(_settings.AircraftUpdateCacheRootPath);
@@ -521,6 +555,7 @@ public partial class MainWindowViewModel : ViewModelBase
         _levelUpUpdateChecker = new LevelUpReleaseUpdateChecker(
             new LevelUpGitHubReleaseIndexSource(_aircraftUpdateHttpClient, toolkitVersion));
         _aircraftUpdateOperation = new AircraftUpdateOperation(_stateStore, _aircraftUpdateDryRunAnalyzer);
+        _aircraftFreshInstallOperation = new AircraftFreshInstallOperation();
         ApplyManifest(_manifest);
         ApplyAnalysis(AircraftAnalysisResult.Empty(_manifest.PackageVersion));
         ApplyViewAnalysis(AircraftViewAnalysisResult.Empty());
@@ -905,6 +940,25 @@ public partial class MainWindowViewModel : ViewModelBase
         SelectedAircraftPath = value.Path;
         SaveSelectedAircraftPathSetting();
         Scan();
+    }
+
+    partial void OnSelectedAircraftPathChanged(string value)
+    {
+        RefreshFreshInstallContext();
+    }
+
+    partial void OnSelectedFreshInstallProductChanged(AircraftFreshInstallProduct? value)
+    {
+        _lastFreshInstallCheck = null;
+        _lastFreshInstallDryRun = null;
+        FreshInstallPackageCacheEntries.Clear();
+        FreshInstallAvailableVersion = "Not checked";
+        RefreshFreshInstallContext(resetTargetPath: true);
+    }
+
+    partial void OnFreshInstallTargetPathChanged(string value)
+    {
+        RefreshFreshInstallContext();
     }
 
     partial void OnSelectedProductChanged(ProductTargetStatus? value)
@@ -1644,6 +1698,351 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             await ShowUpdateResultAsync(completedVariant, aircraftResult, vnavResult);
         }
+    }
+
+    [RelayCommand]
+    private async Task CheckFreshInstallPackage()
+    {
+        await PrepareFreshInstallPlanAsync();
+    }
+
+    [RelayCommand]
+    private async Task InstallFreshAircraft()
+    {
+        if (IsOperationRunning || IsUpstreamCheckRunning)
+        {
+            return;
+        }
+
+        RefreshFreshInstallContext();
+        var product = SelectedFreshInstallProduct;
+        var xPlaneRoot = FreshInstallXPlaneRoot;
+        var targetPath = FreshInstallTargetPath;
+        if (product is null || !CanInstallFreshAircraft || xPlaneRoot == "-")
+        {
+            AppendLog("Fresh install blocked: select a valid X-Plane 12 root and an unused aircraft destination.");
+            return;
+        }
+
+        if (_lastFreshInstallCheck is null
+            || !string.Equals(_lastFreshInstallCheck.Family, product.ProductId, StringComparison.OrdinalIgnoreCase))
+        {
+            if (!await PrepareFreshInstallPlanAsync())
+            {
+                return;
+            }
+        }
+
+        var installPlan = _lastFreshInstallCheck!;
+        RefreshFreshInstallPackageCache();
+        var missingPackages = FreshInstallPackageCacheEntries
+            .Where(entry => !entry.IsCached)
+            .Select(entry => entry.Package)
+            .ToArray();
+
+        OperationPanelVisible = true;
+        OperationLog = "";
+        OperationElapsed = "00:00s";
+        OperationProgress = 10;
+        OperationStatus = "Preparing installation";
+        OperationTitle = $"Preparing {product.DisplayName}";
+        OperationSubtitle = "Downloading and validating the complete aircraft package before any aircraft folder is created.";
+        OperationProgressText = "10% - Resolving required full-package files";
+        IsOperationRunning = true;
+        ActionsEnabled = false;
+        var stopwatch = StartOperationElapsedTimer();
+        var cancellationToken = BeginCancellableOperation();
+        MaintenanceOperationResult? result = null;
+        var scanInstalledTarget = false;
+        try
+        {
+            foreach (var package in missingPackages)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                OperationProgressText = $"20% - Downloading {package.FileName}";
+                AppendLog($"Fresh install: downloading {package.FileName}.");
+                try
+                {
+                    await _aircraftUpdatePackageCache.DownloadAsync(
+                        package,
+                        _aircraftUpdateHttpClient,
+                        cancellationToken);
+                }
+                catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidDataException or InvalidOperationException)
+                {
+                    FreshInstallStatus = string.Equals(product.ProductId, AircraftProductIds.Zibo737Ng, StringComparison.Ordinal)
+                        ? "The Zibo feed currently exposes torrent links rather than directly downloadable ZIP archives. Obtain the required packages and use Import package."
+                        : $"Package download failed. Use Import package as an offline fallback. {ex.Message}";
+                    OperationStatus = "Package required";
+                    OperationTitle = "Automatic download unavailable";
+                    OperationSubtitle = FreshInstallStatus;
+                    OperationProgress = 0;
+                    OperationProgressText = "0% - No aircraft files were changed";
+                    AppendLog($"Fresh install package download failed: {ex.Message}");
+                    return;
+                }
+            }
+
+            RefreshFreshInstallPackageCache();
+            if (FreshInstallPackageCacheEntries.Any(entry => !entry.IsCached))
+            {
+                FreshInstallStatus = "Import every required full-baseline/cumulative package before installing.";
+                return;
+            }
+
+            OperationProgress = 45;
+            OperationStatus = "Review in progress";
+            OperationTitle = "Reviewing fresh installation";
+            OperationSubtitle = "Validating archive paths and package contents against an empty destination.";
+            OperationProgressText = "45% - Calculating the fresh-install file plan";
+            var cacheEntries = FreshInstallPackageCacheEntries.ToArray();
+            _lastFreshInstallDryRun = await Task.Run(
+                () => _aircraftUpdateDryRunAnalyzer.Analyze(
+                    targetPath,
+                    cacheEntries,
+                    cancellationToken,
+                    managedComponentPaths: null,
+                    allowMissingAircraftFolder: true),
+                cancellationToken);
+            if (!_lastFreshInstallDryRun.Succeeded)
+            {
+                FreshInstallStatus = _lastFreshInstallDryRun.Summary;
+                OperationStatus = "Review blocked";
+                OperationTitle = "Fresh installation blocked";
+                OperationSubtitle = _lastFreshInstallDryRun.Summary;
+                OperationProgress = 0;
+                OperationProgressText = "0% - Package validation failed; no aircraft files were changed";
+                foreach (var finding in _lastFreshInstallDryRun.Findings)
+                {
+                    AppendOperationLog($"[REVIEW] {finding}");
+                }
+
+                return;
+            }
+
+            EndCancellableOperation();
+            var confirmation = new ConfirmationRequest(
+                $"Install {product.DisplayName}?",
+                string.Join(
+                    Environment.NewLine,
+                    [
+                        $"Version: {installPlan.AvailableVersionDisplay}",
+                        $"Destination: {targetPath}",
+                        $"Files to add: {_lastFreshInstallDryRun.AddCount}",
+                        $"Packages: {string.Join(", ", installPlan.RequiredPackages.Select(package => package.FileName))}",
+                        "",
+                        "The complete aircraft is staged and structurally validated before the destination folder is created.",
+                        "Once final activation starts, it cannot be canceled. A failed activation removes the new folder."
+                    ]),
+                "Install aircraft");
+            if (!await _userInteractionService.ConfirmAsync(confirmation))
+            {
+                FreshInstallStatus = "Installation canceled after review. No aircraft files were changed.";
+                OperationStatus = "Canceled";
+                OperationTitle = "Fresh installation canceled";
+                OperationSubtitle = FreshInstallStatus;
+                OperationProgress = 0;
+                OperationProgressText = "0% - Canceled before staging and activation";
+                return;
+            }
+
+            cancellationToken = BeginCancellableOperation();
+            OperationStatus = "Staging aircraft";
+            OperationTitle = $"Installing {product.DisplayName}";
+            OperationSubtitle = "Building and validating a complete aircraft image outside the destination folder.";
+            OperationProgress = 60;
+            OperationProgressText = "60% - Extracting verified packages into staging";
+            void WritePhaseStarting() => Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                EndCancellableOperation();
+                OperationStatus = "Activating aircraft";
+                OperationProgress = 85;
+                OperationProgressText = "85% - Staging validated; activating the new aircraft folder";
+            }).GetAwaiter().GetResult();
+
+            result = await Task.Run(
+                () => _aircraftFreshInstallOperation.Apply(
+                    xPlaneRoot,
+                    targetPath,
+                    product,
+                    installPlan,
+                    cacheEntries,
+                    cancellationToken,
+                    WritePhaseStarting));
+            foreach (var line in result.Log)
+            {
+                AppendOperationLog(line);
+            }
+
+            FreshInstallStatus = result.Message;
+            OperationStatus = result.Status;
+            OperationTitle = result.Succeeded ? "Aircraft installation complete" : "Aircraft installation blocked";
+            OperationSubtitle = result.Message;
+            OperationProgress = result.Succeeded ? 100 : 0;
+            OperationProgressText = result.Succeeded
+                ? "100% - Aircraft installed and structurally validated"
+                : "0% - No existing aircraft installation was changed";
+            scanInstalledTarget = result.Succeeded && result.Changed;
+            AppendLog($"Fresh install: {result.Message}");
+        }
+        catch (OperationCanceledException)
+        {
+            FreshInstallStatus = "Installation canceled before the write phase. No aircraft files were changed.";
+            OperationStatus = "Canceled";
+            OperationTitle = "Fresh installation canceled";
+            OperationSubtitle = FreshInstallStatus;
+            OperationProgress = 0;
+            OperationProgressText = "0% - Canceled before staging and activation";
+            AppendLog("Fresh installation canceled before any aircraft files were changed.");
+        }
+        finally
+        {
+            StopOperationElapsedTimer();
+            EndCancellableOperation();
+            OperationElapsed = FormatElapsed(stopwatch.Elapsed);
+            IsOperationRunning = false;
+            ActionsEnabled = true;
+            RefreshFreshInstallContext();
+        }
+
+        if (scanInstalledTarget)
+        {
+            SelectedAircraftPath = targetPath;
+            SaveSelectedAircraftPathSetting();
+            Scan();
+            await _userInteractionService.ShowMessageAsync(new MessageRequest(
+                "Aircraft installation complete",
+                $"{product.DisplayName} {installPlan.AvailableVersionDisplay} was installed into:{Environment.NewLine}{targetPath}{Environment.NewLine}{Environment.NewLine}The new aircraft has been selected. Use Update to install or repair its VNAV tables."));
+        }
+    }
+
+    public async Task ImportFreshInstallPackageAsync(string path)
+    {
+        if (IsOperationRunning || IsUpstreamCheckRunning || SelectedFreshInstallProduct is null)
+        {
+            return;
+        }
+
+        var product = SelectedFreshInstallProduct;
+        AircraftUpdatePackage? expectedPackage = null;
+        if (string.Equals(product.ProductId, AircraftProductIds.LevelUp737Ng, StringComparison.Ordinal)
+            && (path.EndsWith(".json", StringComparison.OrdinalIgnoreCase)
+                || File.Exists(Path.Combine(
+                    Path.GetDirectoryName(Path.GetFullPath(path)) ?? "",
+                    Path.GetFileNameWithoutExtension(path) + ".manifest.json"))))
+        {
+            try
+            {
+                var selection = _levelUpUpdatePackageLoader.LoadFreshInstall(path);
+                _lastFreshInstallCheck = selection.UpdateCheck;
+                FreshInstallAvailableVersion = selection.UpdateCheck.AvailableVersionDisplay;
+                expectedPackage = selection.Package;
+                path = selection.ArchivePath ?? path;
+            }
+            catch (Exception ex) when (ex is IOException or InvalidDataException or InvalidOperationException or UnauthorizedAccessException)
+            {
+                FreshInstallStatus = $"Package import failed: {ex.Message}";
+                AppendLog(FreshInstallStatus);
+                return;
+            }
+        }
+
+        if (_lastFreshInstallCheck is null
+            && !await PrepareFreshInstallPlanAsync())
+        {
+            return;
+        }
+
+        expectedPackage ??= _lastFreshInstallCheck!.RequiredPackages.FirstOrDefault(package =>
+            string.Equals(package.FileName, Path.GetFileName(path), StringComparison.OrdinalIgnoreCase));
+        if (expectedPackage is null)
+        {
+            FreshInstallStatus = $"Selected package '{Path.GetFileName(path)}' is not required by the current fresh-install plan.";
+            AppendLog(FreshInstallStatus);
+            return;
+        }
+
+        var cancellationToken = BeginPackageImport("Importing fresh-install package");
+        try
+        {
+            var imported = await Task.Run(
+                () => _aircraftUpdatePackageCache.ImportPackage(path, expectedPackage, cancellationToken),
+                cancellationToken);
+            CompletePackageImport(
+                "Fresh-install package imported",
+                $"{imported.Package.FileName} was copied and validated in the toolkit cache.");
+            FreshInstallStatus = $"Imported {imported.Package.FileName}. Import any remaining package or click Install.";
+            AppendLog($"Fresh install package imported: {imported.Package.FileName} ({imported.SizeBytes} bytes, sha256 {imported.Sha256}).");
+        }
+        catch (OperationCanceledException)
+        {
+            CancelPackageImport();
+            FreshInstallStatus = "Package import canceled. No aircraft files were changed.";
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or InvalidOperationException or UnauthorizedAccessException)
+        {
+            FailPackageImport("Fresh-install import failed", ex.Message);
+            FreshInstallStatus = $"Package import failed: {ex.Message}";
+            AppendLog(FreshInstallStatus);
+        }
+        finally
+        {
+            StopOperationElapsedTimer();
+            EndCancellableOperation();
+            IsOperationRunning = false;
+            ActionsEnabled = true;
+            RefreshFreshInstallPackageCache();
+            RefreshFreshInstallContext();
+        }
+    }
+
+    private async Task<bool> PrepareFreshInstallPlanAsync()
+    {
+        RefreshFreshInstallContext();
+        var product = SelectedFreshInstallProduct;
+        if (product is null || !FreshInstallVisible || FreshInstallXPlaneRoot == "-")
+        {
+            FreshInstallStatus = "Select a structurally valid X-Plane 12 folder before checking a fresh install.";
+            return false;
+        }
+
+        IsUpstreamCheckRunning = true;
+        ActionsEnabled = false;
+        FreshInstallStatus = $"Checking the public {product.DisplayName} package source.";
+        try
+        {
+            var result = string.Equals(product.ProductId, AircraftProductIds.LevelUp737Ng, StringComparison.Ordinal)
+                ? await _levelUpUpdateChecker.CheckFreshInstallAsync()
+                : await _ziboUpdateChecker.CheckZiboFreshInstallAsync();
+            _lastFreshInstallCheck = result;
+            _lastFreshInstallDryRun = null;
+            FreshInstallAvailableVersion = result.AvailableVersionDisplay;
+            FreshInstallStatus = result.Summary;
+            RefreshFreshInstallPackageCache();
+            AppendLog($"Fresh-install package check: {result.StateLabel} - {result.Summary}");
+            return result.RequiredPackages.Count > 0
+                && result.RequiredPackages[0].Kind == AircraftUpdatePackageKind.FullBaseline;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidDataException or InvalidOperationException or TaskCanceledException or System.Xml.XmlException)
+        {
+            _lastFreshInstallCheck = null;
+            FreshInstallAvailableVersion = "-";
+            FreshInstallStatus = $"Fresh-install source check failed: {ex.Message}";
+            AppendLog(FreshInstallStatus);
+            return false;
+        }
+        finally
+        {
+            IsUpstreamCheckRunning = false;
+            ActionsEnabled = true;
+            RefreshFreshInstallContext();
+        }
+    }
+
+    private void RefreshFreshInstallPackageCache()
+    {
+        FreshInstallPackageCacheEntries.ReplaceWith(
+            _lastFreshInstallCheck?.RequiredPackages.Select(_aircraftUpdatePackageCache.Inspect) ?? []);
     }
 
     [RelayCommand]
@@ -2780,6 +3179,7 @@ public partial class MainWindowViewModel : ViewModelBase
         RefreshFilteredViewVariants(currentSelection);
         RefreshToolPackageOverview();
         RefreshResourcePackageOverview();
+        RefreshFreshInstallContext();
     }
 
     partial void OnSelectedViewVariantChanged(AircraftVariantViewAnalysis? value)
@@ -3756,6 +4156,70 @@ public partial class MainWindowViewModel : ViewModelBase
             SelectedProduct?.AircraftFolderPath,
             SelectedViewVariant?.AcfPath);
 
+    private void RefreshFreshInstallContext(bool resetTargetPath = false)
+    {
+        var xPlaneRoot = ResolveCurrentXPlaneRoot();
+        var rootChanged = string.IsNullOrWhiteSpace(xPlaneRoot)
+            ? !string.IsNullOrWhiteSpace(_freshInstallResolvedXPlaneRoot)
+            : !PathsEqual(_freshInstallResolvedXPlaneRoot ?? "", xPlaneRoot);
+        _freshInstallResolvedXPlaneRoot = xPlaneRoot;
+        resetTargetPath |= rootChanged;
+        FreshInstallVisible = !string.IsNullOrWhiteSpace(xPlaneRoot);
+        FreshInstallXPlaneRoot = xPlaneRoot ?? "-";
+        var product = SelectedFreshInstallProduct;
+        if (!FreshInstallVisible || product is null)
+        {
+            CanInstallFreshAircraft = false;
+            CanImportFreshInstallPackage = false;
+            if (!IsOperationRunning)
+            {
+                FreshInstallStatus = "Select an X-Plane 12 folder to install a new aircraft.";
+            }
+
+            return;
+        }
+
+        var defaultTarget = Path.Combine(xPlaneRoot!, "Aircraft", product.DefaultFolderName);
+        if (resetTargetPath || string.IsNullOrWhiteSpace(FreshInstallTargetPath))
+        {
+            FreshInstallTargetPath = defaultTarget;
+            return;
+        }
+
+        var targetExists = false;
+        var targetIsDirectAircraftChild = false;
+        try
+        {
+            var fullTarget = Path.GetFullPath(FreshInstallTargetPath);
+            targetExists = Directory.Exists(fullTarget) || File.Exists(fullTarget);
+            var targetParent = Path.GetDirectoryName(fullTarget);
+            targetIsDirectAircraftChild = !string.IsNullOrWhiteSpace(targetParent)
+                && PathsEqual(targetParent, Path.Combine(xPlaneRoot!, "Aircraft"));
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            targetExists = true;
+        }
+
+        CanInstallFreshAircraft = ActionsEnabled
+            && !IsOperationRunning
+            && !targetExists
+            && targetIsDirectAircraftChild;
+        CanImportFreshInstallPackage = ActionsEnabled && !IsOperationRunning;
+        if (!IsOperationRunning && !targetIsDirectAircraftChild)
+        {
+            FreshInstallStatus = "The new destination must be a direct child folder of X-Plane 12/Aircraft.";
+        }
+        else if (!IsOperationRunning && targetExists)
+        {
+            FreshInstallStatus = "The destination already exists. Select that aircraft for updates or enter a new folder name.";
+        }
+        else if (!IsOperationRunning && _lastFreshInstallCheck is null)
+        {
+            FreshInstallStatus = $"Ready to check the latest complete {product.DisplayName} release.";
+        }
+    }
+
     private string? ResolveToolInstallRoot(ContentPackageCatalogEntry? entry) =>
         entry?.InstallScope == "aircraftInstallation"
             ? CurrentProductAircraftFolderPath()
@@ -4012,7 +4476,9 @@ public partial class MainWindowViewModel : ViewModelBase
             return string.Equals(
                 Path.GetFullPath(left),
                 Path.GetFullPath(right),
-                OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+                OperatingSystem.IsWindows() || OperatingSystem.IsMacOS()
+                    ? StringComparison.OrdinalIgnoreCase
+                    : StringComparison.Ordinal);
         }
         catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
         {
@@ -4167,6 +4633,7 @@ public partial class MainWindowViewModel : ViewModelBase
         RefreshContentPackageOverview();
         RefreshToolPackageOverview();
         RefreshResourcePackageOverview();
+        RefreshFreshInstallContext();
     }
 
     [RelayCommand]

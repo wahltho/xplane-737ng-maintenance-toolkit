@@ -79,6 +79,19 @@ public sealed class LevelUpGitHubReleaseUpdateTests
     }
 
     [Fact]
+    public async Task Checker_FreshInstallSelectsExactLatestFullPackage()
+    {
+        var checker = CreateChecker(CreateReleaseFixture());
+
+        var result = await checker.CheckFreshInstallAsync();
+
+        Assert.Equal("Ready to install", result.StateLabel);
+        Assert.Equal("Not installed", result.LocalVersionDisplay);
+        Assert.Equal("v2.S1.50C", result.AvailableVersionDisplay);
+        Assert.Equal(AircraftUpdatePackageKind.FullBaseline, Assert.Single(result.RequiredPackages).Kind);
+    }
+
+    [Fact]
     public async Task Checker_WhenInstalledVersionMatchesNeedsNoPackage()
     {
         var checker = CreateChecker(CreateReleaseFixture());

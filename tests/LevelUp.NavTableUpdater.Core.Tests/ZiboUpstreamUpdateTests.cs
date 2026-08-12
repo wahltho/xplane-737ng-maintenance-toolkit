@@ -205,6 +205,22 @@ public sealed class ZiboUpstreamUpdateTests
     }
 
     [Fact]
+    public async Task CheckZiboFreshInstallAsync_SelectsFullBaselineAndLatestPatch()
+    {
+        var index = new ZiboUpstreamFeedParser().Parse(FeedXml);
+        var checker = new AircraftUpstreamUpdateChecker(new FakeUpdateIndexSource(index));
+
+        var result = await checker.CheckZiboFreshInstallAsync();
+
+        Assert.Equal("Ready to install", result.StateLabel);
+        Assert.Equal("Not installed", result.LocalVersionDisplay);
+        Assert.Equal(AircraftUpdateMode.Full, result.UpdateMode);
+        Assert.Equal(
+            ["B737-800X_XP12_4_05_full.zip", "B738X_XP12_4_05_35.zip"],
+            result.RequiredPackages.Select(package => package.FileName).ToArray());
+    }
+
+    [Fact]
     public async Task CheckZiboAsync_WhenVersionTxtIsMissing_ReadsVersionFromLuaFms()
     {
         var root = Path.Combine(Path.GetTempPath(), $"xplane-737ng-zibo-version-tests-{Guid.NewGuid():N}");

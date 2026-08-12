@@ -7,7 +7,7 @@ tools and conservative view maintenance for supported aircraft variants.
 This repository is the public development home for the app. The architecture
 keeps package content, aircraft patching, and application updates separate.
 
-Release version: **0.7.0**
+Release version: **0.8.0**
 
 - [Download the latest stable release](https://github.com/wahltho/xplane-737ng-maintenance-toolkit/releases/latest)
 - [Read the user manual](docs/USER_MANUAL.md)
@@ -57,7 +57,7 @@ verified macOS download is blocked, follow Apple's documented
 [Privacy & Security "Open Anyway" process](https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac).
 
 Download future app releases manually from GitHub. VeloPack currently provides
-the application package and lifecycle integration; version 0.7.0 does not yet
+the application package and lifecycle integration; version 0.8.0 does not yet
 check for or download new Toolkit versions automatically. Aircraft and VNAV
 content updates are separate and can be checked from inside the app.
 
@@ -154,6 +154,17 @@ Current capabilities:
   published manifest/archive hashes, and use the same review and transactional
   update path. Manual LevelUp manifest/archive import remains available as an
   offline fallback.
+- It can install a new Zibo 737-800X or LevelUp 737NG Series into an unused
+  direct child folder of a selected X-Plane 12 `Aircraft` directory. The app
+  plans the complete release, validates every package in an external staging
+  folder, verifies the expected product structure and only then activates the
+  new aircraft folder. It never overlays a fresh install onto an existing
+  destination.
+- LevelUp fresh installs can download the exact verified full package from the
+  authorized public release index. Zibo fresh installs use the official
+  full-baseline plus latest-cumulative-patch plan. When the Zibo feed exposes
+  only `.zip.torrent` links, the exact packages must be obtained through the
+  official distribution and imported into the toolkit cache before install.
 - Package import, download and pre-write validation are cancellable. Once the
   confirmed aircraft write transaction starts, it completes or rolls back.
 - The main `Update` action checks aircraft and VNAV package state in one user

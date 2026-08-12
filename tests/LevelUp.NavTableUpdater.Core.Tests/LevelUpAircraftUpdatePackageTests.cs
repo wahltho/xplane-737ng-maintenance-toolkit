@@ -122,6 +122,23 @@ public sealed class LevelUpAircraftUpdatePackageTests : IDisposable
     }
 
     [Fact]
+    public void Loader_FreshInstallAcceptsOnlyFullPackageManifest()
+    {
+        var fullFixture = CreatePackageFixture(packageType: "full");
+        var loader = new LevelUpAircraftUpdatePackageLoader();
+
+        var selection = loader.LoadFreshInstall(fullFixture.ManifestPath);
+
+        Assert.Equal("Not installed", selection.UpdateCheck.LocalVersionDisplay);
+        Assert.Equal(AircraftUpdatePackageKind.FullBaseline, Assert.Single(selection.UpdateCheck.RequiredPackages).Kind);
+        Assert.Equal(fullFixture.ArchivePath, selection.ArchivePath);
+
+        var patchFixture = CreatePackageFixture(packageDirectoryName: "patch-package");
+        var error = Assert.Throws<InvalidDataException>(() => loader.LoadFreshInstall(patchFixture.ManifestPath));
+        Assert.Contains("full-package", error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void Loader_WithPublicV2S1RuntimeLayoutBuildsIncrementalPlan()
     {
         var fixture = CreatePackageFixture();
@@ -399,10 +416,12 @@ public sealed class LevelUpAircraftUpdatePackageTests : IDisposable
     private PackageFixture CreatePackageFixture(
         string archiveSha256 = ArchiveSha256,
         string updatedSha256 = UpdatedSha256,
-        IReadOnlyList<string>? deletedPaths = null)
+        IReadOnlyList<string>? deletedPaths = null,
+        string packageType = "cumulativePatch",
+        string packageDirectoryName = "package")
     {
         var aircraftPath = CreateAircraft();
-        var packageRoot = Path.Combine(_root, "package");
+        var packageRoot = Path.Combine(_root, packageDirectoryName);
         Directory.CreateDirectory(packageRoot);
         var archivePath = Path.Combine(packageRoot, "fixture.7z");
         File.WriteAllBytes(archivePath, Convert.FromBase64String(SevenZipFixtureBase64));
@@ -411,7 +430,7 @@ public sealed class LevelUpAircraftUpdatePackageTests : IDisposable
         {
             schemaVersion = 1,
             productId = "levelup-737ng",
-            packageType = "cumulativePatch",
+            packageType,
             baselineVersion = "2.S1.01",
             baselineAliases = new[] { "V2.S1", "2.S1.0" },
             targetVersion = "main-a87f675",

@@ -221,8 +221,70 @@
                                     </StackPanel>
                                 </Border>
 
-                                <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="12">
-                                    <Border Classes="task-card">
+                                <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="12">
+                                    <Border Grid.Row="0"
+                                            Classes="task-card"
+                                            IsVisible="{Binding FreshInstallVisible}">
+                                        <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="12">
+                                            <StackPanel Spacing="4">
+                                                <TextBlock Text="Install New Aircraft" FontSize="18" FontWeight="SemiBold"/>
+                                                <TextBlock Text="Installs a complete Zibo or LevelUp aircraft into an unused folder under the selected X-Plane 12 installation. Packages are staged and structurally validated before activation."
+                                                           Foreground="{DynamicResource AppTextSecondaryBrush}"
+                                                           TextWrapping="Wrap"/>
+                                            </StackPanel>
+
+                                            <Grid Grid.Row="1" ColumnDefinitions="220,*,Auto" ColumnSpacing="14">
+                                                <StackPanel Spacing="3">
+                                                    <TextBlock Classes="label" Text="Product"/>
+                                                    <ComboBox ItemsSource="{Binding FreshInstallProducts}"
+                                                              SelectedItem="{Binding SelectedFreshInstallProduct}"
+                                                              HorizontalAlignment="Stretch">
+                                                        <ComboBox.ItemTemplate>
+                                                            <DataTemplate x:DataType="upstream:AircraftFreshInstallProduct">
+                                                                <TextBlock Text="{Binding DisplayName}"/>
+                                                            </DataTemplate>
+                                                        </ComboBox.ItemTemplate>
+                                                    </ComboBox>
+                                                </StackPanel>
+
+                                                <StackPanel Grid.Column="1" Spacing="3">
+                                                    <TextBlock Classes="label" Text="New aircraft folder"/>
+                                                    <TextBox Text="{Binding FreshInstallTargetPath}"/>
+                                                    <TextBlock Classes="path"
+                                                               Text="{Binding FreshInstallXPlaneRoot, StringFormat='X-Plane: {0}'}"
+                                                               TextWrapping="Wrap"/>
+                                                </StackPanel>
+
+                                                <StackPanel Grid.Column="2" Spacing="3" MinWidth="130">
+                                                    <TextBlock Classes="label" Text="Available"/>
+                                                    <TextBlock Text="{Binding FreshInstallAvailableVersion}"
+                                                               FontWeight="SemiBold"
+                                                               TextWrapping="Wrap"/>
+                                                </StackPanel>
+                                            </Grid>
+
+                                            <Grid Grid.Row="2" ColumnDefinitions="*,Auto" ColumnSpacing="14">
+                                                <TextBlock Text="{Binding FreshInstallStatus}"
+                                                           Foreground="{DynamicResource AppTextSecondaryBrush}"
+                                                           TextWrapping="Wrap"
+                                                           VerticalAlignment="Center"/>
+                                                <WrapPanel Grid.Column="1" ItemSpacing="8" LineSpacing="8">
+                                                    <Button Content="Check package"
+                                                            Command="{Binding CheckFreshInstallPackageCommand}"
+                                                            IsEnabled="{Binding CanImportFreshInstallPackage}"/>
+                                                    <Button Content="Import package"
+                                                            Click="ImportFreshInstallPackage_Click"
+                                                            IsEnabled="{Binding CanImportFreshInstallPackage}"/>
+                                                    <Button Content="Install"
+                                                            Classes="primary"
+                                                            Command="{Binding InstallFreshAircraftCommand}"
+                                                            IsEnabled="{Binding CanInstallFreshAircraft}"/>
+                                                </WrapPanel>
+                                            </Grid>
+                                        </Grid>
+                                    </Border>
+
+                                    <Border Grid.Row="1" Classes="task-card">
                                         <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="14">
                                             <StackPanel Spacing="4">
                                                 <TextBlock Text="Updates" FontSize="18" FontWeight="SemiBold"/>
@@ -302,7 +364,7 @@
                                         </Grid>
                                     </Border>
 
-                                    <Border Grid.Row="1"
+                                    <Border Grid.Row="2"
                                             Classes="task-card"
                                             IsVisible="{Binding ContentPackageOverviewVisible}">
                                         <Grid RowDefinitions="Auto,Auto,*" RowSpacing="12">
@@ -387,7 +449,7 @@
                                         </Grid>
                                     </Border>
 
-                                    <Border Grid.Row="2"
+                                    <Border Grid.Row="3"
                                             Classes="task-card"
                                             IsVisible="{Binding ToolPackageVisible}">
                                         <Grid RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="12">
@@ -465,7 +527,7 @@
                                         </Grid>
                                     </Border>
 
-                                    <Border Grid.Row="3"
+                                    <Border Grid.Row="4"
                                             Classes="task-card"
                                             IsVisible="{Binding ResourcePackageVisible}">
                                         <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="12">
@@ -556,7 +618,7 @@
                                         </Grid>
                                     </Border>
 
-                                    <Border Grid.Row="4" Classes="task-card">
+                                    <Border Grid.Row="5" Classes="task-card">
                                         <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="12">
                                             <StackPanel Spacing="4">
                                                 <TextBlock Text="Views After CG Change" FontSize="18" FontWeight="SemiBold"/>

@@ -127,6 +127,56 @@ public sealed class LevelUpAircraftUpdatePackageLoader
         return new LevelUpAircraftUpdatePackageSelection(updateCheck, package, archivePath, manifestPath);
     }
 
+    public LevelUpAircraftUpdatePackageSelection LoadFreshInstall(string selectedPath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(selectedPath);
+
+        var manifestPath = ResolveManifestPath(selectedPath);
+        var manifest = AircraftUpdatePackageManifestParser.Load(manifestPath);
+        if (manifest.PackageKind != AircraftUpdatePackageKind.FullBaseline)
+        {
+            throw new InvalidDataException("A fresh LevelUp installation requires an exact full-package manifest.");
+        }
+
+        var archivePath = Path.Combine(Path.GetDirectoryName(manifestPath)!, manifest.Archive.FileName);
+        var versionNumber = manifest.ReleaseSequence is > 0 and <= int.MaxValue
+            ? (int)manifest.ReleaseSequence.Value
+            : 0;
+        var package = new AircraftUpdatePackage(
+            Family,
+            AircraftUpdatePackageKind.FullBaseline,
+            new AircraftUpstreamVersion(0, 0, versionNumber),
+            manifest.Archive.FileName,
+            SourceUrl: "",
+            ReleaseVersion: manifest.ReleaseVersion,
+            BaselineVersion: manifest.BaselineVersion,
+            ExpectedSizeBytes: manifest.Archive.Size,
+            ExpectedSha256: manifest.Archive.Sha256,
+            Manifest: manifest);
+        var findings = new List<string>
+        {
+            "Local LevelUp fresh-install package plan. No aircraft files are changed while the manifest is loaded.",
+            $"Manifest: {manifestPath}",
+            $"Archive: {archivePath}",
+            "The archive must pass manifest size, SHA-256, per-file hash, content-root and path checks before installation."
+        };
+        var updateCheck = BuildResult(
+            "Fresh-install package loaded",
+            $"Install full LevelUp package {manifest.Archive.FileName} as {manifest.ReleaseVersion}.",
+            "Not installed",
+            manifest,
+            AircraftUpdatePlanAction.InstallBaselineAndCumulativePatch,
+            "Install exact full release package",
+            isCustomDistribution: false,
+            [package],
+            findings);
+        return new LevelUpAircraftUpdatePackageSelection(
+            updateCheck,
+            package,
+            archivePath,
+            manifestPath);
+    }
+
     private static AircraftUpstreamUpdateCheckResult BuildResult(
         string stateLabel,
         string summary,

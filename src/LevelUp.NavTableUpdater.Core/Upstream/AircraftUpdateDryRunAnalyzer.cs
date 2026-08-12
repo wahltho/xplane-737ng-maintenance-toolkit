@@ -9,7 +9,8 @@ public sealed class AircraftUpdateDryRunAnalyzer
         string aircraftFolder,
         IEnumerable<AircraftUpdatePackageCacheEntry> cachedPackages,
         CancellationToken cancellationToken = default,
-        IReadOnlySet<string>? managedComponentPaths = null)
+        IReadOnlySet<string>? managedComponentPaths = null,
+        bool allowMissingAircraftFolder = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(aircraftFolder);
         ArgumentNullException.ThrowIfNull(cachedPackages);
@@ -31,10 +32,15 @@ public sealed class AircraftUpdateDryRunAnalyzer
             findings.Add($"Will retain {managedPaths.Count} verified toolkit-managed aircraft component file(s).");
         }
 
-        if (!Directory.Exists(targetRoot))
+        if (!Directory.Exists(targetRoot) && !allowMissingAircraftFolder)
         {
             findings.Add($"Aircraft folder is missing: {targetRoot}");
             return new AircraftUpdateDryRunResult(false, "Aircraft folder is missing.", entries, findings);
+        }
+
+        if (!Directory.Exists(targetRoot))
+        {
+            findings.Add($"Fresh-install target is currently empty: {targetRoot}");
         }
 
         var packageEntries = cachedPackages.ToArray();
@@ -56,7 +62,8 @@ public sealed class AircraftUpdateDryRunAnalyzer
             AnalyzePackage(targetRoot, cachedPackage, entries, findings, packageLiveryRoots, managedPaths, cancellationToken);
         }
 
-        if (packageEntries.Any(entry => entry.Package.Kind == AircraftUpdatePackageKind.FullBaseline))
+        if (packageEntries.Any(entry => entry.Package.Kind == AircraftUpdatePackageKind.FullBaseline)
+            && Directory.Exists(targetRoot))
         {
             AddCleanBaselineEntries(targetRoot, entries, packageLiveryRoots, managedPaths, findings, cancellationToken);
         }

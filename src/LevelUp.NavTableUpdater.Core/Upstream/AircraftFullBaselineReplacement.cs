@@ -202,7 +202,7 @@ internal sealed class AircraftFullBaselineReplacement
         }
     }
 
-    private static void ExtractPackage(
+    internal static void ExtractPackage(
         string stagePath,
         AircraftUpdatePackageCacheEntry cachedPackage,
         CancellationToken cancellationToken,
