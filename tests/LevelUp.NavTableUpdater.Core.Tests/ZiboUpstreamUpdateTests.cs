@@ -2,6 +2,7 @@ using System.IO.Compression;
 using System.Net;
 using LevelUp.NavTableUpdater.Core.Aircraft;
 using LevelUp.NavTableUpdater.Core.Upstream;
+using MonoTorrent;
 
 namespace LevelUp.NavTableUpdater.Core.Tests;
 
@@ -370,19 +371,21 @@ public sealed class ZiboUpstreamUpdateTests
     }
 
     [Fact]
-    public async Task Cache_DownloadAsync_WhenDirectZipIsMissing_DoesNotDownloadTorrentAsArchive()
+    public async Task Cache_DownloadAsync_WhenDirectZipIsMissing_DownloadsOfficialTorrentPackage()
     {
         using var fixture = AircraftUpdateFixture.Create();
         var package = BuildPatchPackage();
         var handler = new FakePackageDownloadHandler(_ => new HttpResponseMessage(HttpStatusCode.NotFound));
         using var client = new HttpClient(handler);
-        var cache = new AircraftUpdatePackageCache(Path.Combine(fixture.Path, "cache"));
+        var torrentDownloader = new FakeTorrentPackageDownloader();
+        var cache = new AircraftUpdatePackageCache(Path.Combine(fixture.Path, "cache"), torrentDownloader);
 
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => cache.DownloadAsync(package, client));
+        var downloaded = await cache.DownloadAsync(package, client);
 
-        Assert.Contains("could not be downloaded and validated", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(AircraftUpdatePackageCacheState.Imported, downloaded.State);
         Assert.Equal(["https://skymatixva.com/tfiles/B738X_XP12_4_05_35.zip"], handler.RequestedUrls);
-        Assert.False(File.Exists(cache.GetPackagePath(package)));
+        Assert.Equal("https://skymatixva.com/tfiles/B738X_XP12_4_05_35.zip.torrent", torrentDownloader.RequestedTorrentUrl);
+        Assert.True(File.Exists(cache.GetPackagePath(package)));
     }
 
     [Fact]
@@ -397,11 +400,13 @@ public sealed class ZiboUpstreamUpdateTests
             return new HttpResponseMessage(HttpStatusCode.OK) { Content = content };
         });
         using var client = new HttpClient(handler);
-        var cache = new AircraftUpdatePackageCache(Path.Combine(fixture.Path, "cache"));
+        var torrentDownloader = new FakeTorrentPackageDownloader(new IOException("No torrent peers available."));
+        var cache = new AircraftUpdatePackageCache(Path.Combine(fixture.Path, "cache"), torrentDownloader);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => cache.DownloadAsync(package, client));
 
         Assert.Contains("application/x-bittorrent", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("No torrent peers available", exception.Message, StringComparison.Ordinal);
         Assert.False(File.Exists(cache.GetPackagePath(package)));
     }
 
@@ -417,12 +422,52 @@ public sealed class ZiboUpstreamUpdateTests
             return new HttpResponseMessage(HttpStatusCode.OK) { Content = content };
         });
         using var client = new HttpClient(handler);
-        var cache = new AircraftUpdatePackageCache(Path.Combine(fixture.Path, "cache"));
+        var torrentDownloader = new FakeTorrentPackageDownloader(new IOException("No torrent peers available."));
+        var cache = new AircraftUpdatePackageCache(Path.Combine(fixture.Path, "cache"), torrentDownloader);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => cache.DownloadAsync(package, client));
 
         Assert.Contains("text/html", exception.Message, StringComparison.Ordinal);
         Assert.False(File.Exists(cache.GetPackagePath(package)));
+    }
+
+    [Fact]
+    public async Task Cache_DownloadAsync_WhenTorrentDownloadIsCanceled_PropagatesCancellation()
+    {
+        using var fixture = AircraftUpdateFixture.Create();
+        var package = BuildPatchPackage();
+        var handler = new FakePackageDownloadHandler(_ => new HttpResponseMessage(HttpStatusCode.NotFound));
+        using var client = new HttpClient(handler);
+        var torrentDownloader = new FakeTorrentPackageDownloader(new OperationCanceledException());
+        var cache = new AircraftUpdatePackageCache(Path.Combine(fixture.Path, "cache"), torrentDownloader);
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() => cache.DownloadAsync(package, client));
+
+        Assert.False(File.Exists(cache.GetPackagePath(package)));
+    }
+
+    [Fact]
+    public async Task TorrentDownloader_WhenMetadataNamesDifferentPackage_RejectsBeforePeerConnection()
+    {
+        using var fixture = AircraftUpdateFixture.Create();
+        var wrongPackagePath = Path.Combine(fixture.Path, "wrong-package.zip");
+        File.WriteAllText(wrongPackagePath, "not the requested package");
+        var creator = new TorrentCreator(TorrentType.V1Only);
+        var metadata = (await creator.CreateAsync(new TorrentFileSource(wrongPackagePath))).Encode();
+        var handler = new FakePackageDownloadHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new ByteArrayContent(metadata)
+        });
+        using var client = new HttpClient(handler);
+        var downloader = new ZiboTorrentPackageDownloader();
+
+        var exception = await Assert.ThrowsAsync<InvalidDataException>(() => downloader.DownloadAsync(
+            "https://example.invalid/package.zip.torrent",
+            "expected-package.zip",
+            Path.Combine(fixture.Path, "work"),
+            client));
+
+        Assert.Contains("does not describe exactly the expected package", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -977,6 +1022,32 @@ public sealed class ZiboUpstreamUpdateTests
         {
             RequestedUrls.Add(request.RequestUri?.AbsoluteUri ?? "");
             return Task.FromResult(respond(request));
+        }
+    }
+
+    private sealed class FakeTorrentPackageDownloader(Exception? exception = null) : IAircraftTorrentPackageDownloader
+    {
+        public string? RequestedTorrentUrl { get; private set; }
+
+        public Task<string> DownloadAsync(
+            string torrentUrl,
+            string expectedFileName,
+            string workingDirectory,
+            HttpClient httpClient,
+            IProgress<AircraftPackageDownloadProgress>? progress = null,
+            CancellationToken cancellationToken = default)
+        {
+            RequestedTorrentUrl = torrentUrl;
+            if (exception is not null)
+            {
+                return Task.FromException<string>(exception);
+            }
+
+            Directory.CreateDirectory(workingDirectory);
+            var path = Path.Combine(workingDirectory, expectedFileName);
+            CreateZip(path, ("README.txt", "downloaded through torrent transport"));
+            progress?.Report(new AircraftPackageDownloadProgress("BitTorrent", "Complete", 100, 1024, 1));
+            return Task.FromResult(path);
         }
     }
 

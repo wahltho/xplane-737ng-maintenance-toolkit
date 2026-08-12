@@ -6,11 +6,15 @@ namespace LevelUp.NavTableUpdater.Core.Upstream;
 public sealed class AircraftUpdatePackageCache
 {
     private const string MarkerFileName = ".xplane-737ng-aircraft-update-cache";
+    private readonly IAircraftTorrentPackageDownloader _torrentDownloader;
 
-    public AircraftUpdatePackageCache(string rootPath)
+    public AircraftUpdatePackageCache(
+        string rootPath,
+        IAircraftTorrentPackageDownloader? torrentDownloader = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(rootPath);
         RootPath = Path.GetFullPath(rootPath);
+        _torrentDownloader = torrentDownloader ?? new ZiboTorrentPackageDownloader();
     }
 
     public string RootPath { get; }
@@ -161,7 +165,8 @@ public sealed class AircraftUpdatePackageCache
     public async Task<AircraftUpdatePackageCacheEntry> DownloadAsync(
         AircraftUpdatePackage package,
         HttpClient httpClient,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IProgress<AircraftPackageDownloadProgress>? progress = null)
     {
         ArgumentNullException.ThrowIfNull(package);
         ArgumentNullException.ThrowIfNull(httpClient);
@@ -182,6 +187,7 @@ public sealed class AircraftUpdatePackageCache
             var tempPath = destinationPath + $".{Guid.NewGuid():N}.download";
             try
             {
+                progress?.Report(new AircraftPackageDownloadProgress("HTTPS", "Downloading direct archive", 0));
                 using var response = await httpClient.GetAsync(candidate, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
                     .ConfigureAwait(false);
                 response.EnsureSuccessStatusCode();
@@ -219,6 +225,51 @@ public sealed class AircraftUpdatePackageCache
                 if (File.Exists(tempPath))
                 {
                     File.Delete(tempPath);
+                }
+            }
+        }
+
+        if (IsTorrentSource(package.SourceUrl))
+        {
+            var torrentSessionRoot = Path.Combine(Path.GetDirectoryName(destinationPath)!, ".torrent-work");
+            string? downloadedPath = null;
+            try
+            {
+                downloadedPath = await _torrentDownloader.DownloadAsync(
+                    package.SourceUrl!,
+                    package.FileName,
+                    torrentSessionRoot,
+                    httpClient,
+                    progress,
+                    cancellationToken).ConfigureAwait(false);
+                ValidateReadableArchive(downloadedPath, cancellationToken);
+                var downloadedInfo = new FileInfo(downloadedPath);
+                var downloadedSha = ComputeSha256(downloadedPath, cancellationToken);
+                var integrityError = GetExpectedIntegrityError(package, downloadedInfo.Length, downloadedSha);
+                if (integrityError is not null)
+                {
+                    throw new InvalidDataException(integrityError);
+                }
+
+                File.Move(downloadedPath, destinationPath, overwrite: true);
+                downloadedPath = null;
+                var info = new FileInfo(destinationPath);
+                return new AircraftUpdatePackageCacheEntry(
+                    package,
+                    destinationPath,
+                    AircraftUpdatePackageCacheState.Imported,
+                    info.Length,
+                    downloadedSha);
+            }
+            catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidDataException or TimeoutException)
+            {
+                failures.Add($"{package.SourceUrl}: {ex.Message}");
+            }
+            finally
+            {
+                if (downloadedPath is not null && File.Exists(downloadedPath))
+                {
+                    File.Delete(downloadedPath);
                 }
             }
         }
@@ -280,6 +331,10 @@ public sealed class AircraftUpdatePackageCache
 
         yield return sourceUrl;
     }
+
+    private static bool IsTorrentSource(string? sourceUrl) =>
+        !string.IsNullOrWhiteSpace(sourceUrl)
+        && sourceUrl.Trim().EndsWith(".torrent", StringComparison.OrdinalIgnoreCase);
 
     private static void ValidateResponseContentType(HttpResponseMessage response, string sourceUrl)
     {

@@ -29,7 +29,7 @@
   <p>X-Plane 737NG Maintenance Toolkit</p>
 
   <h2>Current Version</h2>
-  <p>0.8.1</p>
+  <p>0.8.2</p>
 
   <h2>Short Description</h2>
   <p>Cross-platform maintenance utility for supported Zibo and LevelUp 737NG aircraft in X-Plane 12, providing aircraft and VNAV updates, transactional backups, CG/view correction, optional patches, tools and resources.</p>
@@ -41,7 +41,7 @@
   <ul>
     <li>structural detection of supported Zibo and LevelUp installations</li>
     <li>support for multiple X-Plane installations and manual folder selection</li>
-    <li>Zibo baseline/cumulative aircraft update planning and package handling</li>
+    <li>Zibo baseline/cumulative aircraft update planning with automatic direct or official BitTorrent package download</li>
     <li>LevelUp full/cumulative updates from its authorized public GitHub release index</li>
     <li>complete fresh installation of Zibo or LevelUp into an unused X-Plane 12 Aircraft subfolder, using a validated staging image before activation</li>
     <li>VNAV descent table install, update, repair, restore and uninstall</li>
@@ -60,7 +60,7 @@
     <li>explicit optional LevelUp FANS CDU patch management</li>
     <li>verified LevelUp Paintkit download and extraction into a user-selected folder</li>
   </ul>
-  <p>Version 0.8.1 currently offers:</p>
+  <p>Version 0.8.2 currently offers:</p>
   <ul>
     <li>Optimized XLua 1.3.7r3</li>
     <li>Yet Another Linda (YAL)</li>
@@ -70,6 +70,7 @@
   </ul>
   <p>Optimized XLua is managed separately for each selected Zibo or LevelUp aircraft and preserves the complete aircraft-owned <code>plugins/xlua/scripts</code> tree. YAL and YAL HoppieHelper are installed once per X-Plane installation and are available for both products. The FANS CDU patch and Paintkit are LevelUp-only. Every item remains optional.</p>
   <p>Aircraft packages, VNAV content, optional patches, tools, resources and Toolkit application releases are separate update layers. The app does not distribute a complete modified <code>B738.a_fms.lua</code>; VNAV hooks and authorized payload files are applied locally after validation.</p>
+  <p>Zibo packages are obtained from the official Skymatix feed. The Toolkit tries a direct archive first and automatically uses the feed's official BitTorrent metadata when required. Before peer-to-peer transfer starts, the app explains that peers can see the user's public IP address and that package pieces may be uploaded while the client runs.</p>
   <p>This is not an official Laminar Research, Zibo or LevelUp product. It does not replace the aircraft developers' official distribution channels.</p>
 
   <h2>Compatibility</h2>
@@ -114,7 +115,7 @@
   <p>The current builds are unsigned. Windows may display a SmartScreen warning, macOS may block the unsigned and non-notarized build, and the Linux AppImage is not separately signed.</p>
   <p>Verify the download against <code>SHA256SUMS.txt</code> on the release page. If a verified macOS download is blocked, try to open it once, then use Apple's documented Privacy &amp; Security "Open Anyway" process:</p>
   <p><a href="https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac">https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac</a></p>
-  <p>Version 0.8.1 does not automatically check for or install newer Toolkit versions. Download future app releases manually from the GitHub release page.</p>
+  <p>Version 0.8.2 does not automatically check for or install newer Toolkit versions. Download future app releases manually from the GitHub release page.</p>
 
   <h2>First Use</h2>
   <ol>
@@ -140,6 +141,12 @@
   <p>The Toolkit source code is available under the MIT License. The application is provided as-is, without warranty of any kind. It can modify aircraft files after validation and backup; users should retain their own backups and use the tool at their own risk.</p>
 
   <h2>Changelog</h2>
+  <h3>0.8.2</h3>
+  <ul>
+    <li>Added embedded cross-platform BitTorrent downloads for official Zibo baseline and cumulative update packages.</li>
+    <li>Added explicit peer-to-peer confirmation, live percentage/peer/rate progress, cancellation and an inactivity timeout.</li>
+    <li>Added exact torrent package identity checks, piece verification and final archive validation before caching.</li>
+  </ul>
   <h3>0.8.1</h3>
   <ul>
     <li>Prevented torrent metadata, HTML responses and unsupported content from being parsed as aircraft package archives.</li>

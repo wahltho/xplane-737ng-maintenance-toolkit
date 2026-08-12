@@ -10,7 +10,7 @@ X-Plane 737NG Maintenance Toolkit
 
 ## Current Version
 
-0.8.1
+0.8.2
 
 ## Short Description
 
@@ -26,7 +26,8 @@ Current functions include:
 
 - structural detection of supported Zibo and LevelUp installations
 - support for multiple X-Plane installations and manual folder selection
-- Zibo baseline/cumulative aircraft update planning and package handling
+- Zibo baseline/cumulative aircraft update planning with automatic direct or
+  official BitTorrent package download
 - LevelUp full/cumulative updates from its authorized public GitHub release index
 - complete fresh installation of Zibo or LevelUp into an unused X-Plane 12
   Aircraft subfolder, using a validated staging image before activation
@@ -48,7 +49,7 @@ Current functions include:
 - explicit optional LevelUp FANS CDU patch management
 - verified LevelUp Paintkit download and extraction into a user-selected folder
 
-Version 0.8.1 currently offers:
+Version 0.8.2 currently offers:
 
 - Optimized XLua 1.3.7r3
 - Yet Another Linda (YAL)
@@ -59,6 +60,8 @@ Version 0.8.1 currently offers:
 Optimized XLua is managed separately for each selected Zibo or LevelUp aircraft and preserves the complete aircraft-owned `plugins/xlua/scripts` tree. YAL and YAL HoppieHelper are installed once per X-Plane installation and are available for both products. The FANS CDU patch and Paintkit are LevelUp-only. Every item remains optional.
 
 Aircraft packages, VNAV content, optional patches, tools, resources and Toolkit application releases are separate update layers. The app does not distribute a complete modified `B738.a_fms.lua`; VNAV hooks and authorized payload files are applied locally after validation.
+
+Zibo packages are obtained from the official Skymatix feed. The Toolkit tries a direct archive first and automatically uses the feed's official BitTorrent metadata when required. Before peer-to-peer transfer starts, the app explains that peers can see the user's public IP address and that package pieces may be uploaded while the client runs.
 
 This is not an official Laminar Research, Zibo or LevelUp product. It does not replace the aircraft developers' official distribution channels.
 
@@ -113,7 +116,7 @@ Verify the download against `SHA256SUMS.txt` on the release page. If a verified 
 
 https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac
 
-Version 0.8.1 does not automatically check for or install newer Toolkit versions. Download future app releases manually from the GitHub release page.
+Version 0.8.2 does not automatically check for or install newer Toolkit versions. Download future app releases manually from the GitHub release page.
 
 ## First Use
 
@@ -146,6 +149,15 @@ When reporting a problem, use `Dump to file` on the Advanced tab and attach the 
 The Toolkit source code is available under the MIT License. The application is provided as-is, without warranty of any kind. It can modify aircraft files after validation and backup; users should retain their own backups and use the tool at their own risk.
 
 ## Changelog
+
+### 0.8.2
+
+- Added embedded cross-platform BitTorrent downloads for official Zibo
+  baseline and cumulative update packages.
+- Added explicit peer-to-peer confirmation, live percentage/peer/rate progress,
+  cancellation and an inactivity timeout.
+- Added exact torrent package identity checks, piece verification and final
+  archive validation before caching.
 
 ### 0.8.1
 

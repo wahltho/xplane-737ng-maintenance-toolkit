@@ -7,7 +7,7 @@ tools and conservative view maintenance for supported aircraft variants.
 This repository is the public development home for the app. The architecture
 keeps package content, aircraft patching, and application updates separate.
 
-Release version: **0.8.1**
+Release version: **0.8.2**
 
 - [Download the latest stable release](https://github.com/wahltho/xplane-737ng-maintenance-toolkit/releases/latest)
 - [Read the user manual](docs/USER_MANUAL.md)
@@ -57,7 +57,7 @@ verified macOS download is blocked, follow Apple's documented
 [Privacy & Security "Open Anyway" process](https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac).
 
 Download future app releases manually from GitHub. VeloPack currently provides
-the application package and lifecycle integration; version 0.8.1 does not yet
+the application package and lifecycle integration; version 0.8.2 does not yet
 check for or download new Toolkit versions automatically. Aircraft and VNAV
 content updates are separate and can be checked from inside the app.
 
@@ -147,8 +147,9 @@ Current capabilities:
   and local/offline package directories are fallback sources.
 - It can review Zibo upstream baseline/cumulative package plans, import exact
   matching aircraft update ZIPs into a local cache, download direct ZIP sources
-  when available, review cached ZIP contents in the background, then confirm
-  and apply cached packages with backups, rollback and restore support.
+  when available or use the official BitTorrent metadata, review cached ZIP
+  contents in the background, then confirm and apply cached packages with
+  backups, rollback and restore support.
 - It can read the authorized public LevelUp release index, select either the
   exact full aircraft package or the matching cumulative patch, verify the
   published manifest/archive hashes, and use the same review and transactional
@@ -162,9 +163,9 @@ Current capabilities:
   destination.
 - LevelUp fresh installs can download the exact verified full package from the
   authorized public release index. Zibo fresh installs use the official
-  full-baseline plus latest-cumulative-patch plan. When the Zibo feed exposes
-  only `.zip.torrent` links, the exact packages must be obtained through the
-  official distribution and imported into the toolkit cache before install.
+  full-baseline plus latest-cumulative-patch plan. The Toolkit can download the
+  exact archives through the feed's `.zip.torrent` metadata, with cancellation,
+  live peer/rate progress, torrent piece verification and archive validation.
 - Package import, download and pre-write validation are cancellable. Once the
   confirmed aircraft write transaction starts, it completes or rolls back.
 - The main `Update` action checks aircraft and VNAV package state in one user
@@ -191,11 +192,13 @@ Current capabilities:
 Review remains available for planned changes before write actions. Real write
 actions are limited to manifest-owned VNAV content, explicitly selected
 declarative patch packages, view-maintenance files and explicitly applied
-cached aircraft update packages. For Zibo, direct ZIP
-download is attempted from the feed source URL and from a `.zip` candidate when
-the feed exposes `.zip.torrent` links. LevelUp uses explicit GitHub Release
-assets described by its public release index. Manual import remains the fallback
-when a source is unavailable.
+cached aircraft update packages. For Zibo, a direct ZIP is attempted first; if
+the feed exposes `.zip.torrent` metadata and no direct archive is available,
+the Toolkit uses an embedded BitTorrent client with DHT, PEX and tracker
+fallbacks. The user must confirm P2P networking because peers can see the
+public IP address and the client may upload package pieces while downloading.
+LevelUp uses explicit GitHub Release assets described by its public release
+index. Manual import remains available as an offline fallback.
 
 ## Development Build
 

@@ -1,6 +1,6 @@
 # X-Plane 737NG Maintenance Toolkit User Manual
 
-This manual describes version 0.8.1 of the X-Plane 737NG Maintenance Toolkit.
+This manual describes version 0.8.2 of the X-Plane 737NG Maintenance Toolkit.
 
 The toolkit is a desktop app for selected Zibo and LevelUp 737NG maintenance
 tasks:
@@ -30,7 +30,7 @@ Keep your own backups and use the tool at your own risk.
 
 ## Compatibility And Installation
 
-Version 0.8.1 supports:
+Version 0.8.2 supports:
 
 - X-Plane 12. X-Plane 11 is not supported.
 - Zibo 737-800X 2K and 4K variants.
@@ -72,7 +72,7 @@ verified macOS download is blocked, try to open it once, then follow Apple's
 documented [Privacy & Security "Open Anyway" process](https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac).
 
 Download future Toolkit releases manually from GitHub. VeloPack provides the
-application package and lifecycle integration, but version 0.8.1 does not yet
+application package and lifecycle integration, but version 0.8.2 does not yet
 check for or download new Toolkit versions automatically. This is separate from
 aircraft-package and VNAV-content updates performed inside the app.
 
@@ -152,12 +152,16 @@ LevelUp 737NG Series installation without requiring an existing aircraft copy.
 For LevelUp, the app reads the authorized public release index and downloads
 the exact verified full package when available. For Zibo, a fresh installation
 requires the current full baseline followed by the latest cumulative patch.
-The Zibo feed currently exposes torrent package links. The Toolkit checks only
-the corresponding direct ZIP URL and never treats torrent metadata, an HTML
-error page or any other non-archive response as an aircraft package. If no
-direct ZIP stream is available, obtain both exact archives through the official
-Zibo distribution and import them one at a time. The file names must match the
-current plan.
+The Zibo feed exposes torrent package links. The Toolkit tries the corresponding
+direct ZIP URL first and automatically uses the feed's official `.torrent`
+metadata when no direct archive is available. Before peer-to-peer transfer
+starts, the app explains that peers can see the user's public IP address and
+that the client may upload package pieces while it is running. The transfer is
+cancellable and reports percentage, peer count and download rate. Torrent piece
+hashes and the completed archive are validated before the package enters the
+cache. If the torrent has no reachable peers, obtain the exact archive through
+the official Zibo distribution and use `Import package`. File names must match
+the current plan.
 
 The destination must not already exist. The app extracts packages into a
 sibling staging folder, rejects unsafe archive paths, validates package hashes
@@ -203,7 +207,7 @@ products. `Check releases` queries its latest stable GitHub Release. `Review`
 downloads and validates the selected release into the configured package cache,
 then calculates its file plan without changing the aircraft. `Install`,
 `Update` or `Repair` prepares the same verified package and still asks for an
-explicit confirmation before writing files. Version 0.8.1 offers the LevelUp
+explicit confirmation before writing files. Version 0.8.2 offers the LevelUp
 FANS CDU package as an optional LevelUp-only patch. It remains separate from
 aircraft and VNAV updates and is never installed automatically.
 
@@ -251,7 +255,7 @@ the last managed operation. Close X-Plane before all write and restore actions;
 restart it fully afterward.
 
 The `Resources` card manages large optional product assets independently from
-aircraft, VNAV and tool transactions. Version 0.8.1 offers the official
+aircraft, VNAV and tool transactions. Version 0.8.2 offers the official
 LevelUp 737NG Paintkit 1.1.0 for detected LevelUp installations. Choose the
 parent extraction directory, click `Check release`, then use `Download` after
 reviewing the destination and required disk space. The Toolkit verifies the
@@ -329,7 +333,7 @@ always require a separate confirmation and use their own multi-file backup and
 rollback transaction.
 
 Optional patches are not part of the normal aircraft update button and are not
-offered automatically after an aircraft update. The 0.8.1 catalog advertises
+offered automatically after an aircraft update. The 0.8.2 catalog advertises
 the LevelUp FANS CDU patch only for a detected LevelUp product and requires an
 explicit action. VNAV tables retain their managed post-aircraft-update prompt.
 
@@ -371,12 +375,16 @@ The app does not apply a chain of incremental patches. It plans either the
 current full baseline plus latest cumulative patch, or only the latest
 cumulative patch for the already installed baseline.
 
-Use `Download required packages` to let the app try to download required
-packages into the aircraft update cache. If the source exposes a `.zip.torrent`
-URL, the app
-tries the matching `.zip` URL. Torrent metadata and non-archive HTTP responses
-are rejected before archive processing. Some sources may not expose a direct
-ZIP stream; in that case use `Import package`.
+Use `Download required packages` to let the app download required packages into
+the aircraft update cache. For Zibo, it tries the matching direct `.zip` URL
+first. If that archive is unavailable, the embedded BitTorrent client uses the
+official `.zip.torrent` metadata with DHT, peer exchange and current fallback
+trackers. The operation remains cancellable and shows percentage, peer count
+and transfer rate. The Toolkit rejects torrents that do not describe exactly
+the expected single ZIP, verifies torrent pieces during transfer and validates
+the completed archive before caching it. A transfer with no useful peer
+activity times out instead of waiting indefinitely. `Import package` remains
+available as a manual fallback.
 
 Use `Import package` to select a local package. The selected
 file name must match a required package in the current plan exactly. For an
@@ -544,13 +552,15 @@ rejects the pair.
 The public LevelUp release index or Zibo package source could not be reached.
 Check the network connection and retry. For LevelUp, an authorized manifest and
 its adjacent `.7z` archive can be imported as an offline fallback. For Zibo,
-download the exact package required by the current plan and use `Import package`.
-Technical HTTP details remain in Advanced and the log.
+retry the official BitTorrent transfer later or download the exact package
+required by the current plan and use `Import package`. Technical transport
+details remain in Advanced and the log.
 
 `Download failed`
 
-The source may not expose a direct ZIP stream. Download the required ZIP
-manually and use `Import package...`.
+Neither the direct archive nor the official BitTorrent transfer supplied the
+required package. Retry after checking that the network permits BitTorrent
+traffic, or download the exact ZIP manually and use `Import package...`.
 
 `Review blocked`
 
@@ -584,7 +594,7 @@ attempted and exported log. Do not upload complete copyrighted aircraft files.
 
 - App builds are unsigned releases.
 - macOS builds are not notarized.
-- Version 0.8.1 does not automatically check for or install new Toolkit
+- Version 0.8.2 does not automatically check for or install new Toolkit
   versions. Download newer app releases manually from GitHub.
 - Zibo upstream ZIPs are verified against the local cache snapshot, not an
   official upstream hash manifest.

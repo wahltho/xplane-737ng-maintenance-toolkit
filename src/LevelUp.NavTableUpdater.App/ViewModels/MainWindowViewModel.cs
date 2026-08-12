@@ -860,6 +860,13 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
+        if (!await ConfirmTorrentTransportAsync(missingPackages))
+        {
+            RefreshUpstreamActionAvailability("Download canceled. Use Import package to provide the required archives manually.");
+            AppendLog("Aircraft package download canceled before BitTorrent networking started.");
+            return;
+        }
+
         IsUpstreamCheckRunning = true;
         ActionsEnabled = false;
         OperationPanelVisible = true;
@@ -877,11 +884,17 @@ public partial class MainWindowViewModel : ViewModelBase
 
         try
         {
-            foreach (var package in missingPackages)
+            for (var packageIndex = 0; packageIndex < missingPackages.Length; packageIndex++)
             {
+                var package = missingPackages[packageIndex];
                 cancellationToken.ThrowIfCancellationRequested();
                 AppendLog($"Downloading aircraft package: {package.FileName}");
-                var downloaded = await _aircraftUpdatePackageCache.DownloadAsync(package, _aircraftUpdateHttpClient, cancellationToken);
+                var downloadProgress = CreateAircraftPackageDownloadProgress(package, packageIndex, missingPackages.Length);
+                var downloaded = await _aircraftUpdatePackageCache.DownloadAsync(
+                    package,
+                    _aircraftUpdateHttpClient,
+                    cancellationToken,
+                    downloadProgress);
                 AppendLog($"Downloaded aircraft package into cache: {downloaded.Package.FileName} ({downloaded.SizeBytes} bytes, sha256 {downloaded.Sha256}).");
             }
 
@@ -912,16 +925,16 @@ public partial class MainWindowViewModel : ViewModelBase
         }
         catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidDataException or InvalidOperationException)
         {
-            RefreshUpstreamActionAvailability($"Download failed. Import the exact package manually if the source does not expose a direct archive URL. {ex.Message}");
+            RefreshUpstreamActionAvailability($"Download failed. Retry later or import the exact package manually. {ex.Message}");
             UpstreamFindings.ReplaceWith([
                 "Aircraft package download failed.",
-                "The source may expose torrent links or a cloud-drive flow instead of direct archive downloads.",
+                "The direct archive and BitTorrent transports did not provide a valid package.",
                 ex.Message
             ]);
             OperationProgress = 0;
             OperationStatus = "Download unavailable";
-            OperationTitle = "Manual package import required";
-            OperationSubtitle = "The update source did not provide a usable direct aircraft archive.";
+            OperationTitle = "Aircraft package download unavailable";
+            OperationSubtitle = "Retry later or use Import package to provide the exact archive manually.";
             OperationProgressText = "0% - No aircraft files were changed";
             AppendLog($"Aircraft package download failed: {ex.Message}");
         }
@@ -1759,6 +1772,13 @@ public partial class MainWindowViewModel : ViewModelBase
             .Select(entry => entry.Package)
             .ToArray();
 
+        if (!await ConfirmTorrentTransportAsync(missingPackages))
+        {
+            FreshInstallStatus = "Download canceled. Use Import package to provide the required archives manually.";
+            AppendLog("Fresh install package download canceled before BitTorrent networking started.");
+            return;
+        }
+
         OperationPanelVisible = true;
         OperationLog = "";
         OperationElapsed = "00:00s";
@@ -1780,8 +1800,9 @@ public partial class MainWindowViewModel : ViewModelBase
             isActive: () => reviewProgressActive);
         try
         {
-            foreach (var package in missingPackages)
+            for (var packageIndex = 0; packageIndex < missingPackages.Length; packageIndex++)
             {
+                var package = missingPackages[packageIndex];
                 cancellationToken.ThrowIfCancellationRequested();
                 OperationProgressText = $"20% - Downloading {package.FileName}";
                 AppendLog($"Fresh install: downloading {package.FileName}.");
@@ -1790,12 +1811,13 @@ public partial class MainWindowViewModel : ViewModelBase
                     await _aircraftUpdatePackageCache.DownloadAsync(
                         package,
                         _aircraftUpdateHttpClient,
-                        cancellationToken);
+                        cancellationToken,
+                        CreateAircraftPackageDownloadProgress(package, packageIndex, missingPackages.Length));
                 }
                 catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidDataException or InvalidOperationException)
                 {
                     FreshInstallStatus = string.Equals(product.ProductId, AircraftProductIds.Zibo737Ng, StringComparison.Ordinal)
-                        ? "The Zibo feed currently exposes torrent links rather than directly downloadable ZIP archives. Obtain the required packages and use Import package."
+                        ? $"The official Zibo package could not be downloaded from peers. Retry later or use Import package. {ex.Message}"
                         : $"Package download failed. Use Import package as an offline fallback. {ex.Message}";
                     OperationStatus = "Package required";
                     OperationTitle = "Automatic download unavailable";
@@ -4730,6 +4752,53 @@ public partial class MainWindowViewModel : ViewModelBase
                 ? $"{percent}% - Opening package {progress.PackageIndex}/{progress.PackageCount}: {progress.PackageFileName}"
                 : $"{percent}% - Verifying package {progress.PackageIndex}/{progress.PackageCount}, file {progress.ProcessedFileCount}/{progress.TotalFileCount}: {currentFile}";
         });
+
+    private IProgress<AircraftPackageDownloadProgress> CreateAircraftPackageDownloadProgress(
+        AircraftUpdatePackage package,
+        int packageIndex,
+        int packageCount) =>
+        new Progress<AircraftPackageDownloadProgress>(progress =>
+        {
+            var count = Math.Max(packageCount, 1);
+            var fraction = Math.Clamp((packageIndex + (progress.Percentage / 100d)) / count, 0d, 1d);
+            var percent = 10 + (int)Math.Round(30 * fraction);
+            var rate = progress.DownloadRateBytesPerSecond <= 0
+                ? ""
+                : $", {progress.DownloadRateBytesPerSecond / (1024d * 1024d):F1} MB/s";
+            var peers = string.Equals(progress.Transport, "BitTorrent", StringComparison.Ordinal)
+                ? $", {progress.ConnectedPeers} peer(s)"
+                : "";
+
+            OperationProgress = percent;
+            OperationStatus = $"{progress.Transport} download";
+            OperationProgressText = $"{percent}% - {progress.Status}: {package.FileName}{peers}{rate}";
+        });
+
+    private async Task<bool> ConfirmTorrentTransportAsync(IEnumerable<AircraftUpdatePackage> packages)
+    {
+        var torrentPackages = packages
+            .Where(package => package.SourceUrl?.EndsWith(".torrent", StringComparison.OrdinalIgnoreCase) == true)
+            .ToArray();
+        if (torrentPackages.Length == 0)
+        {
+            return true;
+        }
+
+        return await _userInteractionService.ConfirmAsync(new ConfirmationRequest(
+            "Download official Zibo package(s) using BitTorrent?",
+            string.Join(
+                Environment.NewLine,
+                [
+                    $"Package(s): {string.Join(", ", torrentPackages.Select(package => package.FileName))}",
+                    "",
+                    "The official Zibo feed distributes these files through BitTorrent. If no direct ZIP is available, the Toolkit connects to peers and may upload package pieces while downloading.",
+                    "Your public IP address can be visible to BitTorrent peers. Downloaded data is verified by torrent piece hashes and then validated as an aircraft archive.",
+                    "",
+                    "Choose Cancel to obtain the exact ZIP package(s) separately and use Import package instead."
+                ]),
+            "Use BitTorrent",
+            "Cancel"));
+    }
 
     [RelayCommand]
     private void CancelOperation()
