@@ -910,7 +910,7 @@ public partial class MainWindowViewModel : ViewModelBase
             OperationSubtitle = "No aircraft files were changed.";
             OperationProgressText = "0% - Download canceled before aircraft update review";
         }
-        catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidOperationException)
+        catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidDataException or InvalidOperationException)
         {
             RefreshUpstreamActionAvailability($"Download failed. Import the exact package manually if the source does not expose a direct archive URL. {ex.Message}");
             UpstreamFindings.ReplaceWith([
@@ -918,7 +918,26 @@ public partial class MainWindowViewModel : ViewModelBase
                 "The source may expose torrent links or a cloud-drive flow instead of direct archive downloads.",
                 ex.Message
             ]);
+            OperationProgress = 0;
+            OperationStatus = "Download unavailable";
+            OperationTitle = "Manual package import required";
+            OperationSubtitle = "The update source did not provide a usable direct aircraft archive.";
+            OperationProgressText = "0% - No aircraft files were changed";
             AppendLog($"Aircraft package download failed: {ex.Message}");
+        }
+        catch (Exception ex)
+        {
+            RefreshUpstreamActionAvailability("Download failed safely. Import the exact package manually or review the diagnostic log.");
+            UpstreamFindings.ReplaceWith([
+                "Aircraft package download failed safely before any aircraft files were changed.",
+                ex.Message
+            ]);
+            OperationProgress = 0;
+            OperationStatus = "Download failed";
+            OperationTitle = "Aircraft package download stopped";
+            OperationSubtitle = "The downloaded content could not be accepted as an aircraft package.";
+            OperationProgressText = "0% - No aircraft files were changed";
+            AppendLog($"Aircraft package download failed safely ({ex.GetType().Name}): {ex.Message}");
         }
         finally
         {
@@ -1754,6 +1773,11 @@ public partial class MainWindowViewModel : ViewModelBase
         var cancellationToken = BeginCancellableOperation();
         MaintenanceOperationResult? result = null;
         var scanInstalledTarget = false;
+        var reviewProgressActive = true;
+        var reviewProgress = CreateAircraftReviewProgress(
+            minimumPercent: 45,
+            maximumPercent: 55,
+            isActive: () => reviewProgressActive);
         try
         {
             foreach (var package in missingPackages)
@@ -1802,8 +1826,10 @@ public partial class MainWindowViewModel : ViewModelBase
                     cacheEntries,
                     cancellationToken,
                     managedComponentPaths: null,
-                    allowMissingAircraftFolder: true),
+                    allowMissingAircraftFolder: true,
+                    progress: reviewProgress),
                 cancellationToken);
+            reviewProgressActive = false;
             if (!_lastFreshInstallDryRun.Succeeded)
             {
                 FreshInstallStatus = _lastFreshInstallDryRun.Summary;
@@ -1887,6 +1913,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
         catch (OperationCanceledException)
         {
+            reviewProgressActive = false;
             FreshInstallStatus = "Installation canceled before the write phase. No aircraft files were changed.";
             OperationStatus = "Canceled";
             OperationTitle = "Fresh installation canceled";
@@ -1895,8 +1922,21 @@ public partial class MainWindowViewModel : ViewModelBase
             OperationProgressText = "0% - Canceled before staging and activation";
             AppendLog("Fresh installation canceled before any aircraft files were changed.");
         }
+        catch (Exception ex)
+        {
+            reviewProgressActive = false;
+            FreshInstallStatus = "Installation stopped safely. Review the Advanced log before retrying.";
+            OperationStatus = "Installation failed";
+            OperationTitle = "Fresh installation stopped";
+            OperationSubtitle = FreshInstallStatus;
+            OperationProgress = 0;
+            OperationProgressText = "0% - Installation did not complete";
+            AppendOperationLog($"[FAILED] {ex.GetType().Name}: {ex.Message}");
+            AppendLog($"Fresh installation failed safely ({ex.GetType().Name}): {ex.Message}");
+        }
         finally
         {
+            reviewProgressActive = false;
             StopOperationElapsedTimer();
             EndCancellableOperation();
             OperationElapsed = FormatElapsed(stopwatch.Elapsed);
@@ -2188,6 +2228,11 @@ public partial class MainWindowViewModel : ViewModelBase
         ActionsEnabled = false;
         var stopwatch = StartOperationElapsedTimer();
         var cancellationToken = BeginCancellableOperation();
+        var reviewProgressActive = true;
+        var reviewProgress = CreateAircraftReviewProgress(
+            minimumPercent: 15,
+            maximumPercent: 90,
+            isActive: () => reviewProgressActive);
         try
         {
             var result = await Task.Run(
@@ -2201,9 +2246,11 @@ public partial class MainWindowViewModel : ViewModelBase
                         aircraftFolder,
                         cacheEntries,
                         cancellationToken,
-                        preservedPaths);
+                        preservedPaths,
+                        progress: reviewProgress);
                 },
                 cancellationToken);
+            reviewProgressActive = false;
             _lastAircraftUpdateDryRun = result;
             UpstreamDryRunSummary = result.Summary;
             const int visibleEntryLimit = 500;
@@ -2230,6 +2277,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
         catch (OperationCanceledException)
         {
+            reviewProgressActive = false;
             UpstreamDryRunSummary = "Aircraft update review was canceled. No aircraft files were changed.";
             UpstreamFindings.ReplaceWith(["Review canceled before any aircraft files were changed."]);
             OperationElapsed = FormatElapsed(stopwatch.Elapsed);
@@ -2244,6 +2292,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
         catch (InvalidDataException ex)
         {
+            reviewProgressActive = false;
             UpstreamDryRunSummary = "Aircraft update review was blocked by an installed aircraft component.";
             UpstreamFindings.ReplaceWith([ex.Message]);
             OperationElapsed = FormatElapsed(stopwatch.Elapsed);
@@ -2256,8 +2305,24 @@ public partial class MainWindowViewModel : ViewModelBase
             AppendLog($"Aircraft package review blocked: {ex.Message}");
             return null;
         }
+        catch (Exception ex)
+        {
+            reviewProgressActive = false;
+            UpstreamDryRunSummary = "Aircraft update review stopped safely. No aircraft files were changed.";
+            UpstreamFindings.ReplaceWith([ex.Message]);
+            OperationElapsed = FormatElapsed(stopwatch.Elapsed);
+            OperationProgress = 0;
+            OperationStatus = "Review failed";
+            OperationTitle = "Aircraft update review stopped";
+            OperationSubtitle = "The package could not be reviewed safely. See the Advanced log.";
+            OperationProgressText = "0% - No aircraft files were changed";
+            RefreshUpstreamActionAvailability("Review failed safely. Import a verified package or review the diagnostic log.");
+            AppendLog($"Aircraft package review failed safely ({ex.GetType().Name}): {ex.Message}");
+            return null;
+        }
         finally
         {
+            reviewProgressActive = false;
             StopOperationElapsedTimer();
             EndCancellableOperation();
             IsOperationRunning = false;
@@ -4635,6 +4700,36 @@ public partial class MainWindowViewModel : ViewModelBase
         RefreshResourcePackageOverview();
         RefreshFreshInstallContext();
     }
+
+    private IProgress<AircraftUpdateDryRunProgress> CreateAircraftReviewProgress(
+        int minimumPercent,
+        int maximumPercent,
+        Func<bool> isActive) =>
+        new Progress<AircraftUpdateDryRunProgress>(progress =>
+        {
+            if (!isActive())
+            {
+                return;
+            }
+
+            var packageCount = Math.Max(progress.PackageCount, 1);
+            var fileFraction = progress.TotalFileCount == 0
+                ? 0d
+                : Math.Clamp((double)progress.ProcessedFileCount / progress.TotalFileCount, 0d, 1d);
+            var overallFraction = Math.Clamp(
+                ((progress.PackageIndex - 1) + fileFraction) / packageCount,
+                0d,
+                1d);
+            var percent = minimumPercent + (int)Math.Round((maximumPercent - minimumPercent) * overallFraction);
+            var currentFile = string.IsNullOrWhiteSpace(progress.CurrentPath)
+                ? "opening archive"
+                : Path.GetFileName(progress.CurrentPath.Replace('\\', '/'));
+
+            OperationProgress = percent;
+            OperationProgressText = progress.TotalFileCount == 0
+                ? $"{percent}% - Opening package {progress.PackageIndex}/{progress.PackageCount}: {progress.PackageFileName}"
+                : $"{percent}% - Verifying package {progress.PackageIndex}/{progress.PackageCount}, file {progress.ProcessedFileCount}/{progress.TotalFileCount}: {currentFile}";
+        });
 
     [RelayCommand]
     private void CancelOperation()

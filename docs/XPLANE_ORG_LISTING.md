@@ -10,7 +10,7 @@ X-Plane 737NG Maintenance Toolkit
 
 ## Current Version
 
-0.8.0
+0.8.1
 
 ## Short Description
 
@@ -48,7 +48,7 @@ Current functions include:
 - explicit optional LevelUp FANS CDU patch management
 - verified LevelUp Paintkit download and extraction into a user-selected folder
 
-Version 0.8.0 currently offers:
+Version 0.8.1 currently offers:
 
 - Optimized XLua 1.3.7r3
 - Yet Another Linda (YAL)
@@ -113,7 +113,7 @@ Verify the download against `SHA256SUMS.txt` on the release page. If a verified 
 
 https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac
 
-Version 0.8.0 does not automatically check for or install newer Toolkit versions. Download future app releases manually from the GitHub release page.
+Version 0.8.1 does not automatically check for or install newer Toolkit versions. Download future app releases manually from the GitHub release page.
 
 ## First Use
 
@@ -146,6 +146,15 @@ When reporting a problem, use `Dump to file` on the Advanced tab and attach the 
 The Toolkit source code is available under the MIT License. The application is provided as-is, without warranty of any kind. It can modify aircraft files after validation and backup; users should retain their own backups and use the tool at their own risk.
 
 ## Changelog
+
+### 0.8.1
+
+- Prevented torrent metadata, HTML responses and unsupported content from being
+  parsed as aircraft package archives.
+- Added safe download and archive error handling so invalid upstream content
+  cannot terminate the Toolkit process.
+- Added per-package and per-file progress while aircraft packages are reviewed
+  and verified.
 
 ### 0.8.0
 

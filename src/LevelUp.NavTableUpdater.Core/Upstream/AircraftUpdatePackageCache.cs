@@ -185,6 +185,7 @@ public sealed class AircraftUpdatePackageCache
                 using var response = await httpClient.GetAsync(candidate, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
                     .ConfigureAwait(false);
                 response.EnsureSuccessStatusCode();
+                ValidateResponseContentType(response, candidate);
                 await using (var input = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false))
                 await using (var output = File.Create(tempPath))
                 {
@@ -274,9 +275,22 @@ public sealed class AircraftUpdatePackageCache
         if (sourceUrl.EndsWith(".torrent", StringComparison.OrdinalIgnoreCase))
         {
             yield return sourceUrl[..^".torrent".Length];
+            yield break;
         }
 
         yield return sourceUrl;
+    }
+
+    private static void ValidateResponseContentType(HttpResponseMessage response, string sourceUrl)
+    {
+        var mediaType = response.Content.Headers.ContentType?.MediaType;
+        if (string.Equals(mediaType, "application/x-bittorrent", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(mediaType, "text/html", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(mediaType, "application/xhtml+xml", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException(
+                $"Download did not return an aircraft archive ({mediaType ?? "unknown content type"}): {sourceUrl}");
+        }
     }
 
     private static void ValidateReadableArchive(string path, CancellationToken cancellationToken = default)

@@ -10,7 +10,8 @@ public sealed class AircraftUpdateDryRunAnalyzer
         IEnumerable<AircraftUpdatePackageCacheEntry> cachedPackages,
         CancellationToken cancellationToken = default,
         IReadOnlySet<string>? managedComponentPaths = null,
-        bool allowMissingAircraftFolder = false)
+        bool allowMissingAircraftFolder = false,
+        IProgress<AircraftUpdateDryRunProgress>? progress = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(aircraftFolder);
         ArgumentNullException.ThrowIfNull(cachedPackages);
@@ -44,8 +45,9 @@ public sealed class AircraftUpdateDryRunAnalyzer
         }
 
         var packageEntries = cachedPackages.ToArray();
-        foreach (var cachedPackage in packageEntries)
+        for (var packageIndex = 0; packageIndex < packageEntries.Length; packageIndex++)
         {
+            var cachedPackage = packageEntries[packageIndex];
             cancellationToken.ThrowIfCancellationRequested();
             if (!cachedPackage.IsCached || !File.Exists(cachedPackage.CachePath))
             {
@@ -59,7 +61,17 @@ public sealed class AircraftUpdateDryRunAnalyzer
                 continue;
             }
 
-            AnalyzePackage(targetRoot, cachedPackage, entries, findings, packageLiveryRoots, managedPaths, cancellationToken);
+            AnalyzePackage(
+                targetRoot,
+                cachedPackage,
+                entries,
+                findings,
+                packageLiveryRoots,
+                managedPaths,
+                packageIndex,
+                packageEntries.Length,
+                progress,
+                cancellationToken);
         }
 
         if (packageEntries.Any(entry => entry.Package.Kind == AircraftUpdatePackageKind.FullBaseline)
@@ -94,6 +106,9 @@ public sealed class AircraftUpdateDryRunAnalyzer
         ICollection<string> findings,
         ISet<string> packageLiveryRoots,
         IReadOnlySet<string> managedComponentPaths,
+        int packageIndex,
+        int packageCount,
+        IProgress<AircraftUpdateDryRunProgress>? progress,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -102,14 +117,36 @@ public sealed class AircraftUpdateDryRunAnalyzer
             using var archive = AircraftPackageArchive.Open(cachedPackage.CachePath);
             var fileEntries = archive.Entries.Where(entry => !entry.IsDirectory).ToArray();
             findings.Add($"Opened {cachedPackage.Package.FileName}: {fileEntries.Length} archive file entr{(fileEntries.Length == 1 ? "y" : "ies")}.");
+            ReportProgress(progress, cachedPackage.Package.FileName, packageIndex, packageCount, 0, fileEntries.Length, null);
 
             if (cachedPackage.Package.Manifest is null)
             {
-                AnalyzeLegacyArchive(targetRoot, cachedPackage.Package, fileEntries, entries, packageLiveryRoots, managedComponentPaths, cancellationToken);
+                AnalyzeLegacyArchive(
+                    targetRoot,
+                    cachedPackage.Package,
+                    fileEntries,
+                    entries,
+                    packageLiveryRoots,
+                    managedComponentPaths,
+                    packageIndex,
+                    packageCount,
+                    progress,
+                    cancellationToken);
                 return;
             }
 
-            AnalyzeManifestArchive(targetRoot, cachedPackage.Package, fileEntries, entries, findings, packageLiveryRoots, managedComponentPaths, cancellationToken);
+            AnalyzeManifestArchive(
+                targetRoot,
+                cachedPackage.Package,
+                fileEntries,
+                entries,
+                findings,
+                packageLiveryRoots,
+                managedComponentPaths,
+                packageIndex,
+                packageCount,
+                progress,
+                cancellationToken);
         }
         catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException)
         {
@@ -130,14 +167,26 @@ public sealed class AircraftUpdateDryRunAnalyzer
         ICollection<AircraftUpdateDryRunEntry> entries,
         ISet<string> packageLiveryRoots,
         IReadOnlySet<string> managedComponentPaths,
+        int packageIndex,
+        int packageCount,
+        IProgress<AircraftUpdateDryRunProgress>? progress,
         CancellationToken cancellationToken)
     {
         var contentRoot = AircraftUpdatePath.DetectContentRoot(package, archiveEntries);
-        foreach (var archiveEntry in archiveEntries)
+        for (var entryIndex = 0; entryIndex < archiveEntries.Count; entryIndex++)
         {
+            var archiveEntry = archiveEntries[entryIndex];
             cancellationToken.ThrowIfCancellationRequested();
             var normalizedPath = AircraftUpdatePath.MapArchivePath(archiveEntry.Path, contentRoot);
             AnalyzeWriteEntry(targetRoot, package.FileName, archiveEntry.Path, normalizedPath, archiveEntry.Size, entries, packageLiveryRoots, managedComponentPaths);
+            ReportProgress(
+                progress,
+                package.FileName,
+                packageIndex,
+                packageCount,
+                entryIndex + 1,
+                archiveEntries.Count,
+                archiveEntry.Path);
         }
     }
 
@@ -149,6 +198,9 @@ public sealed class AircraftUpdateDryRunAnalyzer
         ICollection<string> findings,
         ISet<string> packageLiveryRoots,
         IReadOnlySet<string> managedComponentPaths,
+        int packageIndex,
+        int packageCount,
+        IProgress<AircraftUpdateDryRunProgress>? progress,
         CancellationToken cancellationToken)
     {
         var manifest = package.Manifest!;
@@ -156,9 +208,19 @@ public sealed class AircraftUpdateDryRunAnalyzer
         var seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var verified = 0;
 
-        foreach (var archiveEntry in archiveEntries)
+        var entriesToVerify = archiveEntries.ToArray();
+        for (var entryIndex = 0; entryIndex < entriesToVerify.Length; entryIndex++)
         {
+            var archiveEntry = entriesToVerify[entryIndex];
             cancellationToken.ThrowIfCancellationRequested();
+            ReportProgress(
+                progress,
+                package.FileName,
+                packageIndex,
+                packageCount,
+                entryIndex + 1,
+                entriesToVerify.Length,
+                archiveEntry.Path);
             var relativePath = AircraftUpdatePath.MapArchivePath(archiveEntry.Path, manifest.ContentRoot);
             if (relativePath is null)
             {
@@ -229,6 +291,22 @@ public sealed class AircraftUpdateDryRunAnalyzer
         findings.Add($"Verified {verified} archive payload file(s) against manifest size and SHA-256.");
         findings.Add($"Manifest declares {manifest.DeletedPaths.Count} deletion(s).");
     }
+
+    private static void ReportProgress(
+        IProgress<AircraftUpdateDryRunProgress>? progress,
+        string packageFileName,
+        int packageIndex,
+        int packageCount,
+        int processedFileCount,
+        int totalFileCount,
+        string? currentPath) =>
+        progress?.Report(new AircraftUpdateDryRunProgress(
+            packageFileName,
+            packageIndex + 1,
+            packageCount,
+            processedFileCount,
+            totalFileCount,
+            currentPath));
 
     private static void AnalyzeWriteEntry(
         string targetRoot,

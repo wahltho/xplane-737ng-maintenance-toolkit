@@ -370,6 +370,101 @@ public sealed class ZiboUpstreamUpdateTests
     }
 
     [Fact]
+    public async Task Cache_DownloadAsync_WhenDirectZipIsMissing_DoesNotDownloadTorrentAsArchive()
+    {
+        using var fixture = AircraftUpdateFixture.Create();
+        var package = BuildPatchPackage();
+        var handler = new FakePackageDownloadHandler(_ => new HttpResponseMessage(HttpStatusCode.NotFound));
+        using var client = new HttpClient(handler);
+        var cache = new AircraftUpdatePackageCache(Path.Combine(fixture.Path, "cache"));
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => cache.DownloadAsync(package, client));
+
+        Assert.Contains("could not be downloaded and validated", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(["https://skymatixva.com/tfiles/B738X_XP12_4_05_35.zip"], handler.RequestedUrls);
+        Assert.False(File.Exists(cache.GetPackagePath(package)));
+    }
+
+    [Fact]
+    public async Task Cache_DownloadAsync_WhenDirectZipReturnsTorrentContent_FailsSafely()
+    {
+        using var fixture = AircraftUpdateFixture.Create();
+        var package = BuildPatchPackage();
+        var handler = new FakePackageDownloadHandler(_ =>
+        {
+            var content = new ByteArrayContent("d8:announce36:udp://tracker.invalid/announcee"u8.ToArray());
+            content.Headers.ContentType = new("application/x-bittorrent");
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = content };
+        });
+        using var client = new HttpClient(handler);
+        var cache = new AircraftUpdatePackageCache(Path.Combine(fixture.Path, "cache"));
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => cache.DownloadAsync(package, client));
+
+        Assert.Contains("application/x-bittorrent", exception.Message, StringComparison.Ordinal);
+        Assert.False(File.Exists(cache.GetPackagePath(package)));
+    }
+
+    [Fact]
+    public async Task Cache_DownloadAsync_WhenDirectZipReturnsHtml_FailsSafely()
+    {
+        using var fixture = AircraftUpdateFixture.Create();
+        var package = BuildPatchPackage();
+        var handler = new FakePackageDownloadHandler(_ =>
+        {
+            var content = new StringContent("<html><body>Not an archive</body></html>");
+            content.Headers.ContentType = new("text/html");
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = content };
+        });
+        using var client = new HttpClient(handler);
+        var cache = new AircraftUpdatePackageCache(Path.Combine(fixture.Path, "cache"));
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => cache.DownloadAsync(package, client));
+
+        Assert.Contains("text/html", exception.Message, StringComparison.Ordinal);
+        Assert.False(File.Exists(cache.GetPackagePath(package)));
+    }
+
+    [Fact]
+    public void Cache_ImportZip_WhenArchiveHasMalformedZipSignature_ThrowsInvalidDataException()
+    {
+        using var fixture = AircraftUpdateFixture.Create();
+        var package = BuildPatchPackage();
+        var sourcePath = Path.Combine(fixture.Path, package.FileName);
+        File.WriteAllBytes(sourcePath, [0x50, 0x4B, 0x03, 0x04, 0x00, 0x01, 0x02]);
+        var cache = new AircraftUpdatePackageCache(Path.Combine(fixture.Path, "cache"));
+
+        var exception = Assert.Throws<InvalidDataException>(() => cache.ImportZip(sourcePath, package));
+
+        Assert.Contains("Unsupported or unreadable aircraft package archive", exception.Message, StringComparison.Ordinal);
+        Assert.False(File.Exists(cache.GetPackagePath(package)));
+    }
+
+    [Fact]
+    public void DryRun_ReportsPerFileArchiveVerificationProgress()
+    {
+        using var fixture = AircraftUpdateFixture.Create();
+        var package = BuildPatchPackage();
+        var zipPath = Path.Combine(fixture.Path, package.FileName);
+        CreateZip(zipPath, ("one.txt", "1"), ("two.txt", "2"), ("three.txt", "3"));
+        var cache = new AircraftUpdatePackageCache(Path.Combine(fixture.Path, "cache"));
+        var cachedPackage = cache.ImportZip(zipPath, package);
+        var progress = new CollectingProgress<AircraftUpdateDryRunProgress>();
+
+        var result = new AircraftUpdateDryRunAnalyzer().Analyze(
+            fixture.AircraftPath,
+            [cachedPackage],
+            progress: progress);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(4, progress.Values.Count);
+        Assert.Equal(0, progress.Values[0].ProcessedFileCount);
+        Assert.Equal(3, progress.Values[0].TotalFileCount);
+        Assert.Equal(3, progress.Values[^1].ProcessedFileCount);
+        Assert.Equal("three.txt", progress.Values[^1].CurrentPath);
+    }
+
+    [Fact]
     public void DryRun_ReadsZipEntriesProtectsLocalFilesAndBlocksUnsafePaths()
     {
         using var fixture = AircraftUpdateFixture.Create();
@@ -883,6 +978,13 @@ public sealed class ZiboUpstreamUpdateTests
             RequestedUrls.Add(request.RequestUri?.AbsoluteUri ?? "");
             return Task.FromResult(respond(request));
         }
+    }
+
+    private sealed class CollectingProgress<T> : IProgress<T>
+    {
+        public List<T> Values { get; } = [];
+
+        public void Report(T value) => Values.Add(value);
     }
 
     private sealed class AircraftUpdateFixture : IDisposable

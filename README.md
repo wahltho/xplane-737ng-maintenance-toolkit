@@ -7,7 +7,7 @@ tools and conservative view maintenance for supported aircraft variants.
 This repository is the public development home for the app. The architecture
 keeps package content, aircraft patching, and application updates separate.
 
-Release version: **0.8.0**
+Release version: **0.8.1**
 
 - [Download the latest stable release](https://github.com/wahltho/xplane-737ng-maintenance-toolkit/releases/latest)
 - [Read the user manual](docs/USER_MANUAL.md)
@@ -57,7 +57,7 @@ verified macOS download is blocked, follow Apple's documented
 [Privacy & Security "Open Anyway" process](https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac).
 
 Download future app releases manually from GitHub. VeloPack currently provides
-the application package and lifecycle integration; version 0.8.0 does not yet
+the application package and lifecycle integration; version 0.8.1 does not yet
 check for or download new Toolkit versions automatically. Aircraft and VNAV
 content updates are separate and can be checked from inside the app.
 

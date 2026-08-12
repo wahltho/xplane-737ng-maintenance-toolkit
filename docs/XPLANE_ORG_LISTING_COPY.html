@@ -29,7 +29,7 @@
   <p>X-Plane 737NG Maintenance Toolkit</p>
 
   <h2>Current Version</h2>
-  <p>0.8.0</p>
+  <p>0.8.1</p>
 
   <h2>Short Description</h2>
   <p>Cross-platform maintenance utility for supported Zibo and LevelUp 737NG aircraft in X-Plane 12, providing aircraft and VNAV updates, transactional backups, CG/view correction, optional patches, tools and resources.</p>
@@ -60,7 +60,7 @@
     <li>explicit optional LevelUp FANS CDU patch management</li>
     <li>verified LevelUp Paintkit download and extraction into a user-selected folder</li>
   </ul>
-  <p>Version 0.8.0 currently offers:</p>
+  <p>Version 0.8.1 currently offers:</p>
   <ul>
     <li>Optimized XLua 1.3.7r3</li>
     <li>Yet Another Linda (YAL)</li>
@@ -114,7 +114,7 @@
   <p>The current builds are unsigned. Windows may display a SmartScreen warning, macOS may block the unsigned and non-notarized build, and the Linux AppImage is not separately signed.</p>
   <p>Verify the download against <code>SHA256SUMS.txt</code> on the release page. If a verified macOS download is blocked, try to open it once, then use Apple's documented Privacy &amp; Security "Open Anyway" process:</p>
   <p><a href="https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac">https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac</a></p>
-  <p>Version 0.8.0 does not automatically check for or install newer Toolkit versions. Download future app releases manually from the GitHub release page.</p>
+  <p>Version 0.8.1 does not automatically check for or install newer Toolkit versions. Download future app releases manually from the GitHub release page.</p>
 
   <h2>First Use</h2>
   <ol>
@@ -140,6 +140,12 @@
   <p>The Toolkit source code is available under the MIT License. The application is provided as-is, without warranty of any kind. It can modify aircraft files after validation and backup; users should retain their own backups and use the tool at their own risk.</p>
 
   <h2>Changelog</h2>
+  <h3>0.8.1</h3>
+  <ul>
+    <li>Prevented torrent metadata, HTML responses and unsupported content from being parsed as aircraft package archives.</li>
+    <li>Added safe download and archive error handling so invalid upstream content cannot terminate the Toolkit process.</li>
+    <li>Added per-package and per-file progress while aircraft packages are reviewed and verified.</li>
+  </ul>
   <h3>0.8.0</h3>
   <ul>
     <li>Added complete fresh-aircraft installation for Zibo 737-800X and LevelUp 737NG Series into an unused X-Plane 12 Aircraft subfolder.</li>
