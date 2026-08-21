@@ -10,7 +10,7 @@ X-Plane 737NG Maintenance Toolkit
 
 ## Current Version
 
-0.11.0
+0.11.1
 
 ## Short Description
 
@@ -36,8 +36,8 @@ Current functions include:
 - Quick View correction after an aircraft CG change
 - optional correction of a matching X-Camera file
 - use of Quick View 0 as the aircraft default viewpoint
-- CG-corrected Quick View and Default Viewpoint transfer across all variants in
-  one detected LevelUp installation
+- CG-corrected Quick View transfer across all variants in one detected LevelUp
+  installation, with a separate choice to retain or replace Default Viewpoints
 - configuration backup and restore
 - cancellable download and review before a write transaction begins
 - detailed Advanced log and diagnostic export for support requests
@@ -53,7 +53,7 @@ Current functions include:
 - background Toolkit application update checks with cancellable verified
   download and confirmed restart through VeloPack
 
-Version 0.11.0 currently offers:
+Version 0.11.1 currently offers:
 
 - Optimized XLua 1.3.7r3
 - Yet Another Linda (YAL)
@@ -154,6 +154,12 @@ When reporting a problem, use `Dump to file` on the Advanced tab and attach the 
 The Toolkit source code is available under the MIT License. The application is provided as-is, without warranty of any kind. It can modify aircraft files after validation and backup; users should retain their own backups and use the tool at their own risk.
 
 ## Changelog
+
+### 0.11.1
+
+- Added a separate confirmation when copying views across the LevelUp fleet so
+  users can retain existing Default Viewpoints instead of deriving them from
+  transferred Quick View 0 positions.
 
 ### 0.11.0
 

@@ -23,11 +23,14 @@ public sealed class LevelUpFleetViewTransferOperation
 
     public MaintenanceOperationResult Apply(
         AircraftVariantViewAnalysis source,
-        IReadOnlyList<AircraftVariantViewAnalysis> detectedVariants)
+        IReadOnlyList<AircraftVariantViewAnalysis> detectedVariants,
+        bool setDefaultViewFromQuickView0)
     {
         var log = new List<string>
         {
-            $"[START] Copy Quick Views and Default Viewpoint from {source.DisplayName} to the LevelUp fleet."
+            setDefaultViewFromQuickView0
+                ? $"[START] Copy Quick Views and Default Viewpoint from {source.DisplayName} to the LevelUp fleet."
+                : $"[START] Copy Quick Views from {source.DisplayName} to the LevelUp fleet; retain existing Default Viewpoints."
         };
 
         if (_isXPlaneRunning())
@@ -70,7 +73,7 @@ public sealed class LevelUpFleetViewTransferOperation
 
         foreach (var target in targets)
         {
-            ValidateTarget(target);
+            ValidateTarget(target, setDefaultViewFromQuickView0);
             var targetMetadata = AircraftFileParser.ReadAcfMetadata(target.AcfPath);
             var deltaYFeet = targetMetadata.Cg!.YFeet - sourceMetadata.Cg!.YFeet;
             var deltaZFeet = targetMetadata.Cg.ZFeet - sourceMetadata.Cg.ZFeet;
@@ -79,9 +82,14 @@ public sealed class LevelUpFleetViewTransferOperation
                 target.PrefsPath,
                 deltaYFeet * FeetToMeters,
                 deltaZFeet * FeetToMeters);
-            AcfDefaultViewTransaction.Validate(target.AcfPath);
-            var defaultView = AircraftFileParser.CalculateDefaultViewFromQuickView(targetMetadata.Cg, prefsPlan.QuickView0);
-            var defaultViewChanged = !DefaultViewMatches(targetMetadata.DefaultView!, defaultView);
+            DefaultView? defaultView = null;
+            var defaultViewChanged = false;
+            if (setDefaultViewFromQuickView0)
+            {
+                AcfDefaultViewTransaction.Validate(target.AcfPath);
+                defaultView = AircraftFileParser.CalculateDefaultViewFromQuickView(targetMetadata.Cg, prefsPlan.QuickView0);
+                defaultViewChanged = !DefaultViewMatches(targetMetadata.DefaultView!, defaultView);
+            }
 
             plans.Add(new TargetPlan(
                 target,
@@ -96,7 +104,9 @@ public sealed class LevelUpFleetViewTransferOperation
                 + $"CG delta Y {deltaYFeet:+0.000000;-0.000000;0.000000} ft, "
                 + $"Z {deltaZFeet:+0.000000;-0.000000;0.000000} ft; "
                 + $"prefs {(prefsPlan.Changed ? "replace" : "unchanged")}, "
-                + $"Default Viewpoint {(defaultViewChanged ? "replace" : "unchanged")}.");
+                + (setDefaultViewFromQuickView0
+                    ? $"Default Viewpoint {(defaultViewChanged ? "replace" : "unchanged")}."
+                    : "Default Viewpoint retained by user choice."));
         }
 
         var changedPlans = plans.Where(plan => plan.PrefsPlan.Changed || plan.DefaultViewChanged).ToArray();
@@ -142,7 +152,7 @@ public sealed class LevelUpFleetViewTransferOperation
                 if (plan.DefaultViewChanged)
                 {
                     var backupPath = _stateStore.CreateBackupPath(plan.Variant, plan.Variant.AcfPath, createdUtc);
-                    AcfDefaultViewTransaction.Apply(plan.Variant.AcfPath, plan.DefaultView, backupPath);
+                    AcfDefaultViewTransaction.Apply(plan.Variant.AcfPath, plan.DefaultView!, backupPath);
                     appliedFiles.Add((plan.Variant.AcfPath, backupPath));
                     records.Add(BuildBackupRecord(
                         "TransferLevelUpFleetDefaultView",
@@ -164,9 +174,13 @@ public sealed class LevelUpFleetViewTransferOperation
                 state.LastQuickViewPrefsSha256 = QuickViewBaselineFiles.ComputeSha256IfExists(variant.PrefsPath);
                 state.LastQuickViewXCameraSha256 = QuickViewBaselineFiles.ComputeSha256IfExists(QuickViewBaselineFiles.GetXCameraPath(variant));
                 state.LastQuickViewAppliedUtc = createdUtc;
-                state.LastDefaultViewCgYFeet = plan.Cg.YFeet;
-                state.LastDefaultViewCgZFeet = plan.Cg.ZFeet;
-                state.LastDefaultViewAppliedUtc = createdUtc;
+                if (setDefaultViewFromQuickView0)
+                {
+                    state.LastDefaultViewCgYFeet = plan.Cg.YFeet;
+                    state.LastDefaultViewCgZFeet = plan.Cg.ZFeet;
+                    state.LastDefaultViewAppliedUtc = createdUtc;
+                }
+
                 state.LastOperation = "TransferLevelUpFleetViews";
                 state.Backups.AddRange(recordsByAircraft[NormalizePath(variant.AcfPath)]);
             });
@@ -179,7 +193,9 @@ public sealed class LevelUpFleetViewTransferOperation
 
         log.Add($"[OK] LevelUp fleet view transfer completed for {changedPlans.Length} variant(s).");
         return MaintenanceOperationResult.Applied(
-            $"Quick Views and Default Viewpoints were copied from {source.DisplayName} to {changedPlans.Length} other LevelUp variant(s).",
+            setDefaultViewFromQuickView0
+                ? $"Quick Views and Default Viewpoints were copied from {source.DisplayName} to {changedPlans.Length} other LevelUp variant(s)."
+                : $"Quick Views were copied from {source.DisplayName} to {changedPlans.Length} other LevelUp variant(s). Existing Default Viewpoints were retained.",
             appliedFiles.Select(file => file.BackupPath).ToArray(),
             log);
     }
@@ -203,7 +219,9 @@ public sealed class LevelUpFleetViewTransferOperation
         }
     }
 
-    private static void ValidateTarget(AircraftVariantViewAnalysis target)
+    private static void ValidateTarget(
+        AircraftVariantViewAnalysis target,
+        bool requireDefaultView)
     {
         if (!File.Exists(target.AcfPath))
         {
@@ -216,9 +234,12 @@ public sealed class LevelUpFleetViewTransferOperation
         }
 
         var metadata = AircraftFileParser.ReadAcfMetadata(target.AcfPath);
-        if (metadata.Cg is null || metadata.DefaultView is null)
+        if (metadata.Cg is null || (requireDefaultView && metadata.DefaultView is null))
         {
-            throw new InvalidOperationException($"Target ACF CG or Default Viewpoint fields are incomplete for {target.DisplayName}.");
+            throw new InvalidOperationException(
+                requireDefaultView
+                    ? $"Target ACF CG or Default Viewpoint fields are incomplete for {target.DisplayName}."
+                    : $"Target ACF CG fields are incomplete for {target.DisplayName}.");
         }
     }
 
@@ -276,6 +297,6 @@ public sealed class LevelUpFleetViewTransferOperation
         double DeltaYFeet,
         double DeltaZFeet,
         QuickViewPrefsTransferPlan PrefsPlan,
-        DefaultView DefaultView,
+        DefaultView? DefaultView,
         bool DefaultViewChanged);
 }

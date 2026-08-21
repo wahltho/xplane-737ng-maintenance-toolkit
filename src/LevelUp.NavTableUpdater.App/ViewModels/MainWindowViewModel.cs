@@ -2886,8 +2886,7 @@ public partial class MainWindowViewModel : ViewModelBase
             new ConfirmationRequest(
                 "Copy views to other LevelUp variants?",
                 $"Source: {source.DisplayName}\n\nTargets:\n{targetNames}\n\n"
-                + "All Quick Views will be copied with CG correction. Each target Default Viewpoint will be set from the transferred Quick View 0. "
-                + "Every changed target file will be backed up before writing.",
+                + "All Quick Views will be copied with CG correction. Every changed target file will be backed up before writing.",
                 "Copy views"));
         if (!confirmed)
         {
@@ -2895,13 +2894,24 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
+        var setDefaultViewFromQuickView0 = await _userInteractionService.ConfirmAsync(
+            new ConfirmationRequest(
+                "Use transferred Quick View 0 as Default Viewpoint?",
+                "Choose whether each target aircraft's Default Viewpoint should be set from its transferred Quick View 0. "
+                + "Keeping the current defaults copies the Quick Views without changing any target ACF Default Viewpoint.",
+                "Use QV0",
+                "Keep current defaults"));
+
         var result = RunViewMaintenanceAction(
             "Copy views to LevelUp fleet",
             "Preparing LevelUp fleet view transaction",
             "LevelUp fleet views updated",
             "LevelUp fleet view transfer blocked",
             source,
-            () => _levelUpFleetViewTransferOperation.Apply(source, FilteredViewVariants.ToArray()),
+            () => _levelUpFleetViewTransferOperation.Apply(
+                source,
+                FilteredViewVariants.ToArray(),
+                setDefaultViewFromQuickView0),
             "LevelUp 737NG Series");
 
         await _userInteractionService.ShowMessageAsync(

@@ -13,7 +13,7 @@ public sealed class LevelUpFleetViewTransferOperationTests
         var operation = new LevelUpFleetViewTransferOperation(store, isXPlaneRunning: () => false);
         var sourceBefore = File.ReadAllBytes(fixture.Source.PrefsPath);
 
-        var result = operation.Apply(fixture.Source, fixture.Variants);
+        var result = operation.Apply(fixture.Source, fixture.Variants, setDefaultViewFromQuickView0: true);
 
         Assert.True(result.Succeeded);
         Assert.True(result.Changed);
@@ -49,14 +49,44 @@ public sealed class LevelUpFleetViewTransferOperationTests
     }
 
     [Fact]
+    public void Apply_WhenDefaultViewTransferIsDeclined_CopiesQuickViewsAndRetainsAcfDefaults()
+    {
+        using var fixture = FleetFixture.Create();
+        var store = TestToolStateStore.Create(fixture.Root);
+        var operation = new LevelUpFleetViewTransferOperation(store, isXPlaneRunning: () => false);
+        var shortAcfBefore = File.ReadAllBytes(fixture.ShortTarget.AcfPath);
+        var longAcfBefore = File.ReadAllBytes(fixture.LongTarget.AcfPath);
+
+        var result = operation.Apply(fixture.Source, fixture.Variants, setDefaultViewFromQuickView0: false);
+
+        Assert.True(result.Succeeded);
+        Assert.True(result.Changed);
+        Assert.Equal(2, result.BackupPaths.Count);
+        Assert.Equal(shortAcfBefore, File.ReadAllBytes(fixture.ShortTarget.AcfPath));
+        Assert.Equal(longAcfBefore, File.ReadAllBytes(fixture.LongTarget.AcfPath));
+        Assert.Contains("Existing Default Viewpoints were retained", result.Message, StringComparison.Ordinal);
+        Assert.Contains("_iql_pe_z_0 4.219200", File.ReadAllText(fixture.ShortTarget.PrefsPath), StringComparison.Ordinal);
+        Assert.Contains("_iql_pe_z_0 -1.876800", File.ReadAllText(fixture.LongTarget.PrefsPath), StringComparison.Ordinal);
+
+        var state = store.Load();
+        Assert.All(state.Aircraft.Values, target =>
+        {
+            Assert.Single(target.Backups);
+            Assert.Null(target.LastDefaultViewCgYFeet);
+            Assert.Null(target.LastDefaultViewCgZFeet);
+            Assert.Null(target.LastDefaultViewAppliedUtc);
+        });
+    }
+
+    [Fact]
     public void Apply_WhenRunAgain_IsIdempotentAndCreatesNoAdditionalBackups()
     {
         using var fixture = FleetFixture.Create();
         var store = TestToolStateStore.Create(fixture.Root);
         var operation = new LevelUpFleetViewTransferOperation(store, isXPlaneRunning: () => false);
 
-        var first = operation.Apply(fixture.Source, fixture.Variants);
-        var second = operation.Apply(fixture.Source, fixture.Variants);
+        var first = operation.Apply(fixture.Source, fixture.Variants, setDefaultViewFromQuickView0: true);
+        var second = operation.Apply(fixture.Source, fixture.Variants, setDefaultViewFromQuickView0: true);
 
         Assert.True(first.Changed);
         Assert.True(second.Succeeded);
@@ -75,7 +105,7 @@ public sealed class LevelUpFleetViewTransferOperationTests
         var store = TestToolStateStore.Create(fixture.Root);
         var operation = new LevelUpFleetViewTransferOperation(store, isXPlaneRunning: () => false);
 
-        Assert.Throws<FileNotFoundException>(() => operation.Apply(fixture.Source, fixture.Variants));
+        Assert.Throws<FileNotFoundException>(() => operation.Apply(fixture.Source, fixture.Variants, setDefaultViewFromQuickView0: true));
 
         Assert.Equal(shortPrefsBefore, File.ReadAllBytes(fixture.ShortTarget.PrefsPath));
         Assert.Equal(shortAcfBefore, File.ReadAllBytes(fixture.ShortTarget.AcfPath));
@@ -92,7 +122,7 @@ public sealed class LevelUpFleetViewTransferOperationTests
         var store = TestToolStateStore.Create(fixture.Root);
         var operation = new LevelUpFleetViewTransferOperation(store, isXPlaneRunning: () => false);
 
-        var ex = Assert.Throws<InvalidOperationException>(() => operation.Apply(fixture.Source, fixture.Variants));
+        var ex = Assert.Throws<InvalidOperationException>(() => operation.Apply(fixture.Source, fixture.Variants, setDefaultViewFromQuickView0: true));
 
         Assert.Contains("must be unique", ex.Message, StringComparison.Ordinal);
         Assert.Equal(targetBefore, File.ReadAllBytes(fixture.ShortTarget.PrefsPath));
@@ -107,7 +137,7 @@ public sealed class LevelUpFleetViewTransferOperationTests
         var store = TestToolStateStore.Create(fixture.Root);
         var operation = new LevelUpFleetViewTransferOperation(store, isXPlaneRunning: () => false);
 
-        var result = operation.Apply(ziboSource, fixture.Variants);
+        var result = operation.Apply(ziboSource, fixture.Variants, setDefaultViewFromQuickView0: true);
 
         Assert.False(result.Succeeded);
         Assert.Equal("Blocked", result.Status);
@@ -121,7 +151,7 @@ public sealed class LevelUpFleetViewTransferOperationTests
         var store = TestToolStateStore.Create(fixture.Root);
         var operation = new LevelUpFleetViewTransferOperation(store, isXPlaneRunning: () => true);
 
-        var result = operation.Apply(fixture.Source, fixture.Variants);
+        var result = operation.Apply(fixture.Source, fixture.Variants, setDefaultViewFromQuickView0: true);
 
         Assert.False(result.Succeeded);
         Assert.Equal("Blocked", result.Status);

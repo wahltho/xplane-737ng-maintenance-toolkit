@@ -29,7 +29,7 @@
   <p>X-Plane 737NG Maintenance Toolkit</p>
 
   <h2>Current Version</h2>
-  <p>0.11.0</p>
+  <p>0.11.1</p>
 
   <h2>Short Description</h2>
   <p>Cross-platform maintenance utility for supported Zibo and LevelUp 737NG aircraft in X-Plane 12, providing aircraft and VNAV updates, transactional backups, CG/view correction, optional patches, tools and resources.</p>
@@ -49,7 +49,7 @@
     <li>Quick View correction after an aircraft CG change</li>
     <li>optional correction of a matching X-Camera file</li>
     <li>use of Quick View 0 as the aircraft default viewpoint</li>
-    <li>CG-corrected Quick View and Default Viewpoint transfer across all variants in one detected LevelUp installation</li>
+    <li>CG-corrected Quick View transfer across all variants in one detected LevelUp installation, with a separate choice to retain or replace Default Viewpoints</li>
     <li>configuration backup and restore</li>
     <li>cancellable download and review before a write transaction begins</li>
     <li>detailed Advanced log and diagnostic export for support requests</li>
@@ -62,7 +62,7 @@
     <li>verified LevelUp Paintkit download and extraction into a user-selected folder</li>
     <li>background Toolkit application update checks with cancellable verified download and confirmed restart through VeloPack</li>
   </ul>
-  <p>Version 0.11.0 currently offers:</p>
+  <p>Version 0.11.1 currently offers:</p>
   <ul>
     <li>Optimized XLua 1.3.7r3</li>
     <li>Yet Another Linda (YAL)</li>
@@ -144,6 +144,10 @@
   <p>The Toolkit source code is available under the MIT License. The application is provided as-is, without warranty of any kind. It can modify aircraft files after validation and backup; users should retain their own backups and use the tool at their own risk.</p>
 
   <h2>Changelog</h2>
+  <h3>0.11.1</h3>
+  <ul>
+    <li>Added a separate confirmation when copying views across the LevelUp fleet so users can retain existing Default Viewpoints instead of deriving them from transferred Quick View 0 positions.</li>
+  </ul>
   <h3>0.11.0</h3>
   <ul>
     <li>Added the Toolkit version to the application header.</li>
