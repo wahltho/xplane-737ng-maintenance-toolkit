@@ -345,7 +345,10 @@ public sealed class ContentPatchEngine
             else
             {
                 var now = DateTimeOffset.UtcNow;
-                var fileStates = mutations.Select(mutation => BuildFileState(mutation, previous, originals)).ToList();
+                var ownedMutations = plan.OwnedRelativePaths is null
+                    ? mutations
+                    : mutations.Where(mutation => plan.OwnedRelativePaths.Contains(mutation.RelativePath)).ToArray();
+                var fileStates = ownedMutations.Select(mutation => BuildFileState(mutation, previous, originals)).ToList();
                 installation.ContentComponents[plan.Descriptor.ComponentId] = new ContentComponentState
                 {
                     ComponentId = plan.Descriptor.ComponentId,
@@ -353,6 +356,7 @@ public sealed class ContentPatchEngine
                     InstalledUtc = previous?.InstalledUtc ?? now,
                     LastOperationUtc = now,
                     LastOperation = $"ContentPatch{plan.Action}",
+                    EnabledModules = [.. plan.EnabledModules],
                     Files = fileStates
                 };
             }

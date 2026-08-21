@@ -215,7 +215,7 @@ internal sealed class AircraftFullBaselineReplacement
         log.Add($"[STAGE] Extracting {cachedPackage.Package.FileName} ({fileEntries.Length} files)."
             + (contentRoot is null ? "" : $" Content root: {contentRoot}."));
 
-        foreach (var archiveEntry in fileEntries)
+        archive.ProcessFileEntriesSequentially((archiveEntry, input) =>
         {
             cancellationToken.ThrowIfCancellationRequested();
             var relativePath = AircraftUpdatePath.MapArchivePath(archiveEntry.Path, contentRoot)
@@ -227,14 +227,14 @@ internal sealed class AircraftFullBaselineReplacement
 
             if (string.Equals(Path.GetFileName(relativePath), AircraftMaintenanceMetadata.FileName, StringComparison.OrdinalIgnoreCase))
             {
-                continue;
+                return;
             }
 
             var targetPath = AircraftUpdatePath.ResolveTargetPath(stagePath, relativePath);
             var manifestFile = cachedPackage.Package.Manifest?.Files
                 .FirstOrDefault(file => string.Equals(file.Path, relativePath, StringComparison.OrdinalIgnoreCase));
-            ExtractEntry(archiveEntry, targetPath, manifestFile, cancellationToken);
-        }
+            ExtractEntry(input, targetPath, manifestFile, cancellationToken);
+        }, cancellationToken);
 
         foreach (var deletedPath in cachedPackage.Package.Manifest?.DeletedPaths ?? [])
         {
@@ -258,13 +258,12 @@ internal sealed class AircraftFullBaselineReplacement
     }
 
     private static void ExtractEntry(
-        AircraftPackageArchiveEntry archiveEntry,
+        Stream input,
         string targetPath,
         AircraftUpdateManifestFile? manifestFile,
         CancellationToken cancellationToken)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
-        using (var input = archiveEntry.Open())
         using (var output = File.Create(targetPath))
         {
             var buffer = new byte[81920];

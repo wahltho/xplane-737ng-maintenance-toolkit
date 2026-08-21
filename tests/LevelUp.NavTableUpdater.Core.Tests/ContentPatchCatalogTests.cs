@@ -5,6 +5,42 @@ namespace LevelUp.NavTableUpdater.Core.Tests;
 public sealed class ContentPatchCatalogTests
 {
     [Fact]
+    public void PackageCatalog_AcceptsManagedSchemaThreeCompatibilityPackage()
+    {
+        var catalog = ContentPackageCatalog.Parse(
+            """
+            {
+              "schemaVersion": 1,
+              "catalogVersion": "2.0.0",
+              "packages": [
+                {
+                  "packageId": "levelup.compatibility",
+                  "displayName": "LevelUp compatibility package",
+                  "description": "Versioned product module set.",
+                  "category": "compatibilityPackage",
+                  "activation": "managed",
+                  "supportedProducts": ["levelup-737ng"],
+                  "repositoryUrl": "https://github.com/example/levelup-compatibility",
+                  "restartRequired": true,
+                  "distribution": {
+                    "kind": "gitHubReleaseArchive",
+                    "assetNamePattern": "LevelUp-Compatibility-v*.zip",
+                    "manifestSchemaVersion": 3
+                  }
+                }
+              ]
+            }
+            """);
+
+        var package = Assert.Single(catalog.ForProduct("levelup-737ng"));
+        Assert.Equal(ContentPackageCategory.CompatibilityPackage, package.Category);
+        Assert.Equal(ContentPatchActivation.Managed, package.Activation);
+        Assert.Equal(3, package.Distribution.ManifestSchemaVersion);
+        Assert.True(ContentPatchCatalog.MayOfferAfterAircraftUpdate(
+            ContentPatchCatalog.CompatibilityPackage(package)));
+    }
+
+    [Fact]
     public void PackageCatalog_FiltersManagedAndOptionalPackagesByProduct()
     {
         var catalog = ContentPackageCatalog.Parse(BuildCatalog());
@@ -83,11 +119,7 @@ public sealed class ContentPatchCatalogTests
     [Fact]
     public void BundledCatalog_AdvertisesVerifiedFansCduReleaseContract()
     {
-        var catalogPath = Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory,
-            "..", "..", "..", "..", "..",
-            "src", "LevelUp.NavTableUpdater.App", "Content", "content-package-catalog.json"));
-        var catalog = ContentPackageCatalog.Parse(File.ReadAllText(catalogPath));
+        var catalog = ContentPackageCatalog.Parse(File.ReadAllText(BundledCatalogPath()));
 
         var fans = Assert.Single(
             catalog.ForProduct("levelup-737ng"),
@@ -106,11 +138,7 @@ public sealed class ContentPatchCatalogTests
     [Fact]
     public void BundledCatalog_AdvertisesVerifiedLevelUpPaintkitReleaseContract()
     {
-        var catalogPath = Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory,
-            "..", "..", "..", "..", "..",
-            "src", "LevelUp.NavTableUpdater.App", "Content", "content-package-catalog.json"));
-        var catalog = ContentPackageCatalog.Parse(File.ReadAllText(catalogPath));
+        var catalog = ContentPackageCatalog.Parse(File.ReadAllText(BundledCatalogPath()));
 
         var paintkit = Assert.Single(
             catalog.ForProduct("levelup-737ng"),
@@ -134,11 +162,7 @@ public sealed class ContentPatchCatalogTests
     [Fact]
     public void BundledCatalog_AdvertisesAircraftScopedOptimizedXluaContract()
     {
-        var catalogPath = Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory,
-            "..", "..", "..", "..", "..",
-            "src", "LevelUp.NavTableUpdater.App", "Content", "content-package-catalog.json"));
-        var catalog = ContentPackageCatalog.Parse(File.ReadAllText(catalogPath));
+        var catalog = ContentPackageCatalog.Parse(File.ReadAllText(BundledCatalogPath()));
 
         var xlua = Assert.Single(
             catalog.ForProduct("zibo-737ng"),
@@ -156,11 +180,7 @@ public sealed class ContentPatchCatalogTests
     [Fact]
     public void BundledCatalog_AdvertisesRealbenchLoggerAsProductNeutralXPlaneOverlay()
     {
-        var catalogPath = Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory,
-            "..", "..", "..", "..", "..",
-            "src", "LevelUp.NavTableUpdater.App", "Content", "content-package-catalog.json"));
-        var catalog = ContentPackageCatalog.Parse(File.ReadAllText(catalogPath));
+        var catalog = ContentPackageCatalog.Parse(File.ReadAllText(BundledCatalogPath()));
 
         var logger = Assert.Single(
             catalog.ForProduct("zibo-737ng"),
@@ -177,6 +197,9 @@ public sealed class ContentPatchCatalogTests
         Assert.Equal("737NGRealbenchLogger-*-manifest.json", logger.Distribution.ManifestAssetNamePattern);
         Assert.Equal(2, logger.Distribution.ManifestSchemaVersion);
     }
+
+    private static string BundledCatalogPath() =>
+        Path.Combine(AppContext.BaseDirectory, "Content", "content-package-catalog.json");
 
     private static string BuildCatalog() =>
         """

@@ -212,6 +212,25 @@ public sealed class LevelUpAircraftUpdatePackageTests : IDisposable
     }
 
     [Fact]
+    public void AircraftPackageArchive_SequentialReaderVisitsEveryFileOnce()
+    {
+        var fixture = CreatePackageFixture();
+        using var archive = AircraftPackageArchive.Open(fixture.ArchivePath);
+        var contents = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        archive.ProcessFileEntriesSequentially((entry, stream) =>
+        {
+            using var buffer = new MemoryStream();
+            stream.CopyTo(buffer);
+            contents[entry.Path.Replace('\\', '/')] = System.Text.Encoding.UTF8.GetString(buffer.ToArray());
+        });
+
+        Assert.Equal(2, contents.Count);
+        Assert.Equal("updated", contents.Single(item => item.Key.EndsWith("/existing.txt", StringComparison.Ordinal)).Value);
+        Assert.Equal("new", contents.Single(item => item.Key.EndsWith("/new-file.txt", StringComparison.Ordinal)).Value);
+    }
+
+    [Fact]
     public void ApplyAndRestore_HandlesManifestWritesAndDeletionTransactionally()
     {
         var fixture = CreatePackageFixture();

@@ -138,7 +138,8 @@ public sealed class AircraftUpdateDryRunAnalyzer
             AnalyzeManifestArchive(
                 targetRoot,
                 cachedPackage.Package,
-                fileEntries,
+                archive,
+                fileEntries.Length,
                 entries,
                 findings,
                 packageLiveryRoots,
@@ -193,7 +194,8 @@ public sealed class AircraftUpdateDryRunAnalyzer
     private static void AnalyzeManifestArchive(
         string targetRoot,
         AircraftUpdatePackage package,
-        IEnumerable<AircraftPackageArchiveEntry> archiveEntries,
+        AircraftPackageArchive archive,
+        int fileEntryCount,
         ICollection<AircraftUpdateDryRunEntry> entries,
         ICollection<string> findings,
         ISet<string> packageLiveryRoots,
@@ -208,18 +210,18 @@ public sealed class AircraftUpdateDryRunAnalyzer
         var seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var verified = 0;
 
-        var entriesToVerify = archiveEntries.ToArray();
-        for (var entryIndex = 0; entryIndex < entriesToVerify.Length; entryIndex++)
+        var entryIndex = 0;
+        archive.ProcessFileEntriesSequentially((archiveEntry, stream) =>
         {
-            var archiveEntry = entriesToVerify[entryIndex];
             cancellationToken.ThrowIfCancellationRequested();
+            entryIndex++;
             ReportProgress(
                 progress,
                 package.FileName,
                 packageIndex,
                 packageCount,
-                entryIndex + 1,
-                entriesToVerify.Length,
+                entryIndex,
+                fileEntryCount,
                 archiveEntry.Path);
             var relativePath = AircraftUpdatePath.MapArchivePath(archiveEntry.Path, manifest.ContentRoot);
             if (relativePath is null)
@@ -230,7 +232,7 @@ public sealed class AircraftUpdateDryRunAnalyzer
                     AircraftUpdateDryRunEntryAction.BlockedUnsafePath,
                     archiveEntry.Size,
                     $"Archive entry is outside declared contentRoot '{manifest.ContentRoot}' or has an unsafe path."));
-                continue;
+                return;
             }
 
             if (!seenPaths.Add(relativePath))
@@ -241,7 +243,7 @@ public sealed class AircraftUpdateDryRunAnalyzer
                     AircraftUpdateDryRunEntryAction.BlockedInvalidPackage,
                     archiveEntry.Size,
                     "Archive contains the same manifest path more than once."));
-                continue;
+                return;
             }
 
             if (!manifestFiles.TryGetValue(relativePath, out var manifestFile))
@@ -252,10 +254,10 @@ public sealed class AircraftUpdateDryRunAnalyzer
                     AircraftUpdateDryRunEntryAction.BlockedInvalidPackage,
                     archiveEntry.Size,
                     "Archive entry is not declared in the package manifest."));
-                continue;
+                return;
             }
 
-            var integrityError = VerifyArchiveEntry(archiveEntry, manifestFile, cancellationToken);
+            var integrityError = VerifyArchiveEntry(stream, archiveEntry.Size, manifestFile, cancellationToken);
             if (integrityError is not null)
             {
                 entries.Add(new AircraftUpdateDryRunEntry(
@@ -264,12 +266,12 @@ public sealed class AircraftUpdateDryRunAnalyzer
                     AircraftUpdateDryRunEntryAction.BlockedInvalidPackage,
                     archiveEntry.Size,
                     integrityError));
-                continue;
+                return;
             }
 
             verified++;
             AnalyzeWriteEntry(targetRoot, package.FileName, archiveEntry.Path, relativePath, archiveEntry.Size, entries, packageLiveryRoots, managedComponentPaths);
-        }
+        }, cancellationToken);
 
         foreach (var missing in manifest.Files.Where(file => !seenPaths.Contains(file.Path)))
         {
@@ -426,16 +428,16 @@ public sealed class AircraftUpdateDryRunAnalyzer
     }
 
     private static string? VerifyArchiveEntry(
-        AircraftPackageArchiveEntry entry,
+        Stream stream,
+        long entrySize,
         AircraftUpdateManifestFile manifestFile,
         CancellationToken cancellationToken)
     {
-        if (entry.Size != manifestFile.Size)
+        if (entrySize != manifestFile.Size)
         {
-            return $"Payload size differs from manifest: expected {manifestFile.Size}, got {entry.Size}.";
+            return $"Payload size differs from manifest: expected {manifestFile.Size}, got {entrySize}.";
         }
 
-        using var stream = entry.Open();
         using var hashAlgorithm = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         var buffer = new byte[81920];
         int bytesRead;

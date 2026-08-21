@@ -21,6 +21,12 @@ public sealed record ContentPatchProvisionResult(
     ContentPatchRelease Release,
     bool Downloaded);
 
+public sealed record CompatibilityPackageProvisionResult(
+    CompatibilityPackage Package,
+    string PackageDirectory,
+    ContentPatchRelease Release,
+    bool Downloaded);
+
 public sealed class GitHubContentPatchReleaseSource
 {
     private const int MaximumMetadataBytes = 1024 * 1024;
@@ -159,6 +165,71 @@ public sealed class GitHubContentPatchReleaseSource
             ValidateResolvedPackage(catalogEntry, release, package);
             Directory.Move(tempDirectory, packageDirectory);
             return new ContentPatchProvisionResult(package, packageDirectory, release, downloaded);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDirectory))
+            {
+                Directory.Delete(tempDirectory, recursive: true);
+            }
+        }
+    }
+
+    public async Task<CompatibilityPackageProvisionResult> ProvisionCompatibilityAsync(
+        ContentPackageCatalogEntry catalogEntry,
+        ContentPatchRelease release,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateGitHubDistribution(catalogEntry);
+        if (catalogEntry.Category is not ContentPackageCategory.CompatibilityPackage
+            || catalogEntry.Distribution.ManifestSchemaVersion != CompatibilityPackageManifestParser.CurrentSchemaVersion)
+        {
+            throw new InvalidOperationException(
+                $"Content package {catalogEntry.PackageId} is not a schema-v3 compatibility package.");
+        }
+
+        ArgumentNullException.ThrowIfNull(release);
+        ValidateReleaseForCatalog(catalogEntry, release);
+        var releaseRoot = Path.Combine(
+            _cacheRoot,
+            "content-patches",
+            SanitizeSegment(catalogEntry.PackageId),
+            SanitizeSegment(release.Tag));
+        CreateSafeCacheDirectory(releaseRoot);
+        var archivePath = Path.Combine(releaseRoot, release.AssetName);
+        RejectLink(archivePath, "Compatibility package cache archive");
+        var downloaded = false;
+        if (!File.Exists(archivePath) || !ArchiveMatchesRelease(archivePath, release))
+        {
+            await DownloadArchiveAsync(release, archivePath, cancellationToken).ConfigureAwait(false);
+            downloaded = true;
+        }
+
+        var packageDirectory = Path.Combine(releaseRoot, "package");
+        RejectLink(packageDirectory, "Compatibility package cache directory");
+        if (Directory.Exists(packageDirectory))
+        {
+            try
+            {
+                var cachedPackage = CompatibilityPackageLoader.LoadDirectory(packageDirectory);
+                ValidateResolvedCompatibilityPackage(catalogEntry, release, cachedPackage);
+                return new CompatibilityPackageProvisionResult(cachedPackage, packageDirectory, release, downloaded);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+            {
+                Directory.Delete(packageDirectory, recursive: true);
+            }
+        }
+
+        var tempDirectory = packageDirectory + $".tmp-{Guid.NewGuid():N}";
+        try
+        {
+            Directory.CreateDirectory(tempDirectory);
+            ExtractRequiredPackageFiles(archivePath, tempDirectory, cancellationToken);
+            var package = CompatibilityPackageLoader.LoadDirectory(tempDirectory);
+            ValidateResolvedCompatibilityPackage(catalogEntry, release, package);
+            Directory.Move(tempDirectory, packageDirectory);
+            return new CompatibilityPackageProvisionResult(package, packageDirectory, release, downloaded);
         }
         finally
         {
@@ -316,15 +387,45 @@ public sealed class GitHubContentPatchReleaseSource
         }
 
         var manifestBytes = ReadEntry(manifests[0].Value, MaximumManifestBytes, cancellationToken);
-        var manifest = DeclarativePatchManifestParser.Parse(System.Text.Encoding.UTF8.GetString(manifestBytes));
+        var manifestJson = System.Text.Encoding.UTF8.GetString(manifestBytes);
         var prefix = manifestParts.Length == 2 ? manifestParts[0] + "/" : "";
         var required = new Dictionary<string, string>(StringComparer.Ordinal)
         {
             [manifests[0].Key] = "package-manifest.json"
         };
-        foreach (var payload in manifest.Payloads)
+        int schemaVersion;
+        try
         {
-            required.Add(prefix + payload.Path.Replace('\\', '/'), payload.Path);
+            using var manifestDocument = JsonDocument.Parse(manifestBytes);
+            if (!manifestDocument.RootElement.TryGetProperty("schemaVersion", out var schema)
+                || !schema.TryGetInt32(out schemaVersion))
+            {
+                throw new InvalidDataException("Content package manifest has no numeric schemaVersion.");
+            }
+        }
+        catch (JsonException ex)
+        {
+            throw new InvalidDataException($"Content package manifest JSON is invalid: {ex.Message}", ex);
+        }
+        if (schemaVersion == CompatibilityPackageManifestParser.CurrentSchemaVersion)
+        {
+            var compatibility = CompatibilityPackageManifestParser.Parse(manifestJson);
+            foreach (var module in compatibility.Modules)
+            {
+                foreach (var payload in module.Payloads)
+                {
+                    var relativePath = $"modules/{module.ModuleId}/{payload.Path.Replace('\\', '/')}";
+                    required.Add(prefix + relativePath, relativePath);
+                }
+            }
+        }
+        else
+        {
+            var manifest = DeclarativePatchManifestParser.Parse(manifestJson);
+            foreach (var payload in manifest.Payloads)
+            {
+                required.Add(prefix + payload.Path.Replace('\\', '/'), payload.Path);
+            }
         }
 
         foreach (var requiredEntry in required)
@@ -404,6 +505,24 @@ public sealed class GitHubContentPatchReleaseSource
             || !NormalizeVersion(package.Manifest.PackageVersion).Equals(NormalizeVersion(release.Tag), StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidDataException($"Downloaded package identity does not match the trusted catalog entry {catalogEntry.PackageId}.");
+        }
+    }
+
+    private static void ValidateResolvedCompatibilityPackage(
+        ContentPackageCatalogEntry catalogEntry,
+        ContentPatchRelease release,
+        CompatibilityPackage package)
+    {
+        var manifest = package.Manifest;
+        if (!manifest.PackageId.Equals(catalogEntry.PackageId, StringComparison.Ordinal)
+            || !manifest.RepositoryUrl.TrimEnd('/').Equals(catalogEntry.RepositoryUrl.TrimEnd('/'), StringComparison.OrdinalIgnoreCase)
+            || manifest.SchemaVersion != catalogEntry.Distribution.ManifestSchemaVersion
+            || !manifest.SupportedProducts.ToHashSet(StringComparer.Ordinal).SetEquals(catalogEntry.SupportedProducts)
+            || manifest.RestartRequired != catalogEntry.RestartRequired
+            || !NormalizeVersion(manifest.PackageVersion).Equals(NormalizeVersion(release.Tag), StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException(
+                $"Downloaded compatibility package identity does not match the trusted catalog entry {catalogEntry.PackageId}.");
         }
     }
 

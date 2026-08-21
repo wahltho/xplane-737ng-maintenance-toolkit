@@ -459,6 +459,11 @@ public sealed class ToolStateStore
         {
             installation.ContentComponents ??= new Dictionary<string, ContentComponentState>(StringComparer.Ordinal);
             installation.Backups ??= [];
+            foreach (var component in installation.ContentComponents.Values)
+            {
+                component.EnabledModules ??= [];
+                component.Files ??= [];
+            }
         }
 
         foreach (var target in document.Aircraft.Values)
@@ -466,6 +471,11 @@ public sealed class ToolStateStore
             target.ContentComponents ??= new Dictionary<string, ContentComponentState>(StringComparer.Ordinal);
             target.Backups ??= [];
             target.LastAircraftUpdatePackages ??= [];
+            foreach (var component in target.ContentComponents.Values)
+            {
+                component.EnabledModules ??= [];
+                component.Files ??= [];
+            }
             if (!string.IsNullOrWhiteSpace(target.InstalledContentPackageId)
                 && !target.ContentComponents.ContainsKey(target.InstalledContentPackageId))
             {
@@ -516,6 +526,6 @@ public sealed class ToolStateStore
             resource.InstalledFiles ??= [];
         }
 
-        document.SchemaVersion = Math.Max(document.SchemaVersion, 5);
+        document.SchemaVersion = Math.Max(document.SchemaVersion, 6);
     }
 }

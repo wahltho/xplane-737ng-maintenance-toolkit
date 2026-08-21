@@ -7,7 +7,7 @@ namespace LevelUp.NavTableUpdater.Core.Content;
 public sealed record DeclarativePatchPayloadContent(
     string Path,
     byte[] Bytes,
-    JsonDocument Json,
+    JsonDocument? Json,
     string Source);
 
 public sealed record DeclarativePatchPackage(

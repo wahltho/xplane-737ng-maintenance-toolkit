@@ -122,7 +122,13 @@
         <Border Grid.Row="0" Background="{DynamicResource AppHeaderBackgroundBrush}" Padding="18,10">
             <Grid ColumnDefinitions="*,Auto">
                 <StackPanel Spacing="2">
-                    <TextBlock Text="X-Plane 737NG Maintenance Toolkit" Foreground="{DynamicResource AppHeaderTextBrush}" FontSize="20" FontWeight="SemiBold"/>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="X-Plane 737NG Maintenance Toolkit" Foreground="{DynamicResource AppHeaderTextBrush}" FontSize="20" FontWeight="SemiBold"/>
+                        <TextBlock Text="{Binding ToolkitVersion}"
+                                   Foreground="{DynamicResource AppHeaderSecondaryBrush}"
+                                   FontSize="13"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
                     <TextBlock Text="Target-neutral maintenance for supported Zibo and LevelUp 737NG aircraft" Foreground="{DynamicResource AppHeaderSecondaryBrush}"/>
                 </StackPanel>
                 <Border Grid.Column="1"
@@ -410,7 +416,7 @@
                                             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
                                                 <StackPanel Spacing="4">
                                                 <TextBlock Text="Components &amp; Aircraft Patches" FontSize="18" FontWeight="SemiBold"/>
-                                                    <TextBlock Text="Packages are filtered for the selected product. Optional patches are never installed automatically."
+                                                    <TextBlock Text="Packages are filtered for the selected product. Optional packages remain separate from normal aircraft and VNAV updates."
                                                                Foreground="{DynamicResource AppTextSecondaryBrush}"
                                                                TextWrapping="Wrap"/>
                                                 </StackPanel>
@@ -808,6 +814,28 @@
                                     <TextBlock Text="{Binding OptionalPatchStatus}"
                                                Foreground="{DynamicResource AppTextSecondaryBrush}"
                                                TextWrapping="Wrap"/>
+                                    <ItemsControl ItemsSource="{Binding CompatibilityModules}"
+                                                  IsVisible="{Binding CompatibilityModulesVisible}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:CompatibilityModuleOptionViewModel">
+                                                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8" Margin="0,3">
+                                                    <CheckBox IsChecked="{Binding IsSelected}"
+                                                              IsEnabled="{Binding CanChangeSelection}"
+                                                              VerticalAlignment="Top"/>
+                                                    <StackPanel Grid.Column="1" Spacing="1">
+                                                        <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold"/>
+                                                        <TextBlock Text="{Binding Description}"
+                                                                   Foreground="{DynamicResource AppTextSecondaryBrush}"
+                                                                   TextWrapping="Wrap"/>
+                                                    </StackPanel>
+                                                    <TextBlock Grid.Column="2"
+                                                               Text="{Binding PolicyLabel}"
+                                                               Classes="label"
+                                                               VerticalAlignment="Top"/>
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
                                     <Border Classes="path-display">
                                         <TextBlock Classes="path" Text="{Binding OptionalPatchPackagePath}"/>
                                     </Border>

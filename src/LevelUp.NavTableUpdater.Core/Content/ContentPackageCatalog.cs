@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using LevelUp.NavTableUpdater.Core.Aircraft;
+using LevelUp.NavTableUpdater.Core.Manifest;
 
 namespace LevelUp.NavTableUpdater.Core.Content;
 
@@ -8,6 +9,7 @@ public enum ContentPackageCategory
 {
     Unknown,
     ManagedContent,
+    CompatibilityPackage,
     OptionalPatch,
     AircraftComponent,
     Tool,
@@ -172,6 +174,8 @@ public sealed class ContentPackageCatalog
                 && package.Activation is not ContentPatchActivation.Managed)
             || (package.Category is ContentPackageCategory.OptionalPatch
                 && package.Activation is not ContentPatchActivation.ExplicitOptIn)
+            || (package.Category is ContentPackageCategory.CompatibilityPackage
+                && package.Activation is not ContentPatchActivation.Managed)
             || (package.Category is ContentPackageCategory.Tool
                 && package.Activation is not ContentPatchActivation.ExplicitOptIn)
             || (package.Category is ContentPackageCategory.AircraftComponent
@@ -257,8 +261,15 @@ public sealed class ContentPackageCatalog
             return;
         }
 
-        if (package.Category is not ContentPackageCategory.OptionalPatch
-            || package.Distribution.ManifestSchemaVersion != 2
+        var supportedPatchArchive = package.Category switch
+        {
+            ContentPackageCategory.OptionalPatch => package.Activation is ContentPatchActivation.ExplicitOptIn
+                && package.Distribution.ManifestSchemaVersion == 2,
+            ContentPackageCategory.CompatibilityPackage => package.Activation is ContentPatchActivation.Managed
+                && package.Distribution.ManifestSchemaVersion == CompatibilityPackageManifestParser.CurrentSchemaVersion,
+            _ => false
+        };
+        if (!supportedPatchArchive
             || !IsSafeAssetPattern(package.Distribution.AssetNamePattern, ".zip"))
         {
             throw new InvalidDataException($"Content package {package.PackageId} has unsafe GitHub release archive metadata.");

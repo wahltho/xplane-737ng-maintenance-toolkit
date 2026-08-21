@@ -15,6 +15,46 @@ internal sealed class AircraftPackageArchive : IDisposable
 
     public IReadOnlyList<AircraftPackageArchiveEntry> Entries { get; }
 
+    public void ProcessFileEntriesSequentially(
+        Action<AircraftPackageArchiveFileEntry, Stream> processEntry,
+        CancellationToken cancellationToken = default)
+    {
+        if (_archive.Type is not ArchiveType.SevenZip && !_archive.IsSolid)
+        {
+            foreach (var entry in Entries.Where(entry => !entry.IsDirectory))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                entry.ProcessContent(stream =>
+                    processEntry(new AircraftPackageArchiveFileEntry(entry.Path, entry.Size), stream));
+            }
+
+            return;
+        }
+
+        using var reader = _archive.ExtractAllEntries();
+        var buffer = new byte[8192];
+        while (reader.MoveToNextEntry())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var entry = reader.Entry;
+            if (entry.IsDirectory)
+            {
+                continue;
+            }
+
+            var fileEntry = new AircraftPackageArchiveFileEntry(entry.Key ?? "", entry.Size);
+            using var stream = reader.OpenEntryStream();
+            processEntry(fileEntry, stream);
+
+            // Keep the archive reader on its single forward-only pass even when
+            // a protected or otherwise skipped entry was not consumed by the callback.
+            while (stream.Read(buffer, 0, buffer.Length) > 0)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+        }
+    }
+
     public static AircraftPackageArchive Open(string path)
     {
         try
@@ -74,5 +114,11 @@ internal sealed class AircraftPackageArchiveEntry
 
     public bool IsDirectory => _entry.IsDirectory;
 
-    public Stream Open() => _entry.OpenEntryStream();
+    public void ProcessContent(Action<Stream> processContent)
+    {
+        using var stream = _entry.OpenEntryStream();
+        processContent(stream);
+    }
 }
+
+internal sealed record AircraftPackageArchiveFileEntry(string Path, long Size);

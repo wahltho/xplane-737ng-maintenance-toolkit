@@ -20,6 +20,8 @@ namespace LevelUp.NavTableUpdater.App.ViewModels;
 
 public partial class MainWindowViewModel : ViewModelBase
 {
+    public string ToolkitVersion { get; } = FormatToolkitVersion();
+
     private readonly AircraftDetector _detector = new();
     private readonly AircraftInstallAnalyzer _analyzer = new();
     private readonly AircraftViewAnalyzer _viewAnalyzer = new();
@@ -35,6 +37,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly RestoreLatestBackupOperation _restoreLatestBackupOperation;
     private readonly VnavContentOperation _vnavContentOperation;
     private readonly DeclarativeContentPatchOperation _declarativeContentPatchOperation;
+    private readonly CompatibilityPackageOperation _compatibilityPackageOperation;
     private readonly AircraftUpstreamUpdateChecker _ziboUpdateChecker;
     private readonly LevelUpReleaseUpdateChecker _levelUpUpdateChecker;
     private readonly LevelUpAircraftUpdatePackageLoader _levelUpUpdatePackageLoader = new();
@@ -70,6 +73,14 @@ public partial class MainWindowViewModel : ViewModelBase
     private Stopwatch? _operationElapsedStopwatch;
     private DispatcherTimer? _operationElapsedTimer;
     private bool _isInitialized;
+
+    private static string FormatToolkitVersion()
+    {
+        var version = typeof(MainWindowViewModel).Assembly.GetName().Version;
+        return version is null
+            ? "Version unknown"
+            : $"v{version.Major}.{version.Minor}.{Math.Max(version.Build, 0)}";
+    }
 
     [ObservableProperty]
     private string selectedAircraftPath = "";
@@ -348,6 +359,9 @@ public partial class MainWindowViewModel : ViewModelBase
     private bool canRunOptionalPatch;
 
     [ObservableProperty]
+    private bool compatibilityModulesVisible;
+
+    [ObservableProperty]
     private string contentPackageCatalogStatus = "Select a supported product to view its managed content and optional patches.";
 
     [ObservableProperty]
@@ -493,6 +507,8 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public ObservableCollection<AvailableContentPackageStatus> AvailableContentPackages { get; } = [];
 
+    public ObservableCollection<CompatibilityModuleOptionViewModel> CompatibilityModules { get; } = [];
+
     public ObservableCollection<ContentPackageCatalogEntry> AvailableToolPackages { get; } = [];
 
     public ObservableCollection<ContentPackageCatalogEntry> AvailableResourcePackages { get; } = [];
@@ -557,6 +573,7 @@ public partial class MainWindowViewModel : ViewModelBase
         _restoreLatestBackupOperation = new RestoreLatestBackupOperation(_stateStore);
         _vnavContentOperation = new VnavContentOperation(_stateStore, CreatePayloadSource());
         _declarativeContentPatchOperation = new DeclarativeContentPatchOperation(_stateStore);
+        _compatibilityPackageOperation = new CompatibilityPackageOperation(_stateStore);
         _toolPackageManager = new ToolPackageManager(_stateStore);
         _xPlaneOverlayPackageManager = new XPlaneOverlayPackageManager(_stateStore);
         _resourcePackageManager = new ResourcePackageManager(_stateStore);
@@ -1176,6 +1193,13 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
+        if (!string.IsNullOrWhiteSpace(OptionalPatchPackagePath)
+            && CompatibilityPackageLoader.IsCompatibilityPackage(OptionalPatchPackagePath))
+        {
+            await RunCompatibilityPackageAction(action);
+            return;
+        }
+
         var isRestore = string.Equals(action, "Restore", StringComparison.OrdinalIgnoreCase);
         var patchAction = ContentPatchAction.Update;
         if (!isRestore && !Enum.TryParse(action, ignoreCase: true, out patchAction))
@@ -1292,6 +1316,12 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
+        if (CompatibilityPackageLoader.IsCompatibilityPackage(OptionalPatchPackagePath))
+        {
+            await ReviewCompatibilityPackage(selectedVariant);
+            return;
+        }
+
         IsOperationRunning = true;
         ActionsEnabled = false;
         CanRunOptionalPatch = false;
@@ -1348,6 +1378,188 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
+    private async Task RunCompatibilityPackageAction(string action)
+    {
+        var isRestore = string.Equals(action, "Restore", StringComparison.OrdinalIgnoreCase);
+        var patchAction = ContentPatchAction.Update;
+        if (!isRestore && !Enum.TryParse(action, ignoreCase: true, out patchAction))
+        {
+            return;
+        }
+
+        var selectedVariant = SelectedViewVariant;
+        if (selectedVariant is null)
+        {
+            AppendLog("Compatibility package blocked: select a compatible aircraft installation first.");
+            return;
+        }
+
+        CompatibilityPackage package;
+        string[] selectedModules;
+        try
+        {
+            package = CompatibilityPackageLoader.LoadDirectory(OptionalPatchPackagePath);
+            selectedModules = [.. CompatibilityPackagePlanBuilder.ResolveSelection(
+                package.Manifest,
+                SelectedCompatibilityModuleIds())];
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            OptionalPatchStatus = ex.Message;
+            AppendLog($"Compatibility package rejected: {ex.Message}");
+            return;
+        }
+
+        var operationName = isRestore ? "Restore" : patchAction.ToString();
+        var moduleSummary = string.Join(
+            Environment.NewLine,
+            package.Manifest.Modules
+                .Where(module => selectedModules.Contains(module.ModuleId, StringComparer.Ordinal))
+                .OrderBy(module => module.InstallationOrder)
+                .Select(module => $"- {module.DisplayName} ({module.Policy})"));
+        var confirmation = new ConfirmationRequest(
+            $"{operationName} compatibility package?",
+            string.Join(
+                Environment.NewLine,
+                [
+                    $"Package: {package.Manifest.PackageId} {package.Manifest.PackageVersion}",
+                    $"Aircraft: {AircraftProductIdentity.FromVariant(selectedVariant).DisplayName}",
+                    "Modules:",
+                    string.IsNullOrWhiteSpace(moduleSummary) ? "- exact pre-package restore" : moduleSummary,
+                    "",
+                    "The complete module set is validated and applied as one backed-up transaction. Required modules and dependencies are enforced by the manifest."
+                ]),
+            operationName,
+            "Cancel");
+        if (!await _userInteractionService.ConfirmAsync(confirmation))
+        {
+            AppendLog($"Compatibility package {operationName} canceled before validation and file writes.");
+            return;
+        }
+
+        OperationPanelVisible = true;
+        OperationLog = "";
+        OperationElapsed = "00:00s";
+        OperationProgress = 0;
+        OperationStatus = "Transaction in progress";
+        OperationTitle = $"{OptionalPatchName} {operationName}";
+        OperationSubtitle = "Validating the ordered module pipeline and preparing one transaction.";
+        OperationProgressText = "0% - Validating package, module policy, source state and payload hashes";
+        IsOperationRunning = true;
+        ActionsEnabled = false;
+        CanRunOptionalPatch = false;
+        var stopwatch = Stopwatch.StartNew();
+        try
+        {
+            var result = isRestore
+                ? await Task.Run(() => _compatibilityPackageOperation.Restore(selectedVariant, OptionalPatchPackagePath))
+                : await Task.Run(async () => await _compatibilityPackageOperation.RunAsync(
+                    patchAction,
+                    selectedVariant,
+                    OptionalPatchPackagePath,
+                    selectedModules));
+            foreach (var line in result.Log)
+            {
+                AppendOperationLog(line);
+            }
+
+            OperationElapsed = FormatElapsed(stopwatch.Elapsed);
+            OperationStatus = result.Status;
+            OperationTitle = result.Succeeded
+                ? result.Changed ? $"{OptionalPatchName} {operationName} complete" : $"{OptionalPatchName} unchanged"
+                : $"{OptionalPatchName} {operationName} blocked";
+            OperationSubtitle = result.Message;
+            OperationProgress = result.Succeeded ? 100 : 0;
+            OperationProgressText = result.Succeeded
+                ? result.Changed ? "100% - Compatibility package transaction completed" : "100% - No file change required"
+                : "0% - Transaction did not start";
+            AppendLog($"Compatibility package {operationName}: {result.Message}");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            OperationElapsed = FormatElapsed(stopwatch.Elapsed);
+            OperationStatus = "Failed";
+            OperationTitle = $"{OptionalPatchName} {operationName} failed";
+            OperationSubtitle = ex.Message;
+            OperationProgress = 0;
+            OperationProgressText = "0% - Transaction failed and was rolled back";
+            AppendOperationLog($"[FAILED] {ex.Message}");
+            AppendLog($"Compatibility package {operationName} failed: {ex.Message}");
+        }
+        finally
+        {
+            IsOperationRunning = false;
+            ActionsEnabled = true;
+            RefreshOptionalPatchStatus();
+            RefreshContentPackageOverview();
+        }
+    }
+
+    private async Task ReviewCompatibilityPackage(AircraftVariantViewAnalysis selectedVariant)
+    {
+        IsOperationRunning = true;
+        ActionsEnabled = false;
+        CanRunOptionalPatch = false;
+        OperationPanelVisible = true;
+        OperationLog = "";
+        OperationTitle = $"Reviewing {OptionalPatchName}";
+        OperationSubtitle = "Calculating the complete ordered module plan without changing aircraft files.";
+        OperationStatus = "Dry-run in progress";
+        OperationProgress = 0;
+        OperationProgressText = "0% - Validating module policy and generating final target bytes";
+        var stopwatch = Stopwatch.StartNew();
+        try
+        {
+            var selectedModules = SelectedCompatibilityModuleIds();
+            var plan = await Task.Run(async () => await _compatibilityPackageOperation.PlanAsync(
+                ContentPatchAction.Update,
+                selectedVariant,
+                OptionalPatchPackagePath,
+                selectedModules));
+            foreach (var line in plan.Log)
+            {
+                AppendOperationLog(line);
+            }
+
+            foreach (var mutation in plan.Mutations)
+            {
+                AppendOperationLog($"[DRY-RUN] {mutation.Kind} {mutation.RelativePath}: {mutation.Description}");
+            }
+
+            OperationElapsed = FormatElapsed(stopwatch.Elapsed);
+            OperationStatus = plan.IsSafe ? "Dry-run complete" : "Review required";
+            OperationTitle = plan.IsSafe ? $"{OptionalPatchName} review complete" : $"{OptionalPatchName} review blocked";
+            OperationSubtitle = plan.StatusMessage;
+            OperationProgress = plan.IsSafe ? 100 : 0;
+            OperationProgressText = plan.IsSafe
+                ? $"100% - {plan.EnabledModules.Count} module(s), {plan.Mutations.Count} target file change(s); no files changed"
+                : "0% - No file transaction is allowed";
+            AppendLog($"Compatibility package dry-run: {plan.StatusMessage}");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            OperationElapsed = FormatElapsed(stopwatch.Elapsed);
+            OperationStatus = "Failed";
+            OperationTitle = $"{OptionalPatchName} review failed";
+            OperationSubtitle = ex.Message;
+            OperationProgress = 0;
+            OperationProgressText = "0% - Dry-run failed; no aircraft files were changed";
+            AppendOperationLog($"[FAILED] {ex.Message}");
+        }
+        finally
+        {
+            IsOperationRunning = false;
+            ActionsEnabled = true;
+            RefreshOptionalPatchStatus();
+        }
+    }
+
+    private string[] SelectedCompatibilityModuleIds() =>
+        CompatibilityModules
+            .Where(module => module.IsSelected || module.Policy is CompatibilityModulePolicy.Required)
+            .Select(module => module.ModuleId)
+            .ToArray();
+
     [RelayCommand]
     private async Task CheckContentPackageCatalog()
     {
@@ -1362,13 +1574,13 @@ public partial class MainWindowViewModel : ViewModelBase
             .ToArray();
         if (onlinePackages.Length == 0)
         {
-            ContentPackageCatalogStatus = "This product has no optional GitHub release packages to check.";
+            ContentPackageCatalogStatus = "This product has no GitHub content-package releases to check.";
             return;
         }
 
         IsContentPackageCatalogCheckRunning = true;
         CanCheckContentPackageCatalog = false;
-        ContentPackageCatalogStatus = $"Checking {onlinePackages.Length} optional package release(s). No aircraft files are changed.";
+        ContentPackageCatalogStatus = $"Checking {onlinePackages.Length} content-package release(s). No aircraft files are changed.";
         var succeeded = 0;
         foreach (var package in onlinePackages)
         {
@@ -1389,8 +1601,8 @@ public partial class MainWindowViewModel : ViewModelBase
 
         IsContentPackageCatalogCheckRunning = false;
         ContentPackageCatalogStatus = succeeded == onlinePackages.Length
-            ? $"Optional package releases checked: {succeeded}/{onlinePackages.Length}."
-            : $"Optional package release checks succeeded: {succeeded}/{onlinePackages.Length}. See package status or Advanced log for details.";
+            ? $"Content-package releases checked: {succeeded}/{onlinePackages.Length}."
+            : $"Content-package release checks succeeded: {succeeded}/{onlinePackages.Length}. See package status or Advanced log for details.";
         RefreshContentPackageOverview(preserveStatus: true);
     }
 
@@ -1435,7 +1647,8 @@ public partial class MainWindowViewModel : ViewModelBase
             ? null
             : _contentPackageCatalog.ForProduct(productId)
                 .SingleOrDefault(package => package.PackageId.Equals(item.PackageId, StringComparison.Ordinal));
-        if (catalogEntry is null || catalogEntry.Category is not ContentPackageCategory.OptionalPatch)
+        if (catalogEntry is null
+            || catalogEntry.Category is not (ContentPackageCategory.OptionalPatch or ContentPackageCategory.CompatibilityPackage))
         {
             ContentPackageCatalogStatus = "Optional patch restore blocked: select the matching product installation.";
             return;
@@ -1472,9 +1685,13 @@ public partial class MainWindowViewModel : ViewModelBase
         var stopwatch = Stopwatch.StartNew();
         try
         {
-            var descriptor = ContentPatchCatalog.OptionalPatch(catalogEntry);
-            var result = await Task.Run(() =>
-                _declarativeContentPatchOperation.Restore(descriptor, selectedVariant));
+            var result = catalogEntry.Category is ContentPackageCategory.CompatibilityPackage
+                ? await Task.Run(() =>
+                    _compatibilityPackageOperation.Restore(
+                        ContentPatchCatalog.CompatibilityPackage(catalogEntry),
+                        selectedVariant))
+                : await Task.Run(() =>
+                    _declarativeContentPatchOperation.Restore(ContentPatchCatalog.OptionalPatch(catalogEntry), selectedVariant));
             foreach (var line in result.Log)
             {
                 AppendOperationLog(line);
@@ -1526,6 +1743,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 .SingleOrDefault(package => package.PackageId.Equals(item.PackageId, StringComparison.Ordinal));
         if (catalogEntry is null
             || catalogEntry.Distribution.Kind is not ContentPackageDistributionKind.GitHubReleaseArchive
+            || catalogEntry.Category is not (ContentPackageCategory.OptionalPatch or ContentPackageCategory.CompatibilityPackage)
             || SelectedViewVariant is null
             || !catalogEntry.SupportedProducts.Contains(SelectedViewVariant.Family, StringComparer.Ordinal))
         {
@@ -1551,28 +1769,43 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             var source = _contentPatchReleaseSource;
             var release = _contentPatchReleases.GetValueOrDefault(catalogEntry.PackageId);
-            var provisioned = await Task.Run(
+            var prepared = await Task.Run(
                 async () =>
                 {
                     release ??= await source.GetLatestAsync(catalogEntry, cancellationToken);
                     cancellationToken.ThrowIfCancellationRequested();
-                    return await source.ProvisionAsync(catalogEntry, release, cancellationToken);
+                    if (catalogEntry.Category is ContentPackageCategory.CompatibilityPackage)
+                    {
+                        var provisioned = await source.ProvisionCompatibilityAsync(catalogEntry, release, cancellationToken);
+                        return (
+                            provisioned.PackageDirectory,
+                            provisioned.Package.Manifest.PackageId,
+                            provisioned.Package.Manifest.PackageVersion,
+                            provisioned.Release);
+                    }
+
+                    var patch = await source.ProvisionAsync(catalogEntry, release, cancellationToken);
+                    return (
+                        patch.PackageDirectory,
+                        patch.Package.Manifest.PackageId,
+                        patch.Package.Manifest.PackageVersion,
+                        patch.Release);
                 },
                 cancellationToken);
-            _contentPatchReleases[catalogEntry.PackageId] = provisioned.Release;
+            _contentPatchReleases[catalogEntry.PackageId] = prepared.Release;
             _contentPatchReleaseErrors.Remove(catalogEntry.PackageId);
-            OptionalPatchPackagePath = provisioned.PackageDirectory;
+            OptionalPatchPackagePath = prepared.PackageDirectory;
             RefreshOptionalPatchStatus();
             OperationElapsed = FormatElapsed(stopwatch.Elapsed);
             OperationProgress = 100;
             OperationStatus = "Package ready";
             OperationTitle = $"{catalogEntry.DisplayName} package ready";
-            OperationSubtitle = $"Release {provisioned.Release.Tag} was verified and prepared for review.";
+            OperationSubtitle = $"Release {prepared.Release.Tag} was verified and prepared for review.";
             OperationProgressText = "100% - Release asset, manifest and payload hashes validated";
-            AppendOperationLog($"[RELEASE] {provisioned.Release.Tag} from {catalogEntry.RepositoryUrl}");
-            AppendOperationLog($"[PACKAGE] {provisioned.Package.Manifest.PackageId} {provisioned.Package.Manifest.PackageVersion}");
-            AppendOperationLog($"[CACHE] {provisioned.PackageDirectory}");
-            AppendLog($"Prepared optional package {catalogEntry.DisplayName} {provisioned.Release.Tag} from its trusted GitHub release.");
+            AppendOperationLog($"[RELEASE] {prepared.Release.Tag} from {catalogEntry.RepositoryUrl}");
+            AppendOperationLog($"[PACKAGE] {prepared.PackageId} {prepared.PackageVersion}");
+            AppendOperationLog($"[CACHE] {prepared.PackageDirectory}");
+            AppendLog($"Prepared package {catalogEntry.DisplayName} {prepared.Release.Tag} from its trusted GitHub release.");
             return true;
         }
         catch (OperationCanceledException)
@@ -3297,15 +3530,23 @@ public partial class MainWindowViewModel : ViewModelBase
     private void RefreshOptionalPatchStatus()
     {
         CanRunOptionalPatch = false;
+        CompatibilityModulesVisible = false;
+        CompatibilityModules.Clear();
         if (string.IsNullOrWhiteSpace(OptionalPatchPackagePath))
         {
             OptionalPatchName = "No optional patch package selected";
-            OptionalPatchStatus = "Select a declarative package folder containing package-manifest.json.";
+            OptionalPatchStatus = "Select a declarative patch or compatibility package folder containing package-manifest.json.";
             return;
         }
 
         try
         {
+            if (CompatibilityPackageLoader.IsCompatibilityPackage(OptionalPatchPackagePath))
+            {
+                RefreshCompatibilityPackageStatus();
+                return;
+            }
+
             var package = DeclarativePatchPackageLoader.LoadDirectory(OptionalPatchPackagePath);
             OptionalPatchName = package.Manifest.PackageId;
             var selectedVariant = SelectedViewVariant;
@@ -3337,6 +3578,49 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
+    private void RefreshCompatibilityPackageStatus()
+    {
+        var package = CompatibilityPackageLoader.LoadDirectory(OptionalPatchPackagePath);
+        OptionalPatchName = $"{package.Manifest.AircraftFamily} compatibility package";
+        CompatibilityModulesVisible = true;
+        var selectedVariant = SelectedViewVariant;
+        var aircraftRoot = selectedVariant is null ? "" : Path.GetDirectoryName(selectedVariant.AcfPath) ?? "";
+        var state = string.IsNullOrWhiteSpace(aircraftRoot)
+            ? null
+            : _stateStore.TryGetContentInstallation(aircraftRoot)?.ContentComponents?
+                .GetValueOrDefault(package.Manifest.PackageId);
+        var selectedIds = state?.EnabledModules.Count > 0
+            ? state.EnabledModules.ToHashSet(StringComparer.Ordinal)
+            : CompatibilityPackagePlanBuilder.DefaultSelection(package.Manifest).ToHashSet(StringComparer.Ordinal);
+        foreach (var module in package.Manifest.Modules.OrderBy(module => module.InstallationOrder))
+        {
+            CompatibilityModules.Add(new CompatibilityModuleOptionViewModel(
+                module.ModuleId,
+                module.DisplayName,
+                module.Description,
+                module.Policy,
+                module.Policy is CompatibilityModulePolicy.Required || selectedIds.Contains(module.ModuleId),
+                module.Policy is not CompatibilityModulePolicy.Required));
+        }
+
+        if (selectedVariant is null)
+        {
+            OptionalPatchStatus = $"Compatibility package {package.Manifest.PackageVersion} is valid. Select a compatible aircraft installation.";
+            return;
+        }
+
+        if (!package.Manifest.SupportedProducts.Contains(selectedVariant.Family, StringComparer.Ordinal))
+        {
+            OptionalPatchStatus = $"Package supports [{string.Join(", ", package.Manifest.SupportedProducts)}]; selected product is {selectedVariant.Family}.";
+            return;
+        }
+
+        OptionalPatchStatus = state is null
+            ? $"Package {package.Manifest.PackageVersion} is validated. Required and recommended modules are preselected; optional modules require explicit opt-in."
+            : $"Installed {state.PackageVersion} with {state.EnabledModules.Count} module(s); selected package {package.Manifest.PackageVersion}.";
+        CanRunOptionalPatch = ActionsEnabled && !IsOperationRunning;
+    }
+
     private void RefreshContentPackageOverview(bool preserveStatus = false)
     {
         AvailableContentPackages.Clear();
@@ -3354,7 +3638,8 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         var packages = _contentPackageCatalog.ForProduct(product.Family)
-            .Where(package => package.Category is ContentPackageCategory.OptionalPatch)
+            .Where(package => package.Category is ContentPackageCategory.OptionalPatch
+                or ContentPackageCategory.CompatibilityPackage)
             .ToArray();
         ContentPackageOverviewVisible = packages.Length > 0;
         var aircraftRoot = CurrentProductAircraftFolderPath();
@@ -3367,6 +3652,7 @@ public partial class MainWindowViewModel : ViewModelBase
             var release = _contentPatchReleases.GetValueOrDefault(package.PackageId);
             var releaseError = _contentPatchReleaseErrors.GetValueOrDefault(package.PackageId);
             var isManaged = package.Category is ContentPackageCategory.ManagedContent;
+            var isCompatibility = package.Category is ContentPackageCategory.CompatibilityPackage;
             string installedVersion;
             string availableVersion;
             string status;
@@ -3390,7 +3676,9 @@ public partial class MainWindowViewModel : ViewModelBase
                 }
                 else if (state is null)
                 {
-                    status = release is null ? "Optional; release not checked" : "Optional; not installed";
+                    status = release is null
+                        ? isCompatibility ? "Compatibility package; release not checked" : "Optional; release not checked"
+                        : isCompatibility ? "Compatibility package; not installed" : "Optional; not installed";
                 }
                 else if (release is null)
                 {
@@ -3420,7 +3708,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 package.PackageId,
                 package.DisplayName,
                 package.Description,
-                isManaged ? "Managed content" : "Optional patch",
+                isManaged ? "Managed content" : isCompatibility ? "Compatibility package" : "Optional patch",
                 installedVersion,
                 availableVersion,
                 status,
@@ -3439,7 +3727,8 @@ public partial class MainWindowViewModel : ViewModelBase
         if (!preserveStatus)
         {
             var optionalCount = packages.Count(package => package.Category is ContentPackageCategory.OptionalPatch);
-            ContentPackageCatalogStatus = $"{packages.Length} package(s) available for {product.Name}: {optionalCount} optional.";
+            var compatibilityCount = packages.Count(package => package.Category is ContentPackageCategory.CompatibilityPackage);
+            ContentPackageCatalogStatus = $"{packages.Length} package(s) available for {product.Name}: {compatibilityCount} compatibility, {optionalCount} optional.";
         }
     }
 
@@ -5503,6 +5792,40 @@ public sealed record AvailableContentPackageStatus(
     bool CanRemove)
 {
     public bool IsManaged => !IsOptional;
+}
+
+public sealed partial class CompatibilityModuleOptionViewModel : ObservableObject
+{
+    public CompatibilityModuleOptionViewModel(
+        string moduleId,
+        string displayName,
+        string description,
+        CompatibilityModulePolicy policy,
+        bool isSelected,
+        bool canChangeSelection)
+    {
+        ModuleId = moduleId;
+        DisplayName = displayName;
+        Description = description;
+        Policy = policy;
+        this.isSelected = isSelected;
+        CanChangeSelection = canChangeSelection;
+    }
+
+    public string ModuleId { get; }
+
+    public string DisplayName { get; }
+
+    public string Description { get; }
+
+    public CompatibilityModulePolicy Policy { get; }
+
+    public string PolicyLabel => Policy.ToString();
+
+    public bool CanChangeSelection { get; }
+
+    [ObservableProperty]
+    private bool isSelected;
 }
 
 internal static class ObservableCollectionExtensions

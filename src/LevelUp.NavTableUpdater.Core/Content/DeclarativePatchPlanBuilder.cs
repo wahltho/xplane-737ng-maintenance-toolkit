@@ -122,7 +122,10 @@ public sealed class DeclarativePatchPlanBuilder : IContentPatchPlanBuilder<Decla
 
                 try
                 {
-                    preparedResult = handler.Apply(bytes, structuralPayload.Json.RootElement);
+                    preparedResult = handler.Apply(
+                        bytes,
+                        structuralPayload.Json?.RootElement
+                            ?? throw new InvalidOperationException($"Patch payload is not JSON: {target.Payload}."));
                     isInstalled = preparedResult.AsSpan().SequenceEqual(bytes);
                     isSource = !isInstalled;
                     log.Add(isInstalled
@@ -205,7 +208,10 @@ public sealed class DeclarativePatchPlanBuilder : IContentPatchPlanBuilder<Decla
             }
 
             var handler = _handlers.GetRequired(state.Target.Operation);
-            var result = state.PreparedResult ?? handler.Apply(state.Bytes, payload.Json.RootElement);
+            var result = state.PreparedResult ?? handler.Apply(
+                state.Bytes,
+                payload.Json?.RootElement
+                    ?? throw new InvalidOperationException($"Patch payload is not JSON: {state.Target.Payload}."));
             var resultHash = Sha256(result);
             if (state.Target.ResultSha256 is not null
                 && !resultHash.Equals(state.Target.ResultSha256, StringComparison.OrdinalIgnoreCase))

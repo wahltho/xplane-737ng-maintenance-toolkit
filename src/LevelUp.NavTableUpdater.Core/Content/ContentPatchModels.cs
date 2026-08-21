@@ -66,6 +66,10 @@ public sealed record ContentPatchPlan(
     bool IsSafe,
     string StatusMessage)
 {
+    public IReadOnlyList<string> EnabledModules { get; init; } = [];
+
+    public IReadOnlySet<string>? OwnedRelativePaths { get; init; }
+
     public static ContentPatchPlan Blocked(
         ContentPatchDescriptor descriptor,
         string packageVersion,

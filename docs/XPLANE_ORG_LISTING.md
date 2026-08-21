@@ -10,7 +10,7 @@ X-Plane 737NG Maintenance Toolkit
 
 ## Current Version
 
-0.10.0
+0.11.0
 
 ## Short Description
 
@@ -53,7 +53,7 @@ Current functions include:
 - background Toolkit application update checks with cancellable verified
   download and confirmed restart through VeloPack
 
-Version 0.10.0 currently offers:
+Version 0.11.0 currently offers:
 
 - Optimized XLua 1.3.7r3
 - Yet Another Linda (YAL)
@@ -154,6 +154,14 @@ When reporting a problem, use `Dump to file` on the Advanced tab and attach the 
 The Toolkit source code is available under the MIT License. The application is provided as-is, without warranty of any kind. It can modify aircraft files after validation and backup; users should retain their own backups and use the tool at their own risk.
 
 ## Changelog
+
+### 0.11.0
+
+- Added the Toolkit version to the application header.
+- Improved LevelUp 7z review and installation performance with a single
+  sequential archive pass.
+- Embedded the application icon in the Windows executable so installed
+  shortcuts display it correctly.
 
 ### 0.10.0
 

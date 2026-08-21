@@ -347,20 +347,15 @@ public sealed class AircraftUpdateOperation
         using var archive = AircraftPackageArchive.Open(cacheEntry.CachePath);
         log.Add($"[PACKAGE] Applying {cacheEntry.Package.FileName} ({archive.Entries.Count} archive entries).");
 
-        foreach (var archiveEntry in archive.Entries)
+        archive.ProcessFileEntriesSequentially((archiveEntry, input) =>
         {
-            if (archiveEntry.IsDirectory)
-            {
-                continue;
-            }
-
             var normalizedPath = AircraftUpdatePath.MapArchivePath(
                 archiveEntry.Path,
                 cacheEntry.Package.Manifest?.ContentRoot)
                 ?? throw new InvalidOperationException($"Unsafe archive path in {cacheEntry.Package.FileName}: {archiveEntry.Path}");
             if (!writePlan.TryGetValue((cacheEntry.Package.FileName, normalizedPath), out var action))
             {
-                continue;
+                return;
             }
 
             var targetPath = AircraftUpdatePath.ResolveTargetPath(aircraftFolder, normalizedPath);
@@ -383,11 +378,11 @@ public sealed class AircraftUpdateOperation
 
             var manifestFile = cacheEntry.Package.Manifest?.Files
                 .FirstOrDefault(file => string.Equals(file.Path, normalizedPath, StringComparison.OrdinalIgnoreCase));
-            ExtractArchiveEntry(archiveEntry, targetPath, manifestFile);
+            ExtractArchiveEntry(input, targetPath, manifestFile);
             log.Add(action == AircraftUpdateDryRunEntryAction.Replace
                 ? $"[WRITE] Replaced {normalizedPath} from {cacheEntry.Package.FileName}."
                 : $"[WRITE] Added {normalizedPath} from {cacheEntry.Package.FileName}.");
-        }
+        });
     }
 
     private void WriteToolkitMetadata(
@@ -592,7 +587,7 @@ public sealed class AircraftUpdateOperation
     }
 
     private static void ExtractArchiveEntry(
-        AircraftPackageArchiveEntry archiveEntry,
+        Stream input,
         string targetPath,
         AircraftUpdateManifestFile? manifestFile)
     {
@@ -604,7 +599,6 @@ public sealed class AircraftUpdateOperation
 
         try
         {
-            using (var input = archiveEntry.Open())
             using (var output = File.Create(tempPath))
             {
                 input.CopyTo(output);
