@@ -31,7 +31,7 @@ It runs on:
 
 File: `.github/workflows/velopack-packages.yml`
 
-Runs only by manual dispatch.
+Runs on version tags and can also be started by manual dispatch.
 
 The workflow:
 
@@ -41,9 +41,11 @@ The workflow:
 - creates unsigned VeloPack packages
 - uses the current app icon assets for packaging
 - installs `squashfs-tools` on Linux so VeloPack can create AppImage output
-- uploads GitHub Actions artifacts
+- uploads only the VeloPack output needed by the release job
 - optionally creates or updates a GitHub Release from the VeloPack artifacts
 - adds release notes and `SHA256SUMS.txt` to the release assets
+- removes intermediate Actions artifacts after a successful published release
+- retains only the two newest stable GitHub Releases
 
 The release step is controlled by manual workflow inputs:
 
@@ -52,6 +54,13 @@ The release step is controlled by manual workflow inputs:
 - `draft`: create or update the GitHub Release as a draft
 
 The workflow does not use signing or notarization secrets.
+
+Manual preview builds that do not publish a release retain their VeloPack
+artifacts for one day. Published release assets remain attached to the GitHub
+Release, while the redundant Actions copies are deleted immediately. The two
+newest non-draft, non-prerelease releases are retained as the current stable
+release and one rollback release. Older release entries and their binary assets
+are removed; their Git tags remain as source-history markers.
 
 The current macOS package intentionally omits an icon argument because VeloPack
 expects a `.icns` file there. Final branding should provide platform-native
