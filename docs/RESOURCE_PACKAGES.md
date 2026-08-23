@@ -4,8 +4,10 @@ Resource packages are optional, product-scoped assets such as paintkits. They
 are installed only into a user-selected directory outside X-Plane and never
 participate in aircraft, VNAV, tool backup, or restore transactions.
 
-The resource area is shown only when the trusted bundled content catalog has a
-`resource` entry compatible with the selected aircraft product.
+The resource area is shown only when the active validated content catalog has a
+`resource` entry compatible with the selected aircraft product. The active
+catalog can come from an immutable catalog release, the last-known-good cache or
+the bundled fallback.
 
 Version 0.5.0 bundles the first resource entry: the official LevelUp 737NG
 Paintkit 1.1.0 from `petrolpram/737NG-Updates`. It is offered only for a

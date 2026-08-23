@@ -45,7 +45,7 @@ The workflow:
 - optionally creates or updates a GitHub Release from the VeloPack artifacts
 - adds release notes and `SHA256SUMS.txt` to the release assets
 - removes intermediate Actions artifacts after a successful published release
-- retains only the two newest stable GitHub Releases
+- retains only the two newest stable application GitHub Releases
 
 The release step is controlled by manual workflow inputs:
 
@@ -58,13 +58,33 @@ The workflow does not use signing or notarization secrets.
 Manual preview builds that do not publish a release retain their VeloPack
 artifacts for one day. Published release assets remain attached to the GitHub
 Release, while the redundant Actions copies are deleted immediately. The two
-newest non-draft, non-prerelease releases are retained as the current stable
-release and one rollback release. Older release entries and their binary assets
-are removed; their Git tags remain as source-history markers.
+newest non-draft, non-prerelease `v<semver>` application releases are retained
+as the current stable release and one rollback release. Content catalog
+releases are excluded from this cleanup. Older application release entries and
+their binary assets are removed; their Git tags remain as source-history
+markers.
 
 The current macOS package intentionally omits an icon argument because VeloPack
 expects a `.icns` file there. Final branding should provide platform-native
 icon assets before signed public distribution.
+
+### `Content Catalog`
+
+File: `.github/workflows/content-catalog.yml`
+
+Runs on `catalog-v*` tags and can also be started manually. It validates the
+catalog with the production parser, checks that the requested version matches
+`catalogVersion`, and publishes these immutable assets:
+
+- `content-package-catalog.json`
+- `content-package-catalog.schema.json`
+- `catalog-SHA256SUMS.txt`
+
+Catalog releases use `--latest=false`; the VeloPack application release remains
+the repository's `latest` release. The app loads the newest stable
+`catalog-v*` release, validates its schema and `minimumToolkitVersion`, and
+caches it only after successful validation. Network, schema or compatibility
+errors fall back to the previous valid cache and then to the bundled catalog.
 
 ## VeloPack Tooling
 

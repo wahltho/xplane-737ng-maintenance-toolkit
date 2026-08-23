@@ -13,6 +13,8 @@ public static class ToolkitPaths
 
     public static string DefaultAircraftUpdateCacheRootPath => Path.Combine(LocalAppDataRoot, "aircraft-updates");
 
+    public static string DefaultContentCatalogCacheRootPath => Path.Combine(LocalAppDataRoot, "content-catalog");
+
     public static string DefaultOfflinePackageRootPath => Path.Combine(UserDocumentsRoot, UserVisibleFolderName, "Packages");
 
     public static string DefaultDiagnosticsExportRootPath => Path.Combine(UserDocumentsRoot, UserVisibleFolderName, "Diagnostics");

@@ -127,12 +127,30 @@ public sealed class ContentPatchCatalogTests
         var descriptor = ContentPatchCatalog.OptionalPatch(fans);
 
         Assert.Equal("1.3.0", catalog.CatalogVersion);
+        Assert.Equal("0.12.0", catalog.MinimumToolkitVersion);
         Assert.Equal(ContentPackageCategory.OptionalPatch, fans.Category);
         Assert.Equal(ContentPatchActivation.ExplicitOptIn, fans.Activation);
         Assert.Equal("LevelUp-737NG-FANS-CDU-v*.zip", fans.Distribution.AssetNamePattern);
         Assert.Equal(2, fans.Distribution.ManifestSchemaVersion);
         Assert.Equal(ContentPatchCatalog.FansCdu.ComponentId, descriptor.ComponentId);
         Assert.False(ContentPatchCatalog.MayOfferAfterAircraftUpdate(descriptor));
+    }
+
+    [Fact]
+    public void BundledCatalog_DoesNotAdvertiseUnreleasedWeightBalanceOrPerformancePackages()
+    {
+        var catalog = ContentPackageCatalog.Parse(File.ReadAllText(BundledCatalogPath()));
+
+        Assert.DoesNotContain(
+            catalog.Packages,
+            package => package.RepositoryUrl.Equals(
+                "https://github.com/wahltho/X-Plane-LevelUp-737NG-Weight-Balance",
+                StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(
+            catalog.Packages,
+            package => package.RepositoryUrl.Equals(
+                "https://github.com/wahltho/X-Plane-Zibo-LevelUp-737NG-Tablet-Performance-Calculator",
+                StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

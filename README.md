@@ -7,7 +7,7 @@ tools and conservative view maintenance for supported aircraft variants.
 This repository is the public development home for the app. The architecture
 keeps package content, aircraft patching, and application updates separate.
 
-Release version: **0.11.1**
+Release version: **0.12.0**
 
 - [Download the latest stable release](https://github.com/wahltho/xplane-737ng-maintenance-toolkit/releases/latest)
 - [Read the user manual](docs/USER_MANUAL.md)
@@ -101,8 +101,8 @@ Current capabilities:
   present.
 - For LevelUp installations, it can copy every Quick View from one selected
   variant to all other variants in the same aircraft folder. Each target is
-  corrected for its ACF CG and receives a Default Viewpoint derived from the
-  transferred Quick View 0 in one rollback-protected fleet transaction.
+  corrected for its ACF CG. A separate confirmation controls whether the
+  transferred Quick View 0 also becomes each target's Default Viewpoint.
 - It can create and restore dedicated config backups for root-level aircraft
   preferences, camera CSVs, cfg files and toolkit metadata.
 - It can install, update, repair and uninstall manifest-owned VNAV Lua hooks and
@@ -113,7 +113,10 @@ Current capabilities:
 - The bundled catalog offers the LevelUp FANS CDU package as an explicit,
   optional LevelUp-only patch. Its manifest, payload hashes and supported
   source structures are validated before any aircraft file is changed.
-- It ships a versioned trusted package catalog. The Start page filters managed
+- It ships a versioned trusted package catalog and checks immutable
+  `catalog-v*` GitHub Releases for newer package metadata. A remote catalog is
+  used only after schema and minimum Toolkit version validation; the last valid
+  cache and bundled catalog remain fallbacks. The Start page filters managed
   content and optional patches by the selected Zibo or LevelUp product. Trusted
   optional entries can resolve their latest stable GitHub Release directly;
   manual package-folder selection remains an Advanced fallback.
@@ -246,7 +249,8 @@ Release assets remain the preferred package source for normal use.
 - Generic transactional content-patch engine with managed VNAV and explicit
   opt-in lifecycle policies.
 - Product-scoped trusted content catalog with secure GitHub Release package
-  provisioning for optional declarative patches.
+  provisioning, immutable remote catalog releases, last-known-good caching and
+  a bundled fallback for optional declarative patches.
 - Product-gated aircraft components and X-Plane-wide tool packages with
   separate Stable/Beta release channels and transactional
   install/update/repair/restore.

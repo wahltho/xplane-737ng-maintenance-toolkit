@@ -1,6 +1,7 @@
 {
   "schemaVersion": 1,
   "catalogVersion": "1.3.0",
+  "minimumToolkitVersion": "0.12.0",
   "packages": [
     {
       "packageId": "x-plane-zibo-vnav-descent-tables",

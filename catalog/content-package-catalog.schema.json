@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/wahltho/xplane-737ng-maintenance-toolkit/catalog/content-package-catalog.schema.json",
+  "title": "X-Plane 737NG Maintenance Toolkit content package catalog",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "catalogVersion", "minimumToolkitVersion", "packages"],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "catalogVersion": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "minimumToolkitVersion": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "packages": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/package"
+      }
+    }
+  },
+  "$defs": {
+    "package": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "packageId",
+        "displayName",
+        "description",
+        "category",
+        "activation",
+        "supportedProducts",
+        "repositoryUrl",
+        "restartRequired",
+        "distribution"
+      ],
+      "properties": {
+        "packageId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "category": {
+          "enum": ["managedContent", "compatibilityPackage", "optionalPatch", "aircraftComponent", "tool", "resource"]
+        },
+        "activation": {
+          "enum": ["managed", "explicitOptIn"]
+        },
+        "supportedProducts": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": ["zibo-737ng", "levelup-737ng"]
+          }
+        },
+        "repositoryUrl": {
+          "type": "string",
+          "pattern": "^https://github\\.com/[^/]+/[^/]+$"
+        },
+        "restartRequired": {
+          "type": "boolean"
+        },
+        "installScope": {
+          "type": "string"
+        },
+        "targetPath": {
+          "type": "string"
+        },
+        "versionMarkerPath": {
+          "type": "string"
+        },
+        "supportedChannels": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": ["stable", "beta"]
+          }
+        },
+        "distribution": {
+          "$ref": "#/$defs/distribution"
+        }
+      }
+    },
+    "distribution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": {
+          "enum": ["existingVnav", "gitHubReleaseArchive", "gitHubToolRelease", "gitHubXPlaneOverlayRelease", "gitHubResourceRelease"]
+        },
+        "assetNamePattern": {
+          "type": "string"
+        },
+        "manifestAssetNamePattern": {
+          "type": "string"
+        },
+        "manifestSchemaVersion": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    }
+  }
+}

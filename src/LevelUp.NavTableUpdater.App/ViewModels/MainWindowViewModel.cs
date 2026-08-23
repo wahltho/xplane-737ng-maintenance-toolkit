@@ -49,7 +49,9 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly HttpClient _aircraftUpdateHttpClient = new();
     private readonly IPackageManifestSource _packageManifestSource = new GitHubReleasePackageManifestSource();
     private readonly IReadOnlyList<PackageManifest> _manifests;
-    private readonly ContentPackageCatalog _contentPackageCatalog;
+    private readonly string _bundledContentPackageCatalogJson;
+    private readonly ContentPackageCatalogLoader _contentPackageCatalogLoader;
+    private ContentPackageCatalog _contentPackageCatalog;
     private GitHubContentPatchReleaseSource _contentPatchReleaseSource;
     private GitHubToolPackageReleaseSource _toolPackageReleaseSource;
     private GitHubResourcePackageReleaseSource _resourcePackageReleaseSource;
@@ -552,7 +554,16 @@ public partial class MainWindowViewModel : ViewModelBase
         ToolkitStatePath = _stateStore.StatePath;
         ToolkitSettingsPath = _settingsStore.SettingsPath;
         _manifests = LoadManifests();
-        _contentPackageCatalog = LoadContentPackageCatalog();
+        var toolkitVersion = typeof(MainWindowViewModel).Assembly.GetName().Version
+            ?? throw new InvalidOperationException("Toolkit assembly version is unavailable.");
+        _bundledContentPackageCatalogJson = LoadBundledContentPackageCatalogJson();
+        _contentPackageCatalog = ContentPackageCatalog.Parse(
+            _bundledContentPackageCatalogJson,
+            toolkitVersion);
+        _contentPackageCatalogLoader = new ContentPackageCatalogLoader(
+            _aircraftUpdateHttpClient,
+            ToolkitPaths.DefaultContentCatalogCacheRootPath,
+            toolkitVersion);
         _contentPatchReleaseSource = new GitHubContentPatchReleaseSource(
             _aircraftUpdateHttpClient,
             _aircraftUpdatePackageCache.RootPath);
@@ -579,8 +590,6 @@ public partial class MainWindowViewModel : ViewModelBase
         _resourcePackageManager = new ResourcePackageManager(_stateStore);
         _ziboUpdateChecker = new AircraftUpstreamUpdateChecker(
             new ZiboFeedAircraftUpdateIndexSource(_aircraftUpdateHttpClient));
-        var toolkitVersion = typeof(MainWindowViewModel).Assembly.GetName().Version
-            ?? throw new InvalidOperationException("Toolkit assembly version is unavailable.");
         _levelUpUpdateChecker = new LevelUpReleaseUpdateChecker(
             new LevelUpGitHubReleaseIndexSource(_aircraftUpdateHttpClient, toolkitVersion));
         _aircraftUpdateOperation = new AircraftUpdateOperation(_stateStore, _aircraftUpdateDryRunAnalyzer);
@@ -616,8 +625,25 @@ public partial class MainWindowViewModel : ViewModelBase
 
         _isInitialized = true;
         var applicationUpdateCheck = ApplicationUpdate.CheckForUpdatesAsync();
+        var contentCatalogRefresh = RefreshRemoteContentPackageCatalogAsync();
         await AutoDetect();
-        await applicationUpdateCheck;
+        await Task.WhenAll(applicationUpdateCheck, contentCatalogRefresh);
+    }
+
+    private async Task RefreshRemoteContentPackageCatalogAsync()
+    {
+        var result = await _contentPackageCatalogLoader.LoadAsync(_bundledContentPackageCatalogJson);
+        _contentPackageCatalog = result.Catalog;
+        _contentPatchReleases.Clear();
+        _contentPatchReleaseErrors.Clear();
+        _toolPackageReleases.Clear();
+        _resourcePackageReleases.Clear();
+        SynchronizeAvailableToolPackages();
+        SynchronizeAvailableResourcePackages();
+        RefreshContentPackageOverview();
+        RefreshToolPackageOverview();
+        RefreshResourcePackageOverview();
+        AppendLog($"Content package catalog: {result.Detail}");
     }
 
     public void SetBackupRootPathFromBrowse(string path)
@@ -5707,7 +5733,7 @@ public partial class MainWindowViewModel : ViewModelBase
         return manifests;
     }
 
-    private static ContentPackageCatalog LoadContentPackageCatalog()
+    private static string LoadBundledContentPackageCatalogJson()
     {
         var contentDir = Path.Combine(AppContext.BaseDirectory, "Content");
         if (!Directory.Exists(contentDir))
@@ -5721,7 +5747,7 @@ public partial class MainWindowViewModel : ViewModelBase
             throw new FileNotFoundException("Bundled content package catalog is missing.", catalogPath);
         }
 
-        return ContentPackageCatalog.Parse(File.ReadAllText(catalogPath));
+        return File.ReadAllText(catalogPath);
     }
 
     private IPackagePayloadSource CreatePayloadSource() =>

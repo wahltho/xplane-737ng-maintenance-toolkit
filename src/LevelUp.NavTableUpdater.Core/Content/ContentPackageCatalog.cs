@@ -32,6 +32,8 @@ public sealed class ContentPackageCatalogDocument
 
     public string CatalogVersion { get; set; } = "";
 
+    public string MinimumToolkitVersion { get; set; } = "";
+
     public List<ContentPackageCatalogEntry> Packages { get; set; } = [];
 }
 
@@ -80,20 +82,27 @@ public sealed class ContentPackageCatalog
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
+        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
         Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase, allowIntegerValues: false) }
     };
 
-    private ContentPackageCatalog(string catalogVersion, IReadOnlyList<ContentPackageCatalogEntry> packages)
+    private ContentPackageCatalog(
+        string catalogVersion,
+        string minimumToolkitVersion,
+        IReadOnlyList<ContentPackageCatalogEntry> packages)
     {
         CatalogVersion = catalogVersion;
+        MinimumToolkitVersion = minimumToolkitVersion;
         Packages = packages;
     }
 
     public string CatalogVersion { get; }
 
+    public string MinimumToolkitVersion { get; }
+
     public IReadOnlyList<ContentPackageCatalogEntry> Packages { get; }
 
-    public static ContentPackageCatalog Parse(string json)
+    public static ContentPackageCatalog Parse(string json, Version? toolkitVersion = null)
     {
         ContentPackageCatalogDocument document;
         try
@@ -106,19 +115,38 @@ public sealed class ContentPackageCatalog
             throw new InvalidDataException($"Content package catalog JSON is invalid: {ex.Message}", ex);
         }
 
-        Validate(document);
-        return new ContentPackageCatalog(document.CatalogVersion, document.Packages);
+        Validate(document, toolkitVersion);
+        return new ContentPackageCatalog(
+            document.CatalogVersion,
+            document.MinimumToolkitVersion,
+            document.Packages);
     }
 
     public IReadOnlyList<ContentPackageCatalogEntry> ForProduct(string productId) =>
         Packages.Where(package => package.SupportedProducts.Contains(productId, StringComparer.Ordinal)).ToArray();
 
-    private static void Validate(ContentPackageCatalogDocument document)
+    private static void Validate(ContentPackageCatalogDocument document, Version? toolkitVersion)
     {
         document.Packages ??= [];
-        if (document.SchemaVersion != 1 || string.IsNullOrWhiteSpace(document.CatalogVersion))
+        if (document.SchemaVersion != 1
+            || !TryParseThreePartVersion(document.CatalogVersion, out _))
         {
             throw new InvalidDataException("Unsupported or incomplete content package catalog identity.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(document.MinimumToolkitVersion))
+        {
+            if (!TryParseThreePartVersion(document.MinimumToolkitVersion, out var minimumToolkitVersion))
+            {
+                throw new InvalidDataException("Content package catalog has an invalid minimumToolkitVersion.");
+            }
+
+            if (toolkitVersion is not null && toolkitVersion < minimumToolkitVersion)
+            {
+                throw new InvalidDataException(
+                    $"Content package catalog {document.CatalogVersion} requires toolkit "
+                    + $"{minimumToolkitVersion} or newer; current toolkit is {toolkitVersion}.");
+            }
         }
 
         if (document.Packages.Count == 0)
@@ -297,5 +325,22 @@ public sealed class ContentPackageCatalog
 
         var parts = value.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries);
         return parts.Length > 0 && parts.All(part => part is not "." and not "..");
+    }
+
+    private static bool TryParseThreePartVersion(string value, out Version version)
+    {
+        version = new Version();
+        var parts = value.Split('.', StringSplitOptions.None);
+        if (parts.Length != 3
+            || parts.Any(part => part.Length == 0 || !part.All(char.IsAsciiDigit))
+            || !int.TryParse(parts[0], out var major)
+            || !int.TryParse(parts[1], out var minor)
+            || !int.TryParse(parts[2], out var build))
+        {
+            return false;
+        }
+
+        version = new Version(major, minor, build);
+        return true;
     }
 }
