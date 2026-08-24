@@ -68,8 +68,57 @@ public sealed class DeclarativeContentPatchOperationTests
         var plan = await operation.PlanAsync(ContentPatchAction.Update, fixture.Variant, fixture.PackageDirectory);
 
         Assert.True(plan.IsSafe);
-        Assert.Empty(plan.Mutations);
-        Assert.Contains("already installed", plan.StatusMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.Single(plan.Mutations);
+        Assert.False(plan.RestoreAvailable);
+        Assert.Contains("already present", plan.StatusMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Install_WhenPngResultPixelsExistWithoutState_AdoptsWithoutInventingRestore()
+    {
+        using var directory = new DeclarativePatchManifestTests.TemporaryDirectory();
+        var aircraftRoot = Path.Combine(directory.Path, "aircraft");
+        var packageRoot = Path.Combine(directory.Path, "package");
+        var relativeTarget = "objects/737cockpit_overhead2_NML.png";
+        var targetPath = Path.Combine(aircraftRoot, relativeTarget.Replace('/', Path.DirectorySeparatorChar));
+        Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
+        Directory.CreateDirectory(Path.Combine(packageRoot, "patches"));
+        var sourcePixel = new byte[] { 1, 2, 3, 4 };
+        var resultPixel = new byte[] { 5, 6, 7, 8 };
+        var declaredSource = ContentPatchHandlerTests.CreateOnePixelPng(sourcePixel);
+        var installed = ContentPatchHandlerTests.CreateOnePixelPng(resultPixel, includeMetadata: true);
+        File.WriteAllBytes(targetPath, installed);
+        using var payloadDocument = ContentPatchHandlerTests.CreatePngPayload(declaredSource, sourcePixel, resultPixel);
+        var payload = Encoding.UTF8.GetBytes(payloadDocument.RootElement.GetRawText());
+        File.WriteAllBytes(Path.Combine(packageRoot, "patches", "normal-map.json"), payload);
+        File.WriteAllText(
+            Path.Combine(packageRoot, "package-manifest.json"),
+            DeclarativePatchManifestTests.BuildManifest(
+                "patches/normal-map.json",
+                payload,
+                relativeTarget,
+                DeclarativePatchManifestTests.Sha256(declaredSource),
+                includeResultHash: false,
+                operation: "png-rgba-region-v1"));
+        var acfPath = Path.Combine(aircraftRoot, "737_70NG.acf");
+        File.WriteAllText(acfPath, "1200 Version\n");
+        var variant = Fixture.CreateVariant(acfPath);
+        var store = TestToolStateStore.Create(Path.Combine(directory.Path, "state"));
+        var operation = new DeclarativeContentPatchOperation(store, isXPlaneRunning: () => false);
+
+        var result = await operation.RunAsync(ContentPatchAction.Install, variant, packageRoot);
+
+        Assert.True(result.Succeeded);
+        Assert.False(result.Changed);
+        Assert.Equal(installed, File.ReadAllBytes(targetPath));
+        var component = Assert.Single(Assert.Single(store.Load().ContentInstallations.Values).ContentComponents.Values);
+        Assert.False(component.RestoreAvailable);
+        Assert.Single(component.Files);
+
+        var restore = operation.Restore(variant, packageRoot);
+        Assert.False(restore.Succeeded);
+        Assert.Contains("No original restore backup", restore.Message, StringComparison.Ordinal);
+        Assert.Equal(installed, File.ReadAllBytes(targetPath));
     }
 
     [Theory]
@@ -236,7 +285,7 @@ public sealed class DeclarativeContentPatchOperationTests
 
         public void Dispose() => Directory.Dispose();
 
-        private static AircraftVariantViewAnalysis CreateVariant(string acfPath) =>
+        internal static AircraftVariantViewAnalysis CreateVariant(string acfPath) =>
             new(
                 AircraftId: "levelup-737-700",
                 DisplayName: "LevelUp 737-700",

@@ -3604,7 +3604,9 @@ public partial class MainWindowViewModel : ViewModelBase
                 .GetValueOrDefault(package.Manifest.PackageId);
             OptionalPatchStatus = state is null
                 ? $"Package {package.Manifest.PackageVersion} is validated and ready for explicit installation ({package.Manifest.Targets.Count} files)."
-                : $"Installed {state.PackageVersion}; selected package {package.Manifest.PackageVersion}.";
+                : state.RestoreAvailable
+                    ? $"Installed {state.PackageVersion}; selected package {package.Manifest.PackageVersion}."
+                    : $"Installed {state.PackageVersion}; adopted existing files have no original restore backup.";
             CanRunOptionalPatch = ActionsEnabled && !IsOperationRunning;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
@@ -3723,7 +3725,9 @@ public partial class MainWindowViewModel : ViewModelBase
                 else
                 {
                     status = ContentVersionsEqual(state.PackageVersion, release.Tag)
-                        ? "Installed release is current; repair remains available"
+                        ? state.RestoreAvailable
+                            ? "Installed release is current; repair remains available"
+                            : "Installed release is current; adopted without an original restore backup"
                         : "A different release is available";
                 }
 
@@ -3739,7 +3743,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 && !IsContentPackageCatalogCheckRunning
                 && SelectedViewVariant is not null
                 && package.SupportedProducts.Contains(SelectedViewVariant.Family, StringComparer.Ordinal);
-            var canRestore = canAct && state is not null;
+            var canRestore = canAct && state?.RestoreAvailable == true;
             AvailableContentPackages.Add(new AvailableContentPackageStatus(
                 package.PackageId,
                 package.DisplayName,

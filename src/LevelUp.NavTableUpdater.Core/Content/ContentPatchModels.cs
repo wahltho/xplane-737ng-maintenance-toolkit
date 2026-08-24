@@ -70,6 +70,8 @@ public sealed record ContentPatchPlan(
 
     public IReadOnlySet<string>? OwnedRelativePaths { get; init; }
 
+    public bool RestoreAvailable { get; init; } = true;
+
     public static ContentPatchPlan Blocked(
         ContentPatchDescriptor descriptor,
         string packageVersion,

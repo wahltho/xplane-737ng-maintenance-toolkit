@@ -185,6 +185,8 @@ public sealed class ContentComponentState
 
     public string LastOperation { get; set; } = "";
 
+    public bool RestoreAvailable { get; set; } = true;
+
     public List<string> EnabledModules { get; set; } = [];
 
     public List<ContentComponentFileState> Files { get; set; } = [];

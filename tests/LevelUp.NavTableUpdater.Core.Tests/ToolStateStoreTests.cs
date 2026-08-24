@@ -6,6 +6,37 @@ namespace LevelUp.NavTableUpdater.Core.Tests;
 public sealed class ToolStateStoreTests
 {
     [Fact]
+    public void Load_WhenLegacyContentStateOmitsRestoreAvailable_PreservesRestoreSupport()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"xplane-737ng-state-tests-{Guid.NewGuid():N}");
+        var stateRoot = Path.Combine(root, "state");
+        Directory.CreateDirectory(stateRoot);
+        File.WriteAllText(
+            Path.Combine(stateRoot, "state.json"),
+            """
+            {
+              "SchemaVersion": 6,
+              "ContentInstallations": {
+                "test": {
+                  "AircraftFolder": "/test",
+                  "ContentComponents": {
+                    "wahltho.test": {
+                      "PackageId": "wahltho.test",
+                      "PackageVersion": "1.0.0"
+                    }
+                  }
+                }
+              }
+            }
+            """);
+        var store = new ToolStateStore(stateRoot, Path.Combine(root, "backups"));
+
+        var component = Assert.Single(Assert.Single(store.Load().ContentInstallations.Values).ContentComponents.Values);
+
+        Assert.True(component.RestoreAvailable);
+    }
+
+    [Fact]
     public void CreateBackupPath_WhenCustomBackupRootIsConfigured_UsesCustomRoot()
     {
         var root = Path.Combine(Path.GetTempPath(), $"xplane-737ng-state-tests-{Guid.NewGuid():N}");

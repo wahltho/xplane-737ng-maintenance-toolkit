@@ -113,7 +113,9 @@ public sealed class DeclarativePatchPlanBuilder : IContentPatchPlanBuilder<Decla
             var isInstalled = (target.ResultSha256?.Equals(hash, StringComparison.OrdinalIgnoreCase) ?? false)
                 || (stateMatchesPackage && (recorded?.InstalledSha256?.Equals(hash, StringComparison.OrdinalIgnoreCase) ?? false));
             byte[]? preparedResult = null;
-            if (usesStructuralSourceValidation && !isInstalled)
+            var shouldValidateStructurally = !isInstalled
+                && (usesStructuralSourceValidation || (!isSource && handler.SupportsStructuralSourceValidation));
+            if (shouldValidateStructurally)
             {
                 if (!package.Payloads.TryGetValue(target.Payload, out var structuralPayload))
                 {
@@ -129,8 +131,8 @@ public sealed class DeclarativePatchPlanBuilder : IContentPatchPlanBuilder<Decla
                     isInstalled = preparedResult.AsSpan().SequenceEqual(bytes);
                     isSource = !isInstalled;
                     log.Add(isInstalled
-                        ? $"[STRUCTURAL] {target.RelativePath} already contains every exact installed block."
-                        : $"[STRUCTURAL] {target.RelativePath} contains every required exact source/installed block.");
+                        ? $"[STRUCTURAL] {target.RelativePath} already matches the installed semantic content."
+                        : $"[STRUCTURAL] {target.RelativePath} matches the supported semantic source content.");
                 }
                 catch (InvalidOperationException ex)
                 {
@@ -160,13 +162,14 @@ public sealed class DeclarativePatchPlanBuilder : IContentPatchPlanBuilder<Decla
 
         if (targetStates.All(state => state.IsInstalled))
         {
-            log.Add("[NO-CHANGE] Every declarative patch target is already installed.");
-            ContentPatchMutation[] stateRefreshMutations = componentState is null
-                ? []
-                : targetStates.Select(state => ContentPatchMutation.Write(
-                    state.Target.RelativePath,
-                    state.Bytes,
-                    $"Retained current {descriptor.DisplayName} target")).ToArray();
+            var adoptedExistingInstallation = componentState is null;
+            log.Add(adoptedExistingInstallation
+                ? "[ADOPT] Every declarative patch target is already installed; recording the detected installation without an original restore backup."
+                : "[NO-CHANGE] Every declarative patch target is already installed.");
+            ContentPatchMutation[] stateRefreshMutations = targetStates.Select(state => ContentPatchMutation.Write(
+                state.Target.RelativePath,
+                state.Bytes,
+                $"Retained current {descriptor.DisplayName} target")).ToArray();
             return Task.FromResult(new ContentPatchPlan(
                 descriptor,
                 manifest.PackageVersion,
@@ -175,7 +178,12 @@ public sealed class DeclarativePatchPlanBuilder : IContentPatchPlanBuilder<Decla
                 stateRefreshMutations,
                 log,
                 IsSafe: true,
-                $"{descriptor.DisplayName} {manifest.PackageVersion} is already installed."));
+                adoptedExistingInstallation
+                    ? $"{descriptor.DisplayName} {manifest.PackageVersion} was already present and is now tracked; restore is unavailable because no original backup exists."
+                    : $"{descriptor.DisplayName} {manifest.PackageVersion} is already installed.")
+            {
+                RestoreAvailable = !adoptedExistingInstallation
+            });
         }
 
         if (componentState is null && targetStates.Any(state => state.IsInstalled))
@@ -252,6 +260,17 @@ public sealed class DeclarativePatchPlanBuilder : IContentPatchPlanBuilder<Decla
                 ContentPatchAction.Uninstall,
                 aircraftRoot,
                 "No toolkit-owned installation state is available for a safe uninstall.",
+                log);
+        }
+
+        if (!state.RestoreAvailable)
+        {
+            return ContentPatchPlan.Blocked(
+                descriptor,
+                manifest.PackageVersion,
+                ContentPatchAction.Uninstall,
+                aircraftRoot,
+                "The existing installation was adopted without an original backup and cannot be safely removed.",
                 log);
         }
 

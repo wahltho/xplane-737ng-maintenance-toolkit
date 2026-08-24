@@ -161,6 +161,14 @@ public sealed class ContentPatchEngine
                 log);
         }
 
+        if (!component.RestoreAvailable)
+        {
+            log.Add("[BLOCKED] The installation was adopted without an original backup.");
+            return MaintenanceOperationResult.Blocked(
+                $"No original restore backup is available for {descriptor.DisplayName}.",
+                log);
+        }
+
         var files = new List<RestoreFile>(component.Files.Count);
         foreach (var file in component.Files)
         {
@@ -356,6 +364,7 @@ public sealed class ContentPatchEngine
                     InstalledUtc = previous?.InstalledUtc ?? now,
                     LastOperationUtc = now,
                     LastOperation = $"ContentPatch{plan.Action}",
+                    RestoreAvailable = previous?.RestoreAvailable ?? plan.RestoreAvailable,
                     EnabledModules = [.. plan.EnabledModules],
                     Files = fileStates
                 };

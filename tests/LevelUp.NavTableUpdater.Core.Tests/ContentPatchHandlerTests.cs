@@ -171,6 +171,50 @@ public sealed class ContentPatchHandlerTests
         Assert.True(result.AsSpan().StartsWith(new byte[] { 0x89, 0x50, 0x4E, 0x47 }));
     }
 
+    [Fact]
+    public void PngHandler_AcceptsEquivalentSourcePixelsWithDifferentContainerBytes()
+    {
+        var sourcePixel = new byte[] { 1, 2, 3, 4 };
+        var resultPixel = new byte[] { 5, 6, 7, 8 };
+        var declaredSource = CreateOnePixelPng(sourcePixel);
+        var equivalentSource = CreateOnePixelPng(sourcePixel, includeMetadata: true);
+        using var payload = CreatePngPayload(declaredSource, sourcePixel, resultPixel);
+
+        var result = new PngRgbaRegionPatchHandler().Apply(equivalentSource, payload.RootElement);
+
+        Assert.NotEqual(Sha256(declaredSource), Sha256(equivalentSource));
+        Assert.NotEqual(Sha256(equivalentSource), Sha256(result));
+    }
+
+    [Fact]
+    public void PngHandler_WhenResultPixelsAreAlreadyPresent_PreservesContainerBytes()
+    {
+        var sourcePixel = new byte[] { 1, 2, 3, 4 };
+        var resultPixel = new byte[] { 5, 6, 7, 8 };
+        var declaredSource = CreateOnePixelPng(sourcePixel);
+        var installed = CreateOnePixelPng(resultPixel, includeMetadata: true);
+        using var payload = CreatePngPayload(declaredSource, sourcePixel, resultPixel);
+
+        var result = new PngRgbaRegionPatchHandler().Apply(installed, payload.RootElement);
+
+        Assert.Equal(installed, result);
+    }
+
+    [Fact]
+    public void PngHandler_WhenPixelsAreUnknown_BlocksThem()
+    {
+        var sourcePixel = new byte[] { 1, 2, 3, 4 };
+        var resultPixel = new byte[] { 5, 6, 7, 8 };
+        var declaredSource = CreateOnePixelPng(sourcePixel);
+        var unknown = CreateOnePixelPng([9, 10, 11, 12], includeMetadata: true);
+        using var payload = CreatePngPayload(declaredSource, sourcePixel, resultPixel);
+
+        var error = Assert.Throws<InvalidOperationException>(
+            () => new PngRgbaRegionPatchHandler().Apply(unknown, payload.RootElement));
+
+        Assert.Contains("neither the supported source nor installed result", error.Message, StringComparison.Ordinal);
+    }
+
     private static JsonDocument TwoBlockTextPayload() =>
         JsonDocument.Parse("""
             {
@@ -190,7 +234,20 @@ public sealed class ContentPatchHandlerTests
             }
             """);
 
-    private static byte[] CreateOnePixelPng(byte[] rgba)
+    internal static JsonDocument CreatePngPayload(byte[] declaredSource, byte[] sourcePixel, byte[] resultPixel) =>
+        JsonDocument.Parse($$"""
+            {
+              "format": "png-rgba-region-v1",
+              "sourceSha256": "{{Sha256(declaredSource)}}",
+              "sourcePixelSha256": "{{Sha256(sourcePixel)}}",
+              "resultPixelSha256": "{{Sha256(resultPixel)}}",
+              "dimensions": [1, 1],
+              "region": [0, 0, 1, 1],
+              "rgbaZlibBase64": "{{Convert.ToBase64String(CompressZlib(resultPixel))}}"
+            }
+            """);
+
+    internal static byte[] CreateOnePixelPng(byte[] rgba, bool includeMetadata = false)
     {
         using var output = new MemoryStream();
         output.Write([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
@@ -200,6 +257,10 @@ public sealed class ContentPatchHandlerTests
         header[8] = 8;
         header[9] = 6;
         WriteChunk(output, "IHDR", header);
+        if (includeMetadata)
+        {
+            WriteChunk(output, "tEXt", Encoding.ASCII.GetBytes("Software\0Toolkit test"));
+        }
         WriteChunk(output, "IDAT", CompressZlib([0, .. rgba]));
         WriteChunk(output, "IEND", []);
         return output.ToArray();

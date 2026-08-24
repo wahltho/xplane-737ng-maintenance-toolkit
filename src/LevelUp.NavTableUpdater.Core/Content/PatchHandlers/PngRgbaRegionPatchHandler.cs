@@ -13,18 +13,13 @@ public sealed class PngRgbaRegionPatchHandler : IContentPatchHandler
 
     public string Operation => "png-rgba-region-v1";
 
-    public bool SupportsStructuralSourceValidation => false;
+    public bool SupportsStructuralSourceValidation => true;
 
     public byte[] Apply(byte[] source, JsonElement payload)
     {
         if (!payload.RequiredString("format").Equals(Operation, StringComparison.Ordinal))
         {
             throw new InvalidOperationException("Unsupported PNG patch format.");
-        }
-
-        if (!Sha256(source).Equals(payload.RequiredString("sourceSha256"), StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidOperationException("PNG patch source does not match.");
         }
 
         var decoded = Decode(source);
@@ -34,9 +29,15 @@ public sealed class PngRgbaRegionPatchHandler : IContentPatchHandler
             throw new InvalidOperationException("PNG dimensions do not match.");
         }
 
-        if (!Sha256(decoded.Pixels).Equals(payload.RequiredString("sourcePixelSha256"), StringComparison.OrdinalIgnoreCase))
+        var pixelHash = Sha256(decoded.Pixels);
+        if (pixelHash.Equals(payload.RequiredString("resultPixelSha256"), StringComparison.OrdinalIgnoreCase))
         {
-            throw new InvalidOperationException("PNG source pixels do not match.");
+            return source;
+        }
+
+        if (!pixelHash.Equals(payload.RequiredString("sourcePixelSha256"), StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("PNG pixels match neither the supported source nor installed result.");
         }
 
         var regionDefinition = payload.RequiredArray("region").EnumerateArray().Select(value => value.GetInt32()).ToArray();
