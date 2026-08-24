@@ -123,6 +123,24 @@ public sealed class CompatibilityPackageTests
     }
 
     [Fact]
+    public async Task Plan_WhenKnownSourceHashDiffersButOwnedBlocksAreUnique_ComposesStructurally()
+    {
+        using var fixture = Fixture.Create(omitStructuralResultHashes: true);
+        File.WriteAllText(fixture.TargetPath, "foreign\r\nbefore\r\n", new UTF8Encoding(false));
+        var operation = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false);
+
+        var plan = await operation.PlanAsync(
+            ContentPatchAction.Update,
+            fixture.Variant,
+            fixture.PackageDirectory,
+            ["core", "standard"]);
+
+        Assert.True(plan.IsSafe);
+        Assert.Equal("foreign\r\nstandard\r\n", Encoding.UTF8.GetString(Assert.Single(plan.Mutations).DesiredBytes!));
+        Assert.Equal("foreign\r\nbefore\r\n", File.ReadAllText(fixture.TargetPath));
+    }
+
+    [Fact]
     public async Task InstallAndRestore_CopyFileModule_CreatesAndRemovesVerifiedPayload()
     {
         using var fixture = Fixture.Create(includeCopyModule: true);
@@ -176,7 +194,10 @@ public sealed class CompatibilityPackageTests
 
         public State.ToolStateStore Store { get; }
 
-        public static Fixture Create(bool optionalRequiresStandard = false, bool includeCopyModule = false)
+        public static Fixture Create(
+            bool optionalRequiresStandard = false,
+            bool includeCopyModule = false,
+            bool omitStructuralResultHashes = false)
         {
             var directory = new DeclarativePatchManifestTests.TemporaryDirectory();
             var aircraftRoot = Path.Combine(directory.Path, "aircraft");
@@ -191,8 +212,8 @@ public sealed class CompatibilityPackageTests
 
             var modules = new List<Dictionary<string, object?>>
             {
-                BuildModule(packageRoot, "core", "Core module", "required", true, 10, "before", "core"),
-                BuildModule(packageRoot, "standard", "Standard module", "recommended", true, 20, "core", "standard"),
+                BuildModule(packageRoot, "core", "Core module", "required", true, 10, "before", "core", omitResultHash: omitStructuralResultHashes),
+                BuildModule(packageRoot, "standard", "Standard module", "recommended", true, 20, "core", "standard", omitResultHash: omitStructuralResultHashes),
                 BuildModule(
                     packageRoot,
                     "optional",
@@ -202,7 +223,8 @@ public sealed class CompatibilityPackageTests
                     30,
                     "standard",
                     "optional",
-                    optionalRequiresStandard ? ["standard"] : [])
+                    optionalRequiresStandard ? ["standard"] : [],
+                    omitStructuralResultHashes)
             };
             if (includeCopyModule)
             {
@@ -265,7 +287,8 @@ public sealed class CompatibilityPackageTests
             int order,
             string oldLine,
             string newLine,
-            string[]? requires = null)
+            string[]? requires = null,
+            bool omitResultHash = false)
         {
             var payload = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new
             {
@@ -303,7 +326,7 @@ public sealed class CompatibilityPackageTests
                         payload = relativePayload,
                         relativePath = "plugins/xlua/scripts/shared.lua",
                         sourceSha256 = new[] { Sha256(source) },
-                        resultSha256 = Sha256(result)
+                        resultSha256 = omitResultHash ? null : Sha256(result)
                     }
                 }
             };

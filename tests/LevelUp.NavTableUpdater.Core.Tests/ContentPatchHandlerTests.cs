@@ -77,6 +77,37 @@ public sealed class ContentPatchHandlerTests
     }
 
     [Fact]
+    public void MarkedBlockInsertion_ComposesMultipleModulesAtOneAnchorInPipelineOrder()
+    {
+        var source = Encoding.UTF8.GetBytes("jit.off()\r\n-- --[[\r\n");
+        using var firstPayload = MarkedBlockPayload("FIRST", "first.lua");
+        using var secondPayload = MarkedBlockPayload("SECOND", "second.lua");
+        var handler = new MarkedBlockInsertionPatchHandler();
+
+        var first = handler.Apply(source, firstPayload.RootElement);
+        var second = handler.Apply(first, secondPayload.RootElement);
+
+        Assert.Equal(
+            "jit.off()\r\n-- BEGIN FIRST\r\ndofile(\"first.lua\")\r\n-- END FIRST\r\n-- BEGIN SECOND\r\ndofile(\"second.lua\")\r\n-- END SECOND\r\n-- --[[\r\n",
+            Encoding.UTF8.GetString(second));
+        Assert.Equal(second, handler.Apply(second, firstPayload.RootElement));
+        Assert.Equal(second, handler.Apply(second, secondPayload.RootElement));
+    }
+
+    [Fact]
+    public void MarkedBlockInsertion_WhenExistingBlockWasModified_BlocksIt()
+    {
+        var source = Encoding.UTF8.GetBytes(
+            "jit.off()\n-- BEGIN FIRST\ndofile(\"modified.lua\")\n-- END FIRST\n-- --[[\n");
+        using var payload = MarkedBlockPayload("FIRST", "first.lua");
+
+        var error = Assert.Throws<InvalidOperationException>(
+            () => new MarkedBlockInsertionPatchHandler().Apply(source, payload.RootElement));
+
+        Assert.Contains("partial, duplicated or modified", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void SparseBytes_AppliesBoundedHunkAndVerifiesResult()
     {
         var source = new byte[] { 1, 2, 3, 4 };
@@ -100,6 +131,7 @@ public sealed class ContentPatchHandlerTests
     [Fact]
     public void Obj8Handler_AppliesDeclaredStructuralTransform()
     {
+        Assert.True(new Obj8FansLabelsPatchHandler().SupportsStructuralSourceValidation);
         var source = Encoding.UTF8.GetBytes("""
             A
             800
@@ -231,6 +263,19 @@ public sealed class ContentPatchHandlerTests
                   "newLines": ["new switch"]
                 }
               ]
+            }
+            """);
+
+    private static JsonDocument MarkedBlockPayload(string marker, string script) =>
+        JsonDocument.Parse($$"""
+            {
+              "format": "insert-marked-block-v1",
+              "name": "{{marker}} loader",
+              "beginMarker": "-- BEGIN {{marker}}",
+              "endMarker": "-- END {{marker}}",
+              "contentLines": ["dofile(\"{{script}}\")"],
+              "anchorLines": ["-- --[["],
+              "position": "before"
             }
             """);
 

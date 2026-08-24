@@ -9,7 +9,7 @@ public sealed class Obj8FansLabelsPatchHandler : IContentPatchHandler
 {
     public string Operation => "obj8-fans-label-switch-v1";
 
-    public bool SupportsStructuralSourceValidation => false;
+    public bool SupportsStructuralSourceValidation => true;
 
     public byte[] Apply(byte[] sourceBytes, JsonElement payload)
     {

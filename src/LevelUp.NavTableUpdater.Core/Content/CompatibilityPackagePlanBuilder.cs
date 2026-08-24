@@ -233,7 +233,8 @@ public sealed class CompatibilityPackagePlanBuilder
                     }
 
                     if (operation.Target.SourceSha256.Count > 0
-                        && !operation.Target.SourceSha256.Contains(inputHash, StringComparer.OrdinalIgnoreCase))
+                        && !operation.Target.SourceSha256.Contains(inputHash, StringComparer.OrdinalIgnoreCase)
+                        && !handler.SupportsStructuralSourceValidation)
                     {
                         return Task.FromResult(Blocked(descriptor, manifest, action, aircraftRoot,
                             $"Module {operation.Module.DisplayName} does not support the current pipeline state of {relativePath}.",

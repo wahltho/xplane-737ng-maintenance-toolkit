@@ -12,6 +12,11 @@ set and transaction state. It contains any number of ordered modules. Adding a
 new module does not require a Toolkit code change when it uses a registered
 declarative patch operation.
 
+The same package can be applied by the Toolkit UI or by the standalone
+`XPlane737NGPatchCli`; both use this Core implementation and the same state and
+backup model. See [PATCH_INTEROPERABILITY.md](PATCH_INTEROPERABILITY.md) for the
+cross-package authoring rules and current shared-target matrix.
+
 Module policies are:
 
 - `required`: always selected and cannot be disabled.
@@ -78,8 +83,7 @@ relative to the structurally validated product root.
           "operation": "exact-text-replacements-v1",
           "payload": "patch.json",
           "relativePath": "plugins/xlua/scripts/B738.tablet/B738.tablet.lua",
-          "sourceSha256": ["<supported input SHA-256>"],
-          "resultSha256": "<expected result SHA-256>"
+          "sourceSha256": ["<known input SHA-256>"]
         }
       ]
     }
@@ -92,11 +96,23 @@ one or several modules. Module `installationOrder` and then target array order
 define the pipeline. Each operation validates the output of the preceding
 operation before it runs.
 
+For structurally validated text operations, `sourceSha256` and
+`resultSha256` are optional known-build fingerprints. A differing whole-file
+hash does not block a target when the handler can still identify exactly one
+owned source or installed block. The operation remains blocked when that
+structural classification is missing, duplicated, partial or ambiguous.
+
 `copy-file-v1` installs a raw manifest payload at the declared target path. Its
 `resultSha256` must equal the payload SHA-256. It can safely create a new file;
 if a supported existing file may be replaced, its hashes are listed in
 `sourceSha256`. This operation allows VNAV table payloads and other authorized
 module-owned files to use the same transaction as structural Lua hooks.
+
+`insert-marked-block-v1` inserts a uniquely marked block before or after one
+unique structural anchor without consuming that anchor. It is the preferred
+operation for several modules sharing one loader slot. Existing exact marked
+content is idempotent; partial, duplicate or edited markers block the complete
+transaction.
 
 ## Transaction Rules
 
