@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "catalogVersion": "1.3.0",
-  "minimumToolkitVersion": "0.12.0",
+  "catalogVersion": "1.4.0",
+  "minimumToolkitVersion": "0.12.2",
   "packages": [
     {
       "packageId": "x-plane-zibo-vnav-descent-tables",
@@ -42,6 +42,36 @@
         "kind": "gitHubReleaseArchive",
         "assetNamePattern": "LevelUp-737NG-FANS-CDU-v*.zip",
         "manifestSchemaVersion": 2
+      }
+    },
+    {
+      "packageId": "x-plane-zibo-40535-tablet-performance-calculator",
+      "displayName": "Tablet Performance Calculator",
+      "description": "Optional takeoff and landing performance calculations on the existing LevelUp tablet pages.",
+      "category": "compatibilityPackage",
+      "activation": "managed",
+      "supportedProducts": ["levelup-737ng"],
+      "repositoryUrl": "https://github.com/wahltho/X-Plane-Zibo-LevelUp-737NG-Tablet-Performance-Calculator",
+      "restartRequired": true,
+      "distribution": {
+        "kind": "gitHubReleaseArchive",
+        "assetNamePattern": "zibo-40535-tablet-performance-calculator-v*.zip",
+        "manifestSchemaVersion": 3
+      }
+    },
+    {
+      "packageId": "wahltho.zibo-40535.auto-jetway",
+      "displayName": "AUTO JETWAY",
+      "description": "Optional persistent AUTO JETWAY ON/OFF setting for supported Zibo and LevelUp aircraft.",
+      "category": "compatibilityPackage",
+      "activation": "managed",
+      "supportedProducts": ["zibo-737ng", "levelup-737ng"],
+      "repositoryUrl": "https://github.com/wahltho/X-Plane-Zibo-Auto-Jetway",
+      "restartRequired": true,
+      "distribution": {
+        "kind": "gitHubReleaseArchive",
+        "assetNamePattern": "X-Plane-Zibo-Auto-Jetway-v*.zip",
+        "manifestSchemaVersion": 3
       }
     },
     {

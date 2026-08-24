@@ -126,8 +126,8 @@ public sealed class ContentPatchCatalogTests
             package => package.PackageId == ContentPatchCatalog.FansCdu.ComponentId);
         var descriptor = ContentPatchCatalog.OptionalPatch(fans);
 
-        Assert.Equal("1.3.0", catalog.CatalogVersion);
-        Assert.Equal("0.12.0", catalog.MinimumToolkitVersion);
+        Assert.Equal("1.4.0", catalog.CatalogVersion);
+        Assert.Equal("0.12.2", catalog.MinimumToolkitVersion);
         Assert.Equal(ContentPackageCategory.OptionalPatch, fans.Category);
         Assert.Equal(ContentPatchActivation.ExplicitOptIn, fans.Activation);
         Assert.Equal("LevelUp-737NG-FANS-CDU-v*.zip", fans.Distribution.AssetNamePattern);
@@ -137,19 +137,33 @@ public sealed class ContentPatchCatalogTests
     }
 
     [Fact]
-    public void BundledCatalog_DoesNotAdvertiseUnreleasedWeightBalanceOrPerformancePackages()
+    public void BundledCatalog_AdvertisesReleasedCompatibilityPackagesButNotWeightBalance()
     {
         var catalog = ContentPackageCatalog.Parse(File.ReadAllText(BundledCatalogPath()));
+
+        var performance = Assert.Single(
+            catalog.ForProduct("levelup-737ng"),
+            package => package.PackageId == "x-plane-zibo-40535-tablet-performance-calculator");
+        Assert.Equal(ContentPackageCategory.CompatibilityPackage, performance.Category);
+        Assert.Equal(ContentPatchActivation.Managed, performance.Activation);
+        Assert.Equal(3, performance.Distribution.ManifestSchemaVersion);
+        Assert.Equal(
+            "zibo-40535-tablet-performance-calculator-v*.zip",
+            performance.Distribution.AssetNamePattern);
+
+        var autoJetway = Assert.Single(
+            catalog.ForProduct("zibo-737ng"),
+            package => package.PackageId == "wahltho.zibo-40535.auto-jetway");
+        Assert.Contains(autoJetway, catalog.ForProduct("levelup-737ng"));
+        Assert.Equal(["zibo-737ng", "levelup-737ng"], autoJetway.SupportedProducts);
+        Assert.Equal(ContentPackageCategory.CompatibilityPackage, autoJetway.Category);
+        Assert.Equal(3, autoJetway.Distribution.ManifestSchemaVersion);
+        Assert.Equal("X-Plane-Zibo-Auto-Jetway-v*.zip", autoJetway.Distribution.AssetNamePattern);
 
         Assert.DoesNotContain(
             catalog.Packages,
             package => package.RepositoryUrl.Equals(
                 "https://github.com/wahltho/X-Plane-LevelUp-737NG-Weight-Balance",
-                StringComparison.OrdinalIgnoreCase));
-        Assert.DoesNotContain(
-            catalog.Packages,
-            package => package.RepositoryUrl.Equals(
-                "https://github.com/wahltho/X-Plane-Zibo-LevelUp-737NG-Tablet-Performance-Calculator",
                 StringComparison.OrdinalIgnoreCase));
     }
 
@@ -162,7 +176,7 @@ public sealed class ContentPatchCatalogTests
             catalog.ForProduct("levelup-737ng"),
             package => package.PackageId == "levelup.paintkit");
 
-        Assert.Equal("1.3.0", catalog.CatalogVersion);
+        Assert.Equal("1.4.0", catalog.CatalogVersion);
         Assert.Equal(ContentPackageCategory.Resource, paintkit.Category);
         Assert.Equal(ContentPatchActivation.ExplicitOptIn, paintkit.Activation);
         Assert.Equal(["levelup-737ng"], paintkit.SupportedProducts);
