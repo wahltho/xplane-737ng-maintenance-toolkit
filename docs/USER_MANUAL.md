@@ -1,6 +1,6 @@
 # X-Plane 737NG Maintenance Toolkit User Manual
 
-This manual describes version 0.12.3 of the X-Plane 737NG Maintenance Toolkit.
+This manual describes version 0.12.4 of the X-Plane 737NG Maintenance Toolkit.
 
 The toolkit is a desktop app for selected Zibo and LevelUp 737NG maintenance
 tasks:
@@ -30,7 +30,7 @@ Keep your own backups and use the tool at your own risk.
 
 ## Compatibility And Installation
 
-Version 0.12.3 supports:
+Version 0.12.4 supports:
 
 - X-Plane 12. X-Plane 11 is not supported.
 - Zibo 737-800X 2K and 4K variants.
@@ -210,11 +210,11 @@ products. `Check releases` queries its latest stable GitHub Release. `Review`
 downloads and validates the selected release into the configured package cache,
 then calculates its file plan without changing the aircraft. `Install`,
 `Update` or `Repair` prepares the same verified package and still asks for an
-explicit confirmation before writing files. Version 0.12.3 offers the LevelUp
+explicit confirmation before writing files. Version 0.12.4 offers the LevelUp
 FANS CDU package as an optional LevelUp-only patch. It remains separate from
 aircraft and VNAV updates and is never installed automatically.
 
-At startup, version 0.12.3 checks immutable `catalog-v*` releases in the Toolkit
+At startup, version 0.12.4 checks immutable `catalog-v*` releases in the Toolkit
 repository for updated package discovery metadata. A downloaded catalog becomes
 active only after schema, version, repository URL and minimum Toolkit version
 validation. If the check fails, the app uses its last valid cached catalog and
@@ -278,7 +278,7 @@ after the Toolkit operation, then restores the exact previous state of each
 owned file.
 
 The `Resources` card manages large optional product assets independently from
-aircraft, VNAV and tool transactions. Version 0.12.3 offers the official
+aircraft, VNAV and tool transactions. Version 0.12.4 offers the official
 LevelUp 737NG Paintkit 1.1.0 for detected LevelUp installations. Choose the
 parent extraction directory, click `Check release`, then use `Download` after
 reviewing the destination and required disk space. The Toolkit verifies the
@@ -358,7 +358,7 @@ always require a separate confirmation and use their own multi-file backup and
 rollback transaction.
 
 Optional patches are not part of the normal aircraft update button and are not
-offered automatically after an aircraft update. The 0.12.3 catalog advertises
+offered automatically after an aircraft update. The 0.12.4 catalog advertises
 the LevelUp FANS CDU patch only for a detected LevelUp product and requires an
 explicit action. VNAV tables retain their managed post-aircraft-update prompt.
 

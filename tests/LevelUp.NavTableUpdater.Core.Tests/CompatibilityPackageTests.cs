@@ -34,53 +34,14 @@ public sealed class CompatibilityPackageTests
     }
 
     [Fact]
-    public void CatalogSelection_WhenNothingIsPreselected_SelectsOptionalModules()
+    public void CatalogSelection_UsesEveryModuleInInstallationOrder()
     {
-        var modules = new[]
-        {
-            new CompatibilityModuleOptionViewModel(
-                "optional-a",
-                "Optional A",
-                "",
-                CompatibilityModulePolicy.Optional,
-                isSelected: false,
-                canChangeSelection: true),
-            new CompatibilityModuleOptionViewModel(
-                "optional-b",
-                "Optional B",
-                "",
-                CompatibilityModulePolicy.Optional,
-                isSelected: false,
-                canChangeSelection: true)
-        };
+        using var fixture = Fixture.Create();
+        var package = CompatibilityPackageLoader.LoadDirectory(fixture.PackageDirectory);
 
-        MainWindowViewModel.EnsureCatalogCompatibilitySelection(modules);
+        var selected = MainWindowViewModel.CatalogCompatibilityModuleIds(package);
 
-        Assert.All(modules, module => Assert.True(module.IsSelected));
-    }
-
-    [Fact]
-    public void CatalogSelection_WhenASelectionExists_PreservesIt()
-    {
-        var selected = new CompatibilityModuleOptionViewModel(
-            "selected",
-            "Selected",
-            "",
-            CompatibilityModulePolicy.Recommended,
-            isSelected: true,
-            canChangeSelection: true);
-        var optional = new CompatibilityModuleOptionViewModel(
-            "optional",
-            "Optional",
-            "",
-            CompatibilityModulePolicy.Optional,
-            isSelected: false,
-            canChangeSelection: true);
-
-        MainWindowViewModel.EnsureCatalogCompatibilitySelection([selected, optional]);
-
-        Assert.True(selected.IsSelected);
-        Assert.False(optional.IsSelected);
+        Assert.Equal(["core", "standard", "optional"], selected);
     }
 
     [Fact]

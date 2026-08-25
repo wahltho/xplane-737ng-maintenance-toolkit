@@ -1212,7 +1212,12 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private async Task RunOptionalPatchAction(string action)
+    private Task RunOptionalPatchAction(string action) =>
+        RunOptionalPatchActionCore(action, explicitCompatibilityModuleIds: null);
+
+    private async Task RunOptionalPatchActionCore(
+        string action,
+        IReadOnlyCollection<string>? explicitCompatibilityModuleIds)
     {
         if (IsOperationRunning)
         {
@@ -1222,7 +1227,7 @@ public partial class MainWindowViewModel : ViewModelBase
         if (!string.IsNullOrWhiteSpace(OptionalPatchPackagePath)
             && CompatibilityPackageLoader.IsCompatibilityPackage(OptionalPatchPackagePath))
         {
-            await RunCompatibilityPackageAction(action);
+            await RunCompatibilityPackageAction(action, explicitCompatibilityModuleIds);
             return;
         }
 
@@ -1334,7 +1339,11 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private async Task ReviewOptionalPatch()
+    private Task ReviewOptionalPatch() =>
+        ReviewOptionalPatchCore(explicitCompatibilityModuleIds: null);
+
+    private async Task ReviewOptionalPatchCore(
+        IReadOnlyCollection<string>? explicitCompatibilityModuleIds)
     {
         var selectedVariant = SelectedViewVariant;
         if (IsOperationRunning || !CanRunOptionalPatch || selectedVariant is null)
@@ -1344,7 +1353,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
         if (CompatibilityPackageLoader.IsCompatibilityPackage(OptionalPatchPackagePath))
         {
-            await ReviewCompatibilityPackage(selectedVariant);
+            await ReviewCompatibilityPackage(selectedVariant, explicitCompatibilityModuleIds);
             return;
         }
 
@@ -1404,7 +1413,9 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
-    private async Task RunCompatibilityPackageAction(string action)
+    private async Task RunCompatibilityPackageAction(
+        string action,
+        IReadOnlyCollection<string>? explicitModuleIds)
     {
         var isRestore = string.Equals(action, "Restore", StringComparison.OrdinalIgnoreCase);
         var patchAction = ContentPatchAction.Update;
@@ -1427,7 +1438,7 @@ public partial class MainWindowViewModel : ViewModelBase
             package = CompatibilityPackageLoader.LoadDirectory(OptionalPatchPackagePath);
             selectedModules = [.. CompatibilityPackagePlanBuilder.ResolveSelection(
                 package.Manifest,
-                SelectedCompatibilityModuleIds())];
+                explicitModuleIds ?? SelectedCompatibilityModuleIds())];
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
@@ -1521,7 +1532,9 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
-    private async Task ReviewCompatibilityPackage(AircraftVariantViewAnalysis selectedVariant)
+    private async Task ReviewCompatibilityPackage(
+        AircraftVariantViewAnalysis selectedVariant,
+        IReadOnlyCollection<string>? explicitModuleIds)
     {
         IsOperationRunning = true;
         ActionsEnabled = false;
@@ -1536,7 +1549,7 @@ public partial class MainWindowViewModel : ViewModelBase
         var stopwatch = Stopwatch.StartNew();
         try
         {
-            var selectedModules = SelectedCompatibilityModuleIds();
+            var selectedModules = explicitModuleIds ?? SelectedCompatibilityModuleIds();
             var plan = await Task.Run(async () => await _compatibilityPackageOperation.PlanAsync(
                 ContentPatchAction.Update,
                 selectedVariant,
@@ -1586,20 +1599,11 @@ public partial class MainWindowViewModel : ViewModelBase
             .Select(module => module.ModuleId)
             .ToArray();
 
-    internal static void EnsureCatalogCompatibilitySelection(
-        IEnumerable<CompatibilityModuleOptionViewModel> modules)
-    {
-        var options = modules.ToArray();
-        if (options.Any(module => module.IsSelected))
-        {
-            return;
-        }
-
-        foreach (var module in options.Where(module => module.CanChangeSelection))
-        {
-            module.IsSelected = true;
-        }
-    }
+    internal static string[] CatalogCompatibilityModuleIds(CompatibilityPackage package) =>
+        package.Manifest.Modules
+            .OrderBy(module => module.InstallationOrder)
+            .Select(module => module.ModuleId)
+            .ToArray();
 
     [RelayCommand]
     private async Task CheckContentPackageCatalog()
@@ -1650,18 +1654,20 @@ public partial class MainWindowViewModel : ViewModelBase
     public async Task ReviewCatalogPatchAsync(AvailableContentPackageStatus item)
     {
         ArgumentNullException.ThrowIfNull(item);
-        if (!await PrepareCatalogPatchPackageAsync(item))
+        var preparation = await PrepareCatalogPatchPackageAsync(item);
+        if (!preparation.IsReady)
         {
             return;
         }
 
-        await ReviewOptionalPatch();
+        await ReviewOptionalPatchCore(preparation.CompatibilityModuleIds);
     }
 
     public async Task ApplyCatalogPatchAsync(AvailableContentPackageStatus item)
     {
         ArgumentNullException.ThrowIfNull(item);
-        if (!await PrepareCatalogPatchPackageAsync(item))
+        var preparation = await PrepareCatalogPatchPackageAsync(item);
+        if (!preparation.IsReady)
         {
             return;
         }
@@ -1672,7 +1678,7 @@ public partial class MainWindowViewModel : ViewModelBase
             "Repair" => ContentPatchAction.Repair.ToString(),
             _ => ContentPatchAction.Update.ToString()
         };
-        await RunOptionalPatchAction(action);
+        await RunOptionalPatchActionCore(action, preparation.CompatibilityModuleIds);
     }
 
     public async Task RestoreCatalogPatchAsync(AvailableContentPackageStatus item)
@@ -1762,19 +1768,27 @@ public partial class MainWindowViewModel : ViewModelBase
     public async Task RemoveCatalogPatchAsync(AvailableContentPackageStatus item)
     {
         ArgumentNullException.ThrowIfNull(item);
-        if (!item.CanRemove || !await PrepareCatalogPatchPackageAsync(item))
+        if (!item.CanRemove)
         {
             return;
         }
 
-        await RunOptionalPatchAction(ContentPatchAction.Uninstall.ToString());
+        var preparation = await PrepareCatalogPatchPackageAsync(item);
+        if (!preparation.IsReady)
+        {
+            return;
+        }
+
+        await RunOptionalPatchActionCore(
+            ContentPatchAction.Uninstall.ToString(),
+            preparation.CompatibilityModuleIds);
     }
 
-    private async Task<bool> PrepareCatalogPatchPackageAsync(AvailableContentPackageStatus item)
+    private async Task<CatalogPatchPreparation> PrepareCatalogPatchPackageAsync(AvailableContentPackageStatus item)
     {
         if (IsOperationRunning || IsContentPackageCatalogCheckRunning || !item.IsOptional)
         {
-            return false;
+            return CatalogPatchPreparation.NotReady;
         }
 
         var productId = SelectedProduct?.IsDetected == true ? SelectedProduct.Family : null;
@@ -1790,7 +1804,7 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             ContentPackageCatalogStatus = "Optional package action blocked: select a compatible product and aircraft variant.";
             RefreshContentPackageOverview(preserveStatus: true);
-            return false;
+            return CatalogPatchPreparation.NotReady;
         }
 
         OperationPanelVisible = true;
@@ -1837,10 +1851,10 @@ public partial class MainWindowViewModel : ViewModelBase
             _contentPatchReleaseErrors.Remove(catalogEntry.PackageId);
             OptionalPatchPackagePath = prepared.PackageDirectory;
             RefreshOptionalPatchStatus();
-            if (catalogEntry.Category is ContentPackageCategory.CompatibilityPackage)
-            {
-                EnsureCatalogCompatibilitySelection(CompatibilityModules);
-            }
+            var compatibilityModuleIds = catalogEntry.Category is ContentPackageCategory.CompatibilityPackage
+                ? CatalogCompatibilityModuleIds(
+                    CompatibilityPackageLoader.LoadDirectory(prepared.PackageDirectory))
+                : null;
 
             OperationElapsed = FormatElapsed(stopwatch.Elapsed);
             OperationProgress = 100;
@@ -1852,7 +1866,7 @@ public partial class MainWindowViewModel : ViewModelBase
             AppendOperationLog($"[PACKAGE] {prepared.PackageId} {prepared.PackageVersion}");
             AppendOperationLog($"[CACHE] {prepared.PackageDirectory}");
             AppendLog($"Prepared package {catalogEntry.DisplayName} {prepared.Release.Tag} from its trusted GitHub release.");
-            return true;
+            return new CatalogPatchPreparation(true, compatibilityModuleIds);
         }
         catch (OperationCanceledException)
         {
@@ -1864,7 +1878,7 @@ public partial class MainWindowViewModel : ViewModelBase
             OperationProgressText = "0% - Download or validation canceled";
             ContentPackageCatalogStatus = "Optional package preparation canceled. No aircraft files were changed.";
             AppendLog("Optional package preparation canceled.");
-            return false;
+            return CatalogPatchPreparation.NotReady;
         }
         catch (Exception ex) when (ex is HttpRequestException or IOException or UnauthorizedAccessException or InvalidOperationException)
         {
@@ -1878,7 +1892,7 @@ public partial class MainWindowViewModel : ViewModelBase
             ContentPackageCatalogStatus = $"Optional package could not be prepared: {ex.Message}";
             AppendOperationLog($"[FAILED] {ex.Message}");
             AppendLog($"Optional package preparation failed for {catalogEntry.DisplayName}: {ex.Message}");
-            return false;
+            return CatalogPatchPreparation.NotReady;
         }
         finally
         {
@@ -1888,6 +1902,13 @@ public partial class MainWindowViewModel : ViewModelBase
             ActionsEnabled = true;
             RefreshContentPackageOverview(preserveStatus: true);
         }
+    }
+
+    private sealed record CatalogPatchPreparation(
+        bool IsReady,
+        IReadOnlyCollection<string>? CompatibilityModuleIds)
+    {
+        public static CatalogPatchPreparation NotReady { get; } = new(false, null);
     }
 
     [RelayCommand]
