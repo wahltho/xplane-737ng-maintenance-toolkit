@@ -179,6 +179,59 @@ public sealed class ContentPatchHandlerTests
     }
 
     [Fact]
+    public void Obj8Handler_WhenInstalledResultIsPresent_PreservesOriginalBytes()
+    {
+        var source = Encoding.UTF8.GetBytes("""
+            A
+            800
+            OBJ
+            POINT_COUNTS 1 0 3 3
+            VT 0 0 0 0 0 1 0 0
+            IDX 0
+            IDX 0
+            IDX 0
+            TRIS 0 3
+            """);
+        var moved = new byte[12];
+        using var payload = CreateObj8Payload(moved);
+        var handler = new Obj8FansLabelsPatchHandler();
+        var installed = handler.Apply(source, payload.RootElement);
+
+        var result = handler.Apply(installed, payload.RootElement);
+
+        Assert.Equal(installed, result);
+    }
+
+    [Fact]
+    public void Obj8Handler_WhenInstalledGeometryIsModified_BlocksIt()
+    {
+        var source = Encoding.UTF8.GetBytes("""
+            A
+            800
+            OBJ
+            POINT_COUNTS 1 0 3 3
+            VT 0 0 0 0 0 1 0 0
+            IDX 0
+            IDX 0
+            IDX 0
+            TRIS 0 3
+            """);
+        var moved = new byte[12];
+        using var payload = CreateObj8Payload(moved);
+        var handler = new Obj8FansLabelsPatchHandler();
+        var installed = handler.Apply(source, payload.RootElement);
+        var modified = Encoding.UTF8.GetBytes(
+            Encoding.UTF8.GetString(installed).Replace(
+                "VT 1 0 0 0 0 1 1 0",
+                "VT 1 0 0 0 0 1 0 1",
+                StringComparison.Ordinal));
+
+        var error = Assert.Throws<InvalidOperationException>(() => handler.Apply(modified, payload.RootElement));
+
+        Assert.Contains("incomplete or modified", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void PngHandler_ReplacesDeclaredRgbaRegion()
     {
         var sourcePixel = new byte[] { 1, 2, 3, 4 };
@@ -263,6 +316,33 @@ public sealed class ContentPatchHandlerTests
                   "newLines": ["new switch"]
                 }
               ]
+            }
+            """);
+
+    private static JsonDocument CreateObj8Payload(byte[] moved) =>
+        JsonDocument.Parse($$"""
+            {
+              "format": "obj8-fans-label-switch-v1",
+              "source": {
+                "vertexCount": 1,
+                "indexCount": 3,
+                "pointCountsLine": "POINT_COUNTS 1 0 3 3"
+              },
+              "moveIndexRangesToEnd": {
+                "ranges": [[0, 3]],
+                "sha256": "{{Sha256(moved)}}"
+              },
+              "replaceFinalDraw": {
+                "old": "TRIS 0 3",
+                "newLines": ["TRIS 0 6"]
+              },
+              "addedVertices": ["VT 1 0 0 0 0 1 1 0"],
+              "addedIndices": [1, 1, 1],
+              "result": {
+                "vertexCount": 2,
+                "indexCount": 6,
+                "pointCountsLine": "POINT_COUNTS 2 0 6 6"
+              }
             }
             """);
 
