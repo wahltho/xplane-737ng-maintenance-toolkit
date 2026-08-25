@@ -137,8 +137,9 @@ public sealed class AircraftFreshInstallOperation
             return "The selected path is not a structurally valid X-Plane installation.";
         }
 
+        var plannedProductId = AircraftProductIds.Normalize(installPlan.Family);
         if (!AircraftProductIds.IsSupported(product.ProductId)
-            || !string.Equals(product.ProductId, installPlan.Family, StringComparison.OrdinalIgnoreCase))
+            || !string.Equals(product.ProductId, plannedProductId, StringComparison.Ordinal))
         {
             return "The selected product does not match the release package plan.";
         }

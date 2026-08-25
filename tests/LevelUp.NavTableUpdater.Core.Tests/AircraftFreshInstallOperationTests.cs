@@ -60,6 +60,51 @@ public sealed class AircraftFreshInstallOperationTests : IDisposable
     }
 
     [Fact]
+    public void Apply_ZiboFeedFamily_MatchesSelectedZiboProduct()
+    {
+        var xPlaneRoot = CreateXPlaneRoot();
+        var product = AircraftFreshInstallProduct.All.Single(item => item.ProductId == AircraftProductIds.Zibo737Ng);
+        var package = CreatePackage(
+            product,
+            validStructure: true,
+            packageFamily: ZiboUpstreamFeedParser.Family);
+        var target = Path.Combine(xPlaneRoot, "Aircraft", product.DefaultFolderName);
+
+        var result = new AircraftFreshInstallOperation(isXPlaneRunning: () => false).Apply(
+            xPlaneRoot,
+            target,
+            product,
+            BuildPlan(product, ZiboUpstreamFeedParser.Family, package.Package),
+            [package]);
+
+        Assert.True(result.Succeeded);
+        Assert.True(Directory.Exists(target));
+    }
+
+    [Fact]
+    public void Apply_WhenFeedFamilyDoesNotMatchSelectedProduct_Blocks()
+    {
+        var xPlaneRoot = CreateXPlaneRoot();
+        var product = AircraftFreshInstallProduct.All.Single(item => item.ProductId == AircraftProductIds.LevelUp737Ng);
+        var package = CreatePackage(
+            product,
+            validStructure: true,
+            packageFamily: ZiboUpstreamFeedParser.Family);
+        var target = Path.Combine(xPlaneRoot, "Aircraft", product.DefaultFolderName);
+
+        var result = new AircraftFreshInstallOperation(isXPlaneRunning: () => false).Apply(
+            xPlaneRoot,
+            target,
+            product,
+            BuildPlan(product, ZiboUpstreamFeedParser.Family, package.Package),
+            [package]);
+
+        Assert.False(result.Succeeded);
+        Assert.Contains("does not match", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.False(Directory.Exists(target));
+    }
+
+    [Fact]
     public void Apply_WhenDestinationExists_BlocksWithoutChangingIt()
     {
         var xPlaneRoot = CreateXPlaneRoot();
@@ -171,7 +216,8 @@ public sealed class AircraftFreshInstallOperationTests : IDisposable
     private AircraftUpdatePackageCacheEntry CreatePackage(
         AircraftFreshInstallProduct product,
         bool validStructure,
-        string? identityProductId = null)
+        string? identityProductId = null,
+        string? packageFamily = null)
     {
         Directory.CreateDirectory(_root);
         var archivePath = Path.Combine(_root, $"{product.ProductId}-{Guid.NewGuid():N}.zip");
@@ -188,7 +234,7 @@ public sealed class AircraftFreshInstallOperationTests : IDisposable
         }
 
         var package = new AircraftUpdatePackage(
-            product.ProductId,
+            packageFamily ?? product.ProductId,
             AircraftUpdatePackageKind.FullBaseline,
             new AircraftUpstreamVersion(1, 0, 0),
             Path.GetFileName(archivePath),
@@ -228,10 +274,16 @@ public sealed class AircraftFreshInstallOperationTests : IDisposable
     private static AircraftUpstreamUpdateCheckResult BuildPlan(
         AircraftFreshInstallProduct product,
         params AircraftUpdatePackage[] packages) =>
+        BuildPlan(product, product.ProductId, packages);
+
+    private static AircraftUpstreamUpdateCheckResult BuildPlan(
+        AircraftFreshInstallProduct product,
+        string family,
+        params AircraftUpdatePackage[] packages) =>
         new(
             "Ready to install",
             $"Install {product.DisplayName}.",
-            product.ProductId,
+            family,
             "https://example.invalid/index",
             "Not installed",
             packages[^1].VersionDisplay,

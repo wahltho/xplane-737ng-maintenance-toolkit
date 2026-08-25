@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using LevelUp.NavTableUpdater.App.ViewModels;
 using LevelUp.NavTableUpdater.Core.Aircraft;
 using LevelUp.NavTableUpdater.Core.Content;
 using LevelUp.NavTableUpdater.Core.Manifest;
@@ -30,6 +31,56 @@ public sealed class CompatibilityPackageTests
         var selected = CompatibilityPackagePlanBuilder.DefaultSelection(package.Manifest);
 
         Assert.Equal(["core", "standard"], selected);
+    }
+
+    [Fact]
+    public void CatalogSelection_WhenNothingIsPreselected_SelectsOptionalModules()
+    {
+        var modules = new[]
+        {
+            new CompatibilityModuleOptionViewModel(
+                "optional-a",
+                "Optional A",
+                "",
+                CompatibilityModulePolicy.Optional,
+                isSelected: false,
+                canChangeSelection: true),
+            new CompatibilityModuleOptionViewModel(
+                "optional-b",
+                "Optional B",
+                "",
+                CompatibilityModulePolicy.Optional,
+                isSelected: false,
+                canChangeSelection: true)
+        };
+
+        MainWindowViewModel.EnsureCatalogCompatibilitySelection(modules);
+
+        Assert.All(modules, module => Assert.True(module.IsSelected));
+    }
+
+    [Fact]
+    public void CatalogSelection_WhenASelectionExists_PreservesIt()
+    {
+        var selected = new CompatibilityModuleOptionViewModel(
+            "selected",
+            "Selected",
+            "",
+            CompatibilityModulePolicy.Recommended,
+            isSelected: true,
+            canChangeSelection: true);
+        var optional = new CompatibilityModuleOptionViewModel(
+            "optional",
+            "Optional",
+            "",
+            CompatibilityModulePolicy.Optional,
+            isSelected: false,
+            canChangeSelection: true);
+
+        MainWindowViewModel.EnsureCatalogCompatibilitySelection([selected, optional]);
+
+        Assert.True(selected.IsSelected);
+        Assert.False(optional.IsSelected);
     }
 
     [Fact]

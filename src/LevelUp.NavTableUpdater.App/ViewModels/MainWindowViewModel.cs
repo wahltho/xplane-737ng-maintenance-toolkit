@@ -1586,6 +1586,21 @@ public partial class MainWindowViewModel : ViewModelBase
             .Select(module => module.ModuleId)
             .ToArray();
 
+    internal static void EnsureCatalogCompatibilitySelection(
+        IEnumerable<CompatibilityModuleOptionViewModel> modules)
+    {
+        var options = modules.ToArray();
+        if (options.Any(module => module.IsSelected))
+        {
+            return;
+        }
+
+        foreach (var module in options.Where(module => module.CanChangeSelection))
+        {
+            module.IsSelected = true;
+        }
+    }
+
     [RelayCommand]
     private async Task CheckContentPackageCatalog()
     {
@@ -1822,6 +1837,11 @@ public partial class MainWindowViewModel : ViewModelBase
             _contentPatchReleaseErrors.Remove(catalogEntry.PackageId);
             OptionalPatchPackagePath = prepared.PackageDirectory;
             RefreshOptionalPatchStatus();
+            if (catalogEntry.Category is ContentPackageCategory.CompatibilityPackage)
+            {
+                EnsureCatalogCompatibilitySelection(CompatibilityModules);
+            }
+
             OperationElapsed = FormatElapsed(stopwatch.Elapsed);
             OperationProgress = 100;
             OperationStatus = "Package ready";
