@@ -1,6 +1,6 @@
 # X-Plane 737NG Maintenance Toolkit User Manual
 
-This manual describes version 0.12.5 of the X-Plane 737NG Maintenance Toolkit.
+This manual describes version 0.12.6 of the X-Plane 737NG Maintenance Toolkit.
 
 The toolkit is a desktop app for selected Zibo and LevelUp 737NG maintenance
 tasks:
@@ -30,7 +30,7 @@ Keep your own backups and use the tool at your own risk.
 
 ## Compatibility And Installation
 
-Version 0.12.5 supports:
+Version 0.12.6 supports:
 
 - X-Plane 12. X-Plane 11 is not supported.
 - Zibo 737-800X 2K and 4K variants.
@@ -210,11 +210,11 @@ products. `Check releases` queries its latest stable GitHub Release. `Review`
 downloads and validates the selected release into the configured package cache,
 then calculates its file plan without changing the aircraft. `Install`,
 `Update` or `Repair` prepares the same verified package and still asks for an
-explicit confirmation before writing files. Version 0.12.5 offers the LevelUp
+explicit confirmation before writing files. Version 0.12.6 offers the LevelUp
 FANS CDU package as an optional LevelUp-only patch. It remains separate from
 aircraft and VNAV updates and is never installed automatically.
 
-At startup, version 0.12.5 checks immutable `catalog-v*` releases in the Toolkit
+At startup, version 0.12.6 checks immutable `catalog-v*` releases in the Toolkit
 repository for updated package discovery metadata. A downloaded catalog becomes
 active only after schema, version, repository URL and minimum Toolkit version
 validation. If the check fails, the app uses its last valid cached catalog and
@@ -235,6 +235,9 @@ installation:
   `Resources/plugins/YAL`.
 - `YAL HoppieHelper` supports Zibo and LevelUp, as declared by its published
   release manifest, and is managed at `Resources/plugins/YAL_HoppieHelper`.
+- `YANSH` supports Zibo and LevelUp and is managed at
+  `Resources/plugins/YANSH`. Its SimBrief username preferences and generated
+  output are preserved across managed updates.
 - `737NG Realbench Logger` supports Zibo and LevelUp. It installs the declared
   DataRefMonitor runtime, Realbench profile and required preference file across
   the selected X-Plane installation. Generated logs remain local until the user
@@ -264,7 +267,8 @@ labels the action as an explicit channel switch rather than an update.
 Before replacement, the complete existing tool directory is backed up. Any
 manifest-protected paths and local files not owned by the release manifest are
 preserved. For YAL this includes `configuration.ini`, `wprefs.ini` and the
-`data/output` tree. `Restore`
+`data/output` tree. For YANSH this includes `wprefs.ini` and `data/output`.
+`Restore`
 requires a recorded generation and stops if package-owned files changed after
 the last managed operation. Close X-Plane before all write and restore actions;
 restart it fully afterward.
@@ -358,7 +362,7 @@ always require a separate confirmation and use their own multi-file backup and
 rollback transaction.
 
 Optional patches are not part of the normal aircraft update button and are not
-offered automatically after an aircraft update. The 0.12.5 catalog advertises
+offered automatically after an aircraft update. Content catalog 1.5.0 advertises
 the LevelUp FANS CDU patch only for a detected LevelUp product and requires an
 explicit action. VNAV tables retain their managed post-aircraft-update prompt.
 

@@ -7,7 +7,7 @@ tools and conservative view maintenance for supported aircraft variants.
 This repository is the public development home for the app. The architecture
 keeps package content, aircraft patching, and application updates separate.
 
-Release version: **0.12.5**
+Release version: **0.12.6**
 
 - [Download the latest stable release](https://github.com/wahltho/xplane-737ng-maintenance-toolkit/releases/latest)
 - [Read the user manual](docs/USER_MANUAL.md)
@@ -126,7 +126,8 @@ Current capabilities:
   aircraft-owned `scripts` tree. YAL is available for both products at
   `Resources/plugins/YAL`; YAL HoppieHelper is also available for both products
   at `Resources/plugins/YAL_HoppieHelper`, matching its published release
-  manifest.
+  manifest. YANSH is available for both products at `Resources/plugins/YANSH`
+  from Olivier Butler's verified stable release manifest.
 - It offers the optional 737NG Realbench Logger for both products as a verified
   X-Plane-root overlay. The Toolkit owns only the declared DataRefMonitor
   runtime, profile and preference files; unrelated profiles and generated logs

@@ -143,30 +143,39 @@ public sealed class CompatibilityPackagePlanBuilder
 
                 if (!Sha256(currentBytes).Equals(previousFile.InstalledSha256, StringComparison.OrdinalIgnoreCase))
                 {
-                    return Task.FromResult(Blocked(descriptor, manifest, action, aircraftRoot,
-                        $"Managed target changed after installation: {relativePath}.", log));
-                }
+                    if (!CanComposeFromCurrentTarget(relativePath, selectedOperations))
+                    {
+                        return Task.FromResult(Blocked(descriptor, manifest, action, aircraftRoot,
+                            $"Managed target changed after installation: {relativePath}.", log));
+                    }
 
-                sourceExists = previousFile.OriginalExisted;
-                if (!sourceExists)
-                {
-                    sourceBytes = [];
+                    sourceExists = true;
+                    sourceBytes = currentBytes;
+                    log.Add($"[COMPOSE] {relativePath} also contains independent changes; validating and preserving them structurally.");
                 }
                 else
                 {
-                    if (string.IsNullOrWhiteSpace(previousFile.BackupPath)
-                        || !File.Exists(previousFile.BackupPath))
+                    sourceExists = previousFile.OriginalExisted;
+                    if (!sourceExists)
                     {
-                        return Task.FromResult(Blocked(descriptor, manifest, action, aircraftRoot,
-                            $"Original compatibility-package backup is missing for {relativePath}.", log));
+                        sourceBytes = [];
                     }
-
-                    sourceBytes = File.ReadAllBytes(previousFile.BackupPath);
-                    if (sourceBytes.LongLength != previousFile.OriginalSizeBytes
-                        || !Sha256(sourceBytes).Equals(previousFile.OriginalSha256, StringComparison.OrdinalIgnoreCase))
+                    else
                     {
-                        return Task.FromResult(Blocked(descriptor, manifest, action, aircraftRoot,
-                            $"Original compatibility-package backup failed validation for {relativePath}.", log));
+                        if (string.IsNullOrWhiteSpace(previousFile.BackupPath)
+                            || !File.Exists(previousFile.BackupPath))
+                        {
+                            return Task.FromResult(Blocked(descriptor, manifest, action, aircraftRoot,
+                                $"Original compatibility-package backup is missing for {relativePath}.", log));
+                        }
+
+                        sourceBytes = File.ReadAllBytes(previousFile.BackupPath);
+                        if (sourceBytes.LongLength != previousFile.OriginalSizeBytes
+                            || !Sha256(sourceBytes).Equals(previousFile.OriginalSha256, StringComparison.OrdinalIgnoreCase))
+                        {
+                            return Task.FromResult(Blocked(descriptor, manifest, action, aircraftRoot,
+                                $"Original compatibility-package backup failed validation for {relativePath}.", log));
+                        }
                     }
                 }
             }
@@ -460,6 +469,20 @@ public sealed class CompatibilityPackagePlanBuilder
         string message,
         IReadOnlyList<string> log) =>
         ContentPatchPlan.Blocked(descriptor, manifest.PackageVersion, action, aircraftRoot, message, log);
+
+    private bool CanComposeFromCurrentTarget(
+        string relativePath,
+        IReadOnlyDictionary<string, ModuleTarget[]> selectedOperations)
+    {
+        if (!selectedOperations.TryGetValue(relativePath, out var operations) || operations.Length == 0)
+        {
+            return false;
+        }
+
+        return operations.All(operation =>
+            !operation.Target.Operation.Equals("copy-file-v1", StringComparison.Ordinal)
+            && _handlers.GetRequired(operation.Target.Operation).SupportsStructuralSourceValidation);
+    }
 
     private static string Sha256(byte[] bytes) =>
         Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();

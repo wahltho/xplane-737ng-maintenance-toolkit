@@ -10,7 +10,7 @@ X-Plane 737NG Maintenance Toolkit
 
 ## Current Version
 
-0.11.1
+0.12.6
 
 ## Short Description
 
@@ -53,16 +53,17 @@ Current functions include:
 - background Toolkit application update checks with cancellable verified
   download and confirmed restart through VeloPack
 
-Version 0.11.1 currently offers:
+Version 0.12.6 with online content catalog 1.5.0 currently offers:
 
 - Optimized XLua 1.3.7r3
 - Yet Another Linda (YAL)
 - YAL HoppieHelper
+- YANSH - Yet ANother Simbrief Helper
 - 737NG Realbench Logger 0.1.3
 - LevelUp FANS CDU patch
 - LevelUp 737NG Paintkit 1.1.0
 
-Optimized XLua is managed separately for each selected Zibo or LevelUp aircraft and preserves the complete aircraft-owned `plugins/xlua/scripts` tree. YAL, YAL HoppieHelper and the Realbench Logger are installed once per X-Plane installation and are available for both products. The Logger preserves unrelated DataRefMonitor profiles and generated logs. The FANS CDU patch and Paintkit are LevelUp-only. Every item remains optional.
+Optimized XLua is managed separately for each selected Zibo or LevelUp aircraft and preserves the complete aircraft-owned `plugins/xlua/scripts` tree. YAL, YAL HoppieHelper, YANSH and the Realbench Logger are installed once per X-Plane installation and are available for both products. YANSH preserves its manifest-declared preferences and generated output. The Logger preserves unrelated DataRefMonitor profiles and generated logs. The FANS CDU patch and Paintkit are LevelUp-only. Every item remains optional.
 
 Aircraft packages, VNAV content, optional patches, tools, resources and Toolkit application releases are separate update layers. The app does not distribute a complete modified `B738.a_fms.lua`; VNAV hooks and authorized payload files are applied locally after validation.
 
@@ -154,6 +155,13 @@ When reporting a problem, use `Dump to file` on the Advanced tab and attach the 
 The Toolkit source code is available under the MIT License. The application is provided as-is, without warranty of any kind. It can modify aircraft files after validation and backup; users should retain their own backups and use the tool at their own risk.
 
 ## Changelog
+
+### 0.12.6
+
+- Fixed false update blocks when independently versioned compatibility packages
+  share structurally managed Lua targets.
+- Preserved strict blocking for modified package-owned files and structurally
+  incompatible owned blocks.
 
 ### 0.11.1
 

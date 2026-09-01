@@ -126,7 +126,7 @@ public sealed class ContentPatchCatalogTests
             package => package.PackageId == ContentPatchCatalog.FansCdu.ComponentId);
         var descriptor = ContentPatchCatalog.OptionalPatch(fans);
 
-        Assert.Equal("1.4.0", catalog.CatalogVersion);
+        Assert.Equal("1.5.0", catalog.CatalogVersion);
         Assert.Equal("0.12.2", catalog.MinimumToolkitVersion);
         Assert.Equal(ContentPackageCategory.OptionalPatch, fans.Category);
         Assert.Equal(ContentPatchActivation.ExplicitOptIn, fans.Activation);
@@ -176,7 +176,7 @@ public sealed class ContentPatchCatalogTests
             catalog.ForProduct("levelup-737ng"),
             package => package.PackageId == "levelup.paintkit");
 
-        Assert.Equal("1.4.0", catalog.CatalogVersion);
+        Assert.Equal("1.5.0", catalog.CatalogVersion);
         Assert.Equal(ContentPackageCategory.Resource, paintkit.Category);
         Assert.Equal(ContentPatchActivation.ExplicitOptIn, paintkit.Activation);
         Assert.Equal(["levelup-737ng"], paintkit.SupportedProducts);
@@ -228,6 +228,28 @@ public sealed class ContentPatchCatalogTests
         Assert.Equal(ContentPackageDistributionKind.GitHubXPlaneOverlayRelease, logger.Distribution.Kind);
         Assert.Equal("737NGRealbenchLogger-*-manifest.json", logger.Distribution.ManifestAssetNamePattern);
         Assert.Equal(2, logger.Distribution.ManifestSchemaVersion);
+    }
+
+    [Fact]
+    public void BundledCatalog_AdvertisesYanshAsProductNeutralXPlaneTool()
+    {
+        var catalog = ContentPackageCatalog.Parse(File.ReadAllText(BundledCatalogPath()));
+
+        var yansh = Assert.Single(
+            catalog.ForProduct("zibo-737ng"),
+            package => package.PackageId == "olivierbutler.yansh");
+
+        Assert.Contains(yansh, catalog.ForProduct("levelup-737ng"));
+        Assert.Equal(ContentPackageCategory.Tool, yansh.Category);
+        Assert.Equal(ContentPatchActivation.ExplicitOptIn, yansh.Activation);
+        Assert.Equal(["zibo-737ng", "levelup-737ng"], yansh.SupportedProducts);
+        Assert.Equal("https://github.com/olivierbutler/YANSH", yansh.RepositoryUrl);
+        Assert.Equal("xPlaneInstallation", yansh.InstallScope);
+        Assert.Equal("Resources/plugins/YANSH", yansh.TargetPath);
+        Assert.Equal(["stable"], yansh.SupportedChannels);
+        Assert.Equal(ContentPackageDistributionKind.GitHubToolRelease, yansh.Distribution.Kind);
+        Assert.Equal("YANSH-*-manifest.json", yansh.Distribution.ManifestAssetNamePattern);
+        Assert.Equal(1, yansh.Distribution.ManifestSchemaVersion);
     }
 
     private static string BundledCatalogPath() =>

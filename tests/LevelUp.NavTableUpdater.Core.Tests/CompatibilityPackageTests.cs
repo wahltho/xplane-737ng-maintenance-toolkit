@@ -153,6 +153,95 @@ public sealed class CompatibilityPackageTests
     }
 
     [Fact]
+    public async Task Update_WhenAnotherCompatibilityPackageChangedSharedTarget_PreservesBothPackages()
+    {
+        using var fixture = Fixture.Create(singleComposableModule: true, omitStructuralResultHashes: true);
+        var operation = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false);
+
+        var firstInstall = await operation.RunAsync(
+            ContentPatchAction.Install,
+            fixture.Variant,
+            fixture.PackageDirectory,
+            ["core"]);
+        var independentPackage = fixture.CreateIndependentMarkedBlockPackage();
+        var secondInstall = await operation.RunAsync(
+            ContentPatchAction.Install,
+            fixture.Variant,
+            independentPackage,
+            ["independent"]);
+
+        Assert.True(firstInstall.Succeeded);
+        Assert.True(secondInstall.Succeeded);
+        var composed = "core\r\n-- BEGIN INDEPENDENT\r\nindependent\r\n-- END INDEPENDENT\r\n";
+        Assert.Equal(composed, File.ReadAllText(fixture.TargetPath));
+
+        var updated = await operation.RunAsync(
+            ContentPatchAction.Update,
+            fixture.Variant,
+            fixture.PackageDirectory,
+            ["core"]);
+
+        Assert.True(updated.Succeeded);
+        Assert.False(updated.Changed);
+        Assert.Equal(composed, File.ReadAllText(fixture.TargetPath));
+        Assert.Contains(updated.Log, line => line.StartsWith("[COMPOSE]", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Update_WhenOwnedBlockWasModified_BlocksWithoutChangingIndependentPackage()
+    {
+        using var fixture = Fixture.Create(singleComposableModule: true, omitStructuralResultHashes: true);
+        var operation = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false);
+        await operation.RunAsync(ContentPatchAction.Install, fixture.Variant, fixture.PackageDirectory, ["core"]);
+        await operation.RunAsync(
+            ContentPatchAction.Install,
+            fixture.Variant,
+            fixture.CreateIndependentMarkedBlockPackage(),
+            ["independent"]);
+        var modified = "damaged\r\n-- BEGIN INDEPENDENT\r\nindependent\r\n-- END INDEPENDENT\r\n";
+        File.WriteAllText(fixture.TargetPath, modified, new UTF8Encoding(false));
+
+        var updated = await operation.RunAsync(
+            ContentPatchAction.Update,
+            fixture.Variant,
+            fixture.PackageDirectory,
+            ["core"]);
+
+        Assert.False(updated.Succeeded);
+        Assert.Contains("structurally incompatible", updated.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(modified, File.ReadAllText(fixture.TargetPath));
+    }
+
+    [Fact]
+    public async Task Update_WhenManagedCopyFileChanged_KeepsStrictHashBlock()
+    {
+        using var fixture = Fixture.Create(singleComposableModule: true, includeCopyModule: true);
+        var operation = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false);
+        await operation.RunAsync(
+            ContentPatchAction.Install,
+            fixture.Variant,
+            fixture.PackageDirectory,
+            ["core", "table-payload"]);
+        var copiedPath = Path.Combine(
+            Path.GetDirectoryName(fixture.Variant.AcfPath)!,
+            "plugins",
+            "xlua",
+            "scripts",
+            "table.lua");
+        File.WriteAllText(copiedPath, "user change\n", new UTF8Encoding(false));
+
+        var updated = await operation.RunAsync(
+            ContentPatchAction.Update,
+            fixture.Variant,
+            fixture.PackageDirectory,
+            ["core", "table-payload"]);
+
+        Assert.False(updated.Succeeded);
+        Assert.Contains("Managed target changed after installation", updated.Message, StringComparison.Ordinal);
+        Assert.Equal("user change\n", File.ReadAllText(copiedPath));
+    }
+
+    [Fact]
     public async Task InstallAndRestore_CopyFileModule_CreatesAndRemovesVerifiedPayload()
     {
         using var fixture = Fixture.Create(includeCopyModule: true);
@@ -209,7 +298,8 @@ public sealed class CompatibilityPackageTests
         public static Fixture Create(
             bool optionalRequiresStandard = false,
             bool includeCopyModule = false,
-            bool omitStructuralResultHashes = false)
+            bool omitStructuralResultHashes = false,
+            bool singleComposableModule = false)
         {
             var directory = new DeclarativePatchManifestTests.TemporaryDirectory();
             var aircraftRoot = Path.Combine(directory.Path, "aircraft");
@@ -222,22 +312,27 @@ public sealed class CompatibilityPackageTests
             var acfPath = Path.Combine(aircraftRoot, "737_70NG.acf");
             File.WriteAllText(acfPath, "1200 Version\n");
 
-            var modules = new List<Dictionary<string, object?>>
-            {
-                BuildModule(packageRoot, "core", "Core module", "required", true, 10, "before", "core", omitResultHash: omitStructuralResultHashes),
-                BuildModule(packageRoot, "standard", "Standard module", "recommended", true, 20, "core", "standard", omitResultHash: omitStructuralResultHashes),
-                BuildModule(
-                    packageRoot,
-                    "optional",
-                    "Optional module",
-                    "optional",
-                    false,
-                    30,
-                    "standard",
-                    "optional",
-                    optionalRequiresStandard ? ["standard"] : [],
-                    omitStructuralResultHashes)
-            };
+            var modules = singleComposableModule
+                ? new List<Dictionary<string, object?>>
+                {
+                    BuildModule(packageRoot, "core", "Core module", "required", true, 10, "before", "core", omitResultHash: true)
+                }
+                :
+                [
+                    BuildModule(packageRoot, "core", "Core module", "required", true, 10, "before", "core", omitResultHash: omitStructuralResultHashes),
+                    BuildModule(packageRoot, "standard", "Standard module", "recommended", true, 20, "core", "standard", omitResultHash: omitStructuralResultHashes),
+                    BuildModule(
+                        packageRoot,
+                        "optional",
+                        "Optional module",
+                        "optional",
+                        false,
+                        30,
+                        "standard",
+                        "optional",
+                        optionalRequiresStandard ? ["standard"] : [],
+                        omitStructuralResultHashes)
+                ];
             if (includeCopyModule)
             {
                 modules.Add(BuildCopyModule(packageRoot));
@@ -286,6 +381,72 @@ public sealed class CompatibilityPackageTests
                 "test");
             var store = TestToolStateStore.Create(Path.Combine(directory.Path, "state"));
             return new Fixture(directory, packageRoot, targetPath, variant, store);
+        }
+
+        public string CreateIndependentMarkedBlockPackage()
+        {
+            const string packageId = "independent.compatibility";
+            const string moduleId = "independent";
+            const string payloadName = "insert.json";
+            var packageRoot = Path.Combine(_directory.Path, "independent-package");
+            var moduleRoot = Path.Combine(packageRoot, "modules", moduleId);
+            Directory.CreateDirectory(moduleRoot);
+            var payload = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new
+            {
+                format = "insert-marked-block-v1",
+                name = "Independent block",
+                beginMarker = "-- BEGIN INDEPENDENT",
+                endMarker = "-- END INDEPENDENT",
+                contentLines = new[] { "independent" },
+                anchorLines = new[] { "core" },
+                position = "after"
+            }));
+            File.WriteAllBytes(Path.Combine(moduleRoot, payloadName), payload);
+            var manifest = new Dictionary<string, object?>
+            {
+                ["schemaVersion"] = 3,
+                ["packageType"] = "compatibilityPackage",
+                ["packageId"] = packageId,
+                ["packageVersion"] = "1.0.0",
+                ["repositoryUrl"] = "https://github.com/example/independent-compatibility",
+                ["aircraftFamily"] = "LevelUp 737NG Series",
+                ["supportedProducts"] = new[] { "levelup-737ng" },
+                ["restartRequired"] = true,
+                ["supportedUpstreamReleases"] = new[] { "V2.S1.50" },
+                ["modules"] = new[]
+                {
+                    new Dictionary<string, object?>
+                    {
+                        ["moduleId"] = moduleId,
+                        ["displayName"] = "Independent module",
+                        ["description"] = "Test independent module.",
+                        ["policy"] = "required",
+                        ["defaultEnabled"] = true,
+                        ["installationOrder"] = 10,
+                        ["requires"] = Array.Empty<string>(),
+                        ["conflictsWith"] = Array.Empty<string>(),
+                        ["payloads"] = new[]
+                        {
+                            new { path = payloadName, size = payload.LongLength, sha256 = Sha256(payload) }
+                        },
+                        ["targets"] = new[]
+                        {
+                            new
+                            {
+                                operation = "insert-marked-block-v1",
+                                payload = payloadName,
+                                relativePath = "plugins/xlua/scripts/shared.lua",
+                                sourceSha256 = Array.Empty<string>()
+                            }
+                        }
+                    }
+                }
+            };
+            File.WriteAllText(
+                Path.Combine(packageRoot, "package-manifest.json"),
+                JsonSerializer.Serialize(manifest),
+                new UTF8Encoding(false));
+            return packageRoot;
         }
 
         public void Dispose() => _directory.Dispose();

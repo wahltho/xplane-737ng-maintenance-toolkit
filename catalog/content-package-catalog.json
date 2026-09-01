@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "catalogVersion": "1.4.0",
+  "catalogVersion": "1.5.0",
   "minimumToolkitVersion": "0.12.2",
   "packages": [
     {
@@ -126,6 +126,24 @@
       "distribution": {
         "kind": "gitHubToolRelease",
         "manifestAssetNamePattern": "YAL-HoppieHelper-*-manifest.json",
+        "manifestSchemaVersion": 1
+      }
+    },
+    {
+      "packageId": "olivierbutler.yansh",
+      "displayName": "YANSH",
+      "description": "Optional SimBrief OFP, flight-plan and weather helper with Zibo FMC uplink support.",
+      "category": "tool",
+      "activation": "explicitOptIn",
+      "supportedProducts": ["zibo-737ng", "levelup-737ng"],
+      "repositoryUrl": "https://github.com/olivierbutler/YANSH",
+      "restartRequired": true,
+      "installScope": "xPlaneInstallation",
+      "targetPath": "Resources/plugins/YANSH",
+      "supportedChannels": ["stable"],
+      "distribution": {
+        "kind": "gitHubToolRelease",
+        "manifestAssetNamePattern": "YANSH-*-manifest.json",
         "manifestSchemaVersion": 1
       }
     },
