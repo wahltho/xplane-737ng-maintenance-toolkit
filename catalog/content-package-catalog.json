@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "catalogVersion": "1.5.0",
-  "minimumToolkitVersion": "0.12.2",
+  "catalogVersion": "1.6.0",
+  "minimumToolkitVersion": "0.13.0",
   "packages": [
     {
       "packageId": "x-plane-zibo-vnav-descent-tables",
@@ -9,7 +9,9 @@
       "description": "Variant-aware VNAV descent table payloads and Lua hooks for Zibo 737-800X.",
       "category": "managedContent",
       "activation": "managed",
-      "supportedProducts": ["zibo-737ng"],
+      "supportedProducts": [
+        "zibo-737ng"
+      ],
       "repositoryUrl": "https://github.com/wahltho/X-Plane-ZIBO-Descent-Tables",
       "restartRequired": true,
       "distribution": {
@@ -22,7 +24,9 @@
       "description": "Variant-aware VNAV descent table payloads and Lua hooks for LevelUp 737NG.",
       "category": "managedContent",
       "activation": "managed",
-      "supportedProducts": ["levelup-737ng"],
+      "supportedProducts": [
+        "levelup-737ng"
+      ],
       "repositoryUrl": "https://github.com/JT8D-17/X-Plane-LevelUp-737NG-Descent-Tables",
       "restartRequired": true,
       "distribution": {
@@ -35,7 +39,9 @@
       "description": "Optional switchable FANS CDU labels and tablet selection for the LevelUp 737NG Series.",
       "category": "optionalPatch",
       "activation": "explicitOptIn",
-      "supportedProducts": ["levelup-737ng"],
+      "supportedProducts": [
+        "levelup-737ng"
+      ],
       "repositoryUrl": "https://github.com/wahltho/X-Plane-LevelUp-737NG-FANS-CDU",
       "restartRequired": true,
       "distribution": {
@@ -50,7 +56,9 @@
       "description": "Optional takeoff and landing performance calculations on the existing LevelUp tablet pages.",
       "category": "compatibilityPackage",
       "activation": "managed",
-      "supportedProducts": ["levelup-737ng"],
+      "supportedProducts": [
+        "levelup-737ng"
+      ],
       "repositoryUrl": "https://github.com/wahltho/X-Plane-Zibo-LevelUp-737NG-Tablet-Performance-Calculator",
       "restartRequired": true,
       "distribution": {
@@ -65,7 +73,10 @@
       "description": "Optional persistent AUTO JETWAY ON/OFF setting for supported Zibo and LevelUp aircraft.",
       "category": "compatibilityPackage",
       "activation": "managed",
-      "supportedProducts": ["zibo-737ng", "levelup-737ng"],
+      "supportedProducts": [
+        "zibo-737ng",
+        "levelup-737ng"
+      ],
       "repositoryUrl": "https://github.com/wahltho/X-Plane-Zibo-Auto-Jetway",
       "restartRequired": true,
       "distribution": {
@@ -80,12 +91,18 @@
       "description": "Optional optimized XLua runtime managed per supported Zibo or LevelUp aircraft installation.",
       "category": "aircraftComponent",
       "activation": "explicitOptIn",
-      "supportedProducts": ["zibo-737ng", "levelup-737ng"],
+      "supportedProducts": [
+        "zibo-737ng",
+        "levelup-737ng"
+      ],
       "repositoryUrl": "https://github.com/wahltho/XLua",
       "restartRequired": true,
       "installScope": "aircraftInstallation",
       "targetPath": "plugins/xlua",
-      "supportedChannels": ["stable", "beta"],
+      "supportedChannels": [
+        "stable",
+        "beta"
+      ],
       "distribution": {
         "kind": "gitHubToolRelease",
         "manifestAssetNamePattern": "Xlua.*-manifest.json",
@@ -98,13 +115,19 @@
       "description": "Virtual copilot and maintenance assistant for supported Zibo and LevelUp 737NG aircraft.",
       "category": "tool",
       "activation": "explicitOptIn",
-      "supportedProducts": ["zibo-737ng", "levelup-737ng"],
+      "supportedProducts": [
+        "zibo-737ng",
+        "levelup-737ng"
+      ],
       "repositoryUrl": "https://github.com/wahltho/YAL",
       "restartRequired": true,
       "installScope": "xPlaneInstallation",
       "targetPath": "Resources/plugins/YAL",
       "versionMarkerPath": "data/modules/configuration/version.ini",
-      "supportedChannels": ["stable", "beta"],
+      "supportedChannels": [
+        "stable",
+        "beta"
+      ],
       "distribution": {
         "kind": "gitHubToolRelease",
         "manifestAssetNamePattern": "YAL-*-manifest.json",
@@ -117,12 +140,18 @@
       "description": "Optional Hoppie ACARS connectivity plugin for supported Zibo and LevelUp aircraft.",
       "category": "tool",
       "activation": "explicitOptIn",
-      "supportedProducts": ["zibo-737ng", "levelup-737ng"],
+      "supportedProducts": [
+        "zibo-737ng",
+        "levelup-737ng"
+      ],
       "repositoryUrl": "https://github.com/wahltho/YAL-Hoppie-Helper",
       "restartRequired": true,
       "installScope": "xPlaneInstallation",
       "targetPath": "Resources/plugins/YAL_HoppieHelper",
-      "supportedChannels": ["stable", "beta"],
+      "supportedChannels": [
+        "stable",
+        "beta"
+      ],
       "distribution": {
         "kind": "gitHubToolRelease",
         "manifestAssetNamePattern": "YAL-HoppieHelper-*-manifest.json",
@@ -135,12 +164,17 @@
       "description": "Optional SimBrief OFP, flight-plan and weather helper with Zibo FMC uplink support.",
       "category": "tool",
       "activation": "explicitOptIn",
-      "supportedProducts": ["zibo-737ng", "levelup-737ng"],
+      "supportedProducts": [
+        "zibo-737ng",
+        "levelup-737ng"
+      ],
       "repositoryUrl": "https://github.com/olivierbutler/YANSH",
       "restartRequired": true,
       "installScope": "xPlaneInstallation",
       "targetPath": "Resources/plugins/YANSH",
-      "supportedChannels": ["stable"],
+      "supportedChannels": [
+        "stable"
+      ],
       "distribution": {
         "kind": "gitHubToolRelease",
         "manifestAssetNamePattern": "YANSH-*-manifest.json",
@@ -153,12 +187,17 @@
       "description": "Optional local flight-data logger for the Realbench study. Logs remain on the user's computer until shared manually.",
       "category": "tool",
       "activation": "explicitOptIn",
-      "supportedProducts": ["zibo-737ng", "levelup-737ng"],
+      "supportedProducts": [
+        "zibo-737ng",
+        "levelup-737ng"
+      ],
       "repositoryUrl": "https://github.com/wahltho/Zibo-LevelUp-Realbench-Logger",
       "restartRequired": true,
       "installScope": "xPlaneInstallation",
       "targetPath": "",
-      "supportedChannels": ["stable"],
+      "supportedChannels": [
+        "stable"
+      ],
       "distribution": {
         "kind": "gitHubXPlaneOverlayRelease",
         "manifestAssetNamePattern": "737NGRealbenchLogger-*-manifest.json",
@@ -171,17 +210,98 @@
       "description": "Official LevelUp 737NG V2 paint templates, downloaded and verified independently from aircraft updates.",
       "category": "resource",
       "activation": "explicitOptIn",
-      "supportedProducts": ["levelup-737ng"],
+      "supportedProducts": [
+        "levelup-737ng"
+      ],
       "repositoryUrl": "https://github.com/petrolpram/737NG-Updates",
       "restartRequired": false,
       "installScope": "userSelectedDirectory",
-      "supportedChannels": ["stable"],
+      "supportedChannels": [
+        "stable"
+      ],
       "distribution": {
         "kind": "gitHubResourceRelease",
         "assetNamePattern": "LevelUp-737NG-Paintkit-*.7z",
         "manifestAssetNamePattern": "LevelUp-737NG-Paintkit-*-manifest.json",
         "manifestSchemaVersion": 1
       }
+    },
+    {
+      "packageId": "wahltho.levelup-737ng.weight-and-balance",
+      "displayName": "Weight & Balance",
+      "description": "LevelUp weight and balance with silent runtime fallback for incompatible ACF inputs.",
+      "category": "compatibilityPackage",
+      "activation": "managed",
+      "supportedProducts": [
+        "levelup-737ng"
+      ],
+      "repositoryUrl": "https://github.com/wahltho/X-Plane-LevelUp-737NG-Weight-Balance",
+      "restartRequired": true,
+      "distribution": {
+        "kind": "gitHubModuleSource"
+      }
+    },
+    {
+      "packageId": "wahltho.levelup-737ng.maintenance",
+      "displayName": "LevelUp maintenance patches",
+      "description": "VNAV descent tables, FANS CDU and Weight & Balance are required. Calculator and AUTO JETWAY are optional. Sources update directly from their own releases.",
+      "category": "compatibilityPackage",
+      "activation": "managed",
+      "supportedProducts": [
+        "levelup-737ng"
+      ],
+      "repositoryUrl": "https://github.com/wahltho/xplane-737ng-maintenance-toolkit",
+      "restartRequired": true,
+      "distribution": {
+        "kind": "catalogGroup"
+      },
+      "members": [
+        {
+          "packageId": "x-plane-levelup-737ng-vnav-descent-tables",
+          "moduleId": "vnav",
+          "policy": "required",
+          "installationOrder": 10,
+          "sourceFormat": "vnav",
+          "manifestPath": "package-manifest.txt",
+          "assetNamePattern": "levelup-vnav-descent-installer.zip"
+        },
+        {
+          "packageId": "wahltho.levelup-737ng.fans-cdu-3d",
+          "moduleId": "fans-cdu",
+          "policy": "required",
+          "installationOrder": 20,
+          "sourceFormat": "declarative",
+          "manifestPath": "package-manifest.json",
+          "assetNamePattern": "LevelUp-737NG-FANS-CDU-v*.zip"
+        },
+        {
+          "packageId": "x-plane-zibo-40535-tablet-performance-calculator",
+          "moduleId": "tablet-performance-calculator",
+          "policy": "optional",
+          "installationOrder": 30,
+          "sourceFormat": "compatibility",
+          "manifestPath": "package-manifest.json",
+          "assetNamePattern": "zibo-40535-tablet-performance-calculator-v*.zip"
+        },
+        {
+          "packageId": "wahltho.levelup-737ng.weight-and-balance",
+          "moduleId": "weight-and-balance",
+          "policy": "required",
+          "installationOrder": 40,
+          "sourceFormat": "moduleSource",
+          "manifestPath": "toolkit/weight-and-balance-module.json",
+          "assetNamePattern": "LevelUp-737NG-Weight-Balance-v*.zip"
+        },
+        {
+          "packageId": "wahltho.zibo-40535.auto-jetway",
+          "moduleId": "auto-jetway",
+          "policy": "optional",
+          "installationOrder": 50,
+          "sourceFormat": "compatibility",
+          "manifestPath": "package-manifest.json",
+          "assetNamePattern": "X-Plane-Zibo-Auto-Jetway-v*.zip"
+        }
+      ]
     }
   ]
 }

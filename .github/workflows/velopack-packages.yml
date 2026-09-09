@@ -9,7 +9,7 @@ on:
       app_version:
         description: App version to pack.
         required: true
-        default: 0.12.6
+        default: 0.13.0
       channel:
         description: VeloPack channel prefix.
         required: true
@@ -155,6 +155,9 @@ jobs:
       contents: write
 
     steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
       - name: Resolve release version
         id: release-version
         shell: bash
@@ -207,6 +210,10 @@ jobs:
             "- unsigned and not notarized macOS build" \
             "- public toolkit release, not an official LevelUp production release" \
             > "artifacts/release/release-notes-${TAG}.md"
+
+          if [[ -f "docs/releases/${TAG}.md" ]]; then
+            cp "docs/releases/${TAG}.md" "artifacts/release/release-notes-${TAG}.md"
+          fi
 
           (
             cd artifacts/release

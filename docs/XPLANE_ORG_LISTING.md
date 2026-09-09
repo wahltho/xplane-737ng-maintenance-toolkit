@@ -10,7 +10,7 @@ X-Plane 737NG Maintenance Toolkit
 
 ## Current Version
 
-0.12.6
+0.13.0
 
 ## Short Description
 
@@ -48,22 +48,22 @@ Current functions include:
 - stable and beta release channels for supported optional tools
 - aircraft-scoped Optimized XLua install, update, repair and restore while
   preserving aircraft-owned Lua scripts
-- explicit optional LevelUp FANS CDU patch management
+- catalog-controlled LevelUp maintenance with required VNAV, W&B and FANS CDU modules
 - verified LevelUp Paintkit download and extraction into a user-selected folder
 - background Toolkit application update checks with cancellable verified
   download and confirmed restart through VeloPack
 
-Version 0.12.6 with online content catalog 1.5.0 currently offers:
+Version 0.13.0 with online content catalog 1.6.0 currently offers:
 
-- Optimized XLua 1.3.7r3
+- Optimized XLua
 - Yet Another Linda (YAL)
 - YAL HoppieHelper
 - YANSH - Yet ANother Simbrief Helper
-- 737NG Realbench Logger 0.1.3
+- 737NG Realbench Logger
 - LevelUp FANS CDU patch
 - LevelUp 737NG Paintkit 1.1.0
 
-Optimized XLua is managed separately for each selected Zibo or LevelUp aircraft and preserves the complete aircraft-owned `plugins/xlua/scripts` tree. YAL, YAL HoppieHelper, YANSH and the Realbench Logger are installed once per X-Plane installation and are available for both products. YANSH preserves its manifest-declared preferences and generated output. The Logger preserves unrelated DataRefMonitor profiles and generated logs. The FANS CDU patch and Paintkit are LevelUp-only. Every item remains optional.
+Optimized XLua is managed separately for each selected Zibo or LevelUp aircraft and preserves the complete aircraft-owned `plugins/xlua/scripts` tree. YAL, YAL HoppieHelper, YANSH and the Realbench Logger are installed once per X-Plane installation and are available for both products. YANSH preserves its manifest-declared preferences and generated output. The Logger preserves unrelated DataRefMonitor profiles and generated logs. The FANS CDU patch and Paintkit are LevelUp-only. The LevelUp maintenance group requires VNAV Descent Tables, Weight & Balance and FANS CDU. Calculator and AUTO JETWAY are optional; tools and resources remain optional.
 
 Aircraft packages, VNAV content, optional patches, tools, resources and Toolkit application releases are separate update layers. The app does not distribute a complete modified `B738.a_fms.lua`; VNAV hooks and authorized payload files are applied locally after validation.
 
@@ -156,6 +156,11 @@ The Toolkit source code is available under the MIT License. The application is p
 
 ## Changelog
 
+### 0.13.0
+
+- Catalog-controlled mandatory and optional patches from independent source releases.
+- Startup Update/OK dialog, persistent opt-out and manual update checks.
+
 ### 0.12.6
 
 - Fixed false update blocks when independently versioned compatibility packages
@@ -228,7 +233,7 @@ The Toolkit source code is available under the MIT License. The application is p
 
 ### 0.7.0
 
-- Added Optimized XLua 1.3.7r3 as an optional aircraft-scoped component for
+- Added Optimized XLua as an optional aircraft-scoped component for
   supported Zibo and LevelUp installations.
 - Added verified Stable/Beta release discovery, transactional install, update,
   repair, backup and guarded restore for aircraft components.

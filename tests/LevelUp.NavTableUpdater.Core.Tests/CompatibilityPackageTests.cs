@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using LevelUp.NavTableUpdater.App.ViewModels;
 using LevelUp.NavTableUpdater.Core.Aircraft;
 using LevelUp.NavTableUpdater.Core.Content;
@@ -268,6 +269,35 @@ public sealed class CompatibilityPackageTests
 
     private static string Sha256(byte[] bytes) =>
         Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+
+    [Fact]
+    public async Task CatalogSourceUpdate_RecomposesNewPayloadAndRetainsOriginalBackup()
+    {
+        using var fixture = Fixture.Create(singleComposableModule: true, omitStructuralResultHashes: true);
+        var manifestPath = Path.Combine(fixture.PackageDirectory, "package-manifest.json");
+        var document = JsonNode.Parse(File.ReadAllText(manifestPath))!;
+        document["sources"] = JsonSerializer.SerializeToNode(new[] { new { packageId = "source.core", moduleId = "core", releaseTag = "v1.0.0", assetSha256 = new string('a', 64), repositoryUrl = "https://github.com/example/core" } });
+        File.WriteAllText(manifestPath, document.ToJsonString());
+        var operation = new CompatibilityPackageOperation(fixture.Store, () => false);
+        Assert.True((await operation.RunAsync(ContentPatchAction.Install, fixture.Variant, fixture.PackageDirectory, [])).Succeeded);
+        Assert.Equal("core\r\n", File.ReadAllText(fixture.TargetPath));
+        var payload = document["modules"]![0]!["payloads"]![0]!;
+        var payloadPath = Path.Combine(fixture.PackageDirectory, "modules", "core", payload["path"]!.GetValue<string>());
+        var bytes = Encoding.UTF8.GetBytes(File.ReadAllText(payloadPath).Replace("\"core\"", "\"core updated\"", StringComparison.Ordinal));
+        File.WriteAllBytes(payloadPath, bytes);
+        payload["size"] = bytes.Length;
+        payload["sha256"] = Sha256(bytes);
+        document["packageVersion"] = "catalog-new-source";
+        document["sources"]![0]!["releaseTag"] = "v1.1.0";
+        File.WriteAllText(manifestPath, document.ToJsonString());
+        var update = await operation.RunAsync(ContentPatchAction.Update, fixture.Variant, fixture.PackageDirectory, []);
+        Assert.True(update.Succeeded, update.Message);
+        Assert.Equal("core updated\r\n", File.ReadAllText(fixture.TargetPath));
+        var state = Assert.Single(fixture.Store.Load().ContentInstallations.Values).ContentComponents["levelup.compatibility"];
+        Assert.Equal("v1.1.0", Assert.Single(state.Sources).ReleaseTag);
+        Assert.True(operation.Restore(fixture.Variant, fixture.PackageDirectory).Succeeded);
+        Assert.Equal("before\r\n", File.ReadAllText(fixture.TargetPath));
+    }
 
     private sealed class Fixture : IDisposable
     {

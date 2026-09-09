@@ -70,7 +70,12 @@ public sealed record ContentPatchPlan(
 
     public IReadOnlySet<string>? OwnedRelativePaths { get; init; }
 
+    public IReadOnlyDictionary<string, string?> ExpectedSourceHashes { get; init; } = new Dictionary<string, string?>();
+
     public bool RestoreAvailable { get; init; } = true;
+
+    public IReadOnlyList<LevelUp.NavTableUpdater.Core.Manifest.ResolvedCatalogSource> Sources { get; init; } = [];
+    public LevelUp.NavTableUpdater.Core.State.ContentComponentState? MigratedState { get; init; }
 
     public static ContentPatchPlan Blocked(
         ContentPatchDescriptor descriptor,

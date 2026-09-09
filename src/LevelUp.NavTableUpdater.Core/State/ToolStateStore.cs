@@ -236,6 +236,28 @@ public sealed class ToolStateStore
         return BuildMigratedProductTarget(document, variant);
     }
 
+    public void UpdateContentAndProduct(AircraftVariantViewAnalysis variant,
+        Action<ContentInstallationToolState, AircraftToolState> update, bool manageProduct = true)
+    {
+        var document = Load();
+        var folder = Path.GetFullPath(ProductFolder(variant));
+        var installationKey = PathKey(folder);
+        if (!document.ContentInstallations.TryGetValue(installationKey, out var installation))
+            document.ContentInstallations[installationKey] = installation = new();
+        installation.AircraftFolder = folder;
+        var productKey = ProductTargetKey(variant);
+        AircraftToolState product;
+        if (!manageProduct) product = new();
+        else if (document.Aircraft.TryGetValue(productKey, out var existingProduct)) product = existingProduct;
+        else document.Aircraft[productKey] = product = BuildMigratedProductTarget(document, variant) ?? new();
+        product.AircraftId = AircraftProductIdentity.FromVariant(variant).BackupScopeId;
+        product.AircraftFolder = folder;
+        product.AcfPath = "";
+        product.PrefsPath = "";
+        update(installation, product);
+        Save(document);
+    }
+
     public void UpdateProductTarget(AircraftVariantViewAnalysis variant, Action<AircraftToolState> update)
     {
         var document = Load();
@@ -462,6 +484,7 @@ public sealed class ToolStateStore
             foreach (var component in installation.ContentComponents.Values)
             {
                 component.EnabledModules ??= [];
+                component.Sources ??= [];
                 component.Files ??= [];
             }
         }
@@ -474,6 +497,7 @@ public sealed class ToolStateStore
             foreach (var component in target.ContentComponents.Values)
             {
                 component.EnabledModules ??= [];
+                component.Sources ??= [];
                 component.Files ??= [];
             }
             if (!string.IsNullOrWhiteSpace(target.InstalledContentPackageId)

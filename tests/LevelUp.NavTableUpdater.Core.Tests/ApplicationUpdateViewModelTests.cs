@@ -43,7 +43,7 @@ public sealed class ApplicationUpdateViewModelTests
     }
 
     [Fact]
-    public async Task CheckForUpdatesAsync_WhenManagedUpdateExists_ShowsDownloadBanner()
+    public async Task CheckForUpdatesAsync_WhenManagedUpdateExists_ShowsUpdateOrOkDialog()
     {
         var service = new FakeApplicationUpdateService
         {
@@ -55,10 +55,18 @@ public sealed class ApplicationUpdateViewModelTests
                 "https://example.invalid/releases/tag/v0.9.0")
         };
         var logs = new List<string>();
-        var viewModel = CreateViewModel(service, logs: logs);
+        var interaction = new FakeUserInteractionService();
+        var viewModel = CreateViewModel(service, interaction, logs: logs);
 
         await viewModel.CheckForUpdatesAsync();
 
+        var dialog = Assert.Single(interaction.Confirmations);
+        Assert.Equal("Update", dialog.ConfirmText);
+        Assert.Equal("OK", dialog.CancelText);
+        Assert.Contains("0.8.2", dialog.Message);
+        Assert.Contains("0.9.0", dialog.Message);
+        Assert.Equal(0, service.DownloadCount);
+        Assert.False(service.ApplyCalled);
         Assert.True(viewModel.BannerVisible);
         Assert.True(viewModel.DownloadVisible);
         Assert.False(viewModel.RestartVisible);
@@ -71,7 +79,7 @@ public sealed class ApplicationUpdateViewModelTests
     public async Task DownloadCommand_WhenDownloadSucceeds_EnablesConfirmedRestart()
     {
         var service = new FakeApplicationUpdateService();
-        var interaction = new FakeUserInteractionService { ConfirmResult = true };
+        var interaction = new FakeUserInteractionService();
         var maintenanceStates = new List<bool>();
         var viewModel = CreateViewModel(service, interaction, maintenanceStates);
         await viewModel.CheckForUpdatesAsync();
@@ -85,10 +93,11 @@ public sealed class ApplicationUpdateViewModelTests
         Assert.True(viewModel.RestartVisible);
         Assert.Equal(100, viewModel.Progress);
 
+        interaction.ConfirmResult = true;
         await viewModel.ApplyCommand.ExecuteAsync(null);
 
         Assert.True(service.ApplyCalled);
-        Assert.Single(interaction.Confirmations);
+        Assert.Equal(2, interaction.Confirmations.Count);
     }
 
     [Fact]
@@ -129,6 +138,60 @@ public sealed class ApplicationUpdateViewModelTests
         Assert.False(viewModel.DownloadVisible);
     }
 
+    [Fact]
+    public async Task StartupUpdateChoice_DownloadsThenRequestsRestartConfirmation()
+    {
+        var service = new FakeApplicationUpdateService();
+        var interaction = new FakeUserInteractionService { ConfirmResult = true };
+        var viewModel = CreateViewModel(service, interaction);
+
+        await viewModel.CheckForUpdatesAsync();
+
+        Assert.Equal(1, service.DownloadCount);
+        Assert.True(service.ApplyCalled);
+        Assert.Equal(new[] { "Update", "Restart and update" },
+            interaction.Confirmations.Select(request => request.ConfirmText));
+    }
+
+    [Fact]
+    public async Task OkChoice_DoesNotSuppressPopupOnNextLaunch()
+    {
+        var service = new FakeApplicationUpdateService();
+        var interaction = new FakeUserInteractionService();
+        await CreateViewModel(service, interaction).CheckForUpdatesAsync();
+        await CreateViewModel(service, interaction).CheckForUpdatesAsync();
+
+        Assert.Equal(2, interaction.Confirmations.Count);
+        Assert.Equal(0, service.DownloadCount);
+        Assert.False(service.ApplyCalled);
+    }
+
+    [Fact]
+    public async Task CurrentVersion_DoesNotShowPopup()
+    {
+        var service = new FakeApplicationUpdateService
+        {
+            CheckResult = new(true, "0.9.0", null, null, "https://example.invalid/releases")
+        };
+        var interaction = new FakeUserInteractionService();
+        await CreateViewModel(service, interaction).CheckForUpdatesAsync();
+        Assert.Empty(interaction.Confirmations);
+    }
+
+    [Fact]
+    public async Task StartupDownloadFailure_DoesNotRequestRestartAndKeepsRetryAvailable()
+    {
+        var service = new FakeApplicationUpdateService { FailDownload = true };
+        var interaction = new FakeUserInteractionService { ConfirmResult = true };
+        var viewModel = CreateViewModel(service, interaction);
+        await viewModel.CheckForUpdatesAsync();
+        Assert.Single(interaction.Confirmations);
+        Assert.False(service.ApplyCalled);
+        Assert.True(viewModel.DownloadVisible);
+        Assert.False(viewModel.RestartVisible);
+        Assert.False(viewModel.IsBusy);
+    }
+
     private static ApplicationUpdateViewModel CreateViewModel(
         FakeApplicationUpdateService service,
         FakeUserInteractionService? interaction = null,
@@ -151,6 +214,7 @@ public sealed class ApplicationUpdateViewModelTests
             "https://example.invalid/releases/tag/v0.9.0");
 
         public bool WaitForCancellation { get; set; }
+        public bool FailDownload { get; set; }
 
         public int DownloadCount { get; private set; }
 
@@ -163,6 +227,7 @@ public sealed class ApplicationUpdateViewModelTests
         public async Task DownloadUpdateAsync(IProgress<int>? progress = null, CancellationToken cancellationToken = default)
         {
             DownloadCount++;
+            if (FailDownload) throw new IOException("Simulated network failure");
             DownloadStarted.TrySetResult();
             progress?.Report(50);
             if (WaitForCancellation)

@@ -1,5 +1,8 @@
 # Compatibility Package Contract
 
+For catalog-controlled groups assembled from independent releases, see
+[Catalog groups](CATALOG_GROUPS.md). The archive contract below remains supported.
+
 Toolkit 0.11.0 introduces schema 3 compatibility packages for product-owned
 aircraft adaptations that must be versioned, tested and released together.
 This is separate from aircraft releases, VNAV-only legacy packages, optional

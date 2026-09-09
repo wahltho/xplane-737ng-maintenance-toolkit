@@ -1119,7 +1119,17 @@
                                 BorderThickness="1"
                                 CornerRadius="6"
                                 Padding="12,10">
-                            <TextBlock Text="{Binding SettingsStatus}" Foreground="{DynamicResource AppTextTertiaryBrush}" TextWrapping="Wrap"/>
+                            <StackPanel Spacing="8" Margin="0,8,0,8">
+                                <TextBlock Text="{Binding SettingsStatus}" Foreground="{DynamicResource AppTextTertiaryBrush}" TextWrapping="Wrap"/>
+                                <TextBlock Classes="label" Text="Toolkit application updates"/>
+                                <CheckBox Content="Check for Toolkit updates at startup"
+                                          IsChecked="{Binding CheckToolkitUpdatesOnStartup}"/>
+                                <TextBlock Text="Show an Update / OK dialog when a new Toolkit version is available. This preference is saved automatically."
+                                           TextWrapping="Wrap" Foreground="{DynamicResource AppTextTertiaryBrush}"/>
+                                <Button Content="Check for Toolkit updates now"
+                                        Command="{Binding CheckToolkitUpdatesCommand}"
+                                        IsEnabled="{Binding ActionsEnabled}" HorizontalAlignment="Left"/>
+                            </StackPanel>
                         </Border>
 
                         <Border Classes="card">

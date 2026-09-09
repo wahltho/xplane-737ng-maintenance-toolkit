@@ -4,6 +4,8 @@ public sealed class ToolkitSettingsDocument
 {
     public int SchemaVersion { get; set; } = 1;
 
+    public bool CheckToolkitUpdatesOnStartup { get; set; } = true;
+
     public string SelectedAircraftPath { get; set; } = "";
 
     public string BackupRootPath { get; set; } = "";

@@ -14,8 +14,9 @@ The catalog is deliberately independent from Toolkit application releases:
 
 Adding a package repository does not publish it in the Toolkit. A package is
 visible only after an explicit catalog change, review, version increment and
-catalog release. Weight & Balance and Takeoff/Landing Calculator packages are
-not enabled in the current catalog.
+catalog release. Catalog 1.6.0 defines a LevelUp group with VNAV, FANS CDU and
+Weight & Balance required; Calculator and AUTO JETWAY are optional. It requires
+Toolkit 0.13.0. See `../docs/CATALOG_GROUPS.md`.
 
 ## Publishing
 

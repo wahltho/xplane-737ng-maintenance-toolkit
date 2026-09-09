@@ -66,10 +66,27 @@ public sealed class CompatibilityPackagePlanBuilder
             return Task.FromResult(Blocked(descriptor, manifest, action, aircraftRoot, selectionError, log));
         }
 
+        foreach (var module in selectedModules)
+            if (module.SupportedUpstreamReleases.Count > 0 && !SupportsUpstreamRelease(module.SupportedUpstreamReleases, variant))
+                return Task.FromResult(Blocked(descriptor, manifest, action, aircraftRoot, $"Module {module.ModuleId} does not support this aircraft release.", log));
+
         var selectedIds = selectedModules.Select(module => module.ModuleId).ToArray();
         log.Add($"[MODULES] {string.Join(", ", selectedModules.Select(module => $"{module.ModuleId} ({module.Policy})"))}");
         var componentState = _stateStore.TryGetContentInstallation(aircraftRoot)?.ContentComponents?
             .GetValueOrDefault(manifest.PackageId);
+        ContentComponentState? migrated = null;
+        if (componentState is null && manifest.Sources.Count > 0 && action is not ContentPatchAction.Uninstall)
+        {
+            try
+            {
+                migrated = CatalogGroupMigration.Prepare(aircraftRoot, manifest, _stateStore.TryGetContentInstallation(aircraftRoot)?.ContentComponents);
+                componentState = migrated;
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Task.FromResult(Blocked(descriptor, manifest, action, aircraftRoot, ex.Message, log));
+            }
+        }
         if (action is ContentPatchAction.Uninstall)
         {
             return Task.FromResult(BuildUninstallPlan(descriptor, manifest, aircraftRoot, componentState, log));
@@ -103,6 +120,7 @@ public sealed class CompatibilityPackagePlanBuilder
             .OrderBy(path => path, StringComparer.Ordinal)
             .ToArray();
         var mutations = new List<ContentPatchMutation>();
+        var expectedSources = new Dictionary<string, string?>(StringComparer.Ordinal);
 
         foreach (var relativePath in targetPaths)
         {
@@ -113,6 +131,7 @@ public sealed class CompatibilityPackagePlanBuilder
             byte[] sourceBytes;
             var currentExists = File.Exists(targetPath);
             var currentBytes = currentExists ? File.ReadAllBytes(targetPath) : [];
+            expectedSources[relativePath] = currentExists ? Sha256(currentBytes) : null;
             bool sourceExists;
 
             if (previousFile is null)
@@ -296,15 +315,15 @@ public sealed class CompatibilityPackagePlanBuilder
                             : "Removed disabled compatibility modules")
                     : ContentPatchMutation.Delete(relativePath, "Removed file created by disabled compatibility module"));
             }
-            else if (componentState is not null && selectedOperations.ContainsKey(relativePath))
+            else if ((componentState is not null || manifest.Sources.Count > 0) && selectedOperations.ContainsKey(relativePath))
             {
                 mutations.Add(ContentPatchMutation.Write(relativePath, desiredBytes, "Retained verified compatibility target"));
             }
         }
 
         var status = mutations.Count == 0
-            ? $"{descriptor.DisplayName} {manifest.PackageVersion} already matches the selected modules."
-            : $"{descriptor.DisplayName} {manifest.PackageVersion} is ready with {selectedIds.Length} selected module(s).";
+            ? $"{descriptor.DisplayName} {manifest.DisplayVersion} already matches the selected modules."
+            : $"{descriptor.DisplayName} {manifest.DisplayVersion} is ready with {selectedIds.Length} selected module(s).";
         return Task.FromResult(new ContentPatchPlan(
             descriptor,
             manifest.PackageVersion,
@@ -316,6 +335,9 @@ public sealed class CompatibilityPackagePlanBuilder
             status)
         {
             EnabledModules = selectedIds,
+            Sources = manifest.Sources,
+            ExpectedSourceHashes = expectedSources,
+            MigratedState = migrated,
             OwnedRelativePaths = selectedOperations.Keys.ToHashSet(StringComparer.Ordinal)
         });
     }

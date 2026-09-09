@@ -7,6 +7,25 @@ public sealed class ToolkitSettingsStoreTests : IDisposable
     private readonly string _root = Path.Combine(Path.GetTempPath(), $"xplane-737ng-settings-tests-{Guid.NewGuid():N}");
 
     [Fact]
+    public void LegacySettings_DefaultToAutomaticToolkitUpdateChecks()
+    {
+        var store = new ToolkitSettingsStore(_root);
+        Directory.CreateDirectory(_root);
+        File.WriteAllText(store.SettingsPath, "{\"SchemaVersion\":1}");
+        Assert.True(store.Load().CheckToolkitUpdatesOnStartup);
+    }
+
+    [Fact]
+    public void DisabledToolkitUpdateChecks_SurviveReload()
+    {
+        var store = new ToolkitSettingsStore(_root);
+        var settings = store.Load();
+        settings.CheckToolkitUpdatesOnStartup = false;
+        store.Save(settings);
+        Assert.False(store.Load().CheckToolkitUpdatesOnStartup);
+    }
+
+    [Fact]
     public void Load_WhenSettingsFileIsMissing_ReturnsDefaultBackupRoot()
     {
         var store = new ToolkitSettingsStore(_root);

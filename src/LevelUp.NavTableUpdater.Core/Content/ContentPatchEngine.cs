@@ -34,6 +34,18 @@ public sealed class ContentPatchEngine
         }
 
         var aircraftRoot = Path.GetFullPath(plan.AircraftRoot);
+        var owner = _stateStore.TryGetContentInstallation(aircraftRoot)?.ContentComponents.Values
+            .FirstOrDefault(component => component.ComponentId != plan.Descriptor.ComponentId
+                && component.Sources.Any(source => source.PackageId == plan.Descriptor.ComponentId));
+        if (owner is not null)
+            return MaintenanceOperationResult.Blocked($"This patch is managed by {owner.ComponentId}; use its catalog action.", log);
+        foreach (var expected in plan.ExpectedSourceHashes)
+        {
+            var path = ContentPatchPathSafety.ResolveTarget(aircraftRoot, expected.Key, "Planned source");
+            var currentHash = File.Exists(path) ? Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))).ToLowerInvariant() : null;
+            if (!string.Equals(currentHash, expected.Value, StringComparison.OrdinalIgnoreCase))
+                return MaintenanceOperationResult.Blocked($"Target changed after planning: {expected.Key}. Review the operation again.", log);
+        }
         var mutations = NormalizeMutations(aircraftRoot, plan.Mutations);
         if (mutations.Count == 0)
         {
@@ -42,7 +54,11 @@ public sealed class ContentPatchEngine
         }
 
         var changedMutations = mutations.Where(mutation => !MutationIsAlreadyApplied(mutation)).ToArray();
-        if (changedMutations.Length == 0)
+        var priorState = _stateStore.TryGetContentInstallation(aircraftRoot)?.ContentComponents.GetValueOrDefault(plan.Descriptor.ComponentId) ?? plan.MigratedState;
+        var needsInitialBackup = plan.Sources.Count > 0
+            ? mutations.Where(m => priorState?.Files.Any(f => f.RelativePath == m.RelativePath) != true && File.Exists(m.TargetPath)).ToArray()
+            : [];
+        if (changedMutations.Length == 0 && needsInitialBackup.Length == 0)
         {
             RecordState(plan, variant, mutations, backups: [], changed: false);
             log.Add("[NO-CHANGE] Every planned target already has the requested state.");
@@ -56,7 +72,7 @@ public sealed class ContentPatchEngine
 
         try
         {
-            foreach (var mutation in changedMutations)
+            foreach (var mutation in changedMutations.Concat(needsInitialBackup).DistinctBy(m => m.RelativePath))
             {
                 var original = CaptureOriginal(mutation.TargetPath);
                 originalStates[mutation.RelativePath] = original;
@@ -150,6 +166,10 @@ public sealed class ContentPatchEngine
                 "X-Plane is running. Close X-Plane before restoring aircraft files.",
                 log);
         }
+
+        var owner = _stateStore.TryGetContentInstallation(aircraftRoot)?.ContentComponents.Values
+            .FirstOrDefault(c => c.ComponentId != descriptor.ComponentId && c.Sources.Any(source => source.PackageId == descriptor.ComponentId));
+        if (owner is not null) return MaintenanceOperationResult.Blocked($"Use the catalog group {owner.ComponentId} to restore these patches.", log);
 
         var component = _stateStore.TryGetContentInstallation(aircraftRoot)?.ContentComponents
             .GetValueOrDefault(descriptor.ComponentId);
@@ -289,9 +309,9 @@ public sealed class ContentPatchEngine
                 log.Add($"[RESTORE] {file.State.RelativePath}");
             }
 
-            if (descriptor.Lifecycle.Activation is ContentPatchActivation.Managed)
+            _stateStore.UpdateContentAndProduct(variant, (installation, target) =>
             {
-                _stateStore.UpdateProductTarget(variant, target =>
+                if (descriptor.Lifecycle.Activation is ContentPatchActivation.Managed)
                 {
                     target.ContentComponents.Remove(descriptor.ComponentId);
                     if (string.Equals(target.InstalledContentPackageId, descriptor.ComponentId, StringComparison.Ordinal))
@@ -299,18 +319,13 @@ public sealed class ContentPatchEngine
                         target.InstalledContentPackageId = null;
                         target.InstalledContentPackageVersion = null;
                     }
-
                     target.LastContentOperationUtc = DateTimeOffset.UtcNow;
                     target.LastOperation = stateOperation;
                     target.Backups.AddRange(preRestoreBackups);
-                });
-            }
-
-            _stateStore.UpdateContentInstallation(aircraftRoot, installation =>
-            {
+                }
                 installation.ContentComponents.Remove(descriptor.ComponentId);
                 installation.Backups.AddRange(preRestoreBackups);
-            });
+            }, manageProduct: descriptor.Lifecycle.Activation is ContentPatchActivation.Managed);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
@@ -342,8 +357,8 @@ public sealed class ContentPatchEngine
         IReadOnlyDictionary<string, OriginalFileState>? originals = null)
     {
         var previous = _stateStore.TryGetContentInstallation(plan.AircraftRoot)?.ContentComponents
-            .GetValueOrDefault(plan.Descriptor.ComponentId);
-        _stateStore.UpdateContentInstallation(plan.AircraftRoot, installation =>
+            .GetValueOrDefault(plan.Descriptor.ComponentId) ?? plan.MigratedState;
+        _stateStore.UpdateContentAndProduct(variant, (installation, target) =>
         {
             installation.ContentComponents ??= new Dictionary<string, ContentComponentState>(StringComparer.Ordinal);
             if (plan.Action is ContentPatchAction.Uninstall)
@@ -366,20 +381,16 @@ public sealed class ContentPatchEngine
                     LastOperation = $"ContentPatch{plan.Action}",
                     RestoreAvailable = previous?.RestoreAvailable ?? plan.RestoreAvailable,
                     EnabledModules = [.. plan.EnabledModules],
+                    Sources = [.. plan.Sources],
                     Files = fileStates
                 };
             }
 
+            if (plan.MigratedState is not null)
+                foreach (var source in plan.Sources) installation.ContentComponents.Remove(source.PackageId);
             installation.Backups.AddRange(backups);
-        });
+            if (plan.Descriptor.Lifecycle.Activation is not ContentPatchActivation.Managed) return;
 
-        if (plan.Descriptor.Lifecycle.Activation is not ContentPatchActivation.Managed)
-        {
-            return;
-        }
-
-        _stateStore.UpdateProductTarget(variant, target =>
-        {
             if (plan.Action is ContentPatchAction.Uninstall)
             {
                 target.ContentComponents.Remove(plan.Descriptor.ComponentId);
@@ -391,8 +402,7 @@ public sealed class ContentPatchEngine
             }
             else
             {
-                var installationState = _stateStore.TryGetContentInstallation(plan.AircraftRoot)?.ContentComponents
-                    .GetValueOrDefault(plan.Descriptor.ComponentId);
+                var installationState = installation.ContentComponents.GetValueOrDefault(plan.Descriptor.ComponentId);
                 if (installationState is not null)
                 {
                     target.ContentComponents[plan.Descriptor.ComponentId] = installationState;
@@ -403,9 +413,11 @@ public sealed class ContentPatchEngine
             }
 
             target.LastContentOperationUtc = DateTimeOffset.UtcNow;
+            if (plan.MigratedState is not null)
+                foreach (var source in plan.Sources) target.ContentComponents.Remove(source.PackageId);
             target.LastOperation = changed ? $"ContentPatch{plan.Action}" : "ContentPatchNoChange";
             target.Backups.AddRange(backups);
-        });
+        }, manageProduct: plan.Descriptor.Lifecycle.Activation is ContentPatchActivation.Managed);
     }
 
     private static ContentComponentFileState BuildFileState(

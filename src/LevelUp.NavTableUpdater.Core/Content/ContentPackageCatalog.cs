@@ -23,7 +23,9 @@ public enum ContentPackageDistributionKind
     GitHubReleaseArchive,
     GitHubToolRelease,
     GitHubXPlaneOverlayRelease,
-    GitHubResourceRelease
+    GitHubResourceRelease,
+    CatalogGroup,
+    GitHubModuleSource
 }
 
 public sealed class ContentPackageCatalogDocument
@@ -64,6 +66,19 @@ public sealed class ContentPackageCatalogEntry
     public List<string> SupportedChannels { get; set; } = [];
 
     public ContentPackageDistribution Distribution { get; set; } = new();
+
+    public List<CatalogGroupMember> Members { get; set; } = [];
+}
+
+public sealed class CatalogGroupMember
+{
+    public string PackageId { get; set; } = "";
+    public string ModuleId { get; set; } = "";
+    public CompatibilityModulePolicy Policy { get; set; }
+    public int InstallationOrder { get; set; }
+    public string SourceFormat { get; set; } = "";
+    public string ManifestPath { get; set; } = "";
+    public string AssetNamePattern { get; set; } = "";
 }
 
 public sealed class ContentPackageDistribution
@@ -157,6 +172,7 @@ public sealed class ContentPackageCatalog
         var packageIds = new HashSet<string>(StringComparer.Ordinal);
         foreach (var package in document.Packages)
         {
+            package.Members ??= [];
             package.SupportedProducts ??= [];
             package.SupportedChannels ??= [];
             package.Distribution ??= new ContentPackageDistribution();
@@ -180,6 +196,32 @@ public sealed class ContentPackageCatalog
             ValidateRepository(package);
             ValidateLifecycle(package);
             ValidateDistribution(package);
+        }
+
+        var groupedProducts = new HashSet<(string Product, string Package)>();
+        foreach (var group in document.Packages.Where(p => p.Distribution.Kind is ContentPackageDistributionKind.CatalogGroup))
+        {
+            var ids = new HashSet<string>(StringComparer.Ordinal);
+            var orders = new HashSet<int>();
+            var sources = new HashSet<string>(StringComparer.Ordinal);
+            if (group.Members.Count == 0) throw new InvalidDataException("Catalog group is empty.");
+            foreach (var member in group.Members)
+            {
+                foreach (var product in group.SupportedProducts)
+                    if (!groupedProducts.Add((product, member.PackageId)))
+                        throw new InvalidDataException("A source cannot have multiple catalog group owners for the same product.");
+                var source = document.Packages.SingleOrDefault(p => p.PackageId == member.PackageId);
+                if (source is null || source.Distribution.Kind is ContentPackageDistributionKind.CatalogGroup
+                    || !IsSafePackageId(member.ModuleId) || !ids.Add(member.ModuleId)
+                    || !sources.Add(member.PackageId) || member.InstallationOrder < 0 || !orders.Add(member.InstallationOrder)
+                    || !group.SupportedProducts.All(source.SupportedProducts.Contains)
+                    || member.Policy is not (CompatibilityModulePolicy.Required or CompatibilityModulePolicy.Optional)
+                    || member.SourceFormat is not ("vnav" or "declarative" or "moduleSource" or "compatibility")
+                    || !IsSafeRelativePath(member.ManifestPath)
+                    || string.IsNullOrWhiteSpace(member.AssetNamePattern) || !member.AssetNamePattern.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) || member.AssetNamePattern.Count(ch => ch == '*') > 1
+                    || member.AssetNamePattern.Contains('/') || member.AssetNamePattern.Contains('\\'))
+                    throw new InvalidDataException($"Invalid source or policy in catalog group {group.PackageId}.");
+            }
         }
     }
 
@@ -217,6 +259,19 @@ public sealed class ContentPackageCatalog
 
     private static void ValidateDistribution(ContentPackageCatalogEntry package)
     {
+        if (package.Distribution.Kind is ContentPackageDistributionKind.CatalogGroup)
+        {
+            if (package.Category is not ContentPackageCategory.CompatibilityPackage)
+                throw new InvalidDataException("Catalog groups require compatibilityPackage lifecycle.");
+            return;
+        }
+        if (package.Members.Count != 0) throw new InvalidDataException("Only catalog groups may declare members.");
+        if (package.Distribution.Kind is ContentPackageDistributionKind.GitHubModuleSource)
+        {
+            if (package.Category is not ContentPackageCategory.CompatibilityPackage)
+                throw new InvalidDataException("Module sources require compatibilityPackage lifecycle.");
+            return;
+        }
         if (package.Distribution.Kind is ContentPackageDistributionKind.ExistingVnav)
         {
             if (package.Category is not ContentPackageCategory.ManagedContent)

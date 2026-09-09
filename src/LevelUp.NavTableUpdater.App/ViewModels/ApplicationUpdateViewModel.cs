@@ -13,6 +13,7 @@ public partial class ApplicationUpdateViewModel : ViewModelBase
     private readonly Action<bool> _setMaintenanceActionsEnabled;
     private readonly Action<string> _log;
     private CancellationTokenSource? _cancellationSource;
+    private bool _isChecking;
 
     [ObservableProperty]
     private bool bannerVisible;
@@ -60,6 +61,8 @@ public partial class ApplicationUpdateViewModel : ViewModelBase
 
     public async Task CheckForUpdatesAsync()
     {
+        if (_isChecking || IsBusy) return;
+        _isChecking = true;
         try
         {
             var result = await _updateService.CheckForUpdatesAsync();
@@ -85,10 +88,28 @@ public partial class ApplicationUpdateViewModel : ViewModelBase
             CancelVisible = false;
             BannerVisible = true;
             _log($"Toolkit app update available: {result.CurrentVersion} -> {result.AvailableVersion}.");
+
+            var updateNow = await _userInteractionService.ConfirmAsync(new ConfirmationRequest(
+                "Toolkit update available",
+                $"A new version of the X-Plane 737NG Maintenance Toolkit is available.\n\nCurrent version: {result.CurrentVersion}\nAvailable version: {result.AvailableVersion}\n\nChoose Update to download it, or OK to continue using the current version.",
+                "Update",
+                "OK"));
+            if (updateNow)
+            {
+                await Download();
+                if (RestartVisible)
+                {
+                    await Apply();
+                }
+            }
         }
         catch (Exception ex)
         {
             _log($"Toolkit app update check failed without affecting maintenance functions: {ex.Message}");
+        }
+        finally
+        {
+            _isChecking = false;
         }
     }
 

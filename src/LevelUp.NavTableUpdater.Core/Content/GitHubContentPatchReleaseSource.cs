@@ -27,7 +27,7 @@ public sealed record CompatibilityPackageProvisionResult(
     ContentPatchRelease Release,
     bool Downloaded);
 
-public sealed class GitHubContentPatchReleaseSource
+public sealed partial class GitHubContentPatchReleaseSource
 {
     private const int MaximumMetadataBytes = 1024 * 1024;
     private const int MaximumManifestBytes = 1024 * 1024;
@@ -547,6 +547,7 @@ public sealed class GitHubContentPatchReleaseSource
         }
 
         var wildcard = pattern.IndexOf('*');
+        if (wildcard < 0) return pattern.Equals(name, StringComparison.OrdinalIgnoreCase);
         var prefix = pattern[..wildcard];
         var suffix = pattern[(wildcard + 1)..];
         return name.Length >= prefix.Length + suffix.Length
@@ -606,7 +607,7 @@ public sealed class GitHubContentPatchReleaseSource
             || !pattern.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)
             || pattern.Contains('/')
             || pattern.Contains('\\')
-            || pattern.Count(ch => ch == '*') != 1)
+            || pattern.Count(ch => ch == '*') > 1)
         {
             throw new InvalidOperationException($"Content package {catalogEntry.PackageId} has an unsafe release asset pattern.");
         }

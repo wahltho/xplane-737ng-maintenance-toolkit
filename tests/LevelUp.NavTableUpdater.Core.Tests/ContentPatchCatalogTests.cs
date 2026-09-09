@@ -126,8 +126,8 @@ public sealed class ContentPatchCatalogTests
             package => package.PackageId == ContentPatchCatalog.FansCdu.ComponentId);
         var descriptor = ContentPatchCatalog.OptionalPatch(fans);
 
-        Assert.Equal("1.5.0", catalog.CatalogVersion);
-        Assert.Equal("0.12.2", catalog.MinimumToolkitVersion);
+        Assert.Equal("1.6.0", catalog.CatalogVersion);
+        Assert.Equal("0.13.0", catalog.MinimumToolkitVersion);
         Assert.Equal(ContentPackageCategory.OptionalPatch, fans.Category);
         Assert.Equal(ContentPatchActivation.ExplicitOptIn, fans.Activation);
         Assert.Equal("LevelUp-737NG-FANS-CDU-v*.zip", fans.Distribution.AssetNamePattern);
@@ -137,7 +137,7 @@ public sealed class ContentPatchCatalogTests
     }
 
     [Fact]
-    public void BundledCatalog_AdvertisesReleasedCompatibilityPackagesButNotWeightBalance()
+    public void BundledCatalog_DeclaresRequiredLevelUpGroupAndOptionalSources()
     {
         var catalog = ContentPackageCatalog.Parse(File.ReadAllText(BundledCatalogPath()));
 
@@ -160,11 +160,15 @@ public sealed class ContentPatchCatalogTests
         Assert.Equal(3, autoJetway.Distribution.ManifestSchemaVersion);
         Assert.Equal("X-Plane-Zibo-Auto-Jetway-v*.zip", autoJetway.Distribution.AssetNamePattern);
 
-        Assert.DoesNotContain(
-            catalog.Packages,
-            package => package.RepositoryUrl.Equals(
-                "https://github.com/wahltho/X-Plane-LevelUp-737NG-Weight-Balance",
-                StringComparison.OrdinalIgnoreCase));
+        var group = Assert.Single(catalog.ForProduct("levelup-737ng"),
+            package => package.Distribution.Kind is ContentPackageDistributionKind.CatalogGroup);
+        Assert.Equal(new[] { "vnav", "fans-cdu", "weight-and-balance" },
+            group.Members.Where(m => m.Policy is LevelUp.NavTableUpdater.Core.Manifest.CompatibilityModulePolicy.Required)
+                .OrderBy(m => m.InstallationOrder).Select(m => m.ModuleId));
+        Assert.Equal(new[] { "tablet-performance-calculator", "auto-jetway" },
+            group.Members.Where(m => m.Policy is LevelUp.NavTableUpdater.Core.Manifest.CompatibilityModulePolicy.Optional)
+                .OrderBy(m => m.InstallationOrder).Select(m => m.ModuleId));
+        Assert.DoesNotContain(catalog.ForProduct("zibo-737ng"), package => package.PackageId == group.PackageId);
     }
 
     [Fact]
@@ -176,7 +180,7 @@ public sealed class ContentPatchCatalogTests
             catalog.ForProduct("levelup-737ng"),
             package => package.PackageId == "levelup.paintkit");
 
-        Assert.Equal("1.5.0", catalog.CatalogVersion);
+        Assert.Equal("1.6.0", catalog.CatalogVersion);
         Assert.Equal(ContentPackageCategory.Resource, paintkit.Category);
         Assert.Equal(ContentPatchActivation.ExplicitOptIn, paintkit.Activation);
         Assert.Equal(["levelup-737ng"], paintkit.SupportedProducts);

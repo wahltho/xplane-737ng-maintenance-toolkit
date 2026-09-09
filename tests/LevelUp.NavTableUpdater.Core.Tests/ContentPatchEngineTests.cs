@@ -114,6 +114,23 @@ public sealed class ContentPatchEngineTests
         Assert.Empty(store.Load().Aircraft);
     }
 
+    [Fact]
+    public void Execute_WhenSourceChangedSincePlanning_DoesNotOverwriteEdit()
+    {
+        using var directory = new DeclarativePatchManifestTests.TemporaryDirectory();
+        var targetPath = Path.Combine(directory.Path, "target.txt");
+        File.WriteAllText(targetPath, "foreign edit");
+        var store = TestToolStateStore.Create(Path.Combine(directory.Path, "state"));
+        var engine = new ContentPatchEngine(store, () => false);
+        var plan = CreatePlan(CreateDescriptor(ContentPatchActivation.Managed), directory.Path,
+            ContentPatchMutation.Write("target.txt", Encoding.UTF8.GetBytes("planned output"), "test")) with
+        { ExpectedSourceHashes = new Dictionary<string, string?> { ["target.txt"] = new string('0', 64) } };
+        var result = engine.Execute(plan, CreateVariant(Path.Combine(directory.Path, "737_70NG.acf")));
+        Assert.False(result.Succeeded);
+        Assert.Equal("foreign edit", File.ReadAllText(targetPath));
+        Assert.Empty(store.Load().ContentInstallations);
+    }
+
     private static ContentPatchDescriptor CreateDescriptor(ContentPatchActivation activation) =>
         new(
             "test.optional",

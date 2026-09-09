@@ -37,6 +37,7 @@ public static class CompatibilityPackageManifestParser
         manifest.SupportedProducts ??= [];
         manifest.SupportedUpstreamReleases ??= [];
         manifest.Modules ??= [];
+        manifest.Sources ??= [];
         if (manifest.SchemaVersion != CurrentSchemaVersion
             || !manifest.PackageType.Equals(PackageType, StringComparison.Ordinal))
         {
@@ -72,6 +73,7 @@ public static class CompatibilityPackageManifestParser
         var targetPathCasing = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var module in manifest.Modules)
         {
+            module.SupportedUpstreamReleases ??= [];
             module.Requires ??= [];
             module.ConflictsWith ??= [];
             module.Payloads ??= [];

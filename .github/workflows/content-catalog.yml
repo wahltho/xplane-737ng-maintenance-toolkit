@@ -9,7 +9,7 @@ on:
       catalog_version:
         description: Catalog version to publish.
         required: true
-        default: 1.5.0
+        default: 1.6.0
 
 permissions:
   contents: read
@@ -63,7 +63,7 @@ jobs:
         run: >
           dotnet test tests/LevelUp.NavTableUpdater.Core.Tests/LevelUp.NavTableUpdater.Core.Tests.csproj
           --configuration Release
-          --filter "FullyQualifiedName~ContentPatchCatalogTests|FullyQualifiedName~ContentPackageCatalogLoaderTests"
+          --filter "FullyQualifiedName~ContentPatchCatalogTests|FullyQualifiedName~ContentPackageCatalogLoaderTests|FullyQualifiedName~CatalogGroup|FullyQualifiedName~CatalogSourceAdapterTests"
           --verbosity normal
 
       - name: Prepare immutable release assets

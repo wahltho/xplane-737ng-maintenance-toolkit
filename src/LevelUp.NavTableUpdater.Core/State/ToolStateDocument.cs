@@ -189,6 +189,8 @@ public sealed class ContentComponentState
 
     public List<string> EnabledModules { get; set; } = [];
 
+    public List<LevelUp.NavTableUpdater.Core.Manifest.ResolvedCatalogSource> Sources { get; set; } = [];
+
     public List<ContentComponentFileState> Files { get; set; } = [];
 }
 

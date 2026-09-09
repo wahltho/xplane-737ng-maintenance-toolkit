@@ -28,6 +28,12 @@ public sealed class CompatibilityPackageManifest
     public List<string> SupportedUpstreamReleases { get; set; } = [];
 
     public List<CompatibilityPackageModule> Modules { get; set; } = [];
+
+    public List<ResolvedCatalogSource> Sources { get; set; } = [];
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string DisplayVersion => Sources.Count == 0 ? PackageVersion
+        : string.Join(", ", Sources.Select(source => $"{source.ModuleId} {source.ReleaseTag}"));
 }
 
 public sealed class CompatibilityPackageModule
@@ -44,6 +50,8 @@ public sealed class CompatibilityPackageModule
 
     public int InstallationOrder { get; set; }
 
+    public List<string> SupportedUpstreamReleases { get; set; } = [];
+
     public List<string> Requires { get; set; } = [];
 
     public List<string> ConflictsWith { get; set; } = [];
@@ -51,4 +59,13 @@ public sealed class CompatibilityPackageModule
     public List<DeclarativePatchPayload> Payloads { get; set; } = [];
 
     public List<DeclarativePatchTarget> Targets { get; set; } = [];
+}
+
+public sealed class ResolvedCatalogSource
+{
+    public string PackageId { get; set; } = "";
+    public string ModuleId { get; set; } = "";
+    public string ReleaseTag { get; set; } = "";
+    public string AssetSha256 { get; set; } = "";
+    public string RepositoryUrl { get; set; } = "";
 }

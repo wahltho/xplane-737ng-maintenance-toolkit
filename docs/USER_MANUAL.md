@@ -1,6 +1,6 @@
 # X-Plane 737NG Maintenance Toolkit User Manual
 
-This manual describes version 0.12.6 of the X-Plane 737NG Maintenance Toolkit.
+This manual describes version 0.13.0 of the X-Plane 737NG Maintenance Toolkit.
 
 The toolkit is a desktop app for selected Zibo and LevelUp 737NG maintenance
 tasks:
@@ -30,7 +30,7 @@ Keep your own backups and use the tool at your own risk.
 
 ## Compatibility And Installation
 
-Version 0.12.6 supports:
+Version 0.13.0 supports:
 
 - X-Plane 12. X-Plane 11 is not supported.
 - Zibo 737-800X 2K and 4K variants.
@@ -72,10 +72,14 @@ verified macOS download is blocked, try to open it once, then follow Apple's
 documented [Privacy & Security "Open Anyway" process](https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac).
 
 VeloPack-managed installations check for stable Toolkit updates in the
-background. An available update appears in a banner below the application
-header. `Download` retrieves and verifies the application package with visible
-progress and cancellation. `Restart and update` applies it only after explicit
-confirmation. `Later` dismisses the banner for the current session. Failures do
+background. At startup, an available update opens a dialog showing the current
+and available versions. `Update` downloads and verifies the application package
+with visible progress and cancellation, then offers the existing restart
+confirmation. `OK` closes the dialog; it appears again at the next startup while
+the update remains available. The banner remains available for a later update.
+In Settings, disable `Check for Toolkit updates at startup` to skip the automatic
+check and popup. This preference is saved across launches and is enabled by
+default. `Check for Toolkit updates now` remains available for manual checks. Failures do
 not block normal maintenance functions. This application update is separate
 from aircraft, VNAV, patch, tool and resource updates.
 
@@ -210,11 +214,11 @@ products. `Check releases` queries its latest stable GitHub Release. `Review`
 downloads and validates the selected release into the configured package cache,
 then calculates its file plan without changing the aircraft. `Install`,
 `Update` or `Repair` prepares the same verified package and still asks for an
-explicit confirmation before writing files. Version 0.12.6 offers the LevelUp
+explicit confirmation before writing files. Version 0.13.0 offers the LevelUp
 FANS CDU package as an optional LevelUp-only patch. It remains separate from
 aircraft and VNAV updates and is never installed automatically.
 
-At startup, version 0.12.6 checks immutable `catalog-v*` releases in the Toolkit
+At startup, version 0.13.0 checks immutable `catalog-v*` releases in the Toolkit
 repository for updated package discovery metadata. A downloaded catalog becomes
 active only after schema, version, repository URL and minimum Toolkit version
 validation. If the check fails, the app uses its last valid cached catalog and
@@ -634,3 +638,13 @@ attempted and exported log. Do not upload complete copyrighted aircraft files.
   manifest/archive import.
 - `Dump to file` exports the current visible operation log. A broader bundled
   diagnostic-report workflow is still a planned product feature.
+
+## LevelUp maintenance group
+
+The catalog groups VNAV Descent Tables, Weight & Balance and FANS CDU as required
+modules. Tablet Performance Calculator and AUTO JETWAY are optional. Review the
+group to choose optional modules, then apply the common installation plan.
+Each source continues updating from its own GitHub releases. Existing installed
+modules are adopted only with verifiable backup state; an unsafe migration is
+blocked without changing aircraft files. The group owns subsequent updates and
+restores for its member patches. See [Catalog groups](CATALOG_GROUPS.md).

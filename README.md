@@ -7,7 +7,9 @@ tools and conservative view maintenance for supported aircraft variants.
 This repository is the public development home for the app. The architecture
 keeps package content, aircraft patching, and application updates separate.
 
-Release version: **0.12.6**
+Release version: **0.13.0**
+
+Includes [catalog-controlled maintenance groups](docs/CATALOG_GROUPS.md) and configurable startup update notifications.
 
 - [Download the latest stable release](https://github.com/wahltho/xplane-737ng-maintenance-toolkit/releases/latest)
 - [Read the user manual](docs/USER_MANUAL.md)
@@ -273,10 +275,11 @@ lifecycle handling.
 
 The app creates a VeloPack `UpdateManager` backed by the public GitHub Releases
 source. Managed installations check the package channel in the background,
-show an update banner only when a newer stable version is available, download
-and verify the selected VeloPack package with progress/cancellation, and apply
+show an Update/OK popup when a newer stable version is available, and retain
+the banner for progress or a later update. Update downloads and verifies the selected VeloPack package with progress/cancellation and applies
 it only after explicit restart confirmation. An update failure never blocks
-normal maintenance functions. This remains separate from aircraft-package,
+normal maintenance functions. Startup checks can be disabled in Settings; a manual check remains available.
+This remains separate from aircraft-package,
 VNAV-content, optional-patch, tool and resource update sources.
 
 Packaging is available through the manual VeloPack GitHub Actions workflow.

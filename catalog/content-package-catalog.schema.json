@@ -4,7 +4,12 @@
   "title": "X-Plane 737NG Maintenance Toolkit content package catalog",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "catalogVersion", "minimumToolkitVersion", "packages"],
+  "required": [
+    "schemaVersion",
+    "catalogVersion",
+    "minimumToolkitVersion",
+    "packages"
+  ],
   "properties": {
     "schemaVersion": {
       "const": 1
@@ -54,17 +59,30 @@
           "minLength": 1
         },
         "category": {
-          "enum": ["managedContent", "compatibilityPackage", "optionalPatch", "aircraftComponent", "tool", "resource"]
+          "enum": [
+            "managedContent",
+            "compatibilityPackage",
+            "optionalPatch",
+            "aircraftComponent",
+            "tool",
+            "resource"
+          ]
         },
         "activation": {
-          "enum": ["managed", "explicitOptIn"]
+          "enum": [
+            "managed",
+            "explicitOptIn"
+          ]
         },
         "supportedProducts": {
           "type": "array",
           "minItems": 1,
           "uniqueItems": true,
           "items": {
-            "enum": ["zibo-737ng", "levelup-737ng"]
+            "enum": [
+              "zibo-737ng",
+              "levelup-737ng"
+            ]
           }
         },
         "repositoryUrl": {
@@ -87,21 +105,40 @@
           "type": "array",
           "uniqueItems": true,
           "items": {
-            "enum": ["stable", "beta"]
+            "enum": [
+              "stable",
+              "beta"
+            ]
           }
         },
         "distribution": {
           "$ref": "#/$defs/distribution"
+        },
+        "members": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/member"
+          }
         }
       }
     },
     "distribution": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["kind"],
+      "required": [
+        "kind"
+      ],
       "properties": {
         "kind": {
-          "enum": ["existingVnav", "gitHubReleaseArchive", "gitHubToolRelease", "gitHubXPlaneOverlayRelease", "gitHubResourceRelease"]
+          "enum": [
+            "existingVnav",
+            "gitHubReleaseArchive",
+            "gitHubToolRelease",
+            "gitHubXPlaneOverlayRelease",
+            "gitHubResourceRelease",
+            "catalogGroup",
+            "gitHubModuleSource"
+          ]
         },
         "assetNamePattern": {
           "type": "string"
@@ -112,6 +149,55 @@
         "manifestSchemaVersion": {
           "type": "integer",
           "minimum": 1
+        }
+      }
+    },
+    "member": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "packageId",
+        "moduleId",
+        "policy",
+        "installationOrder",
+        "sourceFormat",
+        "manifestPath",
+        "assetNamePattern"
+      ],
+      "properties": {
+        "packageId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "moduleId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "manifestPath": {
+          "type": "string",
+          "minLength": 1
+        },
+        "assetNamePattern": {
+          "type": "string",
+          "minLength": 1
+        },
+        "policy": {
+          "enum": [
+            "required",
+            "optional"
+          ]
+        },
+        "installationOrder": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sourceFormat": {
+          "enum": [
+            "vnav",
+            "declarative",
+            "moduleSource",
+            "compatibility"
+          ]
         }
       }
     }

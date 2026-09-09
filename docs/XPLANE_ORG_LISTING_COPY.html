@@ -29,7 +29,7 @@
   <p>X-Plane 737NG Maintenance Toolkit</p>
 
   <h2>Current Version</h2>
-  <p>0.12.6</p>
+  <p>0.13.0</p>
 
   <h2>Short Description</h2>
   <p>Cross-platform maintenance utility for supported Zibo and LevelUp 737NG aircraft in X-Plane 12, providing aircraft and VNAV updates, transactional backups, CG/view correction, optional patches, tools and resources.</p>
@@ -58,7 +58,7 @@
     <li>verified file-wise installation, repair and restore of the optional 737NG Realbench Logger while preserving unrelated DataRefMonitor profiles and logs</li>
     <li>stable and beta release channels for supported optional tools</li>
     <li>aircraft-scoped Optimized XLua install, update, repair and restore while preserving aircraft-owned Lua scripts</li>
-    <li>explicit optional LevelUp FANS CDU patch management</li>
+    <li>catalog-controlled LevelUp maintenance with required VNAV, W&amp;B and FANS CDU modules</li>
     <li>optional Tablet Performance Calculator management for LevelUp aircraft</li>
     <li>optional AUTO JETWAY management for supported Zibo and LevelUp aircraft</li>
     <li>safe composition of supported optional packages that share aircraft Lua files</li>
@@ -66,7 +66,7 @@
     <li>background Toolkit application update checks with cancellable verified download and confirmed restart through VeloPack</li>
     <li>remotely versioned package discovery so supported optional content can be added or updated independently from Toolkit application releases</li>
   </ul>
-  <p>Version 0.12.6 with online content catalog 1.5.0 currently offers:</p>
+  <p>Version 0.13.0 with online content catalog 1.6.0 currently offers:</p>
   <ul>
     <li>Optimized XLua</li>
     <li>Yet Another Linda (YAL)</li>
@@ -78,7 +78,7 @@
     <li>AUTO JETWAY for Zibo and LevelUp</li>
     <li>LevelUp 737NG Paintkit 1.1.0</li>
   </ul>
-  <p>Optimized XLua is managed separately for each selected Zibo or LevelUp aircraft and preserves the complete aircraft-owned <code>plugins/xlua/scripts</code> tree. YAL, YAL HoppieHelper, YANSH and the Realbench Logger are installed once per X-Plane installation and are available for both products. YANSH preserves its manifest-declared preferences and generated output. The Logger preserves unrelated DataRefMonitor profiles and generated logs. The FANS CDU patch, Tablet Performance Calculator and Paintkit are LevelUp-only. AUTO JETWAY supports both Zibo and LevelUp. Every item remains optional.</p>
+  <p>Optimized XLua is managed separately for each selected Zibo or LevelUp aircraft and preserves the complete aircraft-owned <code>plugins/xlua/scripts</code> tree. YAL, YAL HoppieHelper, YANSH and the Realbench Logger are installed once per X-Plane installation and are available for both products. YANSH preserves its manifest-declared preferences and generated output. The Logger preserves unrelated DataRefMonitor profiles and generated logs. The FANS CDU patch, Tablet Performance Calculator and Paintkit are LevelUp-only. AUTO JETWAY supports both Zibo and LevelUp. The LevelUp maintenance group requires VNAV Descent Tables, Weight & Balance and FANS CDU. Calculator and AUTO JETWAY are optional; tools and resources remain optional.</p>
   <p>Aircraft packages, VNAV content, optional patches, tools, resources and Toolkit application releases are separate update layers. The app does not distribute a complete modified <code>B738.a_fms.lua</code>; VNAV hooks and authorized payload files are applied locally after validation.</p>
   <p>The optional-content catalog is also versioned separately from the Toolkit application. Online catalog metadata is validated before use and cached locally. If the online catalog is unavailable, incompatible or invalid, the Toolkit falls back to the last verified catalog or its bundled package list.</p>
   <p>Zibo packages are obtained from the official Skymatix feed. The Toolkit tries a direct archive first and automatically uses the feed's official BitTorrent metadata when required. Before peer-to-peer transfer starts, the app explains that peers can see the user's public IP address and that package pieces may be uploaded while the client runs.</p>
@@ -152,6 +152,8 @@
   <p>The Toolkit source code is available under the MIT License. The application is provided as-is, without warranty of any kind. It can modify aircraft files after validation and backup; users should retain their own backups and use the tool at their own risk.</p>
 
   <h2>Changelog</h2>
+  <h3>0.13.0</h3>
+  <ul><li>Catalog-controlled required and optional patches from independent source releases.</li><li>Startup Update/OK dialog, persistent opt-out and manual update checks.</li></ul>
   <h3>0.12.6</h3>
   <ul>
     <li>Fixed false update blocks when independently versioned compatibility packages share structurally managed Lua targets.</li>
@@ -248,7 +250,7 @@
   </ul>
   <h3>0.7.0</h3>
   <ul>
-    <li>Added Optimized XLua 1.3.7r3 as an optional aircraft-scoped component for supported Zibo and LevelUp installations.</li>
+    <li>Added Optimized XLua as an optional aircraft-scoped component for supported Zibo and LevelUp installations.</li>
     <li>Added verified Stable/Beta release discovery, transactional install, update, repair, backup and guarded restore for aircraft components.</li>
     <li>Preserved the complete aircraft-owned <code>plugins/xlua/scripts</code> tree during XLua component operations.</li>
     <li>Added hash-verified XLua preservation across incremental and clean-baseline aircraft updates; missing or changed managed files require repair first.</li>

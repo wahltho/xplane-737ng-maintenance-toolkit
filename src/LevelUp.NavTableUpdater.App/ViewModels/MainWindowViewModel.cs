@@ -53,6 +53,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly ContentPackageCatalogLoader _contentPackageCatalogLoader;
     private ContentPackageCatalog _contentPackageCatalog;
     private GitHubContentPatchReleaseSource _contentPatchReleaseSource;
+    private readonly Dictionary<string, CatalogGroupResolution> _catalogGroupResolutions = new(StringComparer.Ordinal);
     private GitHubToolPackageReleaseSource _toolPackageReleaseSource;
     private GitHubResourcePackageReleaseSource _resourcePackageReleaseSource;
     private readonly ToolPackageManager _toolPackageManager;
@@ -82,6 +83,31 @@ public partial class MainWindowViewModel : ViewModelBase
         return version is null
             ? "Version unknown"
             : $"v{version.Major}.{version.Minor}.{Math.Max(version.Build, 0)}";
+    }
+
+    [ObservableProperty]
+    private bool checkToolkitUpdatesOnStartup = true;
+
+    partial void OnCheckToolkitUpdatesOnStartupChanged(bool value)
+    {
+        _settings.CheckToolkitUpdatesOnStartup = value;
+        try
+        {
+            _settingsStore.Save(_settings);
+            SettingsStatus = value ? "Startup Toolkit update checks enabled." : "Startup Toolkit update checks disabled. You can still check manually.";
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            SettingsStatus = $"Toolkit update preference could not be saved: {ex.Message}";
+            AppendLog(SettingsStatus);
+        }
+    }
+
+    [RelayCommand]
+    private async Task CheckToolkitUpdates()
+    {
+        if (ActionsEnabled && !IsOperationRunning && !ApplicationUpdate.IsBusy)
+            await ApplicationUpdate.CheckForUpdatesAsync();
     }
 
     [ObservableProperty]
@@ -538,6 +564,7 @@ public partial class MainWindowViewModel : ViewModelBase
         FreshInstallProducts.ReplaceWith(AircraftFreshInstallProduct.All);
         SelectedFreshInstallProduct = FreshInstallProducts.FirstOrDefault();
         _settings = _settingsStore.Load();
+        checkToolkitUpdatesOnStartup = _settings.CheckToolkitUpdatesOnStartup;
         _stateStore = ToolStateStore.CreateDefault(_settings.BackupRootPath);
         _aircraftUpdatePackageCache = new AircraftUpdatePackageCache(_settings.AircraftUpdateCacheRootPath);
         SelectedAircraftPath = _settings.SelectedAircraftPath;
@@ -624,10 +651,11 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         _isInitialized = true;
-        var applicationUpdateCheck = ApplicationUpdate.CheckForUpdatesAsync();
         var contentCatalogRefresh = RefreshRemoteContentPackageCatalogAsync();
-        await AutoDetect();
-        await Task.WhenAll(applicationUpdateCheck, contentCatalogRefresh);
+        await Task.WhenAll(AutoDetect(), contentCatalogRefresh);
+        // Finish startup maintenance state changes before offering an application restart.
+        if (CheckToolkitUpdatesOnStartup)
+            await ApplicationUpdate.CheckForUpdatesAsync();
     }
 
     private async Task RefreshRemoteContentPackageCatalogAsync()
@@ -1459,7 +1487,7 @@ public partial class MainWindowViewModel : ViewModelBase
             string.Join(
                 Environment.NewLine,
                 [
-                    $"Package: {package.Manifest.PackageId} {package.Manifest.PackageVersion}",
+                    $"Package: {package.Manifest.PackageId} {package.Manifest.DisplayVersion}",
                     $"Aircraft: {AircraftProductIdentity.FromVariant(selectedVariant).DisplayName}",
                     "Modules:",
                     string.IsNullOrWhiteSpace(moduleSummary) ? "- exact pre-package restore" : moduleSummary,
@@ -1614,8 +1642,12 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
+        var groupedSources = _contentPackageCatalog.ForProduct(productId)
+            .Where(p => p.Distribution.Kind is ContentPackageDistributionKind.CatalogGroup)
+            .SelectMany(p => p.Members).Select(m => m.PackageId).ToHashSet(StringComparer.Ordinal);
         var onlinePackages = _contentPackageCatalog.ForProduct(productId)
-            .Where(package => package.Distribution.Kind is ContentPackageDistributionKind.GitHubReleaseArchive)
+            .Where(package => !groupedSources.Contains(package.PackageId)
+                && package.Distribution.Kind is (ContentPackageDistributionKind.GitHubReleaseArchive or ContentPackageDistributionKind.CatalogGroup))
             .ToArray();
         if (onlinePackages.Length == 0)
         {
@@ -1631,7 +1663,14 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             try
             {
-                var release = await _contentPatchReleaseSource.GetLatestAsync(package);
+                ContentPatchRelease release;
+                if (package.Distribution.Kind is ContentPackageDistributionKind.CatalogGroup)
+                {
+                    var resolution = await _contentPatchReleaseSource.ResolveGroupAsync(_contentPackageCatalog, package);
+                    _catalogGroupResolutions[package.PackageId] = resolution;
+                    release = resolution.Selection;
+                }
+                else release = await _contentPatchReleaseSource.GetLatestAsync(package);
                 _contentPatchReleases[package.PackageId] = release;
                 _contentPatchReleaseErrors.Remove(package.PackageId);
                 succeeded++;
@@ -1797,7 +1836,7 @@ public partial class MainWindowViewModel : ViewModelBase
             : _contentPackageCatalog.ForProduct(productId)
                 .SingleOrDefault(package => package.PackageId.Equals(item.PackageId, StringComparison.Ordinal));
         if (catalogEntry is null
-            || catalogEntry.Distribution.Kind is not ContentPackageDistributionKind.GitHubReleaseArchive
+            || catalogEntry.Distribution.Kind is not (ContentPackageDistributionKind.GitHubReleaseArchive or ContentPackageDistributionKind.CatalogGroup)
             || catalogEntry.Category is not (ContentPackageCategory.OptionalPatch or ContentPackageCategory.CompatibilityPackage)
             || SelectedViewVariant is null
             || !catalogEntry.SupportedProducts.Contains(SelectedViewVariant.Family, StringComparer.Ordinal))
@@ -1827,6 +1866,12 @@ public partial class MainWindowViewModel : ViewModelBase
             var prepared = await Task.Run(
                 async () =>
                 {
+                    if (catalogEntry.Distribution.Kind is ContentPackageDistributionKind.CatalogGroup)
+                    {
+                        var resolution = await source.ResolveGroupAsync(_contentPackageCatalog, catalogEntry, cancellationToken);
+                        var group = await source.ProvisionGroupAsync(resolution, cancellationToken);
+                        return (group.PackageDirectory, group.Package.Manifest.PackageId, group.Package.Manifest.PackageVersion, group.Release);
+                    }
                     release ??= await source.GetLatestAsync(catalogEntry, cancellationToken);
                     cancellationToken.ThrowIfCancellationRequested();
                     if (catalogEntry.Category is ContentPackageCategory.CompatibilityPackage)
@@ -1851,7 +1896,9 @@ public partial class MainWindowViewModel : ViewModelBase
             _contentPatchReleaseErrors.Remove(catalogEntry.PackageId);
             OptionalPatchPackagePath = prepared.PackageDirectory;
             RefreshOptionalPatchStatus();
-            var compatibilityModuleIds = catalogEntry.Category is ContentPackageCategory.CompatibilityPackage
+            var compatibilityModuleIds = catalogEntry.Distribution.Kind is ContentPackageDistributionKind.CatalogGroup
+                ? SelectedCompatibilityModuleIds()
+                : catalogEntry.Category is ContentPackageCategory.CompatibilityPackage
                 ? CatalogCompatibilityModuleIds(
                     CompatibilityPackageLoader.LoadDirectory(prepared.PackageDirectory))
                 : null;
@@ -1860,7 +1907,9 @@ public partial class MainWindowViewModel : ViewModelBase
             OperationProgress = 100;
             OperationStatus = "Package ready";
             OperationTitle = $"{catalogEntry.DisplayName} package ready";
-            OperationSubtitle = $"Release {prepared.Release.Tag} was verified and prepared for review.";
+            OperationSubtitle = catalogEntry.Distribution.Kind is ContentPackageDistributionKind.CatalogGroup
+                ? "Source releases were verified and prepared together for review."
+                : $"Release {prepared.Release.Tag} was verified and prepared for review.";
             OperationProgressText = "100% - Release asset, manifest and payload hashes validated";
             AppendOperationLog($"[RELEASE] {prepared.Release.Tag} from {catalogEntry.RepositoryUrl}");
             AppendOperationLog($"[PACKAGE] {prepared.PackageId} {prepared.PackageVersion}");
@@ -3389,12 +3438,26 @@ public partial class MainWindowViewModel : ViewModelBase
         VnavContentAction action,
         AircraftVariantViewAnalysis selectedVariant)
     {
+        var catalogGroup = _contentPackageCatalog.ForProduct(selectedVariant.Family)
+            .SingleOrDefault(p => p.Distribution.Kind is ContentPackageDistributionKind.CatalogGroup
+                && p.Members.Any(m => m.PackageId == _manifest.PackageId));
+        var maintenanceName = catalogGroup?.DisplayName ?? "VNAV";
+        if (catalogGroup is not null)
+        {
+            var members = string.Join(", ", catalogGroup.Members.Where(m => m.Policy is CompatibilityModulePolicy.Required)
+                .Select(m => _contentPackageCatalog.Packages.Single(p => p.PackageId == m.PackageId).DisplayName));
+            if (!await _userInteractionService.ConfirmAsync(new ConfirmationRequest(
+                $"{action} {maintenanceName}?",
+                $"VNAV belongs to this catalog group. The operation covers its required patches: {members}. Existing optional selections are retained.",
+                $"{action} patches", "Cancel")))
+                return MaintenanceOperationResult.NoChange("Catalog group action canceled.", []);
+        }
         OperationPanelVisible = true;
         OperationLog = "";
         OperationElapsed = "00:00s";
         OperationProgress = 0;
         OperationStatus = "Transaction in progress";
-        OperationTitle = $"VNAV {action} - Preparing transaction";
+        OperationTitle = $"{maintenanceName} {action} - Preparing transaction";
         OperationSubtitle = $"Preparing manifest transaction for {AircraftProductIdentity.FromVariant(selectedVariant).DisplayName}.";
         OperationProgressText = "0% - Validating target, X-Plane process state, manifest and payload source";
         IsOperationRunning = true;
@@ -3403,9 +3466,25 @@ public partial class MainWindowViewModel : ViewModelBase
         MaintenanceOperationResult operationResult;
         try
         {
-            var manifest = await ResolveManifestForActionAsync(_manifest);
-            ApplyManifest(manifest);
-            var result = await _vnavContentOperation.RunAsync(action, selectedVariant, manifest);
+            MaintenanceOperationResult result;
+            if (catalogGroup is not null)
+            {
+                var resolution = await _contentPatchReleaseSource.ResolveGroupAsync(_contentPackageCatalog, catalogGroup);
+                var prepared = await _contentPatchReleaseSource.ProvisionGroupAsync(resolution);
+                var installed = _stateStore.TryGetContentInstallation(Path.GetDirectoryName(selectedVariant.AcfPath)!);
+                var selected = installed?.ContentComponents.GetValueOrDefault(catalogGroup.PackageId)?.EnabledModules
+                    ?? CompatibilityPackagePlanBuilder.DefaultSelection(prepared.Package.Manifest).ToList();
+                foreach (var source in prepared.Package.Manifest.Sources)
+                    if (installed?.ContentComponents.ContainsKey(source.PackageId) == true && !selected.Contains(source.ModuleId)) selected.Add(source.ModuleId);
+                result = await _compatibilityPackageOperation.RunAsync(Enum.Parse<ContentPatchAction>(action.ToString()),
+                    selectedVariant, prepared.PackageDirectory, selected);
+            }
+            else
+            {
+                var manifest = await ResolveManifestForActionAsync(_manifest);
+                ApplyManifest(manifest);
+                result = await _vnavContentOperation.RunAsync(action, selectedVariant, manifest);
+            }
             operationResult = result;
             foreach (var line in result.Log)
             {
@@ -3415,8 +3494,8 @@ public partial class MainWindowViewModel : ViewModelBase
             OperationElapsed = FormatElapsed(stopwatch.Elapsed);
             OperationStatus = result.Status;
             OperationTitle = result.Succeeded
-                ? result.Changed ? $"VNAV {action} complete" : $"VNAV {action} unchanged"
-                : $"VNAV {action} blocked";
+                ? result.Changed ? $"{maintenanceName} {action} complete" : $"{maintenanceName} {action} unchanged"
+                : $"{maintenanceName} {action} blocked";
             OperationSubtitle = result.Message;
             OperationProgress = result.Succeeded ? 100 : 0;
             OperationProgressText = result.Succeeded
@@ -3424,10 +3503,10 @@ public partial class MainWindowViewModel : ViewModelBase
                 : "0% - Transaction did not start";
             foreach (var backupPath in result.BackupPaths)
             {
-                AppendLog($"VNAV {action}: backup created at {backupPath}");
+                AppendLog($"{maintenanceName} {action}: backup created at {backupPath}");
             }
 
-            AppendLog($"VNAV {action}: {result.Message}");
+            AppendLog($"{maintenanceName} {action}: {result.Message}");
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or HttpRequestException)
         {
@@ -3440,12 +3519,12 @@ public partial class MainWindowViewModel : ViewModelBase
                 Log: [$"[FAILED] {ex.Message}"]);
             OperationElapsed = FormatElapsed(stopwatch.Elapsed);
             OperationStatus = "Failed";
-            OperationTitle = $"VNAV {action} failed";
+            OperationTitle = $"{maintenanceName} {action} failed";
             OperationSubtitle = ex.Message;
             OperationProgress = 0;
             OperationProgressText = "0% - Transaction failed before completion";
             AppendOperationLog($"[FAILED] {ex.Message}");
-            AppendLog($"VNAV {action} failed: {ex.Message}");
+            AppendLog($"{maintenanceName} {action} failed: {ex.Message}");
         }
         finally
         {
@@ -3671,6 +3750,12 @@ public partial class MainWindowViewModel : ViewModelBase
         var selectedIds = state?.EnabledModules.Count > 0
             ? state.EnabledModules.ToHashSet(StringComparer.Ordinal)
             : CompatibilityPackagePlanBuilder.DefaultSelection(package.Manifest).ToHashSet(StringComparer.Ordinal);
+        if (state is null && package.Manifest.Sources.Count > 0)
+        {
+            var installedSources = _stateStore.TryGetContentInstallation(aircraftRoot)?.ContentComponents;
+            foreach (var source in package.Manifest.Sources)
+                if (installedSources?.ContainsKey(source.PackageId) == true) selectedIds.Add(source.ModuleId);
+        }
         foreach (var module in package.Manifest.Modules.OrderBy(module => module.InstallationOrder))
         {
             CompatibilityModules.Add(new CompatibilityModuleOptionViewModel(
@@ -3716,9 +3801,13 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
+        var groupedIds = _contentPackageCatalog.ForProduct(product.Family)
+            .Where(p => p.Distribution.Kind is ContentPackageDistributionKind.CatalogGroup)
+            .SelectMany(p => p.Members).Select(m => m.PackageId).ToHashSet(StringComparer.Ordinal);
         var packages = _contentPackageCatalog.ForProduct(product.Family)
-            .Where(package => package.Category is ContentPackageCategory.OptionalPatch
-                or ContentPackageCategory.CompatibilityPackage)
+            .Where(package => !groupedIds.Contains(package.PackageId)
+                && package.Distribution.Kind is not ContentPackageDistributionKind.GitHubModuleSource
+                && package.Category is (ContentPackageCategory.OptionalPatch or ContentPackageCategory.CompatibilityPackage))
             .ToArray();
         ContentPackageOverviewVisible = packages.Length > 0;
         var aircraftRoot = CurrentProductAircraftFolderPath();
@@ -3778,6 +3867,14 @@ public partial class MainWindowViewModel : ViewModelBase
                     : ContentVersionsEqual(state.PackageVersion, release.Tag) ? "Repair" : "Update";
             }
 
+            if (package.Distribution.Kind is ContentPackageDistributionKind.CatalogGroup)
+            {
+                installedVersion = state is null ? "-" : string.Join(", ", state.Sources.Where(source => state.EnabledModules.Contains(source.ModuleId)).Select(source => $"{source.ModuleId} {source.ReleaseTag}"));
+                availableVersion = _catalogGroupResolutions.TryGetValue(package.PackageId, out var resolvedGroup)
+                    ? string.Join(", ", resolvedGroup.Sources.Select(source => $"{source.Member.ModuleId} {source.Release.Tag}"))
+                    : "Not checked";
+            }
+
             var canAct = !isManaged
                 && ActionsEnabled
                 && !IsOperationRunning
@@ -3804,7 +3901,7 @@ public partial class MainWindowViewModel : ViewModelBase
         CanCheckContentPackageCatalog = ActionsEnabled
             && !IsOperationRunning
             && !IsContentPackageCatalogCheckRunning
-            && packages.Any(package => package.Distribution.Kind is ContentPackageDistributionKind.GitHubReleaseArchive);
+            && packages.Any(package => package.Distribution.Kind is ContentPackageDistributionKind.GitHubReleaseArchive or ContentPackageDistributionKind.CatalogGroup);
         if (!preserveStatus)
         {
             var optionalCount = packages.Count(package => package.Category is ContentPackageCategory.OptionalPatch);
