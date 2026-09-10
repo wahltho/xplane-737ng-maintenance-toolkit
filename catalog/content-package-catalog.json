@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "catalogVersion": "1.6.0",
-  "minimumToolkitVersion": "0.13.0",
+  "catalogVersion": "1.7.0",
+  "minimumToolkitVersion": "0.13.1",
   "packages": [
     {
       "packageId": "x-plane-zibo-vnav-descent-tables",
@@ -242,9 +242,27 @@
       }
     },
     {
+      "packageId": "wahltho.zibo-40535.cpdlc",
+      "displayName": "CPDLC FANS PAGES",
+      "description": "Optional FANS 1/A CPDLC pages and datalink fixes. Remove standalone v1.0.0 with its own installer before switching to the Toolkit. Simulator runtime testing remains pending.",
+      "category": "compatibilityPackage",
+      "activation": "managed",
+      "supportedProducts": [
+        "zibo-737ng",
+        "levelup-737ng"
+      ],
+      "repositoryUrl": "https://github.com/wahltho/X-Plane-Zibo-LevelUp-737NG-CPDLC",
+      "restartRequired": true,
+      "distribution": {
+        "kind": "gitHubReleaseArchive",
+        "assetNamePattern": "X-Plane-Zibo-LevelUp-737NG-CPDLC-v*.zip",
+        "manifestSchemaVersion": 3
+      }
+    },
+    {
       "packageId": "wahltho.levelup-737ng.maintenance",
       "displayName": "LevelUp maintenance patches",
-      "description": "VNAV descent tables, FANS CDU and Weight & Balance are required. Calculator and AUTO JETWAY are optional. Sources update directly from their own releases.",
+      "description": "VNAV descent tables, FANS CDU and Weight & Balance are required. Calculator, AUTO JETWAY and CPDLC FANS PAGES are optional. Sources update directly from their own releases.",
       "category": "compatibilityPackage",
       "activation": "managed",
       "supportedProducts": [
@@ -300,6 +318,15 @@
           "sourceFormat": "compatibility",
           "manifestPath": "package-manifest.json",
           "assetNamePattern": "X-Plane-Zibo-Auto-Jetway-v*.zip"
+        },
+        {
+          "packageId": "wahltho.zibo-40535.cpdlc",
+          "moduleId": "cpdlc",
+          "policy": "optional",
+          "installationOrder": 60,
+          "sourceFormat": "compatibility",
+          "manifestPath": "package-manifest.json",
+          "assetNamePattern": "X-Plane-Zibo-LevelUp-737NG-CPDLC-v*.zip"
         }
       ]
     }

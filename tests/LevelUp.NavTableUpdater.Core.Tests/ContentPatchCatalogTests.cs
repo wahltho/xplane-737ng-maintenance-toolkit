@@ -5,6 +5,26 @@ namespace LevelUp.NavTableUpdater.Core.Tests;
 public sealed class ContentPatchCatalogTests
 {
     [Fact]
+    public void BundledCatalog_CpdlcIsAvailableForBothProductsAndOptionalInLevelUpGroup()
+    {
+        var catalog = ContentPackageCatalog.Parse(File.ReadAllText(BundledCatalogPath()));
+        const string id = "wahltho.zibo-40535.cpdlc";
+        var cpdlc = Assert.Single(catalog.ForProduct("zibo-737ng"), p => p.PackageId == id);
+        Assert.Contains(cpdlc, catalog.ForProduct("levelup-737ng"));
+        Assert.Equal(ContentPackageCategory.CompatibilityPackage, cpdlc.Category);
+        Assert.Equal(3, cpdlc.Distribution.ManifestSchemaVersion);
+        Assert.Equal("X-Plane-Zibo-LevelUp-737NG-CPDLC-v*.zip", cpdlc.Distribution.AssetNamePattern);
+        var group = Assert.Single(catalog.ForProduct("levelup-737ng"),
+            p => p.Distribution.Kind == ContentPackageDistributionKind.CatalogGroup);
+        var member = Assert.Single(group.Members, m => m.PackageId == id);
+        Assert.Equal("cpdlc", member.ModuleId);
+        Assert.Equal(LevelUp.NavTableUpdater.Core.Manifest.CompatibilityModulePolicy.Optional, member.Policy);
+        Assert.Equal(60, member.InstallationOrder);
+        Assert.Equal("compatibility", member.SourceFormat);
+        Assert.Equal("package-manifest.json", member.ManifestPath);
+    }
+
+    [Fact]
     public void PackageCatalog_AcceptsManagedSchemaThreeCompatibilityPackage()
     {
         var catalog = ContentPackageCatalog.Parse(
@@ -126,8 +146,8 @@ public sealed class ContentPatchCatalogTests
             package => package.PackageId == ContentPatchCatalog.FansCdu.ComponentId);
         var descriptor = ContentPatchCatalog.OptionalPatch(fans);
 
-        Assert.Equal("1.6.0", catalog.CatalogVersion);
-        Assert.Equal("0.13.0", catalog.MinimumToolkitVersion);
+        Assert.Equal("1.7.0", catalog.CatalogVersion);
+        Assert.Equal("0.13.1", catalog.MinimumToolkitVersion);
         Assert.Equal(ContentPackageCategory.OptionalPatch, fans.Category);
         Assert.Equal(ContentPatchActivation.ExplicitOptIn, fans.Activation);
         Assert.Equal("LevelUp-737NG-FANS-CDU-v*.zip", fans.Distribution.AssetNamePattern);
@@ -165,7 +185,7 @@ public sealed class ContentPatchCatalogTests
         Assert.Equal(new[] { "vnav", "fans-cdu", "weight-and-balance" },
             group.Members.Where(m => m.Policy is LevelUp.NavTableUpdater.Core.Manifest.CompatibilityModulePolicy.Required)
                 .OrderBy(m => m.InstallationOrder).Select(m => m.ModuleId));
-        Assert.Equal(new[] { "tablet-performance-calculator", "auto-jetway" },
+        Assert.Equal(new[] { "tablet-performance-calculator", "auto-jetway", "cpdlc" },
             group.Members.Where(m => m.Policy is LevelUp.NavTableUpdater.Core.Manifest.CompatibilityModulePolicy.Optional)
                 .OrderBy(m => m.InstallationOrder).Select(m => m.ModuleId));
         Assert.DoesNotContain(catalog.ForProduct("zibo-737ng"), package => package.PackageId == group.PackageId);
@@ -180,7 +200,7 @@ public sealed class ContentPatchCatalogTests
             catalog.ForProduct("levelup-737ng"),
             package => package.PackageId == "levelup.paintkit");
 
-        Assert.Equal("1.6.0", catalog.CatalogVersion);
+        Assert.Equal("1.7.0", catalog.CatalogVersion);
         Assert.Equal(ContentPackageCategory.Resource, paintkit.Category);
         Assert.Equal(ContentPatchActivation.ExplicitOptIn, paintkit.Activation);
         Assert.Equal(["levelup-737ng"], paintkit.SupportedProducts);

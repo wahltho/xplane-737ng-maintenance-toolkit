@@ -1,6 +1,6 @@
 # Catalog-controlled maintenance groups
 
-Available in Toolkit 0.13.0 with content catalog 1.6.0.
+Groups were introduced in Toolkit 0.13.0 with catalog 1.6.0. Catalog 1.7.0 adds optional CPDLC FANS PAGES and requires Toolkit 0.13.1.
 
 A `catalogGroup` entry defines product support and references existing package
 IDs. Each member declares its module ID, required/optional policy, installation
@@ -9,7 +9,7 @@ repositories remain the only published sources. There is no additional bundle
 archive, bundle repository or bundle release to maintain.
 
 The LevelUp group requires VNAV descent tables, FANS CDU and Weight & Balance.
-Tablet Performance Calculator and AUTO JETWAY remain optional. Zibo retains
+Tablet Performance Calculator, AUTO JETWAY and CPDLC FANS PAGES are optional. Zibo retains
 its existing product-specific entries; the group implementation is not tied to
 LevelUp in code.
 

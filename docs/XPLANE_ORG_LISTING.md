@@ -53,7 +53,7 @@ Current functions include:
 - background Toolkit application update checks with cancellable verified
   download and confirmed restart through VeloPack
 
-Version 0.13.1 with online content catalog 1.6.0 currently offers:
+Version 0.13.1 with online content catalog 1.7.0 currently offers:
 
 - Optimized XLua
 - Yet Another Linda (YAL)
@@ -61,15 +61,18 @@ Version 0.13.1 with online content catalog 1.6.0 currently offers:
 - YANSH - Yet ANother Simbrief Helper
 - 737NG Realbench Logger
 - LevelUp FANS CDU patch
+- CPDLC FANS PAGES for Zibo and LevelUp
 - LevelUp 737NG Paintkit 1.1.0
 
-Optimized XLua is managed separately for each selected Zibo or LevelUp aircraft and preserves the complete aircraft-owned `plugins/xlua/scripts` tree. YAL, YAL HoppieHelper, YANSH and the Realbench Logger are installed once per X-Plane installation and are available for both products. YANSH preserves its manifest-declared preferences and generated output. The Logger preserves unrelated DataRefMonitor profiles and generated logs. The FANS CDU patch and Paintkit are LevelUp-only. The LevelUp maintenance group requires VNAV Descent Tables, Weight & Balance and FANS CDU. Calculator and AUTO JETWAY are optional; tools and resources remain optional.
+Optimized XLua is managed separately for each selected Zibo or LevelUp aircraft and preserves the complete aircraft-owned `plugins/xlua/scripts` tree. YAL, YAL HoppieHelper, YANSH and the Realbench Logger are installed once per X-Plane installation and are available for both products. YANSH preserves its manifest-declared preferences and generated output. The Logger preserves unrelated DataRefMonitor profiles and generated logs. The FANS CDU patch and Paintkit are LevelUp-only. The LevelUp maintenance group requires VNAV Descent Tables, Weight & Balance and FANS CDU. Calculator, AUTO JETWAY and CPDLC FANS PAGES are optional; tools and resources remain optional.
 
 Aircraft packages, VNAV content, optional patches, tools, resources and Toolkit application releases are separate update layers. The app does not distribute a complete modified `B738.a_fms.lua`; VNAV hooks and authorized payload files are applied locally after validation.
 
 Zibo packages are obtained from the official Skymatix feed. The Toolkit tries a direct archive first and automatically uses the feed's official BitTorrent metadata when required. Before peer-to-peer transfer starts, the app explains that peers can see the user's public IP address and that package pieces may be uploaded while the client runs.
 
 This is not an official Laminar Research, Zibo or LevelUp product. It does not replace the aircraft developers' official distribution channels.
+
+CPDLC FANS PAGES is optional for Zibo and LevelUp. Uninstall an existing standalone CPDLC v1.0.0 with its own installer before switching to Toolkit management. Simulator runtime testing remains pending.
 
 ## Compatibility
 
