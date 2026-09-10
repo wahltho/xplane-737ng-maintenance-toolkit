@@ -543,6 +543,13 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public ObservableCollection<string> ToolReleaseChannelOptions { get; } = ["stable"];
 
+    public string MaintenancePatchTitle =>
+        AircraftProductIds.Normalize(SelectedViewVariant?.Family ?? "") == AircraftProductIds.LevelUp737Ng
+            ? _contentPackageCatalog.ForProduct(AircraftProductIds.LevelUp737Ng)
+                .SingleOrDefault(p => p.Distribution.Kind == ContentPackageDistributionKind.CatalogGroup)?.DisplayName
+                ?? "LevelUp maintenance patches"
+            : "VNAV descent tables";
+
     public ApplicationUpdateViewModel ApplicationUpdate { get; }
 
     public MainWindowViewModel()
@@ -662,6 +669,7 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         var result = await _contentPackageCatalogLoader.LoadAsync(_bundledContentPackageCatalogJson);
         _contentPackageCatalog = result.Catalog;
+        OnPropertyChanged(nameof(MaintenancePatchTitle));
         _contentPatchReleases.Clear();
         _contentPatchReleaseErrors.Clear();
         _toolPackageReleases.Clear();
@@ -3710,6 +3718,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
     partial void OnSelectedViewVariantChanged(AircraftVariantViewAnalysis? value)
     {
+        OnPropertyChanged(nameof(MaintenancePatchTitle));
         SelectProductForVariant(value);
         ApplySelectedVariantReadiness(value);
         RefreshProductScopedPackageAnalysis();

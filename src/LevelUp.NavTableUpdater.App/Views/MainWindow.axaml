@@ -365,7 +365,7 @@
                                                         Margin="2,0"/>
 
                                                 <StackPanel Grid.Column="2" Spacing="9">
-                                                    <TextBlock Text="VNAV descent tables" FontSize="15" FontWeight="SemiBold"/>
+                                                    <TextBlock Text="{Binding MaintenancePatchTitle}" FontSize="15" FontWeight="SemiBold"/>
                                                     <TextBlock Text="Manifest-owned table payloads and Lua hooks. Modified aircraft scripts are not distributed."
                                                                Foreground="{DynamicResource AppTextSecondaryBrush}"
                                                                TextWrapping="Wrap"/>
