@@ -14,6 +14,7 @@ public partial class ApplicationUpdateViewModel : ViewModelBase
     private readonly Action<string> _log;
     private CancellationTokenSource? _cancellationSource;
     private bool _isChecking;
+    private DownloadProgress? _downloadProgress;
 
     [ObservableProperty]
     private bool bannerVisible;
@@ -132,15 +133,17 @@ public partial class ApplicationUpdateViewModel : ViewModelBase
         ProgressVisible = true;
         Progress = 0;
         Status = "Downloading and verifying the application update...";
-        var downloadProgress = new Progress<int>(value =>
+        var downloadProgress = new DownloadProgress(value =>
         {
             Progress = Math.Clamp(value, 0, 100);
             Status = $"Downloading and verifying the application update: {Progress:F0}%";
         });
 
+        _downloadProgress = downloadProgress;
         try
         {
             await _updateService.DownloadUpdateAsync(downloadProgress, cancellationToken);
+            downloadProgress.Stop();
             Progress = 100;
             ProgressVisible = false;
             CancelVisible = false;
@@ -150,6 +153,7 @@ public partial class ApplicationUpdateViewModel : ViewModelBase
         }
         catch (OperationCanceledException)
         {
+            downloadProgress.Stop();
             Progress = 0;
             ProgressVisible = false;
             CancelVisible = false;
@@ -159,6 +163,7 @@ public partial class ApplicationUpdateViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
+            downloadProgress.Stop();
             Progress = 0;
             ProgressVisible = false;
             CancelVisible = false;
@@ -168,6 +173,8 @@ public partial class ApplicationUpdateViewModel : ViewModelBase
         }
         finally
         {
+            downloadProgress.Stop();
+            _downloadProgress = null;
             IsBusy = false;
             _setMaintenanceActionsEnabled(true);
             _cancellationSource.Dispose();
@@ -183,6 +190,7 @@ public partial class ApplicationUpdateViewModel : ViewModelBase
             return;
         }
 
+        _downloadProgress?.Stop();
         CancelVisible = false;
         Status = "Canceling application update download...";
         _cancellationSource.Cancel();
@@ -248,4 +256,32 @@ public partial class ApplicationUpdateViewModel : ViewModelBase
             BannerVisible = false;
         }
     }
+    // Each download owns its callback gate, including callbacks already queued
+    // on the UI context. Stop waits for an executing callback before terminal UI
+    // state is set, and an old gate never becomes active again on retry.
+    private sealed class DownloadProgress : IProgress<int>
+    {
+        private readonly object _gate = new();
+        private readonly IProgress<int> _progress;
+        private bool _active = true;
+
+        public DownloadProgress(Action<int> update)
+        {
+            _progress = new Progress<int>(value =>
+            {
+                lock (_gate)
+                {
+                    if (_active) update(value);
+                }
+            });
+        }
+
+        public void Report(int value) => _progress.Report(value);
+
+        public void Stop()
+        {
+            lock (_gate) _active = false;
+        }
+    }
+
 }

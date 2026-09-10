@@ -1,6 +1,6 @@
 # X-Plane 737NG Maintenance Toolkit User Manual
 
-This manual describes version 0.13.1 of the X-Plane 737NG Maintenance Toolkit.
+This manual describes version 0.13.2 of the X-Plane 737NG Maintenance Toolkit.
 
 The toolkit is a desktop app for selected Zibo and LevelUp 737NG maintenance
 tasks:
@@ -30,7 +30,7 @@ Keep your own backups and use the tool at your own risk.
 
 ## Compatibility And Installation
 
-Version 0.13.1 supports:
+Version 0.13.2 supports:
 
 - X-Plane 12. X-Plane 11 is not supported.
 - Zibo 737-800X 2K and 4K variants.
@@ -218,7 +218,7 @@ explicit confirmation before writing files. Version 0.13.0 offers the LevelUp
 FANS CDU package as an optional LevelUp-only patch. It remains separate from
 aircraft and VNAV updates and is never installed automatically.
 
-At startup, version 0.13.1 checks immutable `catalog-v*` releases in the Toolkit
+At startup, version 0.13.2 checks immutable `catalog-v*` releases in the Toolkit
 repository for updated package discovery metadata. A downloaded catalog becomes
 active only after schema, version, repository URL and minimum Toolkit version
 validation. If the check fails, the app uses its last valid cached catalog and
@@ -460,18 +460,22 @@ operation:
 - rolls back changed files or the complete directory exchange if the
   transaction fails
 
-After a successful aircraft update, the app rescans the selected target. If
-the VNAV package is missing, outdated or repairable, a separate confirmation
-offers the appropriate VNAV action. Skipping it leaves the aircraft update in
-place and does not merge the aircraft and VNAV transactions. The completion
-status reports the installed version and explicitly confirms that the existing
-aircraft folder name was retained. Aircraft folders are user-owned installation
-paths and are not renamed during an update.
+After a successful aircraft update, the app rescans the selected target.
+For LevelUp, the complete required maintenance group is offered independently
+of the VNAV state, even when no aircraft package files need changing. Confirm
+`Update patches` to resolve the latest stable release of every group source,
+validate it and apply all required modules with previously selected optional
+modules retained. Aircraft and group changes remain separate backed-up transactions.
 
-The main `Update` button is shown while an aircraft source can still be checked,
-an aircraft package action is available, or VNAV content can be safely
-installed, updated or repaired. It is hidden once the app has established that
-none of those actions can be performed.
+Deferring the group, a missing group, failed validation or a failed download
+leaves `Required patches pending` visible. An aircraft update that succeeded
+before such a failure is reported as partially completed; the Toolkit does not
+report the overall operation as complete or ready to fly. Run `Update` again
+to finish maintenance. The LevelUp `Update` button remains available even when
+the aircraft and VNAV versions appear current.
+
+Zibo keeps its existing VNAV-state-driven follow-up. Aircraft folders are
+user-owned installation paths and are not renamed during updates.
 
 Use `Restore aircraft` on the Start tab to restore the latest aircraft-update
 backup generation. Incremental restore replaces backed-up files and removes

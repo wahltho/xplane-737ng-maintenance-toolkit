@@ -2757,9 +2757,12 @@ public partial class MainWindowViewModel : ViewModelBase
             var noChangeResult = MaintenanceOperationResult.NoChange(
                 "No aircraft package changes need to be applied.",
                 ["[NO-CHANGE] The confirmed dry-run contained no aircraft file changes."]);
+            var followUp = offerVnavFollowUp
+                ? await OfferVnavFollowUpAsync(aircraftUpdateCompleted: false)
+                : null;
             if (showResultDialog)
             {
-                await ShowUpdateResultAsync(selectedVariant, noChangeResult, vnavResult: null);
+                await ShowUpdateResultAsync(selectedVariant, noChangeResult, followUp);
             }
 
             return noChangeResult;
@@ -2809,7 +2812,7 @@ public partial class MainWindowViewModel : ViewModelBase
             canCancelBeforeWrite: true,
             markLevelUpUpdateComplete: true);
         MaintenanceOperationResult? vnavResult = null;
-        if (result?.Changed == true && offerVnavFollowUp)
+        if (result?.Succeeded == true && offerVnavFollowUp)
         {
             vnavResult = await OfferVnavFollowUpAsync(aircraftUpdateCompleted: true);
         }
@@ -3383,6 +3386,16 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private async Task<MaintenanceOperationResult?> OfferVnavFollowUpAsync(bool aircraftUpdateCompleted)
     {
+        var groupVariant = SelectedViewVariant;
+        if (groupVariant is not null)
+        {
+            var groupResult = await RequiredPatchFollowUp.RunAsync(
+                _contentPackageCatalog, groupVariant.Family, _userInteractionService,
+                () => RunVnavContentAction(VnavContentAction.Update, groupVariant, confirmGroup: false));
+            if (groupResult is not null)
+                return groupResult;
+        }
+
         var descriptor = ContentPatchCatalog.Vnav(_manifest.PackageId, _manifest.RepositoryUrl);
         if (!ContentPatchCatalog.MayOfferAfterAircraftUpdate(descriptor))
         {
@@ -3436,13 +3449,13 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private async Task<MaintenanceOperationResult> RunVnavContentAction(
         VnavContentAction action,
-        AircraftVariantViewAnalysis selectedVariant)
+        AircraftVariantViewAnalysis selectedVariant,
+        bool confirmGroup = true)
     {
-        var catalogGroup = _contentPackageCatalog.ForProduct(selectedVariant.Family)
-            .SingleOrDefault(p => p.Distribution.Kind is ContentPackageDistributionKind.CatalogGroup
-                && p.Members.Any(m => m.PackageId == _manifest.PackageId));
+        var catalogGroup = _contentPackageCatalog.ForProduct(AircraftProductIds.Normalize(selectedVariant.Family) ?? selectedVariant.Family)
+            .SingleOrDefault(p => p.Distribution.Kind is ContentPackageDistributionKind.CatalogGroup);
         var maintenanceName = catalogGroup?.DisplayName ?? "VNAV";
-        if (catalogGroup is not null)
+        if (catalogGroup is not null && confirmGroup)
         {
             var members = string.Join(", ", catalogGroup.Members.Where(m => m.Policy is CompatibilityModulePolicy.Required)
                 .Select(m => _contentPackageCatalog.Packages.Single(p => p.PackageId == m.PackageId).DisplayName));
@@ -3450,7 +3463,8 @@ public partial class MainWindowViewModel : ViewModelBase
                 $"{action} {maintenanceName}?",
                 $"VNAV belongs to this catalog group. The operation covers its required patches: {members}. Existing optional selections are retained.",
                 $"{action} patches", "Cancel")))
-                return MaintenanceOperationResult.NoChange("Catalog group action canceled.", []);
+                return new MaintenanceOperationResult(false, false, "Required patches pending",
+                    "Catalog group action canceled; required patches are still pending.", [], []);
         }
         OperationPanelVisible = true;
         OperationLog = "";
@@ -3588,7 +3602,11 @@ public partial class MainWindowViewModel : ViewModelBase
 
         if (vnavResult is not null)
         {
-            message.Add($"VNAV descent tables: {FormatUpdateStepResult(vnavResult)}");
+            var maintenanceLabel = AircraftProductIds.Normalize(selectedVariant.Family) == AircraftProductIds.LevelUp737Ng
+                ? "LevelUp maintenance patches" : "VNAV descent tables";
+            message.Add($"{maintenanceLabel}: {FormatUpdateStepResult(vnavResult)}");
+            if (vnavResult.Status == "Required patches pending")
+                message.Add("Required patches pending: " + vnavResult.Message);
         }
 
         var backupCount = results
@@ -3621,6 +3639,24 @@ public partial class MainWindowViewModel : ViewModelBase
             message.Add("No aircraft files needed to be changed.");
         }
 
+        if (vnavResult?.Status == "Required patches pending")
+        {
+            OperationPanelVisible = true;
+            OperationTitle = title;
+            OperationStatus = "Required patches pending";
+            OperationSubtitle = vnavResult.Message;
+            OperationProgressText = "Required patches pending - run Update again before flying.";
+            UpstreamUpdateSummary = vnavResult.Message;
+            AppendLog("[PENDING] " + vnavResult.Message);
+        }
+        else if (vnavResult?.Succeeded == true
+            && AircraftProductIds.Normalize(selectedVariant.Family) == AircraftProductIds.LevelUp737Ng)
+        {
+            OperationTitle = title;
+            OperationStatus = anyUnsuccessful ? "Update incomplete" : "Complete";
+            OperationSubtitle = vnavResult.Message;
+            UpstreamUpdateSummary = string.Join(Environment.NewLine, message);
+        }
         await _userInteractionService.ShowMessageAsync(
             new MessageRequest(title, string.Join(Environment.NewLine, message)));
     }
@@ -5381,7 +5417,8 @@ public partial class MainWindowViewModel : ViewModelBase
                 or InstallState.KnownLegacyInstallation;
 
         UnifiedUpdateVisible = hasSelectedProduct
-            && (canCheckAircraftSource || hasAircraftPackageAction || hasVnavAction);
+            && (canCheckAircraftSource || hasAircraftPackageAction || hasVnavAction
+                || AircraftProductIds.Normalize(SelectedViewVariant?.Family ?? "") == AircraftProductIds.LevelUp737Ng);
     }
 
     private void RefreshUpstreamActionAvailability(string? statusOverride = null)

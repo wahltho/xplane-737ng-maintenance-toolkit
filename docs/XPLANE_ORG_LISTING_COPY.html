@@ -29,7 +29,7 @@
   <p>X-Plane 737NG Maintenance Toolkit</p>
 
   <h2>Current Version</h2>
-  <p>0.13.1</p>
+  <p>0.13.2</p>
 
   <h2>Short Description</h2>
   <p>Cross-platform maintenance utility for supported Zibo and LevelUp 737NG aircraft in X-Plane 12, providing aircraft and VNAV updates, transactional backups, CG/view correction, optional patches, tools and resources.</p>
@@ -66,7 +66,7 @@
     <li>background Toolkit application update checks with cancellable verified download and confirmed restart through VeloPack</li>
     <li>remotely versioned package discovery so supported optional content can be added or updated independently from Toolkit application releases</li>
   </ul>
-  <p>Version 0.13.1 with online content catalog 1.7.0 currently offers:</p>
+  <p>Version 0.13.2 with online content catalog 1.7.0 currently offers:</p>
   <ul>
     <li>Optimized XLua</li>
     <li>Yet Another Linda (YAL)</li>
@@ -155,6 +155,12 @@
   <p>The Toolkit source code is available under the MIT License. The application is provided as-is, without warranty of any kind. It can modify aircraft files after validation and backup; users should retain their own backups and use the tool at their own risk.</p>
 
   <h2>Changelog</h2>
+  <h3>0.13.2</h3>
+  <ul>
+    <li>LevelUp Update checks the full required patch group independently of VNAV status and retains selected optional modules.</li>
+    <li>Deferred or failed group maintenance is reported as pending; the LevelUp Update action remains available.</li>
+    <li>Late application-download progress no longer overwrites completion, failure, cancellation or a newer download.</li>
+  </ul>
   <h3>0.13.1</h3>
   <ul>
     <li>Ships support for upgrading existing FANS CDU v0.1.5 text blocks to v0.1.6.</li>
