@@ -76,6 +76,56 @@ public sealed class ContentPatchHandlerTests
         Assert.Contains("cannot be classified idempotently", error.Message, StringComparison.Ordinal);
     }
 
+    private static JsonDocument LegacyAwareTextPayload() => JsonDocument.Parse("""
+        {
+          "format": "exact-text-replacements-v1",
+          "replacements": [
+            {
+              "name": "type switch",
+              "oldLines": ["old switch"],
+              "newLines": ["-- BEGIN SWITCH", "new switch", "-- END SWITCH"],
+              "legacyNewLines": [["-- BEGIN SWITCH", "legacy switch", "-- END SWITCH"]]
+            }
+          ]
+        }
+        """);
+
+    [Fact]
+    public void ExactText_WhenAnEarlierReleaseBlockIsPresent_UpgradesItInPlace()
+    {
+        var source = Encoding.UTF8.GetBytes("header\n-- BEGIN SWITCH\nlegacy switch\n-- END SWITCH\nfooter\n");
+        using var payload = LegacyAwareTextPayload();
+
+        var result = Encoding.UTF8.GetString(new ExactTextReplacementsPatchHandler().Apply(source, payload.RootElement));
+
+        Assert.Equal("header\n-- BEGIN SWITCH\nnew switch\n-- END SWITCH\nfooter\n", result);
+    }
+
+    [Theory]
+    [InlineData("header\nold switch\nfooter\n", "header\n-- BEGIN SWITCH\nnew switch\n-- END SWITCH\nfooter\n")]
+    [InlineData("header\n-- BEGIN SWITCH\nnew switch\n-- END SWITCH\nfooter\n", "header\n-- BEGIN SWITCH\nnew switch\n-- END SWITCH\nfooter\n")]
+    public void ExactText_WhenLegacyBlocksAreDeclared_StillHandlesSourceAndInstalledFiles(string sourceText, string expected)
+    {
+        using var payload = LegacyAwareTextPayload();
+
+        var result = Encoding.UTF8.GetString(new ExactTextReplacementsPatchHandler().Apply(Encoding.UTF8.GetBytes(sourceText), payload.RootElement));
+
+        Assert.Equal(expected, result);
+    }
+
+    [Theory]
+    [InlineData("old switch\n-- BEGIN SWITCH\nlegacy switch\n-- END SWITCH\n")]
+    [InlineData("-- BEGIN SWITCH\nlegacy switch\n-- END SWITCH\n-- BEGIN SWITCH\nlegacy switch\n-- END SWITCH\n")]
+    public void ExactText_WhenLegacyBlocksAreAmbiguous_RejectsIt(string sourceText)
+    {
+        using var payload = LegacyAwareTextPayload();
+
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            new ExactTextReplacementsPatchHandler().Apply(Encoding.UTF8.GetBytes(sourceText), payload.RootElement));
+
+        Assert.Contains("legacy=", error.Message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void MarkedBlockInsertion_ComposesMultipleModulesAtOneAnchorInPipelineOrder()
     {

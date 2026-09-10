@@ -160,6 +160,8 @@ The Toolkit source code is available under the MIT License. The application is p
 
 - Catalog-controlled mandatory and optional patches from independent source releases.
 - Startup Update/OK dialog, persistent opt-out and manual update checks.
+- In-place upgrades of exact-text patch blocks written by earlier package
+  releases (`legacyNewLines`), required for FANS CDU v0.1.6 over v0.1.5.
 
 ### 0.12.6
 

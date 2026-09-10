@@ -39,6 +39,11 @@ committed and released. Existing public releases remain unchanged.
    anchor. An insertion must not consume its anchor.
 4. Every replacement owns an exact source block and exact installed block. A
    replacement must be reversible without restoring the complete target file.
+   A replacement may additionally declare `legacyNewLines`, a list of installed
+   blocks written by earlier releases of the same package. Exactly one such
+   block, with neither the source nor the current installed block present, is
+   upgraded in place to the current installed block. Legacy blocks must never
+   equal or contain the source or current installed block.
 5. Whole-file hashes may identify a known baseline, but they may not be the
    only acceptance criterion for shared text targets. Exact structural
    operations decide whether a modified pipeline remains supported.

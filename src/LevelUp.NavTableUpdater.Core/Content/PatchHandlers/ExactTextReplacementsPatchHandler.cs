@@ -32,23 +32,61 @@ public sealed class ExactTextReplacementsPatchHandler : IContentPatchHandler
 
             var oldMatches = FindSequence(lines, oldLines);
             var newMatches = FindSequence(lines, newLines);
-            if (oldMatches.Count == 1 && newMatches.Count == 0)
+            var legacyMatches = FindLegacyBlocks(lines, replacement, name);
+            if (oldMatches.Count == 1 && newMatches.Count == 0 && legacyMatches.Count == 0)
             {
                 lines.RemoveRange(oldMatches[0], oldLines.Count);
                 lines.InsertRange(oldMatches[0], newLines);
             }
-            else if (oldMatches.Count == 0 && newMatches.Count == 1)
+            else if (oldMatches.Count == 0 && newMatches.Count == 1 && legacyMatches.Count == 0)
             {
                 continue;
+            }
+            else if (oldMatches.Count == 0 && newMatches.Count == 0 && legacyMatches.Count == 1)
+            {
+                // Block installed by an earlier release of the same package: upgrade in place.
+                var (start, length) = legacyMatches[0];
+                lines.RemoveRange(start, length);
+                lines.InsertRange(start, newLines);
             }
             else
             {
                 throw new InvalidOperationException(
-                    $"{name}: expected exactly one old block or one installed block; found old={oldMatches.Count}, installed={newMatches.Count}.");
+                    $"{name}: expected exactly one old block or one installed block; found old={oldMatches.Count}, installed={newMatches.Count}, legacy={legacyMatches.Count}.");
             }
         }
 
         return text.Encode(lines);
+    }
+
+    /// <summary>
+    /// Locates blocks written by earlier releases of the same package
+    /// (<c>legacyNewLines</c>: an array of line arrays). Each legacy block must be
+    /// distinct from the old and the current installed block.
+    /// </summary>
+    private static List<(int Start, int Length)> FindLegacyBlocks(IReadOnlyList<string> lines, JsonElement replacement, string name)
+    {
+        var matches = new List<(int Start, int Length)>();
+        if (!replacement.TryGetProperty("legacyNewLines", out var legacyValue) || legacyValue.ValueKind is not JsonValueKind.Array)
+        {
+            return matches;
+        }
+
+        foreach (var legacyElement in legacyValue.EnumerateArray())
+        {
+            if (legacyElement.ValueKind is not JsonValueKind.Array)
+            {
+                throw new InvalidOperationException($"{name}: legacyNewLines entries must be arrays of lines.");
+            }
+
+            var legacyLines = legacyElement.StringArray();
+            foreach (var start in FindSequence(lines, legacyLines))
+            {
+                matches.Add((start, legacyLines.Count));
+            }
+        }
+
+        return matches;
     }
 
     private static List<int> FindSequence(IReadOnlyList<string> lines, IReadOnlyList<string> sequence)
