@@ -17,7 +17,6 @@ internal static class AircraftUpdateLocalContentPolicy
         }
 
         if (fileName.EndsWith("_prefs.txt", StringComparison.OrdinalIgnoreCase)
-            || fileName.EndsWith("_vrconfig.txt", StringComparison.OrdinalIgnoreCase)
             || (fileName.StartsWith("X-Camera_", StringComparison.OrdinalIgnoreCase)
                 && fileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase)))
         {

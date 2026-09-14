@@ -265,6 +265,68 @@ public sealed class LevelUpAircraftUpdatePackageTests : IDisposable
         Assert.Equal("retired", File.ReadAllText(retiredPath));
     }
 
+    [Theory]
+    [InlineData("cumulativePatch", "original VR configuration")]
+    [InlineData("cumulativePatch", "user-modified VR configuration")]
+    [InlineData("full", "original VR configuration")]
+    [InlineData("full", "user-modified VR configuration")]
+    public void AircraftPackage_UpdatesVrConfigurationAndRestoresPreviousContents(
+        string packageType, string previousVr)
+    {
+        var aircraft = CreateAircraft();
+        var vr = Path.Combine(aircraft, "737_80NG_vrconfig.txt");
+        var prefs = Path.Combine(aircraft, "737_80NG_prefs.txt");
+        File.WriteAllText(vr, previousVr);
+        File.WriteAllText(prefs, "personal preferences");
+        var packageRoot = Path.Combine(_root, "vr-package");
+        Directory.CreateDirectory(packageRoot);
+        var archive = Path.Combine(packageRoot, "update.zip");
+        var payloads = new Dictionary<string, string>
+        {
+            ["737_80NG.acf"] = "aircraft payload",
+            ["plugins/test.txt"] = "plugin payload",
+            ["737_80NG_vrconfig.txt"] = "new release VR configuration",
+            ["737_80NG_prefs.txt"] = "upstream preferences"
+        };
+        using (var zip = System.IO.Compression.ZipFile.Open(archive, System.IO.Compression.ZipArchiveMode.Create))
+        {
+            foreach (var (name, content) in payloads)
+            {
+                using var stream = zip.CreateEntry("Aircraft/" + name).Open();
+                stream.Write(System.Text.Encoding.UTF8.GetBytes(content));
+            }
+        }
+        static string Hash(byte[] bytes) => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)).ToLowerInvariant();
+        var manifest = Path.Combine(packageRoot, "update.manifest.json");
+        File.WriteAllText(manifest, JsonSerializer.Serialize(new
+        {
+            schemaVersion = 1, productId = "levelup-737ng", packageType,
+            baselineVersion = "2.S1.0", targetVersion = "2.S1.51", releaseVersion = "2.S1.51",
+            contentRoot = "Aircraft", deletedPaths = Array.Empty<string>(),
+            archive = new { fileName = "update.zip", size = new FileInfo(archive).Length, sha256 = Hash(File.ReadAllBytes(archive)) },
+            files = payloads.Select(p => new { path = p.Key, operation = packageType == "full" ? "full" : "replace",
+                size = System.Text.Encoding.UTF8.GetByteCount(p.Value), sha256 = Hash(System.Text.Encoding.UTF8.GetBytes(p.Value)) })
+        }));
+        var variant = BuildVariant(aircraft, "2.S1.0");
+        var selection = new LevelUpAircraftUpdatePackageLoader().Load(manifest, variant);
+        var imported = new AircraftUpdatePackageCache(Path.Combine(_root, "vr-cache"))
+            .ImportPackage(archive, selection.Package!);
+        var review = new AircraftUpdateDryRunAnalyzer().Analyze(aircraft, [imported]);
+        Assert.True(review.Succeeded);
+        Assert.Contains(review.Entries, e => e.RelativePath == "737_80NG_vrconfig.txt"
+            && e.Action == AircraftUpdateDryRunEntryAction.Replace);
+        var operation = new AircraftUpdateOperation(TestToolStateStore.Create(_root), isXPlaneRunning: () => false);
+        var result = operation.Apply(variant, selection.UpdateCheck, [imported]);
+        Assert.True(result.Succeeded, result.Message);
+        Assert.Equal(payloads["737_80NG_vrconfig.txt"], File.ReadAllText(vr));
+        Assert.Equal("personal preferences", File.ReadAllText(prefs));
+        Assert.NotEmpty(result.BackupPaths);
+        var restored = operation.RestoreLatest(variant);
+        Assert.True(restored.Succeeded, restored.Message);
+        Assert.Equal(previousVr, File.ReadAllText(vr));
+        Assert.Equal("personal preferences", File.ReadAllText(prefs));
+    }
+
     [Fact]
     public void Apply_WhenCancelledBeforeValidation_DoesNotChangeAircraftFiles()
     {

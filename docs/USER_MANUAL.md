@@ -1,6 +1,6 @@
 # X-Plane 737NG Maintenance Toolkit User Manual
 
-This manual describes version 0.13.3 of the X-Plane 737NG Maintenance Toolkit.
+This manual describes version 0.13.4 of the X-Plane 737NG Maintenance Toolkit.
 
 The toolkit is a desktop app for selected Zibo and LevelUp 737NG maintenance
 tasks:
@@ -30,7 +30,7 @@ Keep your own backups and use the tool at your own risk.
 
 ## Compatibility And Installation
 
-Version 0.13.3 supports:
+Version 0.13.4 supports:
 
 - X-Plane 12. X-Plane 11 is not supported.
 - Zibo 737-800X 2K and 4K variants.
@@ -218,7 +218,7 @@ explicit confirmation before writing files. Version 0.13.0 offers the LevelUp
 FANS CDU package as an optional LevelUp-only patch. It remains separate from
 aircraft and VNAV updates and is never installed automatically.
 
-At startup, version 0.13.3 checks immutable `catalog-v*` releases in the Toolkit
+At startup, version 0.13.4 checks immutable `catalog-v*` releases in the Toolkit
 repository for updated package discovery metadata. A downloaded catalog becomes
 active only after schema, version, repository URL and minimum Toolkit version
 validation. If the check fails, the app uses its last valid cached catalog and
@@ -432,6 +432,11 @@ import result.
 Package copying and integrity checks run in the background. They can be
 canceled before the verified package is committed to the toolkit cache;
 aircraft files are never changed by import.
+
+VR configuration files (`*_vrconfig.txt`) supplied by an aircraft package are
+aircraft content and are updated with that package. Any existing version,
+including personal edits, is backed up before replacement and can be recovered
+with aircraft restore. Personal `*_prefs.txt` and X-Camera files remain protected.
 
 Use `Review aircraft changes` before applying. Review opens the cached packages
 and reports which files would be added, replaced, removed or protected. For a
