@@ -154,13 +154,35 @@ public sealed class CompatibilityPackagePlanBuilder
             }
             else
             {
-                if (!currentExists)
+                // A clean reinstall at the same path can restore the original file (or
+                // remove a patch-created file) while the external installation state survives.
+                var matchesOriginal = previousFile.OriginalExisted
+                    ? currentExists && currentBytes.LongLength == previousFile.OriginalSizeBytes
+                        && Sha256(currentBytes).Equals(previousFile.OriginalSha256, StringComparison.OrdinalIgnoreCase)
+                    : !currentExists;
+                if (matchesOriginal)
+                {
+                    // Keep the original backup contract intact for a later Restore.
+                    if (previousFile.OriginalExisted
+                        && (string.IsNullOrWhiteSpace(previousFile.BackupPath)
+                            || !File.Exists(previousFile.BackupPath)
+                            || new FileInfo(previousFile.BackupPath).Length != previousFile.OriginalSizeBytes
+                            || !Sha256(File.ReadAllBytes(previousFile.BackupPath)).Equals(
+                                previousFile.OriginalSha256, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        return Task.FromResult(Blocked(descriptor, manifest, action, aircraftRoot,
+                            $"Original compatibility-package backup failed validation for {relativePath}.", log));
+                    }
+                    sourceExists = currentExists;
+                    sourceBytes = currentBytes;
+                    log.Add($"[REINSTALL] {relativePath} matches its recorded original state; rebuilding selected modules.");
+                }
+                else if (!currentExists)
                 {
                     return Task.FromResult(Blocked(descriptor, manifest, action, aircraftRoot,
                         $"Previously managed target is missing: {relativePath}.", log));
                 }
-
-                if (!Sha256(currentBytes).Equals(previousFile.InstalledSha256, StringComparison.OrdinalIgnoreCase))
+                else if (!Sha256(currentBytes).Equals(previousFile.InstalledSha256, StringComparison.OrdinalIgnoreCase))
                 {
                     if (!CanComposeFromCurrentTarget(relativePath, selectedOperations))
                     {

@@ -213,6 +213,64 @@ public sealed class CompatibilityPackageTests
         Assert.Equal(modified, File.ReadAllText(fixture.TargetPath));
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Update_AfterCleanReinstallAtManagedPath_ReappliesAndRestores(bool originalExisted)
+    {
+        using var fixture = Fixture.Create(singleComposableModule: true, includeCopyModule: true);
+        var operation = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false);
+        var copiedPath = Path.Combine(Path.GetDirectoryName(fixture.TargetPath)!, "table.lua");
+        var original = new byte[] { 0, 255, 23, 42 };
+        if (originalExisted) File.WriteAllBytes(copiedPath, original);
+        Assert.True((await operation.RunAsync(ContentPatchAction.Install, fixture.Variant,
+            fixture.PackageDirectory, ["core", "table-payload"])).Succeeded);
+        var patched = File.ReadAllBytes(copiedPath);
+
+        // A fresh aircraft replaces this folder; the external Toolkit state survives.
+        File.WriteAllText(fixture.TargetPath, "before\r\n", new UTF8Encoding(false));
+        if (originalExisted) File.WriteAllBytes(copiedPath, original);
+        else File.Delete(copiedPath);
+        var result = await operation.RunAsync(ContentPatchAction.Update, fixture.Variant,
+            fixture.PackageDirectory, ["core", "table-payload"]);
+        Assert.True(result.Succeeded, result.Message);
+        Assert.True(result.Changed);
+        Assert.Equal(patched, File.ReadAllBytes(copiedPath));
+        var repeat = await operation.RunAsync(ContentPatchAction.Update, fixture.Variant,
+            fixture.PackageDirectory, ["core", "table-payload"]);
+        Assert.True(repeat.Succeeded, repeat.Message);
+        Assert.False(repeat.Changed);
+        Assert.True(operation.Restore(fixture.Variant, fixture.PackageDirectory).Succeeded);
+        Assert.Equal("before\r\n", File.ReadAllText(fixture.TargetPath));
+        if (originalExisted) Assert.Equal(original, File.ReadAllBytes(copiedPath));
+        else Assert.False(File.Exists(copiedPath));
+    }
+
+    [Theory]
+    [InlineData("missing-target")]
+    [InlineData("missing-backup")]
+    [InlineData("corrupt-backup")]
+    public async Task Update_ReinstallWithUnverifiableOriginal_RemainsBlocked(string damage)
+    {
+        using var fixture = Fixture.Create(singleComposableModule: true, includeCopyModule: true);
+        var operation = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false);
+        var path = Path.Combine(Path.GetDirectoryName(fixture.TargetPath)!, "table.lua");
+        File.WriteAllText(path, "original");
+        Assert.True((await operation.RunAsync(ContentPatchAction.Install, fixture.Variant,
+            fixture.PackageDirectory, ["core", "table-payload"])).Succeeded);
+        var file = Assert.Single(fixture.Store.Load().ContentInstallations.Values)
+            .ContentComponents["levelup.compatibility"].Files.Single(f => f.RelativePath.EndsWith("table.lua"));
+        File.WriteAllText(path, "original");
+        if (damage == "missing-target") File.Delete(path);
+        else if (damage == "missing-backup") File.Delete(file.BackupPath);
+        else File.WriteAllText(file.BackupPath, "tampered");
+        var result = await operation.RunAsync(ContentPatchAction.Update, fixture.Variant,
+            fixture.PackageDirectory, ["core", "table-payload"]);
+        Assert.False(result.Succeeded);
+        Assert.Equal(damage != "missing-target", File.Exists(path));
+        if (File.Exists(path)) Assert.Equal("original", File.ReadAllText(path));
+    }
+
     [Fact]
     public async Task Update_WhenManagedCopyFileChanged_KeepsStrictHashBlock()
     {
