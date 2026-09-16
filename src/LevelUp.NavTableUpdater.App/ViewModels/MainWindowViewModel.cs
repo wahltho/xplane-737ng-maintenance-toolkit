@@ -1976,7 +1976,7 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void ExportLog()
+    private async Task ExportLog()
     {
         try
         {
@@ -1989,6 +1989,7 @@ public partial class MainWindowViewModel : ViewModelBase
                     Environment.NewLine,
                     [
                         "X-Plane 737NG Maintenance Toolkit Log",
+                        $"Toolkit version: {typeof(MainWindowViewModel).Assembly.GetName().Version}",
                         $"Exported: {DateTimeOffset.Now:O}",
                         $"Selected aircraft: {SelectedAircraftPath}",
                         $"Detected product: {SelectedProductName}",
@@ -2004,10 +2005,26 @@ public partial class MainWindowViewModel : ViewModelBase
                         OperationLog
                     ]));
             AppendLog($"Log exported: {path}");
+            if (await _userInteractionService.ConfirmAsync(new ConfirmationRequest(
+                    "Log exported", $"The diagnostic log was saved to:\n{path}", "Open folder", "OK")))
+            {
+                try
+                {
+                    Process.Start(new ProcessStartInfo { FileName = DiagnosticsExportRootPath, UseShellExecute = true });
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+                    or InvalidOperationException or System.ComponentModel.Win32Exception)
+                {
+                    await _userInteractionService.ShowMessageAsync(new MessageRequest(
+                        "Could not open folder", $"The log was saved to:\n{path}\n\n{ex.Message}"));
+                }
+            }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
             AppendLog($"Log export failed: {ex.Message}");
+            await _userInteractionService.ShowMessageAsync(new MessageRequest(
+                "Log export failed", $"Could not save the diagnostic log to:\n{DiagnosticsExportRootPath}\n\n{ex.Message}"));
         }
     }
 
@@ -2792,6 +2809,9 @@ public partial class MainWindowViewModel : ViewModelBase
                     $"Protected local entries: {dryRun.ProtectedCount + dryRun.LocalLiveryPreservedCount}",
                     "",
                     transactionDescription,
+                    AircraftProductIds.Normalize(selectedVariant.Family) == AircraftProductIds.LevelUp737Ng
+                        ? "Required LevelUp maintenance patches will be checked and applied automatically afterwards. Previously selected optional patches are retained."
+                        : "",
                     "Once the final write phase starts, the transaction cannot be canceled and will either complete or roll back."
                 ]),
             "Apply update");
@@ -3398,7 +3418,7 @@ public partial class MainWindowViewModel : ViewModelBase
         if (groupVariant is not null)
         {
             var groupResult = await RequiredPatchFollowUp.RunAsync(
-                _contentPackageCatalog, groupVariant.Family, _userInteractionService,
+                _contentPackageCatalog, groupVariant.Family,
                 () => RunVnavContentAction(VnavContentAction.Update, groupVariant, confirmGroup: false));
             if (groupResult is not null)
                 return groupResult;

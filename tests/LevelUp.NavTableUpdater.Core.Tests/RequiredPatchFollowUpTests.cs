@@ -20,31 +20,20 @@ public sealed class RequiredPatchFollowUpTests
     [Fact]
     public async Task EveryUpdateChecksGroupAgainEvenAfterPreviousNoChange()
     {
-        var ui = new Interaction(true);
         var runs = 0;
         Task<MaintenanceOperationResult> Apply() { runs++; return Task.FromResult(MaintenanceOperationResult.NoChange("Current", [])); }
-        var first = await RequiredPatchFollowUp.RunAsync(Catalog(), "LevelUp", ui, Apply);
-        var second = await RequiredPatchFollowUp.RunAsync(Catalog(), "LevelUp", ui, Apply);
+        var first = await RequiredPatchFollowUp.RunAsync(Catalog(), "LevelUp", Apply);
+        var second = await RequiredPatchFollowUp.RunAsync(Catalog(), "LevelUp", Apply);
         Assert.True(first!.Succeeded);
         Assert.True(second!.Succeeded);
         Assert.Equal(2, runs);
-        Assert.All(ui.Requests, r => Assert.Equal("Update required LevelUp patches?", r.Title));
-    }
-
-    [Fact]
-    public async Task DeferredGroupIsUnsuccessfulAndDoesNotRunWrites()
-    {
-        var result = await RequiredPatchFollowUp.RunAsync(Catalog(), "LevelUp", new Interaction(false),
-            () => throw new Exception("Must not execute"));
-        Assert.False(result!.Succeeded);
-        Assert.Equal("Required patches pending", result.Status);
     }
 
     [Fact]
     public async Task FailedGroupRetainsFailureAndBackupDetails()
     {
         var failed = new MaintenanceOperationResult(false, true, "Failed", "A required module failed", ["backup"], ["details"]);
-        var result = await RequiredPatchFollowUp.RunAsync(Catalog(), "LevelUp", new Interaction(true), () => Task.FromResult(failed));
+        var result = await RequiredPatchFollowUp.RunAsync(Catalog(), "LevelUp", () => Task.FromResult(failed));
         Assert.False(result!.Succeeded);
         Assert.True(result.Changed);
         Assert.Equal(failed.BackupPaths, result.BackupPaths);
@@ -55,7 +44,7 @@ public sealed class RequiredPatchFollowUpTests
     [Fact]
     public async Task DownloadCancellationIsPendingNotSuccessful()
     {
-        var result = await RequiredPatchFollowUp.RunAsync(Catalog(), "LevelUp", new Interaction(true),
+        var result = await RequiredPatchFollowUp.RunAsync(Catalog(), "LevelUp",
             () => throw new OperationCanceledException("Canceled download"));
         Assert.False(result!.Succeeded);
         Assert.Equal("Required patches pending", result.Status);
@@ -64,27 +53,17 @@ public sealed class RequiredPatchFollowUpTests
     [Fact]
     public async Task MissingLevelUpGroupCannotBeReportedAsUpToDate()
     {
-        var ui = new Interaction(true);
-        var result = await RequiredPatchFollowUp.RunAsync(Catalog(false), "LevelUp", ui,
+        var result = await RequiredPatchFollowUp.RunAsync(Catalog(false), "LevelUp",
             () => throw new Exception("Must not execute"));
         Assert.False(result!.Succeeded);
         Assert.Equal("Required patches pending", result.Status);
-        Assert.Empty(ui.Requests);
     }
 
     [Fact]
     public async Task ZiboFallsBackToExistingVnavWorkflow()
     {
-        var ui = new Interaction(true);
-        Assert.Null(await RequiredPatchFollowUp.RunAsync(Catalog(), "Zibo", ui,
+        Assert.Null(await RequiredPatchFollowUp.RunAsync(Catalog(), "Zibo",
             () => throw new Exception("Must not execute")));
-        Assert.Empty(ui.Requests);
     }
 
-    private sealed class Interaction(bool accept) : IUserInteractionService
-    {
-        public List<ConfirmationRequest> Requests { get; } = [];
-        public Task<bool> ConfirmAsync(ConfirmationRequest request) { Requests.Add(request); return Task.FromResult(accept); }
-        public Task ShowMessageAsync(MessageRequest request) => Task.CompletedTask;
-    }
 }

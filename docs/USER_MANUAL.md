@@ -1,6 +1,6 @@
 # X-Plane 737NG Maintenance Toolkit User Manual
 
-This manual describes version 0.13.5 of the X-Plane 737NG Maintenance Toolkit.
+This manual describes version 0.13.6 of the X-Plane 737NG Maintenance Toolkit.
 
 The toolkit is a desktop app for selected Zibo and LevelUp 737NG maintenance
 tasks:
@@ -30,7 +30,7 @@ Keep your own backups and use the tool at your own risk.
 
 ## Compatibility And Installation
 
-Version 0.13.5 supports:
+Version 0.13.6 supports:
 
 - X-Plane 12. X-Plane 11 is not supported.
 - Zibo 737-800X 2K and 4K variants.
@@ -186,9 +186,11 @@ The `Updates` card shows aircraft-package and VNAV-table status together. Its
 main `Update` button checks both layers and performs the safe sequence where
 possible: check the product release source, download the required aircraft
 package into the cache, review its contents, ask for confirmation, then apply
-it with backup and rollback. The app subsequently offers the required VNAV
-install, update or repair. If the aircraft package is already current, the same
-button can continue directly with the VNAV action. If a source is unavailable,
+it with backup and rollback. For LevelUp, required maintenance patches are then
+checked and applied automatically without another confirmation. Previously
+selected optional modules are retained. Completion is reported only after both
+stages succeed. If the aircraft package is already current, the same button
+checks and applies the required patches directly. Zibo retains its VNAV prompt. If a source is unavailable,
 import the exact required aircraft package manually and retry.
 
 Zibo uses its public feed and the baseline/cumulative package model described
@@ -202,7 +204,8 @@ release's declared minimum toolkit version.
 The VNAV area of the `Updates` card handles manifest-owned descent table
 content and Lua hooks. The operation modifies only manifest-owned VNAV blocks
 and payload files after validation and backup. Aircraft-package and VNAV writes
-remain separate confirmed transactions with separate backup and restore state.
+remain separate transactions with separate backup and restore state. For LevelUp,
+the aircraft confirmation covers the automatic required-patch follow-up.
 
 VNAV content writes are limited to the manifest-owned Lua blocks and payload
 files. The app never distributes or writes a complete modified
@@ -218,7 +221,7 @@ explicit confirmation before writing files. Version 0.13.0 offers the LevelUp
 FANS CDU package as an optional LevelUp-only patch. It remains separate from
 aircraft and VNAV updates and is never installed automatically.
 
-At startup, version 0.13.5 checks immutable `catalog-v*` releases in the Toolkit
+At startup, version 0.13.6 checks immutable `catalog-v*` releases in the Toolkit
 repository for updated package discovery metadata. A downloaded catalog becomes
 active only after schema, version, repository URL and minimum Toolkit version
 validation. If the check fails, the app uses its last valid cached catalog and
@@ -365,14 +368,16 @@ file plan without writing files. `Install / update`, `Repair` and `Uninstall`
 always require a separate confirmation and use their own multi-file backup and
 rollback transaction.
 
-Optional patches are not part of the normal aircraft update button and are not
-offered automatically after an aircraft update. Content catalog 1.5.0 advertises
-the LevelUp FANS CDU patch only for a detected LevelUp product and requires an
-explicit action. VNAV tables retain their managed post-aircraft-update prompt.
+The LevelUp maintenance group installs VNAV, FANS CDU and Weight & Balance as
+required modules. Existing optional selections are retained during updates;
+unselected optional modules are not automatically enabled. Separate manual
+package actions retain their own confirmation.
 
 Use `Dump to file` to export the visible install and operation logs into the
-configured diagnostics export folder. If users need support, this is the file
-to attach or post.
+configured diagnostics export folder. A dialog shows the saved path with
+`Open folder` and `OK` buttons. Export failures are also shown in a dialog.
+The exported log includes the Toolkit assembly version. Attach the file when
+requesting support.
 
 For normal online use, the app tries to refresh `package-manifest.txt` and
 payload files from explicit GitHub Release assets. Fallback sources are:
