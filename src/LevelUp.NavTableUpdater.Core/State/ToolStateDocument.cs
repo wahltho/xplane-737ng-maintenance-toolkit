@@ -109,6 +109,11 @@ public sealed class ToolOverlayBackupFileState
 
 public sealed class ContentInstallationToolState
 {
+    public bool HasAuthoritativeContentState { get; set; }
+
+    // Selection intent survives a full baseline replacement without claiming installed files.
+    public Dictionary<string, List<string>> PendingContentModules { get; set; } = new(StringComparer.Ordinal);
+
     public string AircraftFolder { get; set; } = "";
 
     public Dictionary<string, ContentComponentState> ContentComponents { get; set; } = new(StringComparer.Ordinal);
@@ -213,8 +218,20 @@ public sealed class ContentComponentFileState
     public string? InstalledSha256 { get; set; }
 }
 
+public sealed class AircraftContentGenerationState
+{
+    public Dictionary<string, ContentComponentState> InstallationComponents { get; set; } = new(StringComparer.Ordinal);
+    public Dictionary<string, ContentComponentState> ProductComponents { get; set; } = new(StringComparer.Ordinal);
+    public Dictionary<string, List<string>> PendingContentModules { get; set; } = new(StringComparer.Ordinal);
+    public string? InstalledContentPackageId { get; set; }
+    public string? InstalledContentPackageVersion { get; set; }
+    public DateTimeOffset? LastContentOperationUtc { get; set; }
+}
+
 public sealed class BackupRecord
 {
+    public AircraftContentGenerationState? AircraftContentGeneration { get; set; }
+
     public string Operation { get; set; } = "";
 
     public string SourcePath { get; set; } = "";

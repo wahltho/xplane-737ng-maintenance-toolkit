@@ -1,3 +1,6 @@
+using System.IO.Compression;
+using LevelUp.NavTableUpdater.Core.Upstream;
+using LevelUp.NavTableUpdater.Core.State;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -244,6 +247,164 @@ public sealed class CompatibilityPackageTests
         Assert.Equal("before\r\n", File.ReadAllText(fixture.TargetPath));
         if (originalExisted) Assert.Equal(original, File.ReadAllBytes(copiedPath));
         else Assert.False(File.Exists(copiedPath));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task FullReplacement_WithDifferentRecordedOriginal_ReinstallsAndRestoresBothGenerations(bool oldOriginalExisted)
+    {
+        using var fixture = Fixture.Create(singleComposableModule: true, includeCopyModule: true);
+        var patches = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false);
+        var copyPath = Path.Combine(Path.GetDirectoryName(fixture.TargetPath)!, "table.lua");
+        if (oldOriginalExisted) File.WriteAllText(copyPath, "historical original");
+        Assert.True((await patches.RunAsync(ContentPatchAction.Install, fixture.Variant,
+            fixture.PackageDirectory, ["core", "table-payload"])).Succeeded);
+        var oldState = fixture.Store.TryGetContentInstallation(Path.GetDirectoryName(fixture.Variant.AcfPath)!)!;
+        var oldComponent = oldState.ContentComponents["levelup.compatibility"];
+        var patchedBytes = File.ReadAllBytes(copyPath);
+
+        // A legacy per-variant record must not resurrect ownership after replacement.
+        var document = fixture.Store.Load();
+        document.Aircraft["legacy-variant"] = new AircraftToolState
+        {
+            AircraftFolder = Path.GetDirectoryName(fixture.Variant.AcfPath)!,
+            ContentComponents = new() { ["levelup.compatibility"] = oldComponent }
+        };
+        fixture.Store.Save(document);
+        var (check, entry) = CreateFullBaseline(fixture);
+        var aircraft = new AircraftUpdateOperation(fixture.Store, isXPlaneRunning: () => false);
+        var full = aircraft.Apply(fixture.Variant, check, [entry]);
+        Assert.True(full.Succeeded, full.Message);
+        Assert.Equal("official new baseline", File.ReadAllText(copyPath));
+        var reset = fixture.Store.TryGetContentInstallation(Path.GetDirectoryName(fixture.Variant.AcfPath)!)!;
+        Assert.Empty(reset.ContentComponents);
+        Assert.Equal(["core", "table-payload"], reset.PendingContentModules["levelup.compatibility"]);
+        Assert.False(patches.Restore(fixture.Variant, fixture.PackageDirectory).Succeeded);
+        var package = CompatibilityPackageLoader.LoadDirectory(fixture.PackageDirectory);
+        var selection = MainWindowViewModel.CompatibilitySelection(package.Manifest, reset);
+        Assert.Equal(["core", "table-payload"], selection);
+        var reapplied = await patches.RunAsync(ContentPatchAction.Update, fixture.Variant, fixture.PackageDirectory, selection);
+        Assert.True(reapplied.Succeeded, reapplied.Message);
+        var installed = fixture.Store.TryGetContentInstallation(Path.GetDirectoryName(fixture.Variant.AcfPath)!)!;
+        Assert.Empty(installed.PendingContentModules);
+        var copy = installed.ContentComponents["levelup.compatibility"].Files.Single(f => f.RelativePath.EndsWith("table.lua"));
+        Assert.Equal("official new baseline", File.ReadAllText(copy.BackupPath));
+        Assert.Equal(patchedBytes, File.ReadAllBytes(copyPath));
+        var repeated = await patches.RunAsync(ContentPatchAction.Update, fixture.Variant, fixture.PackageDirectory, selection);
+        Assert.True(repeated.Succeeded, repeated.Message);
+        Assert.False(repeated.Changed);
+        Assert.True(patches.Restore(fixture.Variant, fixture.PackageDirectory).Succeeded);
+        Assert.Equal("official new baseline", File.ReadAllText(copyPath));
+        Assert.Empty(fixture.Store.TryGetContentInstallation(Path.GetDirectoryName(fixture.Variant.AcfPath)!)!.ContentComponents);
+
+        // Full restore brings the original ownership/backup chain back with the old patched files.
+        var restore = aircraft.RestoreLatest(fixture.Variant);
+        Assert.True(restore.Succeeded, restore.Message);
+        Assert.Equal(patchedBytes, File.ReadAllBytes(copyPath));
+        var restored = fixture.Store.TryGetContentInstallation(Path.GetDirectoryName(fixture.Variant.AcfPath)!)!;
+        Assert.Equal(JsonSerializer.Serialize(oldComponent), JsonSerializer.Serialize(restored.ContentComponents["levelup.compatibility"]));
+        Assert.True(patches.Restore(fixture.Variant, fixture.PackageDirectory).Succeeded);
+        if (oldOriginalExisted) Assert.Equal("historical original", File.ReadAllText(copyPath));
+        else Assert.False(File.Exists(copyPath));
+    }
+
+    [Fact]
+    public async Task FullReplacement_ActivationFailurePreservesPatchStateAndFiles()
+    {
+        using var fixture = Fixture.Create(singleComposableModule: true, includeCopyModule: true);
+        var patches = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false);
+        Assert.True((await patches.RunAsync(ContentPatchAction.Install, fixture.Variant,
+            fixture.PackageDirectory, ["core", "table-payload"])).Succeeded);
+        var before = File.ReadAllText(fixture.Store.StatePath);
+        var (check, entry) = CreateFullBaseline(fixture);
+        var full = new AircraftFullBaselineReplacement(fixture.Store, afterTargetMoved: () => throw new IOException("injected"));
+        Assert.Throws<IOException>(() => full.Apply(fixture.Variant, check, [entry], CancellationToken.None, null, [], new List<string>()));
+        Assert.Equal(before, File.ReadAllText(fixture.Store.StatePath));
+        Assert.Equal("core\r\n", File.ReadAllText(fixture.TargetPath));
+        Assert.True(patches.Restore(fixture.Variant, fixture.PackageDirectory).Succeeded);
+    }
+
+    [Fact]
+    public async Task FullReplacement_StandaloneSourceSelectionSurvivesWithoutMigratingOldFileOwnership()
+    {
+        using var fixture = Fixture.Create(singleComposableModule: true, includeCopyModule: true);
+        var patches = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false);
+        Assert.True((await patches.RunAsync(ContentPatchAction.Install, fixture.Variant,
+            fixture.PackageDirectory, ["core", "table-payload"])).Succeeded);
+        fixture.Store.UpdateContentAndProduct(fixture.Variant, (installation, product) =>
+        {
+            var old = installation.ContentComponents["levelup.compatibility"];
+            installation.ContentComponents = new() { ["standalone-copy"] = old };
+            product.ContentComponents = new() { ["standalone-copy"] = old };
+            product.InstalledContentPackageId = "standalone-copy";
+        });
+        var (check, entry) = CreateFullBaseline(fixture);
+        var full = new AircraftUpdateOperation(fixture.Store, isXPlaneRunning: () => false).Apply(fixture.Variant, check, [entry]);
+        Assert.True(full.Succeeded, full.Message);
+        var manifestPath = Path.Combine(fixture.PackageDirectory, "package-manifest.json");
+        var json = JsonNode.Parse(File.ReadAllText(manifestPath))!;
+        json["sources"] = JsonSerializer.SerializeToNode(new[] { new { packageId = "standalone-copy", moduleId = "table-payload", releaseTag = "v1" } });
+        File.WriteAllText(manifestPath, json.ToJsonString());
+        var manifest = CompatibilityPackageLoader.LoadDirectory(fixture.PackageDirectory).Manifest;
+        var installation = fixture.Store.TryGetContentInstallation(Path.GetDirectoryName(fixture.Variant.AcfPath)!)!;
+        Assert.Empty(installation.ContentComponents);
+        var selected = MainWindowViewModel.CompatibilitySelection(manifest, installation);
+        Assert.Contains("table-payload", selected);
+        var applied = await patches.RunAsync(ContentPatchAction.Update, fixture.Variant, fixture.PackageDirectory, selected);
+        Assert.True(applied.Succeeded, applied.Message);
+        var state = fixture.Store.TryGetContentInstallation(Path.GetDirectoryName(fixture.Variant.AcfPath)!)!;
+        Assert.Empty(state.PendingContentModules);
+        Assert.Equal("levelup.compatibility", Assert.Single(state.ContentComponents).Key);
+        Assert.True(patches.Restore(fixture.Variant, fixture.PackageDirectory).Succeeded);
+        Assert.Equal("official new baseline", File.ReadAllText(Path.Combine(Path.GetDirectoryName(fixture.TargetPath)!, "table.lua")));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task FullRestore_InvalidBackupOrMissingSnapshotLeavesFilesAndStateUntouched(bool legacyBackup)
+    {
+        using var fixture = Fixture.Create(singleComposableModule: true, includeCopyModule: true);
+        var patches = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false);
+        Assert.True((await patches.RunAsync(ContentPatchAction.Install, fixture.Variant,
+            fixture.PackageDirectory, ["core", "table-payload"])).Succeeded);
+        var (check, entry) = CreateFullBaseline(fixture);
+        var aircraft = new AircraftUpdateOperation(fixture.Store, isXPlaneRunning: () => false);
+        Assert.True(aircraft.Apply(fixture.Variant, check, [entry]).Succeeded);
+        var generation = Assert.Single(fixture.Store.TryGetProductTarget(fixture.Variant)!.Backups,
+            b => b.Operation == "AircraftUpdateFullDirectory");
+        if (legacyBackup) generation.AircraftContentGeneration = null;
+        else File.Delete(Path.Combine(generation.BackupPath, Path.GetFileName(fixture.Variant.AcfPath)));
+        var before = File.ReadAllText(fixture.Store.StatePath);
+        Assert.Throws<InvalidDataException>(() => new AircraftFullBaselineReplacement(fixture.Store)
+            .Restore(fixture.Variant, generation, new List<string>()));
+        Assert.Equal(before, File.ReadAllText(fixture.Store.StatePath));
+        Assert.Equal("before\r\n", File.ReadAllText(fixture.TargetPath));
+        Assert.Equal("official new baseline", File.ReadAllText(Path.Combine(Path.GetDirectoryName(fixture.TargetPath)!, "table.lua")));
+        Assert.True(Directory.Exists(generation.BackupPath));
+    }
+
+    private static (AircraftUpstreamUpdateCheckResult Check, AircraftUpdatePackageCacheEntry Entry) CreateFullBaseline(Fixture fixture)
+    {
+        var path = Path.Combine(fixture.PackageDirectory, "baseline.zip");
+        using (var archive = ZipFile.Open(path, ZipArchiveMode.Create))
+        {
+            foreach (var (name, value) in new[] {
+                (Path.GetFileName(fixture.Variant.AcfPath), "1200 Version\n"),
+                ("plugins/xlua/scripts/shared.lua", "before\r\n"),
+                ("plugins/xlua/scripts/table.lua", "official new baseline") })
+            {
+                using var writer = new StreamWriter(archive.CreateEntry(name).Open(), new UTF8Encoding(false));
+                writer.Write(value);
+            }
+        }
+        var package = new AircraftUpdatePackage("levelup-737ng", AircraftUpdatePackageKind.FullBaseline,
+            new AircraftUpstreamVersion(2, 1, 50), "baseline.zip", "https://example.invalid/baseline.zip");
+        var entry = new AircraftUpdatePackageCache(Path.Combine(fixture.PackageDirectory, "cache")).ImportZip(path, package);
+        var check = new AircraftUpstreamUpdateCheckResult("Available", "Full baseline", "levelup-737ng", "",
+            "V2.S1.50", "V2.S1.50", AircraftUpdatePlanAction.InstallBaselineAndCumulativePatch, "Install", false, [package], []);
+        return (check, entry);
     }
 
     [Theory]

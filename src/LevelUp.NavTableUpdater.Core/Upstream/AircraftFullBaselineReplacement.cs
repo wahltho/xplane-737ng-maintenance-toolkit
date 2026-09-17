@@ -91,6 +91,7 @@ internal sealed class AircraftFullBaselineReplacement
             targetMoved = false;
 
             log.Add($"[BACKUP] Exact previous aircraft directory retained at {backupPath}");
+            log.Add("[STATE] Previous patch ownership archived with the aircraft backup; module selections retained for reinstallation on the new baseline.");
             log.Add("[OK] Clean baseline replacement completed and validated.");
             return MaintenanceOperationResult.Applied(
                 $"Clean baseline replacement completed to {updateCheck.AvailableVersionDisplay}.",
@@ -133,6 +134,16 @@ internal sealed class AircraftFullBaselineReplacement
             throw new DirectoryNotFoundException($"Aircraft baseline backup directory is missing: {backupFolder}");
         }
 
+        var currentInstallation = _stateStore.TryGetContentInstallation(Path.GetDirectoryName(variant.AcfPath)!);
+        var currentProduct = _stateStore.TryGetProductTarget(variant);
+        if (generation.AircraftContentGeneration is null
+            && (currentInstallation?.ContentComponents.Count > 0
+                || currentInstallation?.PendingContentModules.Count > 0
+                || currentProduct?.ContentComponents.Count > 0))
+        {
+            throw new InvalidDataException("This older aircraft backup has no patch-state snapshot. It cannot safely restore an installation with managed patches.");
+        }
+
         var parent = Path.GetDirectoryName(targetFolder)
             ?? throw new InvalidOperationException("Aircraft folder has no parent directory.");
         var preRestorePath = Path.Combine(
@@ -166,8 +177,10 @@ internal sealed class AircraftFullBaselineReplacement
                 PackageFileName = generation.PackageFileName,
                 SourceExisted = true
             };
-            _stateStore.UpdateProductTarget(variant, state =>
+            _stateStore.UpdateContentAndProduct(variant, (installation, state) =>
             {
+                preRestoreRecord.AircraftContentGeneration = CaptureContentGeneration(installation, state);
+                RestoreContentGeneration(installation, state, generation.AircraftContentGeneration ?? new());
                 state.InstalledAircraftUpdateFamily = null;
                 state.InstalledAircraftUpdateVersion = null;
                 state.LastAircraftUpdateMode = null;
@@ -463,8 +476,19 @@ internal sealed class AircraftFullBaselineReplacement
         AircraftUpstreamUpdateCheckResult updateCheck,
         BackupRecord backupRecord)
     {
-        _stateStore.UpdateProductTarget(variant, target =>
+        _stateStore.UpdateContentAndProduct(variant, (installation, target) =>
         {
+            backupRecord.AircraftContentGeneration = CaptureContentGeneration(installation, target);
+            var pending = new Dictionary<string, List<string>>(installation.PendingContentModules, StringComparer.Ordinal);
+            foreach (var component in installation.ContentComponents)
+                pending[component.Key] = [.. component.Value.EnabledModules];
+            installation.HasAuthoritativeContentState = true;
+            installation.PendingContentModules = pending;
+            installation.ContentComponents = new(StringComparer.Ordinal);
+            target.ContentComponents = new(StringComparer.Ordinal);
+            target.InstalledContentPackageId = null;
+            target.InstalledContentPackageVersion = null;
+            target.LastContentOperationUtc = null;
             target.InstalledAircraftUpdateFamily = updateCheck.Family;
             target.InstalledAircraftUpdateVersion = updateCheck.AvailableVersionDisplay;
             target.LastAircraftUpdateMode = AircraftUpdateMode.Full.ToString();
@@ -473,6 +497,29 @@ internal sealed class AircraftFullBaselineReplacement
             target.LastOperation = "AircraftUpdateFullApply";
             target.Backups.Add(backupRecord);
         });
+    }
+
+    private static AircraftContentGenerationState CaptureContentGeneration(
+        ContentInstallationToolState installation, AircraftToolState product) => new()
+    {
+        InstallationComponents = installation.ContentComponents,
+        ProductComponents = product.ContentComponents,
+        PendingContentModules = installation.PendingContentModules,
+        InstalledContentPackageId = product.InstalledContentPackageId,
+        InstalledContentPackageVersion = product.InstalledContentPackageVersion,
+        LastContentOperationUtc = product.LastContentOperationUtc
+    };
+
+    private static void RestoreContentGeneration(ContentInstallationToolState installation,
+        AircraftToolState product, AircraftContentGenerationState generation)
+    {
+        installation.HasAuthoritativeContentState = true;
+        installation.ContentComponents = generation.InstallationComponents;
+        installation.PendingContentModules = generation.PendingContentModules;
+        product.ContentComponents = generation.ProductComponents;
+        product.InstalledContentPackageId = generation.InstalledContentPackageId;
+        product.InstalledContentPackageVersion = generation.InstalledContentPackageVersion;
+        product.LastContentOperationUtc = generation.LastContentOperationUtc;
     }
 
     private static string ComputeSha256(string path)

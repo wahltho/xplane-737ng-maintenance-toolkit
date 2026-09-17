@@ -3514,10 +3514,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 var resolution = await _contentPatchReleaseSource.ResolveGroupAsync(_contentPackageCatalog, catalogGroup);
                 var prepared = await _contentPatchReleaseSource.ProvisionGroupAsync(resolution);
                 var installed = _stateStore.TryGetContentInstallation(Path.GetDirectoryName(selectedVariant.AcfPath)!);
-                var selected = installed?.ContentComponents.GetValueOrDefault(catalogGroup.PackageId)?.EnabledModules
-                    ?? CompatibilityPackagePlanBuilder.DefaultSelection(prepared.Package.Manifest).ToList();
-                foreach (var source in prepared.Package.Manifest.Sources)
-                    if (installed?.ContentComponents.ContainsKey(source.PackageId) == true && !selected.Contains(source.ModuleId)) selected.Add(source.ModuleId);
+                var selected = CompatibilitySelection(prepared.Package.Manifest, installed);
                 result = await _compatibilityPackageOperation.RunAsync(Enum.Parse<ContentPatchAction>(action.ToString()),
                     selectedVariant, prepared.PackageDirectory, selected);
             }
@@ -3801,6 +3798,19 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
+    internal static List<string> CompatibilitySelection(CompatibilityPackageManifest manifest,
+        ContentInstallationToolState? installation)
+    {
+        var selected = (installation?.ContentComponents.GetValueOrDefault(manifest.PackageId)?.EnabledModules
+            ?? installation?.PendingContentModules.GetValueOrDefault(manifest.PackageId)
+            ?? CompatibilityPackagePlanBuilder.DefaultSelection(manifest).ToList()).ToList();
+        foreach (var source in manifest.Sources)
+            if ((installation?.ContentComponents.ContainsKey(source.PackageId) == true
+                || installation?.PendingContentModules.ContainsKey(source.PackageId) == true)
+                && !selected.Contains(source.ModuleId)) selected.Add(source.ModuleId);
+        return selected;
+    }
+
     private void RefreshCompatibilityPackageStatus()
     {
         var package = CompatibilityPackageLoader.LoadDirectory(OptionalPatchPackagePath);
@@ -3808,19 +3818,10 @@ public partial class MainWindowViewModel : ViewModelBase
         CompatibilityModulesVisible = true;
         var selectedVariant = SelectedViewVariant;
         var aircraftRoot = selectedVariant is null ? "" : Path.GetDirectoryName(selectedVariant.AcfPath) ?? "";
-        var state = string.IsNullOrWhiteSpace(aircraftRoot)
-            ? null
-            : _stateStore.TryGetContentInstallation(aircraftRoot)?.ContentComponents?
-                .GetValueOrDefault(package.Manifest.PackageId);
-        var selectedIds = state?.EnabledModules.Count > 0
-            ? state.EnabledModules.ToHashSet(StringComparer.Ordinal)
-            : CompatibilityPackagePlanBuilder.DefaultSelection(package.Manifest).ToHashSet(StringComparer.Ordinal);
-        if (state is null && package.Manifest.Sources.Count > 0)
-        {
-            var installedSources = _stateStore.TryGetContentInstallation(aircraftRoot)?.ContentComponents;
-            foreach (var source in package.Manifest.Sources)
-                if (installedSources?.ContainsKey(source.PackageId) == true) selectedIds.Add(source.ModuleId);
-        }
+        var installation = string.IsNullOrWhiteSpace(aircraftRoot)
+            ? null : _stateStore.TryGetContentInstallation(aircraftRoot);
+        var state = installation?.ContentComponents.GetValueOrDefault(package.Manifest.PackageId);
+        var selectedIds = CompatibilitySelection(package.Manifest, installation).ToHashSet(StringComparer.Ordinal);
         foreach (var module in package.Manifest.Modules.OrderBy(module => module.InstallationOrder))
         {
             CompatibilityModules.Add(new CompatibilityModuleOptionViewModel(
@@ -3845,7 +3846,9 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         OptionalPatchStatus = state is null
-            ? $"Package {package.Manifest.PackageVersion} is validated. Required and recommended modules are preselected; optional modules require explicit opt-in."
+            ? installation?.PendingContentModules.Count > 0
+                ? $"Package {package.Manifest.PackageVersion} is ready to reinstall. Previous module selections are retained after the aircraft baseline replacement."
+                : $"Package {package.Manifest.PackageVersion} is validated. Required and recommended modules are preselected; optional modules require explicit opt-in."
             : $"Installed {state.PackageVersion} with {state.EnabledModules.Count} module(s); selected package {package.Manifest.PackageVersion}.";
         CanRunOptionalPatch = ActionsEnabled && !IsOperationRunning;
     }

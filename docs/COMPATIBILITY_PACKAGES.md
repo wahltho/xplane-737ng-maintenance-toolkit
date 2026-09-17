@@ -140,3 +140,21 @@ declared in the release manifest, not hardcoded in the Toolkit.
 The existing VNAV and FANS package workflows remain available during
 migration. No incomplete compatibility package is advertised in the bundled
 online catalog until an authorized release exists.
+
+## Full aircraft baseline replacement
+
+A Toolkit-managed full baseline replacement archives the current content-patch
+ownership together with its complete aircraft-directory backup. The new baseline
+starts without the previous file hashes or original-file backup chain. Module
+selections are retained separately as pending selections, including optional
+modules and earlier standalone source packages. Successful reinstallation creates
+new original-file backups from the new baseline and consumes those selections.
+Managed aircraft components preserved by the update (such as XLua) retain their
+separate tool-installation state.
+
+Restoring a full-directory generation restores its matching content-patch state.
+A backup created by an older Toolkit without this snapshot is blocked when the
+current installation has managed or pending patches, rather than attaching the
+wrong ownership to restored files. Ordinary patch operations retain their strict
+checks for unknown edits; this reset is exclusive to a successful full baseline
+replacement. Legacy per-variant records cannot reintroduce retired ownership.

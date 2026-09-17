@@ -386,6 +386,8 @@ public sealed class ContentPatchEngine
                 };
             }
 
+            installation.PendingContentModules.Remove(plan.Descriptor.ComponentId);
+            foreach (var source in plan.Sources) installation.PendingContentModules.Remove(source.PackageId);
             if (plan.MigratedState is not null)
                 foreach (var source in plan.Sources) installation.ContentComponents.Remove(source.PackageId);
             installation.Backups.AddRange(backups);

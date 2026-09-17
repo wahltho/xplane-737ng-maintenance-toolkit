@@ -480,6 +480,7 @@ public sealed class ToolStateStore
         foreach (var installation in document.ContentInstallations.Values)
         {
             installation.ContentComponents ??= new Dictionary<string, ContentComponentState>(StringComparer.Ordinal);
+            installation.PendingContentModules ??= new(StringComparer.Ordinal);
             installation.Backups ??= [];
             foreach (var component in installation.ContentComponents.Values)
             {
@@ -525,6 +526,9 @@ public sealed class ToolStateStore
                     document.ContentInstallations[key] = installation;
                 }
 
+                // Once a full replacement establishes a new generation, legacy per-variant
+                // records must never resurrect ownership from the previous aircraft image.
+                if (installation.HasAuthoritativeContentState) continue;
                 foreach (var component in target.ContentComponents)
                 {
                     installation.ContentComponents.TryAdd(component.Key, component.Value);
