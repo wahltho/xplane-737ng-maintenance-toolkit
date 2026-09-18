@@ -7,7 +7,7 @@ tools and conservative view maintenance for supported aircraft variants.
 This repository is the public development home for the app. The architecture
 keeps package content, aircraft patching, and application updates separate.
 
-Release version: **0.13.10**
+Release version: **0.13.11**
 
 Includes [catalog-controlled maintenance groups](docs/CATALOG_GROUPS.md) and configurable startup update notifications.
 
@@ -75,7 +75,17 @@ tool and resource updates remain separate from Toolkit application updates.
 
 The `Advanced` tab contains detailed review, recovery and diagnostic controls.
 The `Settings` tab contains backup, cache, offline-package and diagnostics
-directories.
+directories. Aircraft and patch releases are checked automatically after startup
+for the detected product, without installing anything. Disable `Check aircraft
+and patch releases at startup` in Settings to use manual checks only.
+
+`Hardware configurations` on Start copies the saved hardware configuration
+between detected Zibo and LevelUp variants within one X-Plane installation.
+Find configurations, choose an existing source, select destinations, and click
+`Copy selected`. Close X-Plane first. `Restore last hardware copy` restores the
+previous files and removes files created by the copy; subsequent edits are
+protected. Zibo 2K/4K and multiple installations of the same aircraft variant
+share their corresponding configuration in `Output/preferences`.
 
 ## Disclaimer
 

@@ -13,6 +13,7 @@ public sealed class ToolkitSettingsStoreTests : IDisposable
         Directory.CreateDirectory(_root);
         File.WriteAllText(store.SettingsPath, "{\"SchemaVersion\":1}");
         Assert.True(store.Load().CheckToolkitUpdatesOnStartup);
+        Assert.True(store.Load().CheckAircraftAndPatchUpdatesOnStartup);
     }
 
     [Fact]
@@ -21,8 +22,10 @@ public sealed class ToolkitSettingsStoreTests : IDisposable
         var store = new ToolkitSettingsStore(_root);
         var settings = store.Load();
         settings.CheckToolkitUpdatesOnStartup = false;
+        settings.CheckAircraftAndPatchUpdatesOnStartup = false;
         store.Save(settings);
         Assert.False(store.Load().CheckToolkitUpdatesOnStartup);
+        Assert.False(store.Load().CheckAircraftAndPatchUpdatesOnStartup);
     }
 
     [Fact]

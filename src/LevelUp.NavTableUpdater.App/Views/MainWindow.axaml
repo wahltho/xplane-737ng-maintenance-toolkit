@@ -718,6 +718,31 @@
                                     </Border>
                                 </Grid>
 
+                                <Border Classes="card">
+                                    <StackPanel Spacing="10" IsEnabled="{Binding ActionsEnabled}">
+                                        <TextBlock Text="Hardware configurations" FontSize="18" FontWeight="SemiBold"/>
+                                        <TextBlock Text="Copy saved hardware settings between installed Zibo and LevelUp variants in the same X-Plane installation." TextWrapping="Wrap"/>
+                                        <Button Content="Find hardware configurations" Command="{Binding FindHardwareConfigsCommand}" HorizontalAlignment="Left"/>
+                                        <TextBlock Text="{Binding HardwareConfigStatus}" TextWrapping="Wrap"/>
+                                        <TextBlock Text="Copy from"/>
+                                        <ComboBox ItemsSource="{Binding HardwareConfigSources}" SelectedItem="{Binding SelectedHardwareConfigSource}" HorizontalAlignment="Stretch">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:HardwareConfigTargetOption"><TextBlock Text="{Binding Label}"/></DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+                                        <TextBlock Text="Copy to (select destinations)"/>
+                                        <ItemsControl ItemsSource="{Binding HardwareConfigTargets}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:HardwareConfigTargetOption"><CheckBox Content="{Binding Label}" IsChecked="{Binding IsSelected}"/></DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <WrapPanel Orientation="Horizontal">
+                                            <Button Content="Copy selected" Command="{Binding CopyHardwareConfigsCommand}" Margin="0,0,8,0"/>
+                                            <Button Content="Restore last hardware copy" Command="{Binding RestoreHardwareConfigsCommand}"/>
+                                        </WrapPanel>
+                                    </StackPanel>
+                                </Border>
+
                                 <Border Classes="operation-card" IsVisible="{Binding OperationPanelVisible}">
                                     <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="16">
                                         <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="16">
@@ -1121,6 +1146,10 @@
                                 Padding="12,10">
                             <StackPanel Spacing="8" Margin="0,8,0,8">
                                 <TextBlock Text="{Binding SettingsStatus}" Foreground="{DynamicResource AppTextTertiaryBrush}" TextWrapping="Wrap"/>
+                                <CheckBox Content="Check aircraft and patch releases at startup"
+                                          IsChecked="{Binding CheckAircraftAndPatchUpdatesOnStartup}"/>
+                                <TextBlock Text="Populates available updates without installing anything. Manual checks remain available when disabled."
+                                           TextWrapping="Wrap" Foreground="{DynamicResource AppTextTertiaryBrush}"/>
                                 <TextBlock Classes="label" Text="Toolkit application updates"/>
                                 <CheckBox Content="Check for Toolkit updates at startup"
                                           IsChecked="{Binding CheckToolkitUpdatesOnStartup}"/>

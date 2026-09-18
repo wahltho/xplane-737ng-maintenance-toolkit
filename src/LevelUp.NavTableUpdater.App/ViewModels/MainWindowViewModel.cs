@@ -22,10 +22,10 @@ public partial class MainWindowViewModel : ViewModelBase
 {
     public string ToolkitVersion { get; } = FormatToolkitVersion();
 
-    private readonly AircraftDetector _detector = new();
+    private readonly AircraftDetector _detector;
     private readonly AircraftInstallAnalyzer _analyzer = new();
     private readonly AircraftViewAnalyzer _viewAnalyzer = new();
-    private readonly ToolkitSettingsStore _settingsStore = ToolkitSettingsStore.CreateDefault();
+    private readonly ToolkitSettingsStore _settingsStore;
     private readonly ToolkitSettingsDocument _settings;
     private readonly ToolStateStore _stateStore;
     private readonly QuickViewBaselineAnalyzer _quickViewBaselineAnalyzer;
@@ -46,7 +46,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private AircraftUpdatePackageCache _aircraftUpdatePackageCache;
     private readonly AircraftUpdateDryRunAnalyzer _aircraftUpdateDryRunAnalyzer = new();
     private readonly IUserInteractionService _userInteractionService;
-    private readonly HttpClient _aircraftUpdateHttpClient = new();
+    private readonly HttpClient _aircraftUpdateHttpClient;
     private readonly IPackageManifestSource _packageManifestSource = new GitHubReleasePackageManifestSource();
     private readonly IReadOnlyList<PackageManifest> _manifests;
     private readonly string _bundledContentPackageCatalogJson;
@@ -99,6 +99,24 @@ public partial class MainWindowViewModel : ViewModelBase
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             SettingsStatus = $"Toolkit update preference could not be saved: {ex.Message}";
+            AppendLog(SettingsStatus);
+        }
+    }
+
+    [ObservableProperty]
+    private bool checkAircraftAndPatchUpdatesOnStartup = true;
+
+    partial void OnCheckAircraftAndPatchUpdatesOnStartupChanged(bool value)
+    {
+        _settings.CheckAircraftAndPatchUpdatesOnStartup = value;
+        try
+        {
+            _settingsStore.Save(_settings);
+            SettingsStatus = value ? "Startup aircraft and patch checks enabled." : "Startup aircraft and patch checks disabled. Manual checks remain available.";
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            SettingsStatus = $"Startup check preference could not be saved: {ex.Message}";
             AppendLog(SettingsStatus);
         }
     }
@@ -559,8 +577,14 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public MainWindowViewModel(
         IUserInteractionService userInteractionService,
-        IApplicationUpdateService? applicationUpdateService = null)
+        IApplicationUpdateService? applicationUpdateService = null,
+        ToolkitSettingsStore? settingsStore = null,
+        HttpClient? releaseHttpClient = null,
+        AircraftDetector? detector = null)
     {
+        _settingsStore = settingsStore ?? ToolkitSettingsStore.CreateDefault();
+        _aircraftUpdateHttpClient = releaseHttpClient ?? new HttpClient();
+        _detector = detector ?? new AircraftDetector();
         _userInteractionService = userInteractionService ?? throw new ArgumentNullException(nameof(userInteractionService));
         ApplicationUpdate = new ApplicationUpdateViewModel(
             applicationUpdateService ?? new VelopackApplicationUpdateService(),
@@ -572,7 +596,8 @@ public partial class MainWindowViewModel : ViewModelBase
         SelectedFreshInstallProduct = FreshInstallProducts.FirstOrDefault();
         _settings = _settingsStore.Load();
         checkToolkitUpdatesOnStartup = _settings.CheckToolkitUpdatesOnStartup;
-        _stateStore = ToolStateStore.CreateDefault(_settings.BackupRootPath);
+        checkAircraftAndPatchUpdatesOnStartup = _settings.CheckAircraftAndPatchUpdatesOnStartup;
+        _stateStore = new ToolStateStore(_settingsStore.RootPath, _settings.BackupRootPath);
         _aircraftUpdatePackageCache = new AircraftUpdatePackageCache(_settings.AircraftUpdateCacheRootPath);
         SelectedAircraftPath = _settings.SelectedAircraftPath;
         BackupRootPath = _stateStore.BackupRootPath;
@@ -596,7 +621,7 @@ public partial class MainWindowViewModel : ViewModelBase
             toolkitVersion);
         _contentPackageCatalogLoader = new ContentPackageCatalogLoader(
             _aircraftUpdateHttpClient,
-            ToolkitPaths.DefaultContentCatalogCacheRootPath,
+            settingsStore is null ? ToolkitPaths.DefaultContentCatalogCacheRootPath : Path.Combine(_settingsStore.RootPath, "content-catalog"),
             toolkitVersion);
         _contentPatchReleaseSource = new GitHubContentPatchReleaseSource(
             _aircraftUpdateHttpClient,
@@ -660,6 +685,13 @@ public partial class MainWindowViewModel : ViewModelBase
         _isInitialized = true;
         var contentCatalogRefresh = RefreshRemoteContentPackageCatalogAsync();
         await Task.WhenAll(AutoDetect(), contentCatalogRefresh);
+        var startupPath = SelectedAircraftPath;
+        var startupProduct = SelectedProduct?.Family;
+        await StartupReleaseChecks.RunAsync(
+            () => CheckAircraftAndPatchUpdatesOnStartup && ActionsEnabled && !IsOperationRunning
+                && SelectedProduct?.IsDetected == true && SelectedProduct.Family == startupProduct
+                && SelectedAircraftPath == startupPath,
+            RefreshAircraftUpdateCheck, CheckContentPackageCatalog);
         // Finish startup maintenance state changes before offering an application restart.
         if (CheckToolkitUpdatesOnStartup)
             await ApplicationUpdate.CheckForUpdatesAsync();
@@ -1069,6 +1101,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
     partial void OnSelectedAircraftPathChanged(string value)
     {
+        ClearHardwareConfigSelection();
         RefreshFreshInstallContext();
     }
 
@@ -1645,7 +1678,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private async Task CheckContentPackageCatalog()
     {
         var productId = SelectedProduct?.IsDetected == true ? SelectedProduct.Family : null;
-        if (IsContentPackageCatalogCheckRunning || string.IsNullOrWhiteSpace(productId))
+        if (!ActionsEnabled || IsOperationRunning || IsContentPackageCatalogCheckRunning || string.IsNullOrWhiteSpace(productId))
         {
             return;
         }
@@ -1664,34 +1697,42 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         IsContentPackageCatalogCheckRunning = true;
+        ActionsEnabled = false;
         CanCheckContentPackageCatalog = false;
         ContentPackageCatalogStatus = $"Checking {onlinePackages.Length} content-package release(s). No aircraft files are changed.";
         var succeeded = 0;
-        foreach (var package in onlinePackages)
+        try
         {
-            try
+            foreach (var package in onlinePackages)
             {
-                ContentPatchRelease release;
-                if (package.Distribution.Kind is ContentPackageDistributionKind.CatalogGroup)
+                try
                 {
-                    var resolution = await _contentPatchReleaseSource.ResolveGroupAsync(_contentPackageCatalog, package);
-                    _catalogGroupResolutions[package.PackageId] = resolution;
-                    release = resolution.Selection;
+                    ContentPatchRelease release;
+                    if (package.Distribution.Kind is ContentPackageDistributionKind.CatalogGroup)
+                    {
+                        var resolution = await _contentPatchReleaseSource.ResolveGroupAsync(_contentPackageCatalog, package);
+                        _catalogGroupResolutions[package.PackageId] = resolution;
+                        release = resolution.Selection;
+                    }
+                    else release = await _contentPatchReleaseSource.GetLatestAsync(package);
+                    _contentPatchReleases[package.PackageId] = release;
+                    _contentPatchReleaseErrors.Remove(package.PackageId);
+                    succeeded++;
+                    AppendLog($"Content catalog: {package.DisplayName} latest stable release is {release.Tag}.");
                 }
-                else release = await _contentPatchReleaseSource.GetLatestAsync(package);
-                _contentPatchReleases[package.PackageId] = release;
-                _contentPatchReleaseErrors.Remove(package.PackageId);
-                succeeded++;
-                AppendLog($"Content catalog: {package.DisplayName} latest stable release is {release.Tag}.");
-            }
-            catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidOperationException)
-            {
-                _contentPatchReleaseErrors[package.PackageId] = ex.Message;
-                AppendLog($"Content catalog check failed for {package.DisplayName}: {ex.Message}");
+                catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidOperationException or TaskCanceledException or UnauthorizedAccessException)
+                {
+                    _contentPatchReleaseErrors[package.PackageId] = ex.Message;
+                    AppendLog($"Content catalog check failed for {package.DisplayName}: {ex.Message}");
+                }
             }
         }
-
-        IsContentPackageCatalogCheckRunning = false;
+        finally
+        {
+            IsContentPackageCatalogCheckRunning = false;
+            ActionsEnabled = true;
+            RefreshContentPackageOverview(preserveStatus: true);
+        }
         ContentPackageCatalogStatus = succeeded == onlinePackages.Length
             ? $"Content-package releases checked: {succeeded}/{onlinePackages.Length}."
             : $"Content-package release checks succeeded: {succeeded}/{onlinePackages.Length}. See package status or Advanced log for details.";
@@ -2031,7 +2072,7 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private async Task UpdateAircraftPackages()
     {
-        if (IsOperationRunning || IsUpstreamCheckRunning)
+        if (!ActionsEnabled || IsOperationRunning || IsUpstreamCheckRunning)
         {
             return;
         }
@@ -2505,7 +2546,7 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private async Task RefreshAircraftUpdateCheck()
     {
-        if (IsUpstreamCheckRunning)
+        if (!ActionsEnabled || IsOperationRunning || IsUpstreamCheckRunning)
         {
             return;
         }
@@ -2516,6 +2557,7 @@ public partial class MainWindowViewModel : ViewModelBase
         ApplyAnalysis(_analyzer.Analyze(CurrentProductAircraftFolderPath(), _manifest));
 
         var selectedVariant = SelectedViewVariant;
+        var checkedPath = SelectedAircraftPath;
         IsUpstreamCheckRunning = true;
         ActionsEnabled = false;
         _lastUpstreamUpdateCheck = null;
@@ -2540,14 +2582,16 @@ public partial class MainWindowViewModel : ViewModelBase
             var result = isLevelUp
                 ? await _levelUpUpdateChecker.CheckAsync(selectedVariant)
                 : await _ziboUpdateChecker.CheckZiboAsync(selectedVariant);
+            if (SelectedAircraftPath != checkedPath || SelectedViewVariant?.AcfPath != selectedVariant?.AcfPath) return;
             ApplyUpstreamUpdateCheck(result);
             AppendLog($"{productName} upstream check: {result.StateLabel} - {result.Summary}");
         }
         catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or IOException or TaskCanceledException or System.Xml.XmlException)
         {
+            if (SelectedAircraftPath != checkedPath || SelectedViewVariant?.AcfPath != selectedVariant?.AcfPath) return;
             UpstreamUpdateStatus = isLevelUp ? "Online source unavailable" : "Feed check failed";
             UpstreamUpdateSummary = isLevelUp
-                ? "No public LevelUp aircraft release is available yet. Import the supplied manifest or adjacent .7z package to continue offline."
+                ? $"The LevelUp release source could not be checked. Retry later or import a downloaded package. {ex.Message}"
                 : ex.Message;
             UpstreamAvailableVersion = "-";
             UpstreamPlanAction = "Not checked";
@@ -2558,11 +2602,11 @@ public partial class MainWindowViewModel : ViewModelBase
             UpstreamDryRunEntries.Clear();
             UpstreamDryRunSummary = "No aircraft package review has been calculated.";
             RefreshUpstreamActionAvailability(isLevelUp
-                ? "Online LevelUp updates are not available yet. Use Import package for the supplied offline test package."
+                ? "Online check failed. Retry later or use Import package for a downloaded package."
                 : "Import unavailable. Upstream package check failed before a plan was available.");
             UpstreamFindings.ReplaceWith(isLevelUp
                 ? [
-                    "The public LevelUp release source is not available yet.",
+                    "The public LevelUp release source could not be checked.",
                     "Use Import package and select either the supplied manifest or its adjacent .7z archive.",
                     $"Technical detail: {ex.Message}"
                 ]

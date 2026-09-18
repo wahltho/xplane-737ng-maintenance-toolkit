@@ -1,6 +1,6 @@
 # X-Plane 737NG Maintenance Toolkit User Manual
 
-This manual describes version 0.13.10 of the X-Plane 737NG Maintenance Toolkit.
+This manual describes version 0.13.11 of the X-Plane 737NG Maintenance Toolkit.
 
 The toolkit is a desktop app for selected Zibo and LevelUp 737NG maintenance
 tasks:
@@ -30,7 +30,7 @@ Keep your own backups and use the tool at your own risk.
 
 ## Compatibility And Installation
 
-Version 0.13.10 supports:
+Version 0.13.11 supports:
 
 - X-Plane 12. X-Plane 11 is not supported.
 - Zibo 737-800X 2K and 4K variants.
@@ -221,7 +221,7 @@ explicit confirmation before writing files. Version 0.13.0 offers the LevelUp
 FANS CDU package as an optional LevelUp-only patch. It remains separate from
 aircraft and VNAV updates and is never installed automatically.
 
-At startup, version 0.13.10 checks immutable `catalog-v*` releases in the Toolkit
+At startup, version 0.13.11 checks immutable `catalog-v*` releases in the Toolkit
 repository for updated package discovery metadata. A downloaded catalog becomes
 active only after schema, version, repository URL and minimum Toolkit version
 validation. If the check fails, the app uses its last valid cached catalog and
@@ -662,3 +662,37 @@ Each source continues updating from its own GitHub releases. Existing installed
 modules are adopted only with verifiable backup state; an unsafe migration is
 blocked without changing aircraft files. The group owns subsequent updates and
 restores for its member patches. See [Catalog groups](CATALOG_GROUPS.md).
+
+
+### Startup aircraft and patch checks
+
+After detecting the selected aircraft and refreshing the catalog, the Toolkit
+checks aircraft releases and maintenance patch releases in sequence. This only
+populates availability; it does not install aircraft or patches. Recent patch
+release metadata is reused from the cache, and an active GitHub rate-limit
+cooldown is respected. If the source is unavailable, use the manual check later.
+
+In Settings, clear `Check aircraft and patch releases at startup` to disable
+these requests. This preference is separate from Toolkit application updates.
+When no supported aircraft is selected at startup, select one and check manually.
+
+### Copying hardware configurations
+
+1. Close X-Plane and select an aircraft inside the intended X-Plane installation.
+2. On Start, click `Find hardware configurations`.
+3. Choose an existing source under `Copy from`, then tick the destination variants.
+4. Click `Copy selected` and confirm the listed source and destinations.
+
+This copies the entire Zibo/LevelUp `_hw.cfg` file in `Output/preferences`,
+including axis calibration and other options stored in that file. It does not
+copy X-Plane joystick profiles, Quick Views or general aircraft settings files.
+Only detected Zibo/LevelUp variants in the same X-Plane installation are offered.
+Zibo 2K and 4K share one configuration. Multiple aircraft folders of the same
+variant also share one configuration. Missing destination files can be created;
+the source must already exist.
+
+Before writing, the Toolkit saves the complete previous state under
+`hardware-config` in the configured backup folder. `Restore last hardware copy`
+undoes that copy for the selected X-Plane installation, including removing files
+created by it. Restore blocks if a destination has been edited since copying.
+The operation log includes the backup location. Keep the backup folder intact.
