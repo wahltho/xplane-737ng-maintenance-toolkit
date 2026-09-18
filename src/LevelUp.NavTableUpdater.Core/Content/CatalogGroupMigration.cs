@@ -29,8 +29,11 @@ internal static class CatalogGroupMigration
             {
                 var matching = remaining.Where(f => string.Equals(f.InstalledSha256, hash, StringComparison.OrdinalIgnoreCase)).ToArray();
                 if (matching.Length == 0) throw new InvalidOperationException($"Cannot verify the complete backup chain for {group.Key}; existing installation retained.");
-                // Identical no-change records do not advance the chain.
-                var next = matching.FirstOrDefault(f => f.OriginalSha256 != f.InstalledSha256) ?? matching[0];
+                // Validate all no-change records at this hash before stepping back to an older hash.
+                // Otherwise those records become unreachable even though their backups are valid.
+                var next = matching.FirstOrDefault(f => f.OriginalExisted
+                    && string.Equals(f.OriginalSha256, f.InstalledSha256, StringComparison.OrdinalIgnoreCase))
+                    ?? matching[0];
                 remaining.Remove(next);
                 if (next.OriginalExisted)
                 {

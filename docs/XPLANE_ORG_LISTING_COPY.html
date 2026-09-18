@@ -29,7 +29,7 @@
   <p>X-Plane 737NG Maintenance Toolkit</p>
 
   <h2>Current Version</h2>
-  <p>0.13.8</p>
+  <p>0.13.9</p>
 
   <h2>Short Description</h2>
   <p>Cross-platform maintenance utility for supported Zibo and LevelUp 737NG aircraft in X-Plane 12, providing aircraft and VNAV updates, transactional backups, CG/view correction, optional patches, tools and resources.</p>
@@ -66,7 +66,7 @@
     <li>background Toolkit application update checks with cancellable verified download and confirmed restart through VeloPack</li>
     <li>remotely versioned package discovery so supported optional content can be added or updated independently from Toolkit application releases</li>
   </ul>
-  <p>Version 0.13.8 with online content catalog 1.7.0 currently offers:</p>
+  <p>Version 0.13.9 with online content catalog 1.7.0 currently offers:</p>
   <ul>
     <li>Optimized XLua</li>
     <li>Yet Another Linda (YAL)</li>
@@ -155,6 +155,9 @@
   <p>The Toolkit source code is available under the MIT License. The application is provided as-is, without warranty of any kind. It can modify aircraft files after validation and backup; users should retain their own backups and use the tool at their own risk.</p>
 
   <h2>Changelog</h2>
+  <h3>0.13.9</h3>
+  <p>Fixes a false backup-chain error when migrating previously installed individual patches into the LevelUp maintenance group. Valid no-change records are now verified before following earlier backup steps. Missing or corrupt backups, incomplete history and unknown file changes remain blocked. Do not delete the Toolkit configuration or backups to work around this error.</p>
+
   <h3>0.13.8</h3>
   <p>LevelUp delta-only releases are now discovered automatically while retaining the published full baseline. Fresh installations stage the full baseline and latest cumulative update together, then apply the required maintenance patches automatically. Baseline references and package integrity are validated before installation.</p>
 

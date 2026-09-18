@@ -42,6 +42,76 @@ public sealed class CatalogGroupMigrationTests : IDisposable
         Assert.Throws<InvalidOperationException>(() => CatalogGroupMigration.Prepare(_root, Manifest(), installed));
     }
 
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public void NoChangeRecords_AtCurrentAndIntermediateHashesPreserveOriginal(bool reverseOrder, bool uppercaseHash)
+    {
+        File.WriteAllText(Path.Combine(_root, "shared.lua"), "both patches");
+        var records = new[]
+        {
+            State("first", "stock", "first patch"),
+            State("intermediate", "first patch", "first patch"),
+            State("second", "first patch", "both patches"),
+            State("current", "both patches", "both patches"),
+            State("duplicate", "both patches", "both patches")
+        };
+        if (uppercaseHash)
+            foreach (var record in records)
+                record.Files[0].OriginalSha256 = record.Files[0].OriginalSha256!.ToUpperInvariant();
+        var installed = (reverseOrder ? records.Reverse() : records)
+            .ToDictionary(record => record.ComponentId);
+        var manifest = Manifest();
+        manifest.Sources.Add(new() { PackageId = "intermediate" });
+        manifest.Sources.Add(new() { PackageId = "current" });
+        manifest.Sources.Add(new() { PackageId = "duplicate" });
+
+        var result = CatalogGroupMigration.Prepare(_root, manifest, installed)!;
+
+        var file = Assert.Single(result.Files);
+        Assert.Equal(Hash("stock"), file.OriginalSha256, ignoreCase: true);
+        Assert.Equal("stock", File.ReadAllText(file.BackupPath));
+        Assert.Equal(Hash("both patches"), file.InstalledSha256);
+        Assert.Equal("both patches", File.ReadAllText(Path.Combine(_root, "shared.lua")));
+        Assert.Equal(5, installed.Count);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void InvalidNoChangeBackup_StillBlocks(bool missing)
+    {
+        File.WriteAllText(Path.Combine(_root, "shared.lua"), "both patches");
+        var installed = new Dictionary<string, ContentComponentState>
+        {
+            ["first"] = State("first", "stock", "both patches"),
+            ["second"] = State("second", "both patches", "both patches")
+        };
+        var backup = installed["second"].Files[0].BackupPath;
+        if (missing) File.Delete(backup);
+        else File.WriteAllText(backup, "corrupt");
+
+        Assert.Throws<InvalidOperationException>(() => CatalogGroupMigration.Prepare(_root, Manifest(), installed));
+        Assert.Equal("both patches", File.ReadAllText(Path.Combine(_root, "shared.lua")));
+        Assert.Equal(2, installed.Count);
+    }
+
+    [Fact]
+    public void NoChangeRecord_DoesNotHideDisconnectedHistory()
+    {
+        File.WriteAllText(Path.Combine(_root, "shared.lua"), "both patches");
+        var installed = new Dictionary<string, ContentComponentState>
+        {
+            ["first"] = State("first", "stock", "different patch"),
+            ["second"] = State("second", "both patches", "both patches")
+        };
+        var error = Assert.Throws<InvalidOperationException>(() => CatalogGroupMigration.Prepare(_root, Manifest(), installed));
+        Assert.Contains("complete backup chain", error.Message);
+        Assert.Equal("both patches", File.ReadAllText(Path.Combine(_root, "shared.lua")));
+    }
+
     private Dictionary<string, ContentComponentState> States() => new()
     {
         ["first"] = State("first", "stock", "first patch"),
