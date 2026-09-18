@@ -16,6 +16,8 @@ using LevelUp.NavTableUpdater.Core.State;
 using LevelUp.NavTableUpdater.Core.Upstream;
 
 
+[assembly: AvaloniaTestApplication(typeof(LevelUp.NavTableUpdater.Core.Tests.UiTestAppBuilder))]
+
 namespace LevelUp.NavTableUpdater.Core.Tests;
 
 public sealed class UiTestAppBuilder
@@ -119,7 +121,10 @@ public sealed class MainWindowUiTests
 
     private static async Task Run(Func<Task> test)
     {
-        using var session = HeadlessUnitTestSession.StartNew(typeof(UiTestAppBuilder));
+        // Use the framework-owned assembly session, as Avalonia's test adapters do.
+        // Each dispatch still gets an isolated application. Per-test session disposal
+        // hits a startup-task race in Avalonia 12.1.0 on fast Windows runners.
+        var session = HeadlessUnitTestSession.GetOrStartForAssembly(typeof(MainWindowUiTests).Assembly);
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(40));
         await session.Dispatch(async () => { await test(); return true; }, timeout.Token);
     }
