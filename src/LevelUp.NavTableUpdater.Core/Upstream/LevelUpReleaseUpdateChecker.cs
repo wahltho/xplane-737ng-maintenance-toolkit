@@ -173,6 +173,26 @@ public sealed class LevelUpReleaseUpdateChecker
         var full = packages.SingleOrDefault(package =>
             package.Kind == AircraftUpdatePackageKind.FullBaseline
             && package.Version.Patch == latestSequence);
+        var patch = packages.SingleOrDefault(package =>
+            package.Kind == AircraftUpdatePackageKind.CumulativePatch
+            && package.Version.Patch == latestSequence);
+        var baseline = full is null && patch is not null
+            ? packages.SingleOrDefault(package => package.Kind == AircraftUpdatePackageKind.FullBaseline
+                && VersionsEqual(package.ReleaseVersion, patch.BaselineVersion)
+                && package.Version.Patch < latestSequence)
+            : null;
+        if (baseline is not null && patch is not null)
+        {
+            findings.Add("Install the verified published full baseline followed by the latest cumulative patch in staging.");
+            return BuildResult(
+                "Ready to install",
+                $"Install LevelUp {baseline.ReleaseVersion} and cumulative update {patch.ReleaseVersion}.",
+                index, "Not installed", patch.ReleaseVersion!,
+                AircraftUpdatePlanAction.InstallBaselineAndCumulativePatch,
+                "Install full baseline and latest cumulative update", false,
+                [baseline, patch], findings);
+        }
+
         var availableVersion = full?.ReleaseVersion;
         if (full is null || string.IsNullOrWhiteSpace(availableVersion))
         {

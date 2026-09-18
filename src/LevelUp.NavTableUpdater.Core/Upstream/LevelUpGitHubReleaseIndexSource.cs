@@ -43,14 +43,24 @@ public sealed class LevelUpGitHubReleaseIndexSource : IAircraftUpdateIndexSource
     public string IndexUrl { get; }
 
     public async Task<AircraftUpdateIndex> LoadAsync(
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        await LoadIndexAsync(IndexUrl, expectedTag: null, cancellationToken);
+
+    private async Task<AircraftUpdateIndex> LoadIndexAsync(
+        string indexUrl, string? expectedTag, CancellationToken cancellationToken)
     {
         var indexBytes = await DownloadBytesAsync(
-            IndexUrl,
+            indexUrl,
             MaximumIndexBytes,
             cancellationToken);
         var document = Deserialize<ReleaseIndexDocument>(indexBytes, "release index");
         ValidateIndex(document);
+        if (expectedTag is not null
+            && (document.ReleaseTag != expectedTag || document.BaselineReleaseTag is not null
+                || document.ReleaseChannel != "stable"))
+        {
+            throw new InvalidDataException("Referenced LevelUp baseline index has an unexpected tag or nested baseline reference.");
+        }
 
         var releaseAssetBaseUrl =
             $"https://github.com/{Repository}/releases/download/"
@@ -99,7 +109,31 @@ public sealed class LevelUpGitHubReleaseIndexSource : IAircraftUpdateIndexSource
                     manifest));
         }
 
-        return new AircraftUpdateIndex(Family, IndexUrl, packages);
+        if (document.BaselineReleaseTag is not null)
+        {
+            if (!IsSafeAssetFileName(document.BaselineReleaseTag)
+                || document.BaselineReleaseTag == document.ReleaseTag
+                || packages.Any(package => package.Kind == AircraftUpdatePackageKind.FullBaseline))
+            {
+                throw new InvalidDataException("Invalid LevelUp baseline release reference.");
+            }
+
+            var patch = packages.SingleOrDefault(package => package.Kind == AircraftUpdatePackageKind.CumulativePatch)
+                ?? throw new InvalidDataException("A baseline reference requires a cumulative patch.");
+            var baselineUrl = $"https://github.com/{Repository}/releases/download/"
+                + Uri.EscapeDataString(document.BaselineReleaseTag) + "/release-index.json";
+            var baselineIndex = await LoadIndexAsync(baselineUrl, document.BaselineReleaseTag, cancellationToken);
+            var full = baselineIndex.Packages.SingleOrDefault(package => package.Kind == AircraftUpdatePackageKind.FullBaseline);
+            if (full is null || !VersionsEqual(full.ReleaseVersion, patch.BaselineVersion)
+                || full.Version.Patch >= document.ReleaseSequence)
+            {
+                throw new InvalidDataException("Referenced full package does not match the cumulative patch baseline.");
+            }
+
+            packages.Add(full);
+        }
+
+        return new AircraftUpdateIndex(Family, indexUrl, packages);
     }
 
     private async Task<byte[]> DownloadBytesAsync(
@@ -284,6 +318,7 @@ public sealed class LevelUpGitHubReleaseIndexSource : IAircraftUpdateIndexSource
         public string? ReleaseVersion { get; set; }
         public long ReleaseSequence { get; set; }
         public string? ReleaseTag { get; set; }
+        public string? BaselineReleaseTag { get; set; }
         public string? ReleaseChannel { get; set; }
         public string? MinimumToolkitVersion { get; set; }
         public List<ReleasePackageDocument>? Packages { get; set; }

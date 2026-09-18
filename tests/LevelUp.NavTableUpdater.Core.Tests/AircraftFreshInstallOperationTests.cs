@@ -39,11 +39,13 @@ public sealed class AircraftFreshInstallOperationTests : IDisposable
             path => Path.GetFileName(path).Contains("toolkit-install", StringComparison.Ordinal));
     }
 
-    [Fact]
-    public void Apply_ZiboFullBaselineAndCumulativePatch_ActivatesPatchedImage()
+    [Theory]
+    [InlineData("zibo-737ng")]
+    [InlineData("levelup-737ng")]
+    public void Apply_FullBaselineAndCumulativePatch_ActivatesPatchedImage(string productId)
     {
         var xPlaneRoot = CreateXPlaneRoot();
-        var product = AircraftFreshInstallProduct.All.Single(item => item.ProductId == AircraftProductIds.Zibo737Ng);
+        var product = AircraftFreshInstallProduct.All.Single(item => item.ProductId == productId);
         var fullPackage = CreatePackage(product, validStructure: true);
         var patchPackage = CreatePatchPackage(product);
         var target = Path.Combine(xPlaneRoot, "Aircraft", "Fresh B737-800X");

@@ -115,6 +115,77 @@ public sealed class LevelUpGitHubReleaseUpdateTests
         Assert.Contains("requires toolkit 0.4.0 or newer", exception.Message, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task DeltaFeed_SelectsDeltaForExistingBaselineAndFullThenDeltaForFreshInstall()
+    {
+        var fixture = CreateDeltaOnlyFixture();
+        var checker = CreateChecker(fixture);
+        var update = await checker.CheckAsync(BuildVariant("2.S1.50C"));
+        Assert.Equal(AircraftUpdatePlanAction.ApplyCumulativePatch, update.Action);
+        Assert.Equal("v2.S1.51C", Assert.Single(update.RequiredPackages).ReleaseVersion);
+        var fresh = await checker.CheckFreshInstallAsync();
+        Assert.Equal("v2.S1.51C", fresh.AvailableVersionDisplay);
+        Assert.Collection(fresh.RequiredPackages,
+            full => { Assert.Equal(AircraftUpdatePackageKind.FullBaseline, full.Kind); Assert.Equal("v2.S1.50C", full.ReleaseVersion); Assert.Contains("/v2.S1.50C/", full.SourceUrl); },
+            patch => { Assert.Equal(AircraftUpdatePackageKind.CumulativePatch, patch.Kind); Assert.Equal("v2.S1.51C", patch.ReleaseVersion); Assert.Contains("/v2.S1.51C/", patch.SourceUrl); });
+        var current = await checker.CheckAsync(BuildVariant("2.S1.51C"));
+        Assert.Equal(AircraftUpdatePlanAction.UpToDate, current.Action);
+        var mismatch = await checker.CheckAsync(BuildVariant("unknown"));
+        Assert.Equal(AircraftUpdatePlanAction.BaselineMismatch, mismatch.Action);
+    }
+
+    [Theory]
+    [InlineData("wrong-baseline")]
+    [InlineData("nested-reference")]
+    [InlineData("wrong-tag")]
+    [InlineData("corrupt-manifest")]
+    [InlineData("newer-baseline")]
+    [InlineData("missing-index")]
+    public async Task DeltaFeed_RejectsInvalidReferencedBaseline(string failure)
+    {
+        var fixture = CreateDeltaOnlyFixture(failure);
+        using var client = fixture.CreateClient();
+        var source = new LevelUpGitHubReleaseIndexSource(client, ToolkitVersion, fixture.IndexUrl);
+        if (failure == "missing-index")
+            await Assert.ThrowsAsync<HttpRequestException>(() => source.LoadAsync());
+        else
+            await Assert.ThrowsAsync<InvalidDataException>(() => source.LoadAsync());
+    }
+
+    private static ReleaseFixture CreateDeltaOnlyFixture(string? failure = null)
+    {
+        var original = CreateReleaseFixture();
+        var responses = original.Responses.ToDictionary(pair => pair.Key, pair => pair.Value);
+        var baseline = System.Text.Json.Nodes.JsonNode.Parse(responses[original.IndexUrl])!;
+        var latest = baseline.DeepClone();
+        latest["releaseVersion"] = "v2.S1.51C";
+        latest["releaseTag"] = "v2.S1.51C";
+        latest["releaseSequence"] = failure == "newer-baseline" ? 2 : 4;
+        latest["baselineReleaseTag"] = "v2.S1.50C";
+        var packages = latest["packages"]!.AsArray();
+        packages.RemoveAt(0);
+        var patch = packages[0]!;
+        patch["releaseVersion"] = "v2.S1.51C";
+        patch["baselineVersion"] = failure == "wrong-baseline" ? "wrong" : "v2.S1.50C";
+        patch["baselineAliases"] = new System.Text.Json.Nodes.JsonArray();
+        const string oldBase = "https://github.com/petrolpram/737NG-Updates/releases/download/v2.S1.50C";
+        const string newBase = "https://github.com/petrolpram/737NG-Updates/releases/download/v2.S1.51C";
+        var manifest = System.Text.Json.Nodes.JsonNode.Parse(responses[oldBase + "/LU%20patch.manifest.json"])!;
+        manifest["targetVersion"] = "v2.S1.51C";
+        manifest["releaseSequence"] = failure == "newer-baseline" ? 2 : 4;
+        manifest["baselineVersion"] = patch["baselineVersion"]!.GetValue<string>();
+        manifest["baselineAliases"] = new System.Text.Json.Nodes.JsonArray();
+        var manifestBytes = Encoding.UTF8.GetBytes(manifest.ToJsonString());
+        patch["manifestSha256"] = Sha256(manifestBytes);
+        responses[newBase + "/LU%20patch.manifest.json"] = manifestBytes;
+        if (failure == "nested-reference") baseline["baselineReleaseTag"] = "v2.S1.51C";
+        if (failure == "wrong-tag") baseline["releaseTag"] = "wrong";
+        if (failure == "corrupt-manifest") baseline["packages"]![0]!["manifestSha256"] = new string('f', 64);
+        if (failure != "missing-index") responses[oldBase + "/release-index.json"] = Encoding.UTF8.GetBytes(baseline.ToJsonString());
+        responses[original.IndexUrl] = Encoding.UTF8.GetBytes(latest.ToJsonString());
+        return new ReleaseFixture(original.IndexUrl, responses);
+    }
+
     private static LevelUpReleaseUpdateChecker CreateChecker(ReleaseFixture fixture)
     {
         var client = fixture.CreateClient();
