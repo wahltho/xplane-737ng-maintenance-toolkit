@@ -9,6 +9,139 @@ namespace LevelUp.NavTableUpdater.Core.Tests;
 
 public sealed class GitHubContentPatchReleaseSourceTests
 {
+    [Fact]
+    public async Task MetadataCache_CoalescesChecksSurvivesRestartAndExpires()
+    {
+        using var directory = new DeclarativePatchManifestTests.TemporaryDirectory();
+        using var inner = CreateClient(BuildArchive());
+        var handler = new CountingReleaseHandler(inner);
+        using var client = new HttpClient(handler);
+        var clock = new ReleaseClock();
+        var source = new GitHubContentPatchReleaseSource(client, directory.Path, clock);
+        await Task.WhenAll(Enumerable.Range(0, 6).Select(_ => source.GetLatestAsync(BuildCatalogEntry())));
+        Assert.Equal(1, handler.Count);
+        await new GitHubContentPatchReleaseSource(client, directory.Path, clock).GetLatestAsync(BuildCatalogEntry());
+        Assert.Equal(1, handler.Count);
+        clock.Now += TimeSpan.FromMinutes(11);
+        await source.GetLatestAsync(BuildCatalogEntry());
+        Assert.Equal(2, handler.Count);
+    }
+
+    [Theory]
+    [InlineData(403)]
+    [InlineData(429)]
+    public async Task RateLimit_SuppressesRetriesAcrossInstancesUntilReset(int status)
+    {
+        using var directory = new DeclarativePatchManifestTests.TemporaryDirectory();
+        using var inner = CreateClient(BuildArchive());
+        var clock = new ReleaseClock();
+        var handler = new CountingReleaseHandler(inner, count =>
+        {
+            if (count != 1) return null;
+            var response = new HttpResponseMessage((HttpStatusCode)status);
+            response.Headers.Add("x-ratelimit-remaining", "0");
+            response.Headers.Add("x-ratelimit-reset", clock.Now.AddMinutes(20).ToUnixTimeSeconds().ToString());
+            response.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(TimeSpan.FromMinutes(25));
+            return response;
+        });
+        using var client = new HttpClient(handler);
+        var source = new GitHubContentPatchReleaseSource(client, directory.Path, clock);
+        var error = await Assert.ThrowsAsync<HttpRequestException>(() => source.GetLatestAsync(BuildCatalogEntry()));
+        Assert.Contains("Retry after", error.Message);
+        Assert.Contains("Do not reinstall", error.Message);
+        clock.Now += TimeSpan.FromMinutes(21);
+        await Assert.ThrowsAsync<HttpRequestException>(() => new GitHubContentPatchReleaseSource(client, directory.Path, clock).GetLatestAsync(BuildCatalogEntry()));
+        Assert.Equal(1, handler.Count);
+        clock.Now += TimeSpan.FromMinutes(5);
+        var release = await source.GetLatestAsync(BuildCatalogEntry());
+        Assert.Equal("v0.1.2", release.Tag);
+        Assert.Equal(2, handler.Count);
+    }
+
+    [Fact]
+    public async Task PermissionFailure_IsNotTreatedAsRateLimit()
+    {
+        using var directory = new DeclarativePatchManifestTests.TemporaryDirectory();
+        using var inner = CreateClient(BuildArchive());
+        var handler = new CountingReleaseHandler(inner, _ => new HttpResponseMessage(HttpStatusCode.Forbidden));
+        using var client = new HttpClient(handler);
+        var source = new GitHubContentPatchReleaseSource(client, directory.Path);
+        for (var i = 0; i < 2; i++)
+        {
+            var error = await Assert.ThrowsAsync<HttpRequestException>(() => source.GetLatestAsync(BuildCatalogEntry()));
+            Assert.DoesNotContain("Retry after", error.Message);
+        }
+        Assert.Equal(2, handler.Count);
+    }
+
+    [Fact]
+    public async Task CorruptMetadataCache_IsRefetched()
+    {
+        using var directory = new DeclarativePatchManifestTests.TemporaryDirectory();
+        using var inner = CreateClient(BuildArchive());
+        var handler = new CountingReleaseHandler(inner);
+        using var client = new HttpClient(handler);
+        var source = new GitHubContentPatchReleaseSource(client, directory.Path);
+        await source.GetLatestAsync(BuildCatalogEntry());
+        var file = Assert.Single(Directory.GetFiles(Path.Combine(directory.Path, "release-metadata")));
+        File.WriteAllText(file, "broken json");
+        await source.GetLatestAsync(BuildCatalogEntry());
+        Assert.Equal(2, handler.Count);
+    }
+
+    [Fact]
+    public async Task RateLimit_AlsoBlocksOtherRepositoriesAndNeverUsesExpiredMetadata()
+    {
+        using var directory = new DeclarativePatchManifestTests.TemporaryDirectory();
+        using var inner = CreateClient(BuildArchive());
+        var clock = new ReleaseClock();
+        var handler = new CountingReleaseHandler(inner, count => count == 1 ? null
+            : new HttpResponseMessage(HttpStatusCode.Forbidden) { ReasonPhrase = "rate limit exceeded" });
+        using var client = new HttpClient(handler);
+        var source = new GitHubContentPatchReleaseSource(client, directory.Path, clock);
+        await source.GetLatestAsync(BuildCatalogEntry());
+        clock.Now += TimeSpan.FromMinutes(11);
+        await Assert.ThrowsAsync<HttpRequestException>(() => source.GetLatestAsync(BuildCatalogEntry()));
+        var other = BuildCatalogEntry();
+        other.RepositoryUrl = "https://github.com/example/another-patch";
+        await Assert.ThrowsAsync<HttpRequestException>(() => source.GetLatestAsync(other));
+        await Assert.ThrowsAsync<HttpRequestException>(() => source.GetLatestAsync(BuildCatalogEntry()));
+        Assert.Equal(2, handler.Count);
+    }
+
+    [Fact]
+    public async Task NetworkFailure_IsNotCachedAsSuccessfulMetadata()
+    {
+        using var directory = new DeclarativePatchManifestTests.TemporaryDirectory();
+        using var inner = CreateClient(BuildArchive());
+        var handler = new CountingReleaseHandler(inner, count => count == 1
+            ? new HttpResponseMessage(HttpStatusCode.ServiceUnavailable) : null);
+        using var client = new HttpClient(handler);
+        var source = new GitHubContentPatchReleaseSource(client, directory.Path);
+        await Assert.ThrowsAsync<HttpRequestException>(() => source.GetLatestAsync(BuildCatalogEntry()));
+        var release = await source.GetLatestAsync(BuildCatalogEntry());
+        Assert.Equal("v0.1.2", release.Tag);
+        Assert.Equal(2, handler.Count);
+    }
+
+    private sealed class ReleaseClock : TimeProvider
+    {
+        public DateTimeOffset Now = new(2026, 9, 18, 0, 0, 0, TimeSpan.Zero);
+        public override DateTimeOffset GetUtcNow() => Now;
+    }
+
+    private sealed class CountingReleaseHandler(HttpClient inner, Func<int, HttpResponseMessage?>? intercept = null) : HttpMessageHandler
+    {
+        public int Count;
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
+        {
+            Count++;
+            var response = intercept?.Invoke(Count);
+            return response is not null ? Task.FromResult(response)
+                : inner.GetAsync(request.RequestUri, token);
+        }
+    }
+
     private const string ApiUrl = "https://api.github.com/repos/example/levelup-fans/releases/latest";
     private const string AssetUrl = "https://github.com/example/levelup-fans/releases/download/v0.1.2/LevelUp-FANS-v0.1.2.zip";
 

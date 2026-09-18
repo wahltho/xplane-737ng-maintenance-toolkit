@@ -41,13 +41,15 @@ public sealed partial class GitHubContentPatchReleaseSource
 
     private readonly HttpClient _httpClient;
     private readonly string _cacheRoot;
+    private readonly TimeProvider _timeProvider;
 
-    public GitHubContentPatchReleaseSource(HttpClient httpClient, string cacheRoot)
+    public GitHubContentPatchReleaseSource(HttpClient httpClient, string cacheRoot, TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(httpClient);
         ArgumentException.ThrowIfNullOrWhiteSpace(cacheRoot);
         _httpClient = httpClient;
         _cacheRoot = Path.GetFullPath(cacheRoot);
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     public async Task<ContentPatchRelease> GetLatestAsync(
@@ -60,7 +62,7 @@ public sealed partial class GitHubContentPatchReleaseSource
         using var request = new HttpRequestMessage(HttpMethod.Get, apiUrl);
         request.Headers.UserAgent.Add(new ProductInfoHeaderValue("XPlane737NGMaintenanceToolkit", "1.0"));
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
-        var bytes = await DownloadBytesAsync(request, MaximumMetadataBytes, cancellationToken).ConfigureAwait(false);
+        var bytes = await GetReleaseMetadataAsync(request, cancellationToken).ConfigureAwait(false);
 
         GitHubReleaseDocument release;
         try
@@ -238,39 +240,6 @@ public sealed partial class GitHubContentPatchReleaseSource
                 Directory.Delete(tempDirectory, recursive: true);
             }
         }
-    }
-
-    private async Task<byte[]> DownloadBytesAsync(
-        HttpRequestMessage request,
-        int maximumBytes,
-        CancellationToken cancellationToken)
-    {
-        using var response = await _httpClient.SendAsync(
-            request,
-            HttpCompletionOption.ResponseHeadersRead,
-            cancellationToken).ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
-        if (response.Content.Headers.ContentLength is > 0
-            && response.Content.Headers.ContentLength > maximumBytes)
-        {
-            throw new InvalidDataException("GitHub release metadata exceeds the size limit.");
-        }
-
-        await using var input = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-        using var output = new MemoryStream();
-        var buffer = new byte[81920];
-        int read;
-        while ((read = await input.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
-        {
-            if (output.Length + read > maximumBytes)
-            {
-                throw new InvalidDataException("GitHub release metadata exceeds the size limit.");
-            }
-
-            output.Write(buffer, 0, read);
-        }
-
-        return output.ToArray();
     }
 
     private async Task DownloadArchiveAsync(
