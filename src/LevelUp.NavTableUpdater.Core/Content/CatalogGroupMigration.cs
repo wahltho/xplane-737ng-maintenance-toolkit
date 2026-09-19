@@ -24,6 +24,35 @@ internal static class CatalogGroupMigration
             var current = File.ReadAllBytes(path);
             var hash = Hash(current);
             var remaining = group.ToList();
+            var initialMatches = remaining
+                .Where(f => string.Equals(f.InstalledSha256, hash, StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+            if (initialMatches.Length == 0)
+            {
+                // A clean aircraft reinstall can restore the exact pre-patch file while
+                // standalone patch state remains outside the aircraft directory. Rebase
+                // only on a byte-for-byte verified recorded original; an unknown file
+                // must continue to block migration.
+                var recordedOriginal = remaining.FirstOrDefault(f =>
+                    f.OriginalExisted
+                    && string.Equals(f.OriginalSha256, hash, StringComparison.OrdinalIgnoreCase)
+                    && BackupMatches(f));
+                if (recordedOriginal is null)
+                    throw new InvalidOperationException($"Cannot verify the complete backup chain for {group.Key}; existing installation retained.");
+
+                result.Files.Add(new()
+                {
+                    RelativePath = group.Key,
+                    TargetPath = path,
+                    BackupPath = recordedOriginal.BackupPath,
+                    OriginalExisted = true,
+                    OriginalSha256 = recordedOriginal.OriginalSha256,
+                    OriginalSizeBytes = recordedOriginal.OriginalSizeBytes,
+                    InstalledSha256 = hash,
+                    InstalledSizeBytes = current.LongLength
+                });
+                continue;
+            }
             ContentComponentFileState? original = null;
             while (remaining.Count > 0)
             {
@@ -54,5 +83,14 @@ internal static class CatalogGroupMigration
         }
         return result;
     }
+
+    private static bool BackupMatches(ContentComponentFileState file)
+    {
+        if (string.IsNullOrWhiteSpace(file.BackupPath) || !File.Exists(file.BackupPath)) return false;
+        var bytes = File.ReadAllBytes(file.BackupPath);
+        return bytes.LongLength == file.OriginalSizeBytes
+            && Hash(bytes).Equals(file.OriginalSha256, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static string Hash(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
 }

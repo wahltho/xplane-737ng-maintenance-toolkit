@@ -2398,9 +2398,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
         if (scanInstalledTarget)
         {
-            SelectedAircraftPath = targetPath;
-            SaveSelectedAircraftPathSetting();
-            Scan();
+            await SelectFreshInstalledAircraftAsync(targetPath);
             if (product.ProductId == AircraftProductIds.LevelUp737Ng && SelectedViewVariant is { } installedVariant)
             {
                 var patches = await OfferVnavFollowUpAsync(aircraftUpdateCompleted: true);
@@ -2412,6 +2410,13 @@ public partial class MainWindowViewModel : ViewModelBase
                 "Aircraft installation complete",
                 $"{product.DisplayName} {installPlan.AvailableVersionDisplay} was installed into:{Environment.NewLine}{targetPath}{Environment.NewLine}{Environment.NewLine}The new aircraft has been selected. Use Update to install or repair its VNAV tables."));
         }
+    }
+
+    internal async Task SelectFreshInstalledAircraftAsync(string targetPath)
+    {
+        SelectedAircraftPath = Path.TrimEndingDirectorySeparator(Path.GetFullPath(targetPath));
+        SaveSelectedAircraftPathSetting();
+        await AutoDetect();
     }
 
     public async Task ImportFreshInstallPackageAsync(string path)

@@ -46,7 +46,7 @@ public sealed class AircraftDetector
                         continue;
                     }
 
-                    var fullPath = Path.GetFullPath(directory);
+                    var fullPath = Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory));
                     var canonicalPath = ResolveCanonicalDirectoryPath(fullPath);
                     var reason = hasLuaTarget
                         ? "Found XLua B738.a_fms target script."

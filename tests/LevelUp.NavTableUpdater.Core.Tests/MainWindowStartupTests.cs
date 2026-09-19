@@ -61,6 +61,33 @@ public sealed class MainWindowStartupTests : IDisposable
         }
     }
 
+    [Fact]
+    public async Task FreshInstallSelection_RefreshesDetectedTargetsAndDisplaysProductName()
+    {
+        var folder = Path.Combine(_root, "Aircraft", "737NG Series");
+        Directory.CreateDirectory(folder);
+        var reference = AircraftReferenceCatalog.All.Single(r => r.AircraftId == "levelup-737-800");
+        File.WriteAllText(
+            Path.Combine(folder, reference.AcfFileName),
+            $"1200 Version\nP acf/_name {reference.ExpectedName}\nP acf/_descrip {reference.ExpectedDescription}\nP acf/_studio {reference.ExpectedStudioContains}\nP acf/_cgY 0\nP acf/_cgZ 0\n");
+        var store = new ToolkitSettingsStore(Path.Combine(_root, "state"));
+        using var client = new HttpClient(new OfflineHandler(timeout: false));
+        var vm = new MainWindowViewModel(
+            new NoDialogs(),
+            new NoApplicationUpdate(),
+            settingsStore: store,
+            releaseHttpClient: client,
+            detector: new AircraftDetector(Path.Combine(_root, "empty-home")));
+
+        await vm.SelectFreshInstalledAircraftAsync(folder + Path.DirectorySeparatorChar);
+
+        var candidate = Assert.Single(vm.DetectedTargets);
+        Assert.Equal("737NG Series", candidate.Name);
+        Assert.Same(candidate, vm.SelectedCandidate);
+        Assert.Equal(Path.GetFullPath(folder), vm.SelectedAircraftPath);
+        Assert.Equal("LevelUp", vm.SelectedProductName);
+    }
+
     private sealed class OfflineHandler(bool timeout) : HttpMessageHandler
     {
         public List<string> Urls { get; } = [];

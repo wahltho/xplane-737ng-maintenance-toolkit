@@ -34,6 +34,41 @@ public sealed class CatalogGroupMigrationTests : IDisposable
     }
 
     [Fact]
+    public void CleanReinstallAtRecordedOriginal_RebasesMigrationWithoutDeletingHistory()
+    {
+        File.WriteAllText(Path.Combine(_root, "shared.lua"), "stock");
+        var installed = States();
+
+        var result = CatalogGroupMigration.Prepare(_root, Manifest(), installed)!;
+
+        var file = Assert.Single(result.Files);
+        Assert.Equal(Hash("stock"), file.OriginalSha256);
+        Assert.Equal(Hash("stock"), file.InstalledSha256);
+        Assert.Equal("stock", File.ReadAllText(file.BackupPath));
+        Assert.Equal("stock", File.ReadAllText(Path.Combine(_root, "shared.lua")));
+        Assert.Equal(2, installed.Count); // Planning must not transfer ownership yet.
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CleanReinstallAtRecordedOriginal_WithUnavailableBackupBlocks(bool missing)
+    {
+        File.WriteAllText(Path.Combine(_root, "shared.lua"), "stock");
+        var installed = States();
+        var backup = installed["first"].Files[0].BackupPath;
+        if (missing) File.Delete(backup);
+        else File.WriteAllText(backup, "corrupt");
+
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            CatalogGroupMigration.Prepare(_root, Manifest(), installed));
+
+        Assert.Contains("complete backup chain", error.Message);
+        Assert.Equal("stock", File.ReadAllText(Path.Combine(_root, "shared.lua")));
+        Assert.Equal(2, installed.Count);
+    }
+
+    [Fact]
     public void CorruptOriginalBackup_BlocksMigration()
     {
         File.WriteAllText(Path.Combine(_root, "shared.lua"), "both patches");

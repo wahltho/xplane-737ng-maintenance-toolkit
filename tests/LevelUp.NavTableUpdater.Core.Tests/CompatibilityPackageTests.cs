@@ -518,6 +518,71 @@ public sealed class CompatibilityPackageTests
         Assert.Equal("before\r\n", File.ReadAllText(fixture.TargetPath));
     }
 
+    [Fact]
+    public async Task CatalogMigration_AfterCleanReinstall_ReappliesGroupAndRestoresCleanFile()
+    {
+        using var fixture = Fixture.Create(singleComposableModule: true, omitStructuralResultHashes: true);
+        var manifestPath = Path.Combine(fixture.PackageDirectory, "package-manifest.json");
+        var document = JsonNode.Parse(File.ReadAllText(manifestPath))!;
+        document["sources"] = JsonSerializer.SerializeToNode(new[]
+        {
+            new
+            {
+                packageId = "source.core",
+                moduleId = "core",
+                releaseTag = "v1.0.0",
+                assetSha256 = new string('a', 64),
+                repositoryUrl = "https://github.com/example/core"
+            }
+        });
+        File.WriteAllText(manifestPath, document.ToJsonString());
+        var cleanBytes = File.ReadAllBytes(fixture.TargetPath);
+        var cleanBackup = Path.Combine(Path.GetDirectoryName(fixture.Store.StatePath)!, "clean-shared.lua");
+        Directory.CreateDirectory(Path.GetDirectoryName(cleanBackup)!);
+        File.WriteAllBytes(cleanBackup, cleanBytes);
+        fixture.Store.UpdateContentAndProduct(fixture.Variant, (installation, product) =>
+        {
+            var legacy = new ContentComponentState
+            {
+                ComponentId = "source.core",
+                PackageVersion = "1.0.0",
+                EnabledModules = ["core"],
+                Files =
+                [
+                    new()
+                    {
+                        RelativePath = "plugins/xlua/scripts/shared.lua",
+                        TargetPath = fixture.TargetPath,
+                        BackupPath = cleanBackup,
+                        OriginalExisted = true,
+                        OriginalSizeBytes = cleanBytes.LongLength,
+                        OriginalSha256 = Sha256(cleanBytes),
+                        InstalledSizeBytes = Encoding.UTF8.GetByteCount("core\r\n"),
+                        InstalledSha256 = Sha256(Encoding.UTF8.GetBytes("core\r\n"))
+                    }
+                ]
+            };
+            installation.ContentComponents[legacy.ComponentId] = legacy;
+            product.ContentComponents[legacy.ComponentId] = legacy;
+        });
+        var operation = new CompatibilityPackageOperation(fixture.Store, () => false);
+
+        var applied = await operation.RunAsync(
+            ContentPatchAction.Update,
+            fixture.Variant,
+            fixture.PackageDirectory,
+            []);
+
+        Assert.True(applied.Succeeded, applied.Message);
+        Assert.Equal("core\r\n", File.ReadAllText(fixture.TargetPath));
+        var installation = fixture.Store.TryGetContentInstallation(
+            Path.GetDirectoryName(fixture.Variant.AcfPath)!)!;
+        Assert.DoesNotContain("source.core", installation.ContentComponents.Keys);
+        Assert.Contains("levelup.compatibility", installation.ContentComponents.Keys);
+        Assert.True(operation.Restore(fixture.Variant, fixture.PackageDirectory).Succeeded);
+        Assert.Equal("before\r\n", File.ReadAllText(fixture.TargetPath));
+    }
+
     private sealed class Fixture : IDisposable
     {
         private readonly DeclarativePatchManifestTests.TemporaryDirectory _directory;

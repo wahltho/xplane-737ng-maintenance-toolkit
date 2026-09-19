@@ -37,6 +37,22 @@ public sealed class AircraftDetectorTests
     }
 
     [Fact]
+    public void FindCandidates_WhenDirectAircraftFolderHasTrailingSeparator_KeepsProductName()
+    {
+        using var fixture = DetectorFixture.Create();
+        var aircraftRoot = Path.Combine(fixture.RootPath, "Custom", "737NG Series");
+        Directory.CreateDirectory(aircraftRoot);
+        DetectorFixture.WriteZiboAcf(aircraftRoot);
+        var rootWithSeparator = aircraftRoot + Path.DirectorySeparatorChar;
+
+        var candidates = new AircraftDetector(fixture.HomePath).FindCandidates([rootWithSeparator]);
+
+        var candidate = Assert.Single(candidates);
+        Assert.Equal("737NG Series", candidate.Name);
+        Assert.Equal(Path.GetFullPath(aircraftRoot), candidate.Path);
+    }
+
+    [Fact]
     public void FindCandidates_WhenInstallRootsShareSymlinkedAircraftFolder_DeduplicatesRealAircraftPath()
     {
         using var fixture = DetectorFixture.Create();
