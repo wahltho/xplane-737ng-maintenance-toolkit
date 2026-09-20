@@ -8,6 +8,24 @@ namespace LevelUp.NavTableUpdater.Core.Tests;
 
 public sealed class XPlaneOverlayPackageManagerTests
 {
+    [Theory]
+    [InlineData("osx-arm64")]
+    [InlineData("win-x64")]
+    public void UnsupportedPlatform_BlocksOverlayActionsWithoutStateChanges(string platform)
+    {
+        using var fixture = new Fixture();
+        fixture.Catalog.SupportedPlatforms = ["linux-x64"];
+        var package = fixture.CreatePackage("0.1.3", "plugin", "profile", "prefs");
+        package.Release.Manifest.SupportedPlatforms = ["linux-x64"];
+        var manager = new XPlaneOverlayPackageManager(fixture.StateStore, () => false, platform);
+        Assert.Equal(ToolPackageInstallState.TargetUnavailable, manager.Inspect(fixture.Catalog, fixture.XPlaneRoot, package.Release).State);
+        foreach (var action in Enum.GetValues<ToolPackageAction>())
+            Assert.False(manager.Apply(fixture.Catalog, package, fixture.XPlaneRoot, action).Succeeded);
+        Assert.False(manager.Restore(fixture.Catalog, fixture.XPlaneRoot).Succeeded);
+        Assert.Empty(Directory.GetFiles(fixture.XPlaneRoot, "*", SearchOption.AllDirectories));
+        Assert.Null(fixture.StateStore.TryGetToolInstallation(fixture.XPlaneRoot, fixture.Catalog.PackageId));
+    }
+
     [Fact]
     public void InstallAndRestore_PreserveUnownedProfilesAndGeneratedLogs()
     {

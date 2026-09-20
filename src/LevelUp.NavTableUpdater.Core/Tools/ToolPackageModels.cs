@@ -39,6 +39,8 @@ public sealed class ToolPackageManifest
 
     public List<string> SupportedProducts { get; set; } = [];
 
+    public List<string> SupportedPlatforms { get; set; } = [];
+
     public bool RestartRequired { get; set; }
 
     public ToolPackageArchive Archive { get; set; } = new();

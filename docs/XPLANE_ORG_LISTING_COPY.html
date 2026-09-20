@@ -29,7 +29,7 @@
   <p>X-Plane 737NG Maintenance Toolkit</p>
 
   <h2>Current Version</h2>
-  <p>0.13.13</p>
+  <p>0.14.0</p>
 
   <h2>Short Description</h2>
   <p>Cross-platform maintenance utility for supported Zibo and LevelUp 737NG aircraft in X-Plane 12, providing aircraft and VNAV updates, transactional backups, CG/view correction, optional patches, tools and resources.</p>
@@ -66,11 +66,12 @@
     <li>background Toolkit application update checks with cancellable verified download and confirmed restart through VeloPack</li>
     <li>remotely versioned package discovery so supported optional content can be added or updated independently from Toolkit application releases</li>
   </ul>
-  <p>Version 0.13.13 with online content catalog 1.7.0 currently offers:</p>
+  <p>Version 0.14.0 with online content catalog 1.8.0 currently offers:</p>
   <ul>
     <li>Optimized XLua</li>
     <li>Yet Another Linda (YAL)</li>
     <li>YAL HoppieHelper</li>
+    <li>XLinSpeak (Linux x64 only; requires separate Piper, voice model and audio setup)</li>
     <li>YANSH - Yet ANother Simbrief Helper</li>
     <li>737NG Realbench Logger</li>
     <li>LevelUp FANS CDU patch</li>
@@ -155,6 +156,9 @@
   <p>The Toolkit source code is available under the MIT License. The application is provided as-is, without warranty of any kind. It can modify aircraft files after validation and backup; users should retain their own backups and use the tool at their own risk.</p>
 
   <h2>Changelog</h2>
+  <h3>0.14.0</h3>
+  <ul><li>Adds optional XLinSpeak for Linux x64 through content catalog 1.8.0.</li><li>Filters tools by supported operating system and architecture and enforces those restrictions before download and installation.</li><li>Piper, voice models and audio configuration remain external prerequisites.</li></ul>
+
   <h3>0.13.13</h3>
   <ul><li>Preserves individual patch history during unchanged updates and recovers verifiable legacy histories when migrating into the LevelUp maintenance group.</li><li>Reconciles patch ownership for files replaced by aircraft delta updates and restores the matching ownership when reverting a delta.</li><li>Recreates missing backups only when current bytes prove the recorded original; unknown changes and unavailable required originals remain protected.</li><li>Prevents retired standalone patch records from reappearing after migration and adds detailed backup-chain diagnostics.</li></ul>
 

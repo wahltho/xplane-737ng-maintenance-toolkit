@@ -8,6 +8,62 @@ namespace LevelUp.NavTableUpdater.Core.Tests;
 
 public sealed class ToolPackageManagerTests
 {
+    [Theory]
+    [InlineData("osx-arm64")]
+    [InlineData("win-x64")]
+    [InlineData("linux-arm64")]
+    public void UnsupportedPlatform_BlocksAllActionsWithoutChangingFilesOrState(string platform)
+    {
+        using var fixture = new Fixture();
+        fixture.Catalog.SupportedPlatforms = ["linux-x64"];
+        var package = fixture.CreatePackage("1.3.1", "plugin", "config");
+        package.Release.Manifest.SupportedPlatforms = ["linux-x64"];
+        var manager = new ToolPackageManager(fixture.StateStore, () => false, platform);
+        fixture.WriteTarget("keep.txt", "untouched");
+        Assert.Equal(ToolPackageInstallState.TargetUnavailable, manager.Inspect(fixture.Catalog, fixture.XPlaneRoot, package.Release).State);
+        foreach (var action in Enum.GetValues<ToolPackageAction>())
+            Assert.False(manager.Apply(fixture.Catalog, package, fixture.XPlaneRoot, action).Succeeded);
+        Assert.False(manager.Restore(fixture.Catalog, fixture.XPlaneRoot).Succeeded);
+        Assert.Equal("untouched", fixture.ReadTarget("keep.txt"));
+        Assert.Single(Directory.GetFiles(fixture.TargetPath, "*", SearchOption.AllDirectories));
+        Assert.Null(fixture.StateStore.TryGetToolInstallation(fixture.XPlaneRoot, fixture.Catalog.PackageId));
+    }
+
+    [Fact]
+    public void PlatformRestrictedTool_InstallUpdateRepairAndRestorePreserveUserFiles()
+    {
+        using var fixture = new Fixture();
+        fixture.Catalog.SupportedPlatforms = ["linux-x64"];
+        fixture.Catalog.VersionMarkerPath = "";
+        var manager = new ToolPackageManager(fixture.StateStore, () => false, "linux-x64");
+        var old = fixture.CreatePackage("1.3.0", "old plugin", "config", includeVersionFile: false);
+        var next = fixture.CreatePackage("1.3.1", "new plugin", "config", includeVersionFile: false);
+        old.Release.Manifest.SupportedPlatforms = ["linux-x64"];
+        next.Release.Manifest.SupportedPlatforms = ["linux-x64"];
+        Assert.True(manager.Apply(fixture.Catalog, old, fixture.XPlaneRoot, ToolPackageAction.Install).Succeeded);
+        fixture.WriteTarget("keep.txt", "user file");
+        Assert.Equal(ToolPackageInstallState.UpdateAvailable, manager.Inspect(fixture.Catalog, fixture.XPlaneRoot, next.Release).State);
+        Assert.True(manager.Apply(fixture.Catalog, next, fixture.XPlaneRoot, ToolPackageAction.Update).Succeeded);
+        Assert.True(manager.Restore(fixture.Catalog, fixture.XPlaneRoot).Succeeded);
+        Assert.Equal("old plugin", fixture.ReadTarget("data/modules/main.lua"));
+        Assert.True(manager.Apply(fixture.Catalog, next, fixture.XPlaneRoot, ToolPackageAction.Update).Succeeded);
+        fixture.WriteTarget("data/modules/main.lua", "damaged");
+        Assert.True(manager.Apply(fixture.Catalog, next, fixture.XPlaneRoot, ToolPackageAction.Repair).Succeeded);
+        Assert.Equal("new plugin", fixture.ReadTarget("data/modules/main.lua"));
+        Assert.Equal("user file", fixture.ReadTarget("keep.txt"));
+    }
+
+    [Fact]
+    public void Apply_PlatformMismatchAgainstCatalogIsRejectedBeforeWriting()
+    {
+        using var fixture = new Fixture();
+        fixture.Catalog.SupportedPlatforms = ["linux-x64"];
+        var package = fixture.CreatePackage("1.3.1", "plugin", "config");
+        var manager = new ToolPackageManager(fixture.StateStore, () => false, "linux-x64");
+        Assert.Throws<InvalidDataException>(() => manager.Apply(fixture.Catalog, package, fixture.XPlaneRoot, ToolPackageAction.Install));
+        Assert.False(Directory.Exists(fixture.TargetPath));
+    }
+
     [Fact]
     public void InstallThenRestore_RestoresAbsentState()
     {

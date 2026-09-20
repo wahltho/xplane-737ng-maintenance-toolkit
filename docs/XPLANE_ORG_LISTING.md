@@ -10,7 +10,7 @@ X-Plane 737NG Maintenance Toolkit
 
 ## Current Version
 
-0.13.13
+0.14.0
 
 ## Short Description
 
@@ -53,11 +53,12 @@ Current functions include:
 - background Toolkit application update checks with cancellable verified
   download and confirmed restart through VeloPack
 
-Version 0.13.13 with online content catalog 1.7.0 currently offers:
+Version 0.14.0 with online content catalog 1.8.0 currently offers:
 
 - Optimized XLua
 - Yet Another Linda (YAL)
 - YAL HoppieHelper
+- XLinSpeak (Linux x64 only; requires separate Piper, voice model and audio setup)
 - YANSH - Yet ANother Simbrief Helper
 - 737NG Realbench Logger
 - LevelUp FANS CDU patch
@@ -158,6 +159,12 @@ When reporting a problem, use `Dump to file` on the Advanced tab and attach the 
 The Toolkit source code is available under the MIT License. The application is provided as-is, without warranty of any kind. It can modify aircraft files after validation and backup; users should retain their own backups and use the tool at their own risk.
 
 ## Changelog
+
+### 0.14.0
+
+- Adds optional XLinSpeak for Linux x64 through content catalog 1.8.0.
+- Filters tools by supported operating system and architecture and enforces those restrictions before download and installation.
+- Piper, voice models and audio configuration remain external prerequisites.
 
 ### 0.13.13
 

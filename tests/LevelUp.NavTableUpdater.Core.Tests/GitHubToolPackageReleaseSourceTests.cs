@@ -10,6 +10,50 @@ namespace LevelUp.NavTableUpdater.Core.Tests;
 
 public sealed class GitHubToolPackageReleaseSourceTests
 {
+    [Theory]
+    [InlineData("osx-arm64")]
+    [InlineData("win-x64")]
+    [InlineData("linux-arm64")]
+    public async Task UnsupportedPlatform_BlocksDiscoveryAndProvisionBeforeNetwork(string platform)
+    {
+        using var fixture = new ReleaseFixture("1.3.1", "stable", false, supportedPlatforms: ["linux-x64"]);
+        using var client = fixture.CreateClient();
+        var supportedSource = new GitHubToolPackageReleaseSource(client, fixture.CacheRoot, "linux-x64");
+        var release = Assert.IsType<ToolPackageRelease>(await supportedSource.GetLatestAsync(fixture.Catalog, ToolReleaseChannel.Stable));
+        using var blockedClient = new HttpClient(new NoRequestsHandler());
+        var blockedSource = new GitHubToolPackageReleaseSource(blockedClient, fixture.CacheRoot, platform);
+        await Assert.ThrowsAsync<InvalidDataException>(() => blockedSource.GetLatestAsync(fixture.Catalog, ToolReleaseChannel.Stable));
+        await Assert.ThrowsAsync<InvalidDataException>(() => blockedSource.ProvisionAsync(fixture.Catalog, release));
+    }
+
+    [Fact]
+    public async Task LinuxRelease_ResolvesAndProvisionsWithMatchingPlatformContract()
+    {
+        using var fixture = new ReleaseFixture("1.3.1", "stable", false, tagPrefix: "r", supportedPlatforms: ["linux-x64"]);
+        using var client = fixture.CreateClient();
+        var source = new GitHubToolPackageReleaseSource(client, fixture.CacheRoot, "linux-x64");
+        var release = Assert.IsType<ToolPackageRelease>(await source.GetLatestAsync(fixture.Catalog, ToolReleaseChannel.Stable));
+        var package = await source.ProvisionAsync(fixture.Catalog, release);
+        Assert.Equal("r1.3.1", release.Tag);
+        Assert.True(File.Exists(Path.Combine(package.PackageDirectory, "data/modules/main.lua")));
+    }
+
+    [Fact]
+    public async Task ManifestCannotSilentlyDropCatalogPlatformRestriction()
+    {
+        using var fixture = new ReleaseFixture("1.3.1", "stable", false);
+        fixture.Catalog.SupportedPlatforms = ["linux-x64"];
+        using var client = fixture.CreateClient();
+        var source = new GitHubToolPackageReleaseSource(client, fixture.CacheRoot, "linux-x64");
+        await Assert.ThrowsAsync<InvalidDataException>(() => source.GetLatestAsync(fixture.Catalog, ToolReleaseChannel.Stable));
+    }
+
+    private sealed class NoRequestsHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("Unsupported platforms must not send requests.");
+    }
+
     [Fact]
     public async Task StableRelease_ResolvesVerifiesAndExtractsExactManifestFiles()
     {
@@ -104,7 +148,8 @@ public sealed class GitHubToolPackageReleaseSourceTests
             bool prerelease,
             bool addUndeclaredFile = false,
             string tagPrefix = "v",
-            bool overlay = false)
+            bool overlay = false,
+            string[]? supportedPlatforms = null)
         {
             _version = version;
             _tag = tagPrefix + version;
@@ -140,6 +185,7 @@ public sealed class GitHubToolPackageReleaseSourceTests
                 layout = overlay ? "xPlaneOverlay" : "directory",
                 targetPath = overlay ? "" : "Resources/plugins/YAL",
                 supportedProducts = new[] { "zibo-737ng", "levelup-737ng" },
+                supportedPlatforms = supportedPlatforms ?? [],
                 restartRequired = true,
                 archive = new
                 {
@@ -196,6 +242,7 @@ public sealed class GitHubToolPackageReleaseSourceTests
                 Category = ContentPackageCategory.Tool,
                 Activation = ContentPatchActivation.ExplicitOptIn,
                 SupportedProducts = ["zibo-737ng", "levelup-737ng"],
+                SupportedPlatforms = [.. supportedPlatforms ?? []],
                 RepositoryUrl = _repository,
                 RestartRequired = true,
                 InstallScope = "xPlaneInstallation",

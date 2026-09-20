@@ -7,6 +7,8 @@ TestResults/
 artifacts/
 publish/
 Releases/
+!/docs/releases/
+!/docs/releases/*.md
 *.user
 *.suo
 *.nupkg

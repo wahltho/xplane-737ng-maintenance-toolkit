@@ -7,6 +7,17 @@ namespace LevelUp.NavTableUpdater.Core.Tests;
 
 public sealed class ToolPackageManifestTests
 {
+    [Theory]
+    [InlineData("linux")]
+    [InlineData("Linux-x64")]
+    [InlineData("linux-x64\",\"linux-x64")]
+    public void Parse_InvalidPlatformsAreRejected(string platforms)
+    {
+        var json = BuildManifest(Encoding.UTF8.GetBytes("payload"));
+        json = json.Insert(1, "\"supportedPlatforms\":[\"" + platforms + "\"],");
+        Assert.Throws<InvalidDataException>(() => ToolPackageManifestParser.Parse(Encoding.UTF8.GetBytes(json)));
+    }
+
     [Fact]
     public void Parse_ValidManifest_NormalizesAndMatchesProtectedPaths()
     {

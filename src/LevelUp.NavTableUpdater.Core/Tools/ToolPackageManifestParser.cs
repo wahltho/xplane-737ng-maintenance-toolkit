@@ -1,4 +1,5 @@
 using System.Text.Json;
+using LevelUp.NavTableUpdater.Core.Platform;
 
 namespace LevelUp.NavTableUpdater.Core.Tools;
 
@@ -81,6 +82,7 @@ public static class ToolPackageManifestParser
     private static void Normalize(ToolPackageManifest manifest)
     {
         manifest.SupportedProducts ??= [];
+        manifest.SupportedPlatforms ??= [];
         manifest.ProtectedPaths ??= [];
         manifest.Files ??= [];
         manifest.Archive ??= new ToolPackageArchive();
@@ -110,6 +112,7 @@ public static class ToolPackageManifestParser
 
     private static void Validate(ToolPackageManifest manifest)
     {
+        PackagePlatform.Validate(manifest.SupportedPlatforms);
         var directoryLayout = manifest.SchemaVersion == 1
             && manifest.Layout == "directory"
             && manifest.InstallScope is "xPlaneInstallation" or "aircraftInstallation"

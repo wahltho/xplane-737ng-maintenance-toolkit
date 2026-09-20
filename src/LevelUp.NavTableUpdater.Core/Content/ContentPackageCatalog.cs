@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using LevelUp.NavTableUpdater.Core.Aircraft;
 using LevelUp.NavTableUpdater.Core.Manifest;
+using LevelUp.NavTableUpdater.Core.Platform;
 
 namespace LevelUp.NavTableUpdater.Core.Content;
 
@@ -52,6 +53,10 @@ public sealed class ContentPackageCatalogEntry
     public ContentPatchActivation? Activation { get; set; }
 
     public List<string> SupportedProducts { get; set; } = [];
+
+    public List<string> SupportedPlatforms { get; set; } = [];
+
+    public bool SupportsPlatform(string? runtimeIdentifier = null) => PackagePlatform.Supports(SupportedPlatforms, runtimeIdentifier);
 
     public string RepositoryUrl { get; set; } = "";
 
@@ -137,8 +142,9 @@ public sealed class ContentPackageCatalog
             document.Packages);
     }
 
-    public IReadOnlyList<ContentPackageCatalogEntry> ForProduct(string productId) =>
-        Packages.Where(package => package.SupportedProducts.Contains(productId, StringComparer.Ordinal)).ToArray();
+    public IReadOnlyList<ContentPackageCatalogEntry> ForProduct(string productId, string? runtimeIdentifier = null) =>
+        Packages.Where(package => package.SupportedProducts.Contains(productId, StringComparer.Ordinal)
+            && package.SupportsPlatform(runtimeIdentifier)).ToArray();
 
     private static void Validate(ContentPackageCatalogDocument document, Version? toolkitVersion)
     {
@@ -175,6 +181,10 @@ public sealed class ContentPackageCatalog
             package.Members ??= [];
             package.SupportedProducts ??= [];
             package.SupportedChannels ??= [];
+            package.SupportedPlatforms ??= [];
+            PackagePlatform.Validate(package.SupportedPlatforms);
+            if (package.SupportedPlatforms.Count > 0 && package.Category is not (ContentPackageCategory.Tool or ContentPackageCategory.AircraftComponent))
+                throw new InvalidDataException("supportedPlatforms is supported for tools and aircraft components only.");
             package.Distribution ??= new ContentPackageDistribution();
             if (!IsSafePackageId(package.PackageId)
                 || !packageIds.Add(package.PackageId)

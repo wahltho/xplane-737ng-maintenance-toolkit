@@ -4409,6 +4409,7 @@ public partial class MainWindowViewModel : ViewModelBase
         var entry = SelectedToolPackage;
         return product?.IsDetected == true
             && entry?.Category is ContentPackageCategory.Tool or ContentPackageCategory.AircraftComponent
+            && entry.SupportsPlatform()
             && entry.SupportedProducts.Contains(product.Family, StringComparer.Ordinal)
                 ? entry
                 : null;

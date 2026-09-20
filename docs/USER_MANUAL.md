@@ -1,6 +1,6 @@
 # X-Plane 737NG Maintenance Toolkit User Manual
 
-This manual describes version 0.13.13 of the X-Plane 737NG Maintenance Toolkit.
+This manual describes version 0.14.0 of the X-Plane 737NG Maintenance Toolkit.
 
 The toolkit is a desktop app for selected Zibo and LevelUp 737NG maintenance
 tasks:
@@ -30,7 +30,7 @@ Keep your own backups and use the tool at your own risk.
 
 ## Compatibility And Installation
 
-Version 0.13.13 supports:
+Version 0.14.0 supports:
 
 - X-Plane 12. X-Plane 11 is not supported.
 - Zibo 737-800X 2K and 4K variants.
@@ -221,7 +221,7 @@ explicit confirmation before writing files. Version 0.13.0 offers the LevelUp
 FANS CDU package as an optional LevelUp-only patch. It remains separate from
 aircraft and VNAV updates and is never installed automatically.
 
-At startup, version 0.13.13 checks immutable `catalog-v*` releases in the Toolkit
+At startup, version 0.14.0 checks immutable `catalog-v*` releases in the Toolkit
 repository for updated package discovery metadata. A downloaded catalog becomes
 active only after schema, version, repository URL and minimum Toolkit version
 validation. If the check fails, the app uses its last valid cached catalog and
@@ -229,7 +229,8 @@ then its bundled catalog. Existing installs and package state remain valid. A
 new package repository is not enough to expose a package; the package must be
 added explicitly to a reviewed catalog release.
 
-The `Components & Tools` card is also product-gated. The selected package
+The `Components & Tools` card filters packages by the selected product and the
+current operating system and architecture. The selected package
 determines whether its target is the aircraft or the containing X-Plane
 installation:
 
@@ -242,6 +243,11 @@ installation:
   `Resources/plugins/YAL`.
 - `YAL HoppieHelper` supports Zibo and LevelUp, as declared by its published
   release manifest, and is managed at `Resources/plugins/YAL_HoppieHelper`.
+- `XLinSpeak` supports Zibo and LevelUp on **Linux x64 only**, at
+  `Resources/plugins/XLinSpeak`. It is optional and appears only on that platform.
+  Install and configure Piper, a voice model and audio output separately, following
+  the [XLinSpeak README](https://github.com/wahltho/XLinSpeak#readme).
+  The Toolkit installs the plugin; it does not configure the speech backend.
 - `YANSH` supports Zibo and LevelUp and is managed at
   `Resources/plugins/YANSH`. Its SimBrief username preferences and generated
   output are preserved across managed updates.

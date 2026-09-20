@@ -9,11 +9,13 @@ namespace LevelUp.NavTableUpdater.Core.Tools;
 public sealed class XPlaneOverlayPackageManager
 {
     private readonly ToolStateStore _stateStore;
+    private readonly string _runtimeIdentifier;
     private readonly Func<bool> _isXPlaneRunning;
 
-    public XPlaneOverlayPackageManager(ToolStateStore stateStore, Func<bool>? isXPlaneRunning = null)
+    public XPlaneOverlayPackageManager(ToolStateStore stateStore, Func<bool>? isXPlaneRunning = null, string? runtimeIdentifier = null)
     {
         _stateStore = stateStore;
+        _runtimeIdentifier = runtimeIdentifier ?? PackagePlatform.Current;
         _isXPlaneRunning = isXPlaneRunning ?? XPlaneProcessDetector.IsXPlaneRunning;
     }
 
@@ -22,6 +24,10 @@ public sealed class XPlaneOverlayPackageManager
         string? xPlaneRoot,
         ToolPackageRelease? release)
     {
+        if (!catalogEntry.SupportsPlatform(_runtimeIdentifier))
+            return new(ToolPackageInstallState.TargetUnavailable, xPlaneRoot ?? "", "", "-",
+                release?.Manifest.PackageVersion ?? "Not checked",
+                PackagePlatform.Unavailable(catalogEntry.DisplayName, catalogEntry.SupportedPlatforms, _runtimeIdentifier), []);
         if (string.IsNullOrWhiteSpace(xPlaneRoot) || !XPlaneInstallationLocator.LooksLikeXPlaneRoot(xPlaneRoot))
         {
             return new ToolPackageInspection(
@@ -135,6 +141,10 @@ public sealed class XPlaneOverlayPackageManager
             $"[START] {action} {manifest.PackageId} {manifest.PackageVersion}",
             $"[TARGET] {xPlaneRoot}"
         };
+        if (!catalogEntry.SupportsPlatform(_runtimeIdentifier))
+            return MaintenanceOperationResult.Blocked(
+                PackagePlatform.Unavailable(catalogEntry.DisplayName, catalogEntry.SupportedPlatforms, _runtimeIdentifier), log);
+
         if (_isXPlaneRunning())
         {
             return MaintenanceOperationResult.Blocked("X-Plane is running. Close X-Plane before changing plugins.", [.. log, "[BLOCKED] X-Plane is running."]);
@@ -270,6 +280,10 @@ public sealed class XPlaneOverlayPackageManager
     public MaintenanceOperationResult Restore(ContentPackageCatalogEntry catalogEntry, string xPlaneRoot)
     {
         var log = new List<string> { $"[START] Restore {catalogEntry.PackageId}" };
+        if (!catalogEntry.SupportsPlatform(_runtimeIdentifier))
+            return MaintenanceOperationResult.Blocked(
+                PackagePlatform.Unavailable(catalogEntry.DisplayName, catalogEntry.SupportedPlatforms, _runtimeIdentifier), log);
+
         if (_isXPlaneRunning())
         {
             return MaintenanceOperationResult.Blocked("X-Plane is running. Close X-Plane before restoring plugins.", [.. log, "[BLOCKED] X-Plane is running."]);
@@ -551,7 +565,8 @@ public sealed class XPlaneOverlayPackageManager
             || !string.IsNullOrWhiteSpace(catalog.TargetPath)
             || !string.IsNullOrWhiteSpace(manifest.TargetPath)
             || !catalog.RepositoryUrl.TrimEnd('/').Equals(manifest.Repository.TrimEnd('/'), StringComparison.OrdinalIgnoreCase)
-            || !manifest.SupportedProducts.ToHashSet(StringComparer.Ordinal).SetEquals(catalog.SupportedProducts))
+            || !manifest.SupportedProducts.ToHashSet(StringComparer.Ordinal).SetEquals(catalog.SupportedProducts)
+            || !manifest.SupportedPlatforms.ToHashSet(StringComparer.Ordinal).SetEquals(catalog.SupportedPlatforms))
         {
             throw new InvalidDataException($"Overlay package does not match trusted catalog entry {catalog.PackageId}.");
         }

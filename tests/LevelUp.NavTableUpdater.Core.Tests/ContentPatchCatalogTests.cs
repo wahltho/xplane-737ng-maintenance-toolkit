@@ -4,6 +4,45 @@ namespace LevelUp.NavTableUpdater.Core.Tests;
 
 public sealed class ContentPatchCatalogTests
 {
+    [Theory]
+    [InlineData("linux-x64", true)]
+    [InlineData("linux-arm64", false)]
+    [InlineData("win-x64", false)]
+    [InlineData("win-arm64", false)]
+    [InlineData("osx-x64", false)]
+    [InlineData("osx-arm64", false)]
+    public void BundledCatalog_OffersXLinSpeakOnlyOnSupportedPlatform(string platform, bool available)
+    {
+        var catalog = ContentPackageCatalog.Parse(File.ReadAllText(BundledCatalogPath()), new Version(0, 14, 0));
+        foreach (var product in new[] { "zibo-737ng", "levelup-737ng" })
+        {
+            var entries = catalog.ForProduct(product, platform);
+            Assert.Equal(available, entries.Any(p => p.PackageId == "wahltho.xlinspeak"));
+            Assert.Contains(entries, p => p.PackageId == "wahltho.yal");
+        }
+        var entry = Assert.Single(catalog.Packages, p => p.PackageId == "wahltho.xlinspeak");
+        Assert.Equal(ContentPatchActivation.ExplicitOptIn, entry.Activation);
+        Assert.Equal("Resources/plugins/XLinSpeak", entry.TargetPath);
+        Assert.Contains("Piper", entry.Description);
+    }
+
+    [Fact]
+    public void BundledCatalog_PlatformSupportRequiresNewToolkit()
+    {
+        Assert.Throws<InvalidDataException>(() => ContentPackageCatalog.Parse(
+            File.ReadAllText(BundledCatalogPath()), new Version(0, 13, 13)));
+    }
+
+    [Theory]
+    [InlineData("linux")]
+    [InlineData("Linux-x64")]
+    [InlineData("linux-x64\", \"linux-x64")]
+    public void Catalog_InvalidPlatformsAreRejected(string platforms)
+    {
+        var json = File.ReadAllText(BundledCatalogPath()).Replace("\"linux-x64\"", "\"" + platforms + "\"");
+        Assert.Throws<InvalidDataException>(() => ContentPackageCatalog.Parse(json));
+    }
+
     [Fact]
     public void BundledCatalog_CpdlcIsAvailableForBothProductsAndOptionalInLevelUpGroup()
     {
@@ -146,8 +185,8 @@ public sealed class ContentPatchCatalogTests
             package => package.PackageId == ContentPatchCatalog.FansCdu.ComponentId);
         var descriptor = ContentPatchCatalog.OptionalPatch(fans);
 
-        Assert.Equal("1.7.0", catalog.CatalogVersion);
-        Assert.Equal("0.13.1", catalog.MinimumToolkitVersion);
+        Assert.Equal("1.8.0", catalog.CatalogVersion);
+        Assert.Equal("0.14.0", catalog.MinimumToolkitVersion);
         Assert.Equal(ContentPackageCategory.OptionalPatch, fans.Category);
         Assert.Equal(ContentPatchActivation.ExplicitOptIn, fans.Activation);
         Assert.Equal("LevelUp-737NG-FANS-CDU-v*.zip", fans.Distribution.AssetNamePattern);
@@ -200,7 +239,7 @@ public sealed class ContentPatchCatalogTests
             catalog.ForProduct("levelup-737ng"),
             package => package.PackageId == "levelup.paintkit");
 
-        Assert.Equal("1.7.0", catalog.CatalogVersion);
+        Assert.Equal("1.8.0", catalog.CatalogVersion);
         Assert.Equal(ContentPackageCategory.Resource, paintkit.Category);
         Assert.Equal(ContentPatchActivation.ExplicitOptIn, paintkit.Activation);
         Assert.Equal(["levelup-737ng"], paintkit.SupportedProducts);

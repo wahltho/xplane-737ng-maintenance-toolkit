@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "catalogVersion": "1.7.0",
-  "minimumToolkitVersion": "0.13.1",
+  "catalogVersion": "1.8.0",
+  "minimumToolkitVersion": "0.14.0",
   "packages": [
     {
       "packageId": "x-plane-zibo-vnav-descent-tables",
@@ -131,6 +131,25 @@
       "distribution": {
         "kind": "gitHubToolRelease",
         "manifestAssetNamePattern": "YAL-*-manifest.json",
+        "manifestSchemaVersion": 1
+      }
+    },
+    {
+      "packageId": "wahltho.xlinspeak",
+      "displayName": "XLinSpeak",
+      "description": "Optional Linux text-to-speech plugin, usable with YAL. Requires a separately installed Piper executable, voice model and audio output configuration; installing this plugin does not configure Piper.",
+      "category": "tool",
+      "activation": "explicitOptIn",
+      "supportedProducts": ["zibo-737ng", "levelup-737ng"],
+      "supportedPlatforms": ["linux-x64"],
+      "repositoryUrl": "https://github.com/wahltho/XLinSpeak",
+      "restartRequired": true,
+      "installScope": "xPlaneInstallation",
+      "targetPath": "Resources/plugins/XLinSpeak",
+      "supportedChannels": ["stable"],
+      "distribution": {
+        "kind": "gitHubToolRelease",
+        "manifestAssetNamePattern": "XLinSpeak-*-manifest.json",
         "manifestSchemaVersion": 1
       }
     },

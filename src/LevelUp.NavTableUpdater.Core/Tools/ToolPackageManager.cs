@@ -18,11 +18,13 @@ public enum ToolPackageAction
 public sealed class ToolPackageManager
 {
     private readonly ToolStateStore _stateStore;
+    private readonly string _runtimeIdentifier;
     private readonly Func<bool> _isXPlaneRunning;
 
-    public ToolPackageManager(ToolStateStore stateStore, Func<bool>? isXPlaneRunning = null)
+    public ToolPackageManager(ToolStateStore stateStore, Func<bool>? isXPlaneRunning = null, string? runtimeIdentifier = null)
     {
         _stateStore = stateStore;
+        _runtimeIdentifier = runtimeIdentifier ?? PackagePlatform.Current;
         _isXPlaneRunning = isXPlaneRunning ?? XPlaneProcessDetector.IsXPlaneRunning;
     }
 
@@ -31,6 +33,10 @@ public sealed class ToolPackageManager
         string? xPlaneRoot,
         ToolPackageRelease? release)
     {
+        if (!catalogEntry.SupportsPlatform(_runtimeIdentifier))
+            return new(ToolPackageInstallState.TargetUnavailable, xPlaneRoot ?? "", "", "-",
+                release?.Manifest.PackageVersion ?? "Not checked",
+                PackagePlatform.Unavailable(catalogEntry.DisplayName, catalogEntry.SupportedPlatforms, _runtimeIdentifier), []);
         var toolName = catalogEntry.DisplayName;
         if (string.IsNullOrWhiteSpace(xPlaneRoot) || !LooksLikeInstallRoot(catalogEntry, xPlaneRoot))
         {
@@ -167,6 +173,10 @@ public sealed class ToolPackageManager
             $"[START] {action} {package.Release.Manifest.PackageId} {package.Release.Manifest.PackageVersion}",
             $"[TARGET] {xPlaneRoot}"
         };
+        if (!catalogEntry.SupportsPlatform(_runtimeIdentifier))
+            return MaintenanceOperationResult.Blocked(
+                PackagePlatform.Unavailable(catalogEntry.DisplayName, catalogEntry.SupportedPlatforms, _runtimeIdentifier), log);
+
         if (_isXPlaneRunning())
         {
             log.Add("[BLOCKED] X-Plane is running.");
@@ -310,6 +320,10 @@ public sealed class ToolPackageManager
     {
         var toolName = catalogEntry.DisplayName;
         var log = new List<string> { $"[START] Restore {catalogEntry.PackageId}" };
+        if (!catalogEntry.SupportsPlatform(_runtimeIdentifier))
+            return MaintenanceOperationResult.Blocked(
+                PackagePlatform.Unavailable(catalogEntry.DisplayName, catalogEntry.SupportedPlatforms, _runtimeIdentifier), log);
+
         if (_isXPlaneRunning())
         {
             return MaintenanceOperationResult.Blocked("X-Plane is running. Close X-Plane before restoring plugins.", [.. log, "[BLOCKED] X-Plane is running."]);
@@ -780,7 +794,8 @@ public sealed class ToolPackageManager
             || !catalog.InstallScope.Equals(manifest.InstallScope, StringComparison.Ordinal)
             || !catalog.TargetPath.Equals(manifest.TargetPath, StringComparison.Ordinal)
             || !catalog.RepositoryUrl.TrimEnd('/').Equals(manifest.Repository.TrimEnd('/'), StringComparison.OrdinalIgnoreCase)
-            || !manifest.SupportedProducts.ToHashSet(StringComparer.Ordinal).SetEquals(catalog.SupportedProducts))
+            || !manifest.SupportedProducts.ToHashSet(StringComparer.Ordinal).SetEquals(catalog.SupportedProducts)
+            || !manifest.SupportedPlatforms.ToHashSet(StringComparer.Ordinal).SetEquals(catalog.SupportedPlatforms))
         {
             throw new InvalidDataException($"Tool package does not match trusted catalog entry {catalog.PackageId}.");
         }

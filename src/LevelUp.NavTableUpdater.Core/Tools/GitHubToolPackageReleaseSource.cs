@@ -1,3 +1,4 @@
+using LevelUp.NavTableUpdater.Core.Platform;
 using System.IO.Compression;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
@@ -20,13 +21,15 @@ public sealed class GitHubToolPackageReleaseSource
     };
 
     private readonly HttpClient _httpClient;
+    private readonly string _runtimeIdentifier;
     private readonly string _cacheRoot;
 
-    public GitHubToolPackageReleaseSource(HttpClient httpClient, string cacheRoot)
+    public GitHubToolPackageReleaseSource(HttpClient httpClient, string cacheRoot, string? runtimeIdentifier = null)
     {
         ArgumentNullException.ThrowIfNull(httpClient);
         ArgumentException.ThrowIfNullOrWhiteSpace(cacheRoot);
         _httpClient = httpClient;
+        _runtimeIdentifier = runtimeIdentifier ?? PackagePlatform.Current;
         _cacheRoot = Path.GetFullPath(cacheRoot);
         Directory.CreateDirectory(_cacheRoot);
         RejectLink(_cacheRoot, "Tool package cache root");
@@ -437,6 +440,7 @@ public sealed class GitHubToolPackageReleaseSource
             || manifest.SchemaVersion != catalogEntry.Distribution.ManifestSchemaVersion
             || manifest.RestartRequired != catalogEntry.RestartRequired
             || !actualProducts.SetEquals(expectedProducts)
+            || !manifest.SupportedPlatforms.ToHashSet(StringComparer.Ordinal).SetEquals(catalogEntry.SupportedPlatforms)
             || !manifest.Channel.Equals(ChannelName(channel), StringComparison.Ordinal))
         {
             throw new InvalidDataException($"Tool manifest identity does not match the trusted catalog entry {catalogEntry.PackageId}.");
@@ -466,8 +470,11 @@ public sealed class GitHubToolPackageReleaseSource
             release.Manifest);
     }
 
-    private static void ValidateCatalogEntry(ContentPackageCatalogEntry entry, ToolReleaseChannel channel)
+    private void ValidateCatalogEntry(ContentPackageCatalogEntry entry, ToolReleaseChannel channel)
     {
+        PackagePlatform.Validate(entry.SupportedPlatforms);
+        if (!entry.SupportsPlatform(_runtimeIdentifier))
+            throw new InvalidDataException(PackagePlatform.Unavailable(entry.DisplayName, entry.SupportedPlatforms, _runtimeIdentifier));
         var supportedCategory = entry.Category is ContentPackageCategory.Tool
             or ContentPackageCategory.AircraftComponent;
         var supportedDistribution = entry.Distribution.Kind is ContentPackageDistributionKind.GitHubToolRelease

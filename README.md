@@ -7,7 +7,7 @@ tools and conservative view maintenance for supported aircraft variants.
 This repository is the public development home for the app. The architecture
 keeps package content, aircraft patching, and application updates separate.
 
-Release version: **0.13.13**
+Release version: **0.14.0**
 
 Includes [catalog-controlled maintenance groups](docs/CATALOG_GROUPS.md) and configurable startup update notifications.
 
@@ -140,6 +140,9 @@ Current capabilities:
   at `Resources/plugins/YAL_HoppieHelper`, matching its published release
   manifest. YANSH is available for both products at `Resources/plugins/YANSH`
   from Olivier Butler's verified stable release manifest.
+- It offers optional XLinSpeak on Linux x64 at `Resources/plugins/XLinSpeak`.
+  Piper, a voice model and audio output configuration must be provided separately.
+  Platform-specific tools are shown and installed only on supported systems.
 - It offers the optional 737NG Realbench Logger for both products as a verified
   X-Plane-root overlay. The Toolkit owns only the declared DataRefMonitor
   runtime, profile and preference files; unrelated profiles and generated logs
