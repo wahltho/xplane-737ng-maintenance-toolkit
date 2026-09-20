@@ -5187,8 +5187,7 @@ public partial class MainWindowViewModel : ViewModelBase
         SelectedProductVariants = product.Variants;
         SelectedProductFolderPath = string.IsNullOrWhiteSpace(product.AircraftFolderPath) ? "-" : product.AircraftFolderPath;
         ProductFolderVisible = product.IsDetected
-            && !string.IsNullOrWhiteSpace(product.AircraftFolderPath)
-            && !PathsEqual(product.AircraftFolderPath, SelectedAircraftPath);
+            && !string.IsNullOrWhiteSpace(product.AircraftFolderPath);
         ProductActionsEnabled = ActionsEnabled && product.IsDetected;
         AircraftProductUpdateEnabled = ProductActionsEnabled && IsAircraftUpdateFamily(product.Family);
     }

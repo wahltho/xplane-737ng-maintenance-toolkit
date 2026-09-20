@@ -28,6 +28,90 @@ public sealed class UiTestAppBuilder
 
 public sealed class MainWindowUiTests
 {
+    [Theory]
+    [InlineData(980, 680)]
+    [InlineData(1180, 780)]
+    public Task StartLayout_KeepsTargetAndProgressVisibleWhileFunctionsAndLogScroll(int width, int height) => Run(async () =>
+    {
+        using var fixture = new Fixture(enabled: false);
+        var window = fixture.Open(width, height);
+        try
+        {
+            await Until(() => fixture.Vm.SelectedProduct?.IsDetected == true
+                && fixture.Vm.InstallLog.Contains("Content package catalog:"));
+            fixture.Vm.OperationPanelVisible = true;
+            fixture.Vm.OperationTitle = "Downloading aircraft update";
+            fixture.Vm.OperationSubtitle = "Verifying the package for the selected LevelUp installation.";
+            fixture.Vm.OperationProgress = 45;
+            fixture.Vm.OperationProgressText = "45% - Downloading and validating aircraft files";
+            fixture.Vm.OperationStatus = "Download in progress";
+            fixture.Vm.OperationElapsed = "00:12s";
+            fixture.Vm.CanCancelOperation = true;
+            fixture.Vm.OperationLog = string.Join("\n", Enumerable.Range(1, 500).Select(i => $"[VERIFY] File {i}"));
+            Dispatcher.UIThread.RunJobs();
+            var left = window.FindControl<ScrollViewer>("InstallationPaneScroll")!;
+            var right = window.FindControl<ScrollViewer>("FunctionsPaneScroll")!;
+            var progress = window.FindControl<Border>("OperationProgressPanel")!;
+            var installation = window.FindControl<Border>("SelectedInstallationCard")!;
+            var log = window.FindControl<Expander>("OperationLogExpander")!;
+            var cancel = window.FindControl<Button>("OperationCancelButton")!;
+            var progressPosition = progress.TranslatePoint(default, window);
+            var installationPosition = installation.TranslatePoint(default, window);
+            Assert.False(log.IsExpanded);
+            Assert.True(right.Viewport.Height > 200, $"Functions viewport is only {right.Viewport.Height}");
+            Assert.True(cancel.IsEffectivelyVisible && cancel.IsEffectivelyEnabled);
+            Assert.Equal(45, progress.GetVisualDescendants().OfType<ProgressBar>().Single().Value);
+            SaveFrame(window, $"layout-{width}-top.png");
+
+            Button(window, "Find hardware configurations").BringIntoView();
+            Dispatcher.UIThread.RunJobs();
+            Assert.True(right.Offset.Y > 0);
+            Assert.Equal(0, left.Offset.Y);
+            Assert.Equal(progressPosition, progress.TranslatePoint(default, window));
+            Assert.Equal(installationPosition, installation.TranslatePoint(default, window));
+            var targetPath = installation.GetVisualDescendants().OfType<TextBlock>()
+                .Single(t => t.Text == fixture.Vm.SelectedProductFolderPath);
+            Assert.True(targetPath.IsEffectivelyVisible);
+            var targetPosition = targetPath.TranslatePoint(default, window)!.Value;
+            Assert.InRange(targetPosition.Y, 0, window.ClientSize.Height - targetPath.Bounds.Height);
+            Assert.InRange(targetPosition.X, 0, window.ClientSize.Width - targetPath.Bounds.Width);
+            SaveFrame(window, $"layout-{width}-scrolled.png");
+
+            var rightOffset = right.Offset;
+            left.Offset = new Vector(0, left.Extent.Height);
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal(rightOffset, right.Offset);
+            Assert.Equal(progressPosition, progress.TranslatePoint(default, window));
+            left.Offset = default;
+            right.Offset = default;
+            log.IsExpanded = true;
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal(progressPosition, progress.TranslatePoint(default, window));
+            Assert.True(window.FindControl<TextBox>("OperationLogText")!.Bounds.Height <= 180);
+            Assert.True(right.Viewport.Height > 200);
+            SaveFrame(window, $"layout-{width}-log.png");
+
+            fixture.Vm.OperationTitle = "LevelUp maintenance patches compatibility package Update blocked";
+            fixture.Vm.OperationStatus = "Blocked";
+            fixture.Vm.OperationProgress = 0;
+            fixture.Vm.OperationSubtitle = string.Join(" ", Enumerable.Repeat("A long diagnostic message about the selected installation.", 20));
+            fixture.Vm.OperationProgressText = fixture.Vm.OperationSubtitle;
+            fixture.Vm.CanCancelOperation = false;
+            Dispatcher.UIThread.RunJobs();
+            Assert.False(cancel.IsEffectivelyVisible);
+            Assert.True(right.Viewport.Height > 180, $"Long result consumed the functions viewport: {right.Viewport.Height}");
+            SaveFrame(window, $"layout-{width}-long-result.png");
+
+            var withProgress = right.Viewport.Height;
+            fixture.Vm.OperationPanelVisible = false;
+            Dispatcher.UIThread.RunJobs();
+            Assert.True(right.Viewport.Height > withProgress);
+            Assert.False(log.IsEffectivelyVisible);
+            Assert.Equal(installationPosition, installation.TranslatePoint(default, window));
+        }
+        finally { Close(window); }
+    });
+
     [Fact]
     public Task HardwareCopy_UsesRealControlsAndDialogs_ThenRestoresFiles() => Run(async () =>
     {
@@ -196,9 +280,9 @@ public sealed class MainWindowUiTests
             });
             _client = new HttpClient(Handler);
         }
-        public MainWindow Open()
+        public MainWindow Open(int width = 1500, int height = 1000)
         {
-            var window = new MainWindow { Width = 1500, Height = 1000 };
+            var window = new MainWindow { Width = width, Height = height };
             Vm = new MainWindowViewModel(new MainWindowUserInteractionService(window), new NoAppUpdate(), Store, _client, new AircraftDetector(_root));
             window.DataContext = Vm;
             window.Show();

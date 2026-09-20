@@ -186,9 +186,40 @@
 
         <TabControl Grid.Row="2" Margin="16">
             <TabItem Header="Start">
-                <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-                    <StackPanel Spacing="16">
-                        <Grid ColumnDefinitions="340,*" ColumnSpacing="16">
+                <Grid ColumnDefinitions="340,*" ColumnSpacing="16">
+                    <ScrollViewer x:Name="InstallationPaneScroll" Grid.Column="0"
+                                  HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                        <StackPanel Spacing="16">
+                            <Border x:Name="SelectedInstallationCard" Classes="status-card">
+                                <StackPanel Spacing="4">
+                                    <TextBlock Classes="label" Text="Detected product"/>
+                                    <ComboBox ItemsSource="{Binding DetectedProductTargets}"
+                                              SelectedItem="{Binding SelectedProduct}"
+                                              IsVisible="{Binding ProductSelectorVisible}"
+                                              HorizontalAlignment="Stretch">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:ProductTargetStatus">
+                                                <StackPanel Spacing="2" Margin="0,3">
+                                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
+                                                    <TextBlock Text="{Binding Status}" Foreground="{DynamicResource AppTextSecondaryBrush}" FontSize="11"/>
+                                                    <TextBlock Text="{Binding Variants}" Foreground="{DynamicResource AppTextTertiaryBrush}" FontSize="11" TextWrapping="Wrap"/>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                    <TextBlock Classes="value"
+                                               Text="{Binding SelectedProductName}"
+                                               TextWrapping="Wrap"
+                                               IsVisible="{Binding FixedProductVisible}"/>
+                                    <TextBlock Text="{Binding SelectedProductDetail}" Foreground="{DynamicResource AppTextSecondaryBrush}" TextWrapping="Wrap"/>
+                                    <TextBlock Text="{Binding SelectedProductVariants}" Foreground="{DynamicResource AppTextTertiaryBrush}" TextWrapping="Wrap"/>
+                                    <StackPanel Spacing="2" IsVisible="{Binding ProductFolderVisible}">
+                                        <TextBlock Classes="label" Text="Product folder"/>
+                                        <TextBlock Classes="path" Text="{Binding SelectedProductFolderPath}"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
                             <Border Classes="card">
                                 <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="14">
                                     <StackPanel Spacing="4">
@@ -234,37 +265,58 @@
 
                                 </Grid>
                             </Border>
-
-                            <StackPanel Grid.Column="1" Spacing="16">
-                                <Border Classes="status-card">
+                        </StackPanel>
+                    </ScrollViewer>
+                    <Grid Grid.Column="1" RowDefinitions="Auto,*">
+                        <Border x:Name="OperationProgressPanel" Grid.Row="0" Classes="operation-card"
+                                Padding="14" Margin="0,0,0,12" IsVisible="{Binding OperationPanelVisible}">
+                            <StackPanel Spacing="8">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
                                     <StackPanel Spacing="4">
-                                        <TextBlock Classes="label" Text="Detected product"/>
-                                        <ComboBox ItemsSource="{Binding DetectedProductTargets}"
-                                                  SelectedItem="{Binding SelectedProduct}"
-                                                  IsVisible="{Binding ProductSelectorVisible}"
-                                                  HorizontalAlignment="Stretch">
-                                            <ComboBox.ItemTemplate>
-                                                <DataTemplate x:DataType="vm:ProductTargetStatus">
-                                                    <StackPanel Spacing="2" Margin="0,3">
-                                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
-                                                        <TextBlock Text="{Binding Status}" Foreground="{DynamicResource AppTextSecondaryBrush}" FontSize="11"/>
-                                                        <TextBlock Text="{Binding Variants}" Foreground="{DynamicResource AppTextTertiaryBrush}" FontSize="11" TextWrapping="Wrap"/>
-                                                    </StackPanel>
-                                                </DataTemplate>
-                                            </ComboBox.ItemTemplate>
-                                        </ComboBox>
-                                        <TextBlock Classes="value"
-                                                   Text="{Binding SelectedProductName}"
-                                                   TextWrapping="Wrap"
-                                                   IsVisible="{Binding FixedProductVisible}"/>
-                                        <TextBlock Text="{Binding SelectedProductDetail}" Foreground="{DynamicResource AppTextSecondaryBrush}" TextWrapping="Wrap"/>
-                                        <TextBlock Text="{Binding SelectedProductVariants}" Foreground="{DynamicResource AppTextTertiaryBrush}" TextWrapping="Wrap"/>
-                                        <StackPanel Spacing="2" IsVisible="{Binding ProductFolderVisible}">
-                                            <TextBlock Classes="label" Text="Product folder"/>
-                                            <TextBlock Classes="path" Text="{Binding SelectedProductFolderPath}"/>
-                                        </StackPanel>
+                                        <TextBlock Text="{Binding OperationTitle}" Foreground="#F8FAFC"
+                                                   FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap"
+                                                   MaxLines="2" TextTrimming="CharacterEllipsis"
+                                                   ToolTip.Tip="{Binding OperationTitle}"/>
+                                        <TextBlock Text="{Binding OperationSubtitle}" Foreground="#C4B5FD"
+                                                   FontSize="12" TextWrapping="Wrap" MaxLines="2"
+                                                   TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding OperationSubtitle}"/>
                                     </StackPanel>
-                                </Border>
+                                    <Button x:Name="OperationCancelButton" Grid.Column="1" Content="Cancel"
+                                            Command="{Binding CancelOperationCommand}"
+                                            IsVisible="{Binding CanCancelOperation}" IsEnabled="{Binding CanCancelOperation}"
+                                            Background="#7F1D1D" Foreground="#FFFFFF" VerticalAlignment="Top"/>
+                                </Grid>
+                                <ProgressBar Minimum="0" Maximum="100" Value="{Binding OperationProgress}"
+                                             Height="10" Background="#2E1065" Foreground="#BDEB73" CornerRadius="5"/>
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                                    <TextBlock Text="{Binding OperationStatus}" Foreground="#BDEB73" FontWeight="SemiBold"
+                                               TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis"
+                                               ToolTip.Tip="{Binding OperationStatus}"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding OperationElapsed, StringFormat='Elapsed {0}'}"
+                                               Foreground="#F8FAFC" VerticalAlignment="Top"/>
+                                </Grid>
+                                <TextBlock Text="{Binding OperationProgressText}" Foreground="#DDD6FE" FontSize="12"
+                                           TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis"
+                                           ToolTip.Tip="{Binding OperationProgressText}"/>
+                            </StackPanel>
+                        </Border>
+                        <ScrollViewer x:Name="FunctionsPaneScroll" Grid.Row="1"
+                                      HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                            <StackPanel Spacing="16">
+                                <Expander x:Name="OperationLogExpander" Header="Operation log" IsExpanded="False"
+                                          HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                          IsVisible="{Binding OperationPanelVisible}">
+                                    <Border Classes="console-card">
+                                        <StackPanel Spacing="10">
+                                            <TextBlock Text="{Binding OperationSubtitle}" Foreground="#C4B5FD" TextWrapping="Wrap"/>
+                                            <TextBox x:Name="OperationLogText" Text="{Binding OperationLog}"
+                                                     IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap"
+                                                     FontFamily="Menlo,Consolas,monospace" Foreground="#E9D5FF"
+                                                     Background="#10072C" BorderThickness="0" Height="180"
+                                                     ScrollViewer.VerticalScrollBarVisibility="Auto"/>
+                                        </StackPanel>
+                                    </Border>
+                                </Expander>
 
                                 <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="12">
                                     <Border Grid.Row="0"
@@ -742,84 +794,10 @@
                                         </WrapPanel>
                                     </StackPanel>
                                 </Border>
-
-                                <Border Classes="operation-card" IsVisible="{Binding OperationPanelVisible}">
-                                    <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="16">
-                                        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="16">
-                                            <StackPanel Spacing="4">
-                                                <TextBlock Text="{Binding OperationTitle}"
-                                                           Foreground="#F8FAFC"
-                                                           FontSize="24"
-                                                           FontWeight="SemiBold"
-                                                           TextWrapping="Wrap"/>
-                                                <TextBlock Text="{Binding OperationSubtitle}"
-                                                           Foreground="#C4B5FD"
-                                                           TextWrapping="Wrap"/>
-                                            </StackPanel>
-                                            <Button Grid.Column="1"
-                                                    Content="Cancel"
-                                                    Command="{Binding CancelOperationCommand}"
-                                                    IsVisible="{Binding CanCancelOperation}"
-                                                    IsEnabled="{Binding CanCancelOperation}"
-                                                    Background="#7F1D1D"
-                                                    Foreground="#FFFFFF"
-                                                    VerticalAlignment="Top"/>
-                                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
-                                                <TextBlock Text="Elapsed" Foreground="#C4B5FD" FontSize="18" FontWeight="SemiBold"/>
-                                                <TextBlock Text="{Binding OperationElapsed}" Foreground="#F8FAFC" FontSize="18" FontWeight="SemiBold"/>
-                                            </StackPanel>
-                                        </Grid>
-
-                                        <Grid Grid.Row="1" RowDefinitions="Auto,Auto" RowSpacing="8">
-                                            <ProgressBar Minimum="0"
-                                                         Maximum="100"
-                                                         Value="{Binding OperationProgress}"
-                                                         Height="14"
-                                                         Background="#2E1065"
-                                                         Foreground="#BDEB73"
-                                                         CornerRadius="6"/>
-                                            <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="12">
-                                                <TextBlock Text="{Binding OperationProgressText}"
-                                                           Foreground="#DDD6FE"
-                                                           FontFamily="Menlo,Consolas,monospace"
-                                                           FontSize="12"
-                                                           TextWrapping="Wrap"/>
-                                                <TextBlock Grid.Column="1"
-                                                           Text="{Binding OperationStatus}"
-                                                           Foreground="#BDEB73"
-                                                           FontWeight="SemiBold"/>
-                                            </Grid>
-                                        </Grid>
-
-                                        <Border Grid.Row="2" Classes="console-card">
-                                            <Grid RowDefinitions="Auto,*" RowSpacing="10">
-                                                <Grid ColumnDefinitions="*,Auto">
-                                                    <TextBlock Text="Console" Foreground="#F8FAFC" FontWeight="SemiBold"/>
-                                                    <TextBlock Grid.Column="1"
-                                                               Text="{Binding OperationStatus}"
-                                                               Foreground="#BDEB73"
-                                                               FontFamily="Menlo,Consolas,monospace"
-                                                               FontSize="12"
-                                                               FontWeight="SemiBold"/>
-                                                </Grid>
-                                                <TextBox Grid.Row="1"
-                                                         Text="{Binding OperationLog}"
-                                                         IsReadOnly="True"
-                                                         AcceptsReturn="True"
-                                                         TextWrapping="Wrap"
-                                                         FontFamily="Menlo,Consolas,monospace"
-                                                         Foreground="#E9D5FF"
-                                                         Background="#10072C"
-                                                         BorderThickness="0"
-                                                         MinHeight="96"/>
-                                            </Grid>
-                                        </Border>
-                                    </Grid>
-                                </Border>
                             </StackPanel>
-                        </Grid>
-                    </StackPanel>
-                </ScrollViewer>
+                        </ScrollViewer>
+                    </Grid>
+                </Grid>
             </TabItem>
 
             <TabItem Header="Advanced">

@@ -23,341 +23,110 @@
   </style>
 </head>
 <body>
-  <h1>X-Plane.org Listing Copy</h1>
-
-  <h2>Title</h2>
-  <p>X-Plane 737NG Maintenance Toolkit</p>
-
-  <h2>Current Version</h2>
-  <p>0.14.0</p>
-
-  <h2>Short Description</h2>
-  <p>Cross-platform maintenance utility for supported Zibo and LevelUp 737NG aircraft in X-Plane 12, providing aircraft and VNAV updates, transactional backups, CG/view correction, optional patches, tools and resources.</p>
-
   <h2>Full Description</h2>
-  <p>The X-Plane 737NG Maintenance Toolkit is an independent community application for selected maintenance tasks affecting the Zibo 737-800X and LevelUp 737NG Series.</p>
-  <p>The normal workflow is product-neutral: select or auto-detect an aircraft installation, scan it, review the detected product and use the relevant maintenance action. Before writing files, the Toolkit validates package metadata, hashes and target paths, creates backups, preserves protected local configuration files and rolls back failed transactions where possible.</p>
-  <p>Current functions include:</p>
-  <ul>
-    <li>structural detection of supported Zibo and LevelUp installations</li>
-    <li>support for multiple X-Plane installations and manual folder selection</li>
-    <li>Zibo baseline/cumulative aircraft update planning with automatic direct or official BitTorrent package download</li>
-    <li>LevelUp full/cumulative updates from its authorized public GitHub release index</li>
-    <li>complete fresh installation of Zibo or LevelUp into an unused X-Plane 12 Aircraft subfolder, using a validated staging image before activation</li>
-    <li>VNAV descent table install, update, repair, restore and uninstall</li>
-    <li>separate backup and restore state for aircraft, VNAV and tool transactions</li>
-    <li>Quick View correction after an aircraft CG change</li>
-    <li>optional correction of a matching X-Camera file</li>
-    <li>use of Quick View 0 as the aircraft default viewpoint</li>
-    <li>CG-corrected Quick View transfer across all variants in one detected LevelUp installation, with a separate choice to retain or replace Default Viewpoints</li>
-    <li>configuration backup and restore</li>
-    <li>cancellable download and review before a write transaction begins</li>
-    <li>detailed Advanced log and diagnostic export for support requests</li>
-    <li>automatic operating-system light and dark appearance</li>
-    <li>optional installation, update, repair and restore of supported X-Plane tools</li>
-    <li>verified file-wise installation, repair and restore of the optional 737NG Realbench Logger while preserving unrelated DataRefMonitor profiles and logs</li>
-    <li>stable and beta release channels for supported optional tools</li>
-    <li>aircraft-scoped Optimized XLua install, update, repair and restore while preserving aircraft-owned Lua scripts</li>
-    <li>catalog-controlled LevelUp maintenance with required VNAV, W&amp;B and FANS CDU modules</li>
-    <li>optional Tablet Performance Calculator management for LevelUp aircraft</li>
-    <li>optional AUTO JETWAY management for supported Zibo and LevelUp aircraft</li>
-    <li>safe composition of supported optional packages that share aircraft Lua files</li>
-    <li>verified LevelUp Paintkit download and extraction into a user-selected folder</li>
-    <li>background Toolkit application update checks with cancellable verified download and confirmed restart through VeloPack</li>
-    <li>remotely versioned package discovery so supported optional content can be added or updated independently from Toolkit application releases</li>
-  </ul>
-  <p>Version 0.14.0 with online content catalog 1.8.0 currently offers:</p>
-  <ul>
-    <li>Optimized XLua</li>
-    <li>Yet Another Linda (YAL)</li>
-    <li>YAL HoppieHelper</li>
-    <li>XLinSpeak (Linux x64 only; requires separate Piper, voice model and audio setup)</li>
-    <li>YANSH - Yet ANother Simbrief Helper</li>
-    <li>737NG Realbench Logger</li>
-    <li>LevelUp FANS CDU patch</li>
-    <li>LevelUp Tablet Performance Calculator</li>
-    <li>AUTO JETWAY for Zibo and LevelUp</li>
-    <li>CPDLC FANS PAGES for Zibo and LevelUp</li>
-    <li>LevelUp 737NG Paintkit 1.1.0</li>
-  </ul>
-  <p>Optimized XLua is managed separately for each selected Zibo or LevelUp aircraft and preserves the complete aircraft-owned <code>plugins/xlua/scripts</code> tree. YAL, YAL HoppieHelper, YANSH and the Realbench Logger are installed once per X-Plane installation and are available for both products. YANSH preserves its manifest-declared preferences and generated output. The Logger preserves unrelated DataRefMonitor profiles and generated logs. The FANS CDU patch, Tablet Performance Calculator and Paintkit are LevelUp-only. AUTO JETWAY supports both Zibo and LevelUp. The LevelUp maintenance group requires VNAV Descent Tables, Weight & Balance and FANS CDU. Calculator, AUTO JETWAY and CPDLC FANS PAGES are optional; tools and resources remain optional.</p>
-  <p>Aircraft packages, VNAV content, optional patches, tools, resources and Toolkit application releases are separate update layers. The app does not distribute a complete modified <code>B738.a_fms.lua</code>; VNAV hooks and authorized payload files are applied locally after validation.</p>
-  <p>The optional-content catalog is also versioned separately from the Toolkit application. Online catalog metadata is validated before use and cached locally. If the online catalog is unavailable, incompatible or invalid, the Toolkit falls back to the last verified catalog or its bundled package list.</p>
-  <p>Zibo packages are obtained from the official Skymatix feed. The Toolkit tries a direct archive first and automatically uses the feed's official BitTorrent metadata when required. Before peer-to-peer transfer starts, the app explains that peers can see the user's public IP address and that package pieces may be uploaded while the client runs.</p>
-  <p>This is not an official Laminar Research, Zibo or LevelUp product. It does not replace the aircraft developers' official distribution channels.</p>
+<p>The <strong>X-Plane 737NG Maintenance Toolkit (MTK)</strong> helps you install, update and maintain supported <strong>Zibo 737-800X and LevelUp 737NG</strong> aircraft in <strong>X-Plane 12</strong>. It brings aircraft updates, required maintenance patches, optional add-ons and configuration tools into one application.</p>
 
-  <p>CPDLC FANS PAGES is optional for Zibo and LevelUp. Uninstall an existing standalone CPDLC v1.0.0 with its own installer before switching to Toolkit management. Simulator runtime testing remains pending.</p>
+<h3>Updating an existing aircraft</h3>
 
-  <h2>Compatibility</h2>
-  <ul>
-    <li>X-Plane 12 only</li>
-    <li>Zibo 737-800X 2K and 4K</li>
-    <li>LevelUp 737-600, 737-700, 737-800, 737-900 and 737-900ER</li>
-    <li>Windows x64</li>
-    <li>macOS arm64 (Apple silicon)</li>
-    <li>Linux x64</li>
-  </ul>
-  <p>X-Plane 11 is not supported.</p>
+<ol>
+  <li>Close X-Plane completely and start the Toolkit.</li>
+  <li>Select your aircraft installation. Use <code>Auto-detect</code> or <code>Browse</code> and <code>Scan selected folder</code> if it is not already selected.</li>
+  <li>Check the <code>Installed</code>, <code>Available</code> and maintenance status shown on the Start page. Aircraft and patch releases are checked automatically at startup when that setting is enabled.</li>
+  <li>Click <code>Update</code>, review the proposed changes and confirm.</li>
+  <li>Wait for the final result before starting X-Plane again.</li>
+</ol>
 
-  <h2>Download</h2>
-  <p>Download the latest stable build and select the normal-use artifact for your platform:</p>
-  <p><a href="https://github.com/wahltho/xplane-737ng-maintenance-toolkit/releases/latest">https://github.com/wahltho/xplane-737ng-maintenance-toolkit/releases/latest</a></p>
-  <ul>
-    <li>Windows: <code>XPlane737NGMaintenanceToolkit-stable-win-x64-Setup.exe</code>, or the Windows portable ZIP</li>
-    <li>macOS Apple silicon: <code>XPlane737NGMaintenanceToolkit-stable-osx-arm64-Setup.pkg</code>, or the macOS portable ZIP</li>
-    <li>Linux x64: <code>XPlane737NGMaintenanceToolkit-stable-linux-x64.AppImage</code></li>
-  </ul>
-  <p>Do not download the <code>.nupkg</code>, <code>RELEASES-*</code> or <code>assets.*.json</code> files for a normal manual installation. Those assets are VeloPack release metadata.</p>
+<p><strong>For LevelUp, the same Update action applies the aircraft update and then its required maintenance patches automatically. There is no separate confirmation for those required patches.</strong> If the aircraft package is already current, Update can still bring its maintenance patches up to date. Previously selected optional modules are retained.</p>
 
-  <h2>Installation</h2>
-  <h3>Windows</h3>
-  <ol>
-    <li>Run the Setup EXE, or extract the portable ZIP.</li>
-    <li>Start <code>XPlane737NGMaintenanceToolkit</code>.</li>
-  </ol>
-  <h3>macOS Apple silicon</h3>
-  <ol>
-    <li>Run the Setup PKG, or extract the portable ZIP.</li>
-    <li>Start the Toolkit application.</li>
-  </ol>
-  <h3>Linux x64</h3>
-  <ol>
-    <li>Download the AppImage.</li>
-    <li>Make it executable and start it:</li>
-  </ol>
-  <pre><code>chmod +x XPlane737NGMaintenanceToolkit-stable-linux-x64.AppImage
-./XPlane737NGMaintenanceToolkit-stable-linux-x64.AppImage</code></pre>
-  <p>The current builds are unsigned. Windows may display a SmartScreen warning, macOS may block the unsigned and non-notarized build, and the Linux AppImage is not separately signed.</p>
-  <p>Verify the download against <code>SHA256SUMS.txt</code> on the release page. If a verified macOS download is blocked, try to open it once, then use Apple's documented Privacy &amp; Security "Open Anyway" process:</p>
-  <p><a href="https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac">https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac</a></p>
-  <p>VeloPack-managed installations check for stable Toolkit updates in the background. Available updates are downloaded and verified only after user action and applied through an explicitly confirmed restart. App updates remain separate from aircraft and content maintenance.</p>
+<p>Existing installations can be updated directly; a clean reinstall is not a routine requirement. Modified or incomplete installations may require attention if the Toolkit cannot safely validate the affected files or their restore history.</p>
 
-  <h2>First Use</h2>
-  <ol>
-    <li>Close X-Plane completely.</li>
-    <li>Start the Toolkit.</li>
-    <li>Click <code>Auto-detect</code>, or browse to an X-Plane, <code>Aircraft</code>, Zibo or LevelUp folder.</li>
-    <li>Select the required detected product when more than one is available.</li>
-    <li>Click <code>Scan selected folder</code>.</li>
-    <li>Review the displayed product and version state.</li>
-    <li>Use <code>Update</code> and read each confirmation before applying changes.</li>
-  </ol>
-  <p>The Toolkit blocks modifying actions while X-Plane is running. Restart X-Plane fully after an install, update, repair, restore or uninstall.</p>
+<h3>Installing a new aircraft</h3>
 
-  <h2>Documentation And Support</h2>
-  <p>User manual:</p>
-  <p><a href="https://github.com/wahltho/xplane-737ng-maintenance-toolkit/blob/main/docs/USER_MANUAL.md">https://github.com/wahltho/xplane-737ng-maintenance-toolkit/blob/main/docs/USER_MANUAL.md</a></p>
-  <p>Source code and issue tracker:</p>
-  <p><a href="https://github.com/wahltho/xplane-737ng-maintenance-toolkit">https://github.com/wahltho/xplane-737ng-maintenance-toolkit</a></p>
-  <p><a href="https://github.com/wahltho/xplane-737ng-maintenance-toolkit/issues">https://github.com/wahltho/xplane-737ng-maintenance-toolkit/issues</a></p>
-  <p>When reporting a problem, use <code>Dump to file</code> on the Advanced tab and attach the exported operation log. Do not upload complete copyrighted aircraft files.</p>
+<p>Use <code>Install new aircraft</code> on the Start page, choose Zibo or LevelUp, select an unused aircraft destination under your X-Plane installation, then use <code>Check package</code> and <code>Install</code>.</p>
 
-  <h2>License And Disclaimer</h2>
-  <p>The Toolkit source code is available under the MIT License. The application is provided as-is, without warranty of any kind. It can modify aircraft files after validation and backup; users should retain their own backups and use the tool at their own risk.</p>
+<p>The Toolkit obtains the required full aircraft package and cumulative update from the supported source. It prepares and validates the files before activating the new folder. For LevelUp, required maintenance patches follow automatically. The new installation is selected when the operation finishes.</p>
 
-  <h2>Changelog</h2>
-  <h3>0.14.0</h3>
-  <ul><li>Adds optional XLinSpeak for Linux x64 through content catalog 1.8.0.</li><li>Filters tools by supported operating system and architecture and enforces those restrictions before download and installation.</li><li>Piper, voice models and audio configuration remain external prerequisites.</li></ul>
+<p>Zibo downloads use the official Skymatix feed. Where that feed requires BitTorrent, the Toolkit asks before starting a peer-to-peer download; peers can see your IP address and the client may upload package pieces during the transfer. LevelUp packages come from its authorized public GitHub release source. <code>Import package</code> is available for supported packages downloaded separately.</p>
 
-  <h3>0.13.13</h3>
-  <ul><li>Preserves individual patch history during unchanged updates and recovers verifiable legacy histories when migrating into the LevelUp maintenance group.</li><li>Reconciles patch ownership for files replaced by aircraft delta updates and restores the matching ownership when reverting a delta.</li><li>Recreates missing backups only when current bytes prove the recorded original; unknown changes and unavailable required originals remain protected.</li><li>Prevents retired standalone patch records from reappearing after migration and adds detailed backup-chain diagnostics.</li></ul>
+<h3>LevelUp maintenance patches</h3>
 
-  <h3>0.13.12</h3>
-  <ul><li>Safely reapplies the LevelUp maintenance group after a clean aircraft copy restores a verified original file while older standalone patch state remains recorded.</li><li>Refreshes and selects newly installed aircraft immediately without restarting the Toolkit.</li><li>Preserves aircraft folder names for Linux paths ending in a directory separator.</li></ul>
+<p>The required group contains:</p>
 
-  <h3>0.13.11</h3>
-  <ul><li>Automatically checks aircraft and maintenance patch releases at startup without installing anything; can be disabled in Settings.</li><li>Copies hardware configurations between detected Zibo and LevelUp variants within the same X-Plane installation, with backup and restore.</li></ul>
+<ul>
+  <li><strong>VNAV Descent Tables</strong></li>
+  <li><strong>Weight &amp; Balance</strong></li>
+  <li><strong>FANS CDU</strong> — the switchable CDU labels and tablet selection</li>
+</ul>
 
-  <h3>0.13.10</h3>
-  <p>Reduces repeated GitHub API requests for maintenance patches by caching release metadata for ten minutes, including across Toolkit restarts. Concurrent checks reuse one response. GitHub rate-limit responses now show when to retry, and patch release queries pause until the indicated time. Package integrity checks remain unchanged.</p>
+<p>The Toolkit checks the patch repositories for current releases and validates the selected modules before applying them. It recognizes supported existing patches and avoids rewriting files that already match the required state.</p>
 
-  <h3>0.13.9</h3>
-  <p>Fixes a false backup-chain error when migrating previously installed individual patches into the LevelUp maintenance group. Valid no-change records are now verified before following earlier backup steps. Missing or corrupt backups, incomplete history and unknown file changes remain blocked. Do not delete the Toolkit configuration or backups to work around this error.</p>
+<p>Optional aircraft patches include:</p>
 
-  <h3>0.13.8</h3>
-  <p>LevelUp delta-only releases are now discovered automatically while retaining the published full baseline. Fresh installations stage the full baseline and latest cumulative update together, then apply the required maintenance patches automatically. Baseline references and package integrity are validated before installation.</p>
+<ul>
+  <li><strong>Tablet Performance Calculator</strong> for LevelUp</li>
+  <li><strong>AUTO JETWAY</strong> for supported Zibo and LevelUp aircraft</li>
+  <li><strong>CPDLC FANS Pages</strong> for supported Zibo and LevelUp aircraft</li>
+</ul>
 
-  <h3>0.13.7</h3>
-  <p>Fixes required patch installation after a full aircraft replacement in an existing folder with older patch state. Previous module selections are retained, and full-directory restore now restores the matching patch state. Unknown file changes remain protected.</p>
+<p><strong>FANS CDU and CPDLC FANS Pages are different patches.</strong> FANS CDU belongs to the required LevelUp group; CPDLC FANS Pages is optional. Optional patches are installed only when selected. If you previously installed a patch manually, follow that patch's migration instructions before switching to Toolkit management.</p>
 
-  <h3>0.13.6</h3>
-  <p>LevelUp required patches now run automatically after the confirmed aircraft update, without a second confirmation. Existing optional selections are retained. Log export now shows the saved path with Open folder and OK buttons, and displays export failures in a dialog.</p>
+<p>Zibo also has a separate VNAV Descent Tables maintenance workflow.</p>
 
-  <h3>0.13.5</h3>
-  <p>Fixes required patch installation after a clean aircraft reinstall in a previously managed folder. Verified original files and absent patch-created files can be patched again; unknown changes remain protected. Includes 331 passing automated tests and validation with the real LevelUp mandatory patch packages.</p>
+<h3>Optional components, tools and resources</h3>
 
-  <h3>0.13.4</h3>
-  <ul>
-    <li>Aircraft updates now install package-supplied VR configuration files. Existing contents, including custom edits, are backed up and can be restored. Personal preferences and X-Camera files remain protected.</li>
-  </ul>
+<p>Available packages are filtered for the selected aircraft and, where applicable, the operating system and architecture. They include:</p>
 
-  <h3>0.13.3</h3>
-  <ul>
-    <li>The LevelUp maintenance panel now uses the group name from the catalog instead of the VNAV-only heading.</li>
-  </ul>
+<ul>
+  <li><strong>Optimized XLua:</strong> installed per aircraft while preserving its aircraft-owned Lua scripts.</li>
+  <li><strong>Yet Another Linda (YAL), YAL HoppieHelper and YANSH:</strong> optional tools installed once per X-Plane installation.</li>
+  <li><strong>XLinSpeak:</strong> an optional speech plugin for Linux x64. Piper, a voice model and audio output must be installed and configured separately; the Toolkit installs the plugin only.</li>
+  <li><strong>737NG Realbench Logger:</strong> optional logging tools, with unrelated profiles and generated logs preserved.</li>
+  <li><strong>LevelUp Paintkit:</strong> verified download and extraction into a folder you choose.</li>
+</ul>
 
-  <h3>0.13.2</h3>
-  <ul>
-    <li>LevelUp Update checks the full required patch group independently of VNAV status and retains selected optional modules.</li>
-    <li>Deferred or failed group maintenance is reported as pending; the LevelUp Update action remains available.</li>
-    <li>Late application-download progress no longer overwrites completion, failure, cancellation or a newer download.</li>
-  </ul>
-  <h3>0.13.1</h3>
-  <ul>
-    <li>Ships support for upgrading existing FANS CDU v0.1.5 text blocks to v0.1.6.</li>
-    <li>Content catalog 1.6.0 and the existing patch releases remain unchanged.</li>
-  </ul>
-  <h3>0.13.0</h3>
-  <ul><li>Catalog-controlled required and optional patches from independent source releases.</li><li>Startup Update/OK dialog, persistent opt-out and manual update checks.</li></ul>
-  <h3>0.12.6</h3>
-  <ul>
-    <li>Fixed false update blocks when independently versioned compatibility packages share structurally managed Lua targets.</li>
-    <li>Preserved strict blocking for modified package-owned files and structurally incompatible owned blocks.</li>
-  </ul>
-  <h3>0.12.5</h3>
-  <ul>
-    <li>Fixed repeated FANS CDU checks when the cockpit OBJ already contains the complete installed label geometry.</li>
-    <li>Valid installed FANS OBJ content is now adopted without rewriting it, while incomplete or modified geometry remains blocked.</li>
-  </ul>
-  <h3>0.12.4</h3>
-  <ul>
-    <li>Fixed the catalog-to-engine handoff for optional compatibility packages.</li>
-    <li>A direct Install/Update action now retains the complete package module selection across UI status refreshes.</li>
-  </ul>
-  <h3>0.12.3</h3>
-  <ul>
-    <li>Fixed fresh Zibo installation when packages use the official feed family identifier.</li>
-    <li>Added direct catalog actions for optional compatibility packages such as AUTO JETWAY and the LevelUp Tablet Performance Calculator.</li>
-  </ul>
-  <h3>Content Catalog 1.5.0</h3>
-  <ul>
-    <li>Added YANSH 3.20 as an optional verified X-Plane-wide tool for supported Zibo and LevelUp installations.</li>
-    <li>Protected YANSH preferences and generated output during managed updates.</li>
-  </ul>
-  <h3>Content Catalog 1.4.0</h3>
-  <ul>
-    <li>Added online discovery of the LevelUp Tablet Performance Calculator.</li>
-    <li>Added online discovery of AUTO JETWAY for supported Zibo and LevelUp aircraft.</li>
-    <li>Updated LevelUp FANS CDU release-asset discovery.</li>
-    <li>Kept package discovery independent from Toolkit application releases.</li>
-  </ul>
-  <h3>0.12.2</h3>
-  <ul>
-    <li>Added transactional composition of independently versioned compatibility modules that share aircraft Lua files.</li>
-    <li>Added structural ownership checks so known optional patches can coexist without requiring an otherwise unmodified complete Lua file.</li>
-    <li>Added safe marked-block insertion for packages sharing a common Lua loader location.</li>
-    <li>Added a standalone compatibility-package CLI using the same Core transaction, backup and state model as the Toolkit UI.</li>
-  </ul>
-  <h3>0.12.1</h3>
-  <ul>
-    <li>Recognized supported existing LevelUp FANS CDU image patches when local Toolkit state is unavailable.</li>
-    <li>Adopted recognized installations without rewriting their image files or inventing an original restore backup.</li>
-    <li>Continued to block unknown or genuinely modified FANS image content.</li>
-  </ul>
-  <h3>0.12.0</h3>
-  <ul>
-    <li>Added a separately versioned online catalog for supported optional patches, tools, aircraft components and resources.</li>
-    <li>Added strict catalog schema, package identity and minimum Toolkit version validation before online metadata is accepted.</li>
-    <li>Added a last-known-good catalog cache with automatic fallback to the bundled package list when online metadata is unavailable or invalid.</li>
-    <li>Kept Toolkit application updates and optional-content catalog releases technically independent.</li>
-  </ul>
-  <h3>0.11.1</h3>
-  <ul>
-    <li>Added a separate confirmation when copying views across the LevelUp fleet so users can retain existing Default Viewpoints instead of deriving them from transferred Quick View 0 positions.</li>
-  </ul>
-  <h3>0.11.0</h3>
-  <ul>
-    <li>Added the Toolkit version to the application header.</li>
-    <li>Improved LevelUp 7z review and installation performance with a single sequential archive pass.</li>
-    <li>Embedded the application icon in the Windows executable so installed shortcuts display it correctly.</li>
-  </ul>
-  <h3>0.10.0</h3>
-  <ul>
-    <li>Added the optional 737NG Realbench Logger for supported Zibo and LevelUp installations.</li>
-    <li>Added verified schema-v2 X-Plane-root overlay packages whose owned files may span multiple simulator directories.</li>
-    <li>Added file-wise transactional backup, install, update, repair and guarded restore while preserving generated logs and unrelated local files.</li>
-    <li>Limited each tool's release-channel selector to channels declared by its trusted catalog entry.</li>
-  </ul>
-  <h3>0.9.0</h3>
-  <ul>
-    <li>Added background stable-channel Toolkit update checks through VeloPack and GitHub Releases.</li>
-    <li>Added a dedicated update banner with release notes, Later, cancellable download progress and explicit Restart and update actions.</li>
-    <li>Kept application updates isolated from aircraft, VNAV, patch, tool and resource transactions; failures do not block maintenance functions.</li>
-  </ul>
-  <h3>0.8.2</h3>
-  <ul>
-    <li>Added embedded cross-platform BitTorrent downloads for official Zibo baseline and cumulative update packages.</li>
-    <li>Added explicit peer-to-peer confirmation, live percentage/peer/rate progress, cancellation and an inactivity timeout.</li>
-    <li>Added exact torrent package identity checks, piece verification and final archive validation before caching.</li>
-  </ul>
-  <h3>0.8.1</h3>
-  <ul>
-    <li>Prevented torrent metadata, HTML responses and unsupported content from being parsed as aircraft package archives.</li>
-    <li>Added safe download and archive error handling so invalid upstream content cannot terminate the Toolkit process.</li>
-    <li>Added per-package and per-file progress while aircraft packages are reviewed and verified.</li>
-  </ul>
-  <h3>0.8.0</h3>
-  <ul>
-    <li>Added complete fresh-aircraft installation for Zibo 737-800X and LevelUp 737NG Series into an unused X-Plane 12 Aircraft subfolder.</li>
-    <li>Added verified LevelUp full-package resolution and download through the authorized public release index.</li>
-    <li>Added Zibo full-baseline plus latest-cumulative-patch planning with exact offline package import when the official feed exposes torrent links.</li>
-    <li>Added cancellable staging, dry-run review, product-identity validation and atomic activation without overwriting an existing aircraft folder.</li>
-  </ul>
-  <h3>0.7.0</h3>
-  <ul>
-    <li>Added Optimized XLua as an optional aircraft-scoped component for supported Zibo and LevelUp installations.</li>
-    <li>Added verified Stable/Beta release discovery, transactional install, update, repair, backup and guarded restore for aircraft components.</li>
-    <li>Preserved the complete aircraft-owned <code>plugins/xlua/scripts</code> tree during XLua component operations.</li>
-    <li>Added hash-verified XLua preservation across incremental and clean-baseline aircraft updates; missing or changed managed files require repair first.</li>
-  </ul>
-  <h3>0.6.1</h3>
-  <ul>
-    <li>Reworked cross-baseline Zibo updates as clean staged aircraft replacements instead of overlays onto an older baseline.</li>
-    <li>Added exact full-directory backup, transactional activation, rollback and full-directory restore for clean baseline updates.</li>
-    <li>Added ZIP content-root detection, obsolete baseline-file removal and guarded migration of protected preferences and local liveries.</li>
-    <li>Limited very large review lists to 500 visible details while retaining full plan totals.</li>
-  </ul>
-  <h3>0.6.0</h3>
-  <ul>
-    <li>Added a confirmed LevelUp fleet view transfer from one selected source variant to all other variants in the same aircraft folder.</li>
-    <li>Added per-target feet-to-meters CG correction for transferred Quick Views.</li>
-    <li>Added QV0-derived Default Viewpoints, per-file backups, all-target pre-validation and rollback for the fleet transaction.</li>
-  </ul>
-  <h3>0.5.0</h3>
-  <ul>
-    <li>Added the LevelUp FANS CDU package as the first visible explicit optional aircraft patch.</li>
-    <li>Added a verified Resources workflow with user-selected extraction directories.</li>
-    <li>Added the official LevelUp 737NG Paintkit 1.1.0 as the first visible resource package.</li>
-    <li>Added guarded optional-patch restore and removal controls.</li>
-    <li>Added resource manifest, GitHub asset, archive traversal, file hash and installation-state validation.</li>
-  </ul>
-  <h3>0.4.0</h3>
-  <ul>
-    <li>Added a product-gated Tools workflow for YAL and YAL HoppieHelper.</li>
-    <li>Added independent Stable and Beta channels with verified GitHub Release manifests, archives and payload hashes.</li>
-    <li>Added transactional tool install, update, repair and guarded restore while preserving manifest-declared user data and local unowned files.</li>
-    <li>Added a generic transactional content-patch engine while retaining the existing managed VNAV workflow for Zibo and LevelUp.</li>
-    <li>Added a trusted product-scoped package catalog without advertising an optional aircraft patch in this release.</li>
-  </ul>
-  <h3>0.3.10</h3>
-  <ul>
-    <li>Added clear completion dialogs for aircraft update and restore operations.</li>
-    <li>Added explicit blocked-operation feedback when X-Plane is running.</li>
-    <li>Improved final update status and installed-version reporting.</li>
-  </ul>
-  <h3>0.3.9</h3>
-  <ul>
-    <li>Corrected product-wide LevelUp update state and backup naming.</li>
-    <li>Improved update progress reporting and product-level confirmation text.</li>
-    <li>Clarified CG/view maintenance controls.</li>
-  </ul>
-  <h3>0.3.8</h3>
-  <ul>
-    <li>Corrected offline LevelUp package import and version detection.</li>
-    <li>Improved compatibility with the LevelUp manifest/archive package workflow.</li>
-  </ul>
+<p>Supported components and tools have install, update, repair and restore actions. Stable and beta channels are offered where the package supports them.</p>
 
-  <h2>Suggested X-Plane.org Tags</h2>
-  <p>X-Plane 12, Utilities, Zibo, LevelUp, 737NG, Updater, VNAV</p>
+<p>The online catalog can add or change available packages without rebuilding the application when the existing Toolkit supports their requirements. Some additions require a Toolkit update. Older Toolkits retain a compatible cached or bundled catalog when a newer catalog cannot be used.</p>
+
+<h3>Views and hardware settings</h3>
+
+<ul>
+  <li>Correct saved Quick Views after an aircraft centre-of-gravity change, with support for a matching X-Camera configuration.</li>
+  <li>Use Quick View 0 as the default viewpoint.</li>
+  <li>Copy Quick Views between variants in one LevelUp installation, with CG correction and a choice about replacing default viewpoints.</li>
+  <li>Copy saved hardware configurations between detected Zibo and LevelUp variants within the same X-Plane installation, with backup and restore.</li>
+</ul>
+
+<h3>Download and compatibility</h3>
+
+<p>Supports X-Plane 12, Zibo 737-800X 2K/4K and the LevelUp 737-600, 737-700, 737-800, 737-900 and 737-900ER.</p>
+
+<p>Get the current release using the links below:</p>
+
+<ul>
+  <li><strong>Windows x64:</strong> <a href="https://github.com/wahltho/xplane-737ng-maintenance-toolkit/releases/latest/download/XPlane737NGMaintenanceToolkit-stable-win-x64-Setup.exe">Installer</a> or <a href="https://github.com/wahltho/xplane-737ng-maintenance-toolkit/releases/latest/download/XPlane737NGMaintenanceToolkit-stable-win-x64-Portable.zip">portable ZIP</a>.</li>
+  <li><strong>macOS Apple silicon:</strong> <a href="https://github.com/wahltho/xplane-737ng-maintenance-toolkit/releases/latest/download/XPlane737NGMaintenanceToolkit-stable-osx-arm64-Setup.pkg">Installer</a> or <a href="https://github.com/wahltho/xplane-737ng-maintenance-toolkit/releases/latest/download/XPlane737NGMaintenanceToolkit-stable-osx-arm64-Portable.zip">portable ZIP</a>.</li>
+  <li><strong>Linux x64:</strong> <a href="https://github.com/wahltho/xplane-737ng-maintenance-toolkit/releases/latest/download/XPlane737NGMaintenanceToolkit-stable-linux-x64.AppImage">AppImage</a>. Make the downloaded file executable before launching it.</li>
+</ul>
+
+<p>For checksums and release notes, visit the <a href="https://github.com/wahltho/xplane-737ng-maintenance-toolkit/releases/latest">latest release page</a>. Use the installer, portable ZIP or AppImage for a manual installation; the other package and feed files support the built-in updater. The macOS build is for Apple silicon. X-Plane 11 is not supported.</p>
+
+<p>The Windows and macOS builds are unsigned, and the macOS build is not notarized. Verify the download against the release checksums. If macOS blocks a verified download, follow <a href="https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac">Apple's Open Anyway instructions</a>.</p>
+
+<h3>Toolkit updates and settings</h3>
+
+<p>The Toolkit can notify you when a newer application release is available. Downloading and applying that update requires your action. In <code>Settings</code>, you can independently disable startup checks for <strong>Toolkit updates</strong> and for <strong>aircraft and patch releases</strong>. Manual checks remain available.</p>
+
+<h3>Backups and support</h3>
+
+<p>The Toolkit validates packages and affected files before writing, creates backups for changes to existing installations and preserves protected preferences and unrelated files. Restore depends on the available backup history. Keep your own backups as well.</p>
+
+<p>If an operation reports <strong>blocked</strong> or <strong>required patches pending</strong>, check the final message before flying. An aircraft update may have completed while its required patches remain unfinished. <strong>Do not delete Toolkit settings or backups to bypass an error.</strong></p>
+
+<p>To request help, open <code>Advanced → Dump to file</code>. The export dialog shows the saved log's full path; <code>Open folder</code> takes you to it. Attach the complete <code>.txt</code> log, describe what you were doing and mention any manual aircraft modifications. A screenshot can help, but does not replace the log.</p>
+
+<p><a href="https://github.com/wahltho/xplane-737ng-maintenance-toolkit/blob/main/docs/USER_MANUAL.md">User manual</a> · <a href="https://github.com/wahltho/xplane-737ng-maintenance-toolkit">Source code and issue tracker</a></p>
+
+<p>The MTK is an independent community project, not an official Laminar Research, Zibo or LevelUp product. Its source is available under the MIT License; the application is provided without warranty.</p>
 </body>
 </html>
