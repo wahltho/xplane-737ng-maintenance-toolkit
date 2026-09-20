@@ -72,15 +72,33 @@ public sealed class CompatibilityPackagePlanBuilder
 
         var selectedIds = selectedModules.Select(module => module.ModuleId).ToArray();
         log.Add($"[MODULES] {string.Join(", ", selectedModules.Select(module => $"{module.ModuleId} ({module.Policy})"))}");
+        var selectedOperations = selectedModules
+            .SelectMany(module => module.Targets.Select(target => new ModuleTarget(module, target)))
+            .GroupBy(item => item.Target.RelativePath, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.ToArray(), StringComparer.Ordinal);
         var componentState = _stateStore.TryGetContentInstallation(aircraftRoot)?.ContentComponents?
             .GetValueOrDefault(manifest.PackageId);
         ContentComponentState? migrated = null;
-        if (componentState is null && manifest.Sources.Count > 0 && action is not ContentPatchAction.Uninstall)
+        if (manifest.Sources.Count > 0 && action is not ContentPatchAction.Uninstall)
         {
             try
             {
-                migrated = CatalogGroupMigration.Prepare(aircraftRoot, manifest, _stateStore.TryGetContentInstallation(aircraftRoot)?.ContentComponents);
-                componentState = migrated;
+                var installation = _stateStore.TryGetContentInstallation(aircraftRoot);
+                var replacementTargets = FindLegacyAircraftReplacements(aircraftRoot, variant, installation, selectedOperations);
+                migrated = CatalogGroupMigration.Prepare(aircraftRoot, manifest, installation?.ContentComponents,
+                    installation?.Backups, replacementTargets);
+                if (migrated is not null)
+                {
+                    if (componentState is not null)
+                    {
+                        if (migrated.Files.Any(f => componentState.Files.Any(existing => existing.RelativePath == f.RelativePath)))
+                            throw new InvalidOperationException("Overlapping standalone and catalog ownership; existing installation retained.");
+                        migrated.InstalledUtc = componentState.InstalledUtc;
+                        migrated.Files.AddRange(componentState.Files);
+                        migrated.RestoreAvailable &= componentState.RestoreAvailable;
+                    }
+                    componentState = migrated;
+                }
             }
             catch (InvalidOperationException ex)
             {
@@ -110,10 +128,6 @@ public sealed class CompatibilityPackagePlanBuilder
                 "No compatibility modules are selected; no aircraft files need to change."));
         }
 
-        var selectedOperations = selectedModules
-            .SelectMany(module => module.Targets.Select(target => new ModuleTarget(module, target)))
-            .GroupBy(item => item.Target.RelativePath, StringComparer.Ordinal)
-            .ToDictionary(group => group.Key, group => group.ToArray(), StringComparer.Ordinal);
         var targetPaths = selectedOperations.Keys
             .Concat(componentState?.Files.Select(file => file.RelativePath) ?? [])
             .Distinct(StringComparer.Ordinal)
@@ -121,6 +135,7 @@ public sealed class CompatibilityPackagePlanBuilder
             .ToArray();
         var mutations = new List<ContentPatchMutation>();
         var expectedSources = new Dictionary<string, string?>(StringComparer.Ordinal);
+        var rebasedOriginalPaths = new HashSet<string>(StringComparer.Ordinal);
 
         foreach (var relativePath in targetPaths)
         {
@@ -170,8 +185,8 @@ public sealed class CompatibilityPackagePlanBuilder
                             || !Sha256(File.ReadAllBytes(previousFile.BackupPath)).Equals(
                                 previousFile.OriginalSha256, StringComparison.OrdinalIgnoreCase)))
                     {
-                        return Task.FromResult(Blocked(descriptor, manifest, action, aircraftRoot,
-                            $"Original compatibility-package backup failed validation for {relativePath}.", log));
+                        rebasedOriginalPaths.Add(relativePath);
+                        log.Add($"[RECOVER] {relativePath}: current bytes match recorded original SHA-256 {previousFile.OriginalSha256}; a new verified backup will be created.");
                     }
                     sourceExists = currentExists;
                     sourceBytes = currentBytes;
@@ -360,6 +375,7 @@ public sealed class CompatibilityPackagePlanBuilder
             Sources = manifest.Sources,
             ExpectedSourceHashes = expectedSources,
             MigratedState = migrated,
+            RebasedOriginalPaths = rebasedOriginalPaths,
             OwnedRelativePaths = selectedOperations.Keys.ToHashSet(StringComparer.Ordinal)
         });
     }
@@ -513,6 +529,29 @@ public sealed class CompatibilityPackagePlanBuilder
         string message,
         IReadOnlyList<string> log) =>
         ContentPatchPlan.Blocked(descriptor, manifest.PackageVersion, action, aircraftRoot, message, log);
+
+    private IReadOnlySet<string> FindLegacyAircraftReplacements(string aircraftRoot, AircraftVariantViewAnalysis variant,
+        ContentInstallationToolState? installation, IReadOnlyDictionary<string, ModuleTarget[]> selectedOperations)
+    {
+        var result = new HashSet<string>(StringComparer.Ordinal);
+        if (installation is null) return result;
+        var journal = _stateStore.TryGetProductTarget(variant)?.Backups ?? [];
+        foreach (var file in installation.ContentComponents.Values.SelectMany(c => c.Files))
+        {
+            if (!CanComposeFromCurrentTarget(file.RelativePath, selectedOperations)) continue;
+            var path = ContentPatchPathSafety.ResolveTarget(aircraftRoot, file.RelativePath, "Aircraft replacement history");
+            var record = journal.Where(r => r.Operation.StartsWith("AircraftUpdate", StringComparison.Ordinal)
+                    && string.Equals(r.SourcePath, path, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
+                .OrderByDescending(r => r.CreatedUtc).FirstOrDefault();
+            if (record?.Operation != "AircraftUpdatePreImage" || record.AircraftContentGeneration is not null
+                || !record.SourceExisted || string.IsNullOrWhiteSpace(record.SourceSha256)
+                || !string.Equals(record.SourceSha256, file.InstalledSha256, StringComparison.OrdinalIgnoreCase)
+                || !File.Exists(record.BackupPath) || new FileInfo(record.BackupPath).Length != record.SourceSizeBytes
+                || !Sha256(File.ReadAllBytes(record.BackupPath)).Equals(record.SourceSha256, StringComparison.OrdinalIgnoreCase)) continue;
+            result.Add(file.RelativePath);
+        }
+        return result;
+    }
 
     private bool CanComposeFromCurrentTarget(
         string relativePath,

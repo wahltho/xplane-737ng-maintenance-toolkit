@@ -72,6 +72,10 @@ public sealed record ContentPatchPlan(
 
     public IReadOnlyDictionary<string, string?> ExpectedSourceHashes { get; init; } = new Dictionary<string, string?>();
 
+    // These exact originals were re-established by verified current bytes. Capture a
+    // new backup transactionally instead of retaining an unavailable historical path.
+    public IReadOnlySet<string> RebasedOriginalPaths { get; init; } = new HashSet<string>(StringComparer.Ordinal);
+
     public bool RestoreAvailable { get; init; } = true;
 
     public IReadOnlyList<LevelUp.NavTableUpdater.Core.Manifest.ResolvedCatalogSource> Sources { get; init; } = [];

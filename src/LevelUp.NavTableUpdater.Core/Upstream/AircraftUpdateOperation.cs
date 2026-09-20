@@ -273,6 +273,15 @@ public sealed class AircraftUpdateOperation
 
         try
         {
+            // Validate every backup before the first write, including a deleted-file
+            // preimage. A bad later entry must not leave a partially restored aircraft.
+            foreach (var record in restoreRecords.Where(r => r.SourceExisted))
+            {
+                if (!File.Exists(record.BackupPath)
+                    || new FileInfo(record.BackupPath).Length != record.SourceSizeBytes
+                    || !string.Equals(ComputeSha256(record.BackupPath), record.SourceSha256, StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException($"Aircraft update backup failed verification: {record.SourcePath}.");
+            }
             foreach (var record in restoreRecords.Reverse())
             {
                 var preRestore = CapturePreRestoreImage(variant, record, createdUtc, log);
@@ -284,8 +293,14 @@ public sealed class AircraftUpdateOperation
                 RestorePreImage(record, log);
             }
 
-            _stateStore.UpdateProductTarget(variant, state =>
+            _stateStore.UpdateContentAndProduct(variant, (installation, state) =>
             {
+                var generation = restoreRecords.Select(r => r.AircraftContentGeneration).FirstOrDefault(g => g is not null);
+                // Older generations have no ownership snapshot. Preserve their existing
+                // state for the normal verified migration/reinstall path.
+                if (generation is not null)
+                    AircraftContentOwnership.ReplaceTargets(installation, state,
+                        RelativeTargets(aircraftFolder, restoreRecords), generation);
                 state.InstalledAircraftUpdateFamily = null;
                 state.InstalledAircraftUpdateVersion = null;
                 state.LastAircraftUpdateMode = null;
@@ -297,8 +312,9 @@ public sealed class AircraftUpdateOperation
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
+            RollBack(preRestoreBackups, log);
             log.Add($"[FAILED] {ex.Message}");
-            return MaintenanceOperationResult.Blocked($"Aircraft update restore failed before completion: {ex.Message}", log);
+            return MaintenanceOperationResult.Blocked($"Aircraft update restore failed; current files and ownership retained: {ex.Message}", log);
         }
 
         log.Add("[OK] Aircraft update restore completed.");
@@ -490,7 +506,8 @@ public sealed class AircraftUpdateOperation
         if (!File.Exists(restoreRecord.SourcePath))
         {
             log.Add($"[RESTORE] Current file is already missing: {restoreRecord.SourcePath}");
-            return null;
+            return new BackupRecord { Operation = "AircraftUpdateRestorePreImage", SourcePath = restoreRecord.SourcePath,
+                CreatedUtc = createdUtc, SourceExisted = false };
         }
 
         var aircraftFolder = Path.GetFullPath(Path.GetDirectoryName(variant.AcfPath) ?? "");
@@ -523,8 +540,19 @@ public sealed class AircraftUpdateOperation
         IReadOnlyList<BackupRecord> backups,
         string operation)
     {
-        _stateStore.UpdateProductTarget(variant, target =>
+        var aircraftFolder = Path.GetFullPath(Path.GetDirectoryName(variant.AcfPath) ?? "");
+        _stateStore.UpdateContentAndProduct(variant, (installation, target) =>
         {
+            if (backups.Count > 0)
+            {
+                backups[0].AircraftContentGeneration = AircraftContentOwnership.Capture(installation, target);
+                foreach (var record in backups)
+                {
+                    record.WrittenSizeBytes = File.Exists(record.SourcePath) ? new FileInfo(record.SourcePath).Length : null;
+                    record.WrittenSha256 = File.Exists(record.SourcePath) ? ComputeSha256(record.SourcePath) : null;
+                }
+                AircraftContentOwnership.ReplaceTargets(installation, target, RelativeTargets(aircraftFolder, backups));
+            }
             target.InstalledAircraftUpdateFamily = updateCheck.Family;
             target.InstalledAircraftUpdateVersion = updateCheck.AvailableVersionDisplay;
             target.LastAircraftUpdateMode = updateCheck.UpdateMode.ToString();
@@ -534,6 +562,10 @@ public sealed class AircraftUpdateOperation
             target.Backups.AddRange(backups);
         });
     }
+
+    private static IReadOnlySet<string> RelativeTargets(string aircraftFolder, IEnumerable<BackupRecord> records) =>
+        records.Select(r => Path.GetRelativePath(aircraftFolder, r.SourcePath).Replace('\\', '/'))
+            .ToHashSet(StringComparer.Ordinal);
 
     private static CachedPackageValidation ValidateCachedPackages(
         IReadOnlyList<AircraftUpdatePackage> requiredPackages,

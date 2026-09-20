@@ -52,7 +52,7 @@ public sealed class CatalogGroupMigrationTests : IDisposable
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void CleanReinstallAtRecordedOriginal_WithUnavailableBackupBlocks(bool missing)
+    public void CleanReinstallAtRecordedOriginal_RecreatesUnavailableBackupOnlyDuringExecution(bool missing)
     {
         File.WriteAllText(Path.Combine(_root, "shared.lua"), "stock");
         var installed = States();
@@ -60,10 +60,11 @@ public sealed class CatalogGroupMigrationTests : IDisposable
         if (missing) File.Delete(backup);
         else File.WriteAllText(backup, "corrupt");
 
-        var error = Assert.Throws<InvalidOperationException>(() =>
-            CatalogGroupMigration.Prepare(_root, Manifest(), installed));
-
-        Assert.Contains("complete backup chain", error.Message);
+        var result = CatalogGroupMigration.Prepare(_root, Manifest(), installed)!;
+        var file = Assert.Single(result.Files);
+        Assert.Equal("", file.BackupPath);
+        Assert.Equal(Hash("stock"), file.OriginalSha256);
+        Assert.Equal(!missing, File.Exists(backup));
         Assert.Equal("stock", File.ReadAllText(Path.Combine(_root, "shared.lua")));
         Assert.Equal(2, installed.Count);
     }
@@ -116,7 +117,7 @@ public sealed class CatalogGroupMigrationTests : IDisposable
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void InvalidNoChangeBackup_StillBlocks(bool missing)
+    public void CurrentBytes_CanProveAnUnavailableNoChangeBackup(bool missing)
     {
         File.WriteAllText(Path.Combine(_root, "shared.lua"), "both patches");
         var installed = new Dictionary<string, ContentComponentState>
@@ -128,7 +129,8 @@ public sealed class CatalogGroupMigrationTests : IDisposable
         if (missing) File.Delete(backup);
         else File.WriteAllText(backup, "corrupt");
 
-        Assert.Throws<InvalidOperationException>(() => CatalogGroupMigration.Prepare(_root, Manifest(), installed));
+        var migrated = CatalogGroupMigration.Prepare(_root, Manifest(), installed)!;
+        Assert.Equal(Hash("stock"), Assert.Single(migrated.Files).OriginalSha256);
         Assert.Equal("both patches", File.ReadAllText(Path.Combine(_root, "shared.lua")));
         Assert.Equal(2, installed.Count);
     }
@@ -145,6 +147,52 @@ public sealed class CatalogGroupMigrationTests : IDisposable
         var error = Assert.Throws<InvalidOperationException>(() => CatalogGroupMigration.Prepare(_root, Manifest(), installed));
         Assert.Contains("complete backup chain", error.Message);
         Assert.Equal("both patches", File.ReadAllText(Path.Combine(_root, "shared.lua")));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void LegacyOverlappingSnapshots_RequireVerifiedConnectingJournal(bool corruptEvidence)
+    {
+        File.WriteAllText(Path.Combine(_root, "shared.lua"), "both patches");
+        var installed = States();
+        installed["first"].Files[0].InstalledSha256 = Hash("both patches");
+        installed["first"].Files[0].InstalledSizeBytes = Encoding.UTF8.GetByteCount("both patches");
+        var journal = installed.Values.Select(c => new BackupRecord
+        {
+            PackageId = c.ComponentId, Operation = "ContentPatchInstall",
+            SourcePath = Path.Combine(_root, "shared.lua"), BackupPath = c.Files[0].BackupPath,
+            SourceExisted = true, SourceSha256 = c.Files[0].OriginalSha256, SourceSizeBytes = c.Files[0].OriginalSizeBytes,
+            WrittenSha256 = c.ComponentId == "first" ? Hash("first patch") : Hash("both patches"),
+            CreatedUtc = DateTimeOffset.UtcNow
+        }).ToArray();
+        Assert.Throws<InvalidOperationException>(() => CatalogGroupMigration.Prepare(_root, Manifest(), installed));
+        if (corruptEvidence)
+        {
+            journal[0].WrittenSha256 = Hash("unrelated");
+            Assert.Throws<InvalidOperationException>(() => CatalogGroupMigration.Prepare(_root, Manifest(), installed, journal));
+        }
+        else
+        {
+            var result = CatalogGroupMigration.Prepare(_root, Manifest(), installed, journal)!;
+            Assert.Equal(Hash("stock"), Assert.Single(result.Files).OriginalSha256);
+            Assert.Equal("stock", File.ReadAllText(result.Files[0].BackupPath));
+        }
+        Assert.Equal(Hash("both patches"), installed["first"].Files[0].InstalledSha256);
+    }
+
+    [Fact]
+    public void CleanReinstall_RemovesPatchCreatedFilesButNotOriginalAircraftFiles()
+    {
+        var installed = new Dictionary<string, ContentComponentState>
+        {
+            ["first"] = new() { ComponentId = "first", Files = [new() { RelativePath = "shared.lua", OriginalExisted = false, InstalledSha256 = Hash("created") }] }
+        };
+        var recovered = CatalogGroupMigration.Prepare(_root, Manifest(), installed)!;
+        Assert.False(Assert.Single(recovered.Files).OriginalExisted);
+        Assert.Null(recovered.Files[0].InstalledSha256);
+        installed["first"].Files[0].OriginalExisted = true;
+        Assert.Throws<InvalidOperationException>(() => CatalogGroupMigration.Prepare(_root, Manifest(), installed));
     }
 
     private Dictionary<string, ContentComponentState> States() => new()

@@ -1,6 +1,7 @@
 using System.Text;
 using LevelUp.NavTableUpdater.Core.Aircraft;
 using LevelUp.NavTableUpdater.Core.Content;
+using LevelUp.NavTableUpdater.Core.Manifest;
 
 namespace LevelUp.NavTableUpdater.Core.Tests;
 
@@ -129,6 +130,58 @@ public sealed class ContentPatchEngineTests
         Assert.False(result.Succeeded);
         Assert.Equal("foreign edit", File.ReadAllText(targetPath));
         Assert.Empty(store.Load().ContentInstallations);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void SequentialPatches_RefreshThenMigration_RetainsHistoryAndCommitsOwnershipAtomically(bool failMigration)
+    {
+        using var directory = new DeclarativePatchManifestTests.TemporaryDirectory();
+        var root = directory.Path;
+        var path = Path.Combine(root, "shared.lua");
+        File.WriteAllText(path, "stock");
+        var variant = CreateVariant(Path.Combine(root, "737_70NG.acf"));
+        var store = TestToolStateStore.Create(Path.Combine(root, "state"));
+        var engine = new ContentPatchEngine(store, () => false);
+        var first = CreateDescriptor(ContentPatchActivation.Managed) with { ComponentId = "first" };
+        var second = first with { ComponentId = "second" };
+        ContentPatchMutation Write(string text) => ContentPatchMutation.Write("shared.lua", Encoding.UTF8.GetBytes(text), "test");
+        Assert.True(engine.Execute(CreatePlan(first, root, Write("one")), variant).Succeeded);
+        var firstState = store.TryGetContentInstallation(root)!.ContentComponents["first"];
+        // A legacy per-variant entry must not resurrect this source after transfer.
+        store.UpdateTarget(variant, target => target.ContentComponents["first"] = firstState);
+        Assert.True(engine.Execute(CreatePlan(second, root, Write("two")), variant).Succeeded);
+        var refresh = engine.Execute(CreatePlan(first, root, Write("two")), variant);
+        Assert.True(refresh.Succeeded);
+        Assert.False(refresh.Changed);
+        var installation = store.TryGetContentInstallation(root)!;
+        Assert.Equal(firstState.Files[0].InstalledSha256, installation.ContentComponents["first"].Files[0].InstalledSha256);
+        var manifest = new CompatibilityPackageManifest { PackageId = "group",
+            Sources = [new() { PackageId = "first" }, new() { PackageId = "second" }],
+            Modules = [new() { Targets = [new() { RelativePath = "shared.lua" }] }] };
+        var migration = CatalogGroupMigration.Prepare(root, manifest, installation.ContentComponents, installation.Backups)!;
+        var plan = CreatePlan(first with { ComponentId = "group" }, root, Write(failMigration ? "new" : "two")) with
+            { MigratedState = migration, Sources = manifest.Sources };
+        var stateBefore = File.ReadAllText(store.StatePath);
+        if (failMigration)
+        {
+            Directory.CreateDirectory(Path.Combine(root, "write-failure"));
+            plan = plan with { Mutations = [.. plan.Mutations, ContentPatchMutation.Write("write-failure", [1], "fail")] };
+            Assert.NotNull(Record.Exception(() => engine.Execute(plan, variant)));
+            Assert.Equal(stateBefore, File.ReadAllText(store.StatePath));
+            Assert.Equal("two", File.ReadAllText(path));
+        }
+        else
+        {
+            Assert.True(engine.Execute(plan, variant).Succeeded);
+            Assert.True(store.TryGetContentInstallation(root)!.HasAuthoritativeContentState);
+            Assert.Equal("group", Assert.Single(store.TryGetContentInstallation(root)!.ContentComponents).Key);
+            Assert.True(engine.Execute(plan with { MigratedState = null }, variant).Succeeded);
+            Assert.True(engine.Restore(plan.Descriptor, variant).Succeeded);
+            Assert.Empty(store.TryGetContentInstallation(root)!.ContentComponents);
+            Assert.Equal("stock", File.ReadAllText(path));
+        }
     }
 
     private static ContentPatchDescriptor CreateDescriptor(ContentPatchActivation activation) =>

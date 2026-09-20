@@ -1,6 +1,7 @@
 using System.Text.Json;
 using LevelUp.NavTableUpdater.Core.Aircraft;
 using LevelUp.NavTableUpdater.Core.Upstream;
+using LevelUp.NavTableUpdater.Core.State;
 
 namespace LevelUp.NavTableUpdater.Core.Tests;
 
@@ -263,6 +264,55 @@ public sealed class LevelUpAircraftUpdatePackageTests : IDisposable
         Assert.Equal("original", File.ReadAllText(existingPath));
         Assert.False(File.Exists(newPath));
         Assert.Equal("retired", File.ReadAllText(retiredPath));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Delta_ReconcilesOnlyReplacedOwnership_AndRestoresItAtomically(bool corruptBackup)
+    {
+        var fixture = CreatePackageFixture();
+        var variant = BuildVariant(fixture.AircraftPath, "2.S1.0");
+        var existing = Path.Combine(fixture.AircraftPath, "existing.txt");
+        File.WriteAllText(existing, "old patched bytes");
+        File.WriteAllText(Path.Combine(fixture.AircraftPath, "retired.txt"), "retired");
+        var selection = new LevelUpAircraftUpdatePackageLoader().Load(fixture.ManifestPath, variant);
+        var imported = new AircraftUpdatePackageCache(Path.Combine(_root, "cache"))
+            .ImportPackage(fixture.ArchivePath, selection.Package!);
+        var store = TestToolStateStore.Create(_root);
+        store.UpdateContentAndProduct(variant, (installation, product) =>
+        {
+            var component = new ContentComponentState { ComponentId = "patch", EnabledModules = ["optional"], Files =
+                [new() { RelativePath = "existing.txt", InstalledSha256 = "old" },
+                 new() { RelativePath = "untouched.lua", InstalledSha256 = "untouched" }] };
+            installation.ContentComponents["patch"] = component;
+            product.ContentComponents["patch"] = component;
+        });
+        var operation = new AircraftUpdateOperation(store, isXPlaneRunning: () => false);
+        var applied = operation.Apply(variant, selection.UpdateCheck, [imported]);
+        Assert.True(applied.Succeeded, applied.Message);
+        var after = store.TryGetContentInstallation(fixture.AircraftPath)!;
+        Assert.Equal("untouched.lua", Assert.Single(after.ContentComponents["patch"].Files).RelativePath);
+        Assert.Equal(["optional"], after.ContentComponents["patch"].EnabledModules);
+        var record = store.TryGetProductTarget(variant)!.Backups.Single(b => b.SourcePath == existing);
+        Assert.Equal(UpdatedSha256, record.WrittenSha256);
+        if (corruptBackup) File.WriteAllText(record.BackupPath, "corrupt");
+        var stateBeforeRestore = File.ReadAllText(store.StatePath);
+        var restored = operation.RestoreLatest(variant);
+        if (corruptBackup)
+        {
+            Assert.False(restored.Succeeded);
+            Assert.Equal(stateBeforeRestore, File.ReadAllText(store.StatePath));
+            Assert.Equal("updated", File.ReadAllText(existing));
+            Assert.True(File.Exists(Path.Combine(fixture.AircraftPath, "new-file.txt")));
+        }
+        else
+        {
+            Assert.True(restored.Succeeded, restored.Message);
+            Assert.Equal("old patched bytes", File.ReadAllText(existing));
+            Assert.Equal(2, store.TryGetContentInstallation(fixture.AircraftPath)!.ContentComponents["patch"].Files.Count);
+            Assert.Equal(2, store.TryGetProductTarget(variant)!.ContentComponents["patch"].Files.Count);
+        }
     }
 
     [Theory]

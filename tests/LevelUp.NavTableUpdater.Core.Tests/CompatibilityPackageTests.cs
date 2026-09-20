@@ -179,12 +179,16 @@ public sealed class CompatibilityPackageTests
         var composed = "core\r\n-- BEGIN INDEPENDENT\r\nindependent\r\n-- END INDEPENDENT\r\n";
         Assert.Equal(composed, File.ReadAllText(fixture.TargetPath));
 
+        var beforeRefresh = fixture.Store.TryGetContentInstallation(Path.GetDirectoryName(fixture.Variant.AcfPath)!)!
+            .ContentComponents["levelup.compatibility"].Files.Single().InstalledSha256;
         var updated = await operation.RunAsync(
             ContentPatchAction.Update,
             fixture.Variant,
             fixture.PackageDirectory,
             ["core"]);
 
+        Assert.Equal(beforeRefresh, fixture.Store.TryGetContentInstallation(Path.GetDirectoryName(fixture.Variant.AcfPath)!)!
+            .ContentComponents["levelup.compatibility"].Files.Single().InstalledSha256);
         Assert.True(updated.Succeeded);
         Assert.False(updated.Changed);
         Assert.Equal(composed, File.ReadAllText(fixture.TargetPath));
@@ -411,7 +415,7 @@ public sealed class CompatibilityPackageTests
     [InlineData("missing-target")]
     [InlineData("missing-backup")]
     [InlineData("corrupt-backup")]
-    public async Task Update_ReinstallWithUnverifiableOriginal_RemainsBlocked(string damage)
+    public async Task Update_RecoversBackupOnlyWhenCurrentBytesProveOriginal(string damage)
     {
         using var fixture = Fixture.Create(singleComposableModule: true, includeCopyModule: true);
         var operation = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false);
@@ -427,9 +431,21 @@ public sealed class CompatibilityPackageTests
         else File.WriteAllText(file.BackupPath, "tampered");
         var result = await operation.RunAsync(ContentPatchAction.Update, fixture.Variant,
             fixture.PackageDirectory, ["core", "table-payload"]);
-        Assert.False(result.Succeeded);
-        Assert.Equal(damage != "missing-target", File.Exists(path));
-        if (File.Exists(path)) Assert.Equal("original", File.ReadAllText(path));
+        if (damage == "missing-target")
+        {
+            Assert.False(result.Succeeded);
+            Assert.False(File.Exists(path));
+        }
+        else
+        {
+            Assert.True(result.Succeeded, result.Message);
+            var recovered = fixture.Store.TryGetContentInstallation(Path.GetDirectoryName(fixture.Variant.AcfPath)!)!
+                .ContentComponents["levelup.compatibility"].Files.Single(f => f.RelativePath.EndsWith("table.lua"));
+            Assert.NotEqual(file.BackupPath, recovered.BackupPath);
+            Assert.Equal("original", File.ReadAllText(recovered.BackupPath));
+            Assert.True(operation.Restore(fixture.Variant, fixture.PackageDirectory).Succeeded);
+            Assert.Equal("original", File.ReadAllText(path));
+        }
     }
 
     [Fact]

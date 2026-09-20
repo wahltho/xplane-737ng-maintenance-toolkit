@@ -54,10 +54,10 @@ public sealed class ContentPatchEngine
         }
 
         var changedMutations = mutations.Where(mutation => !MutationIsAlreadyApplied(mutation)).ToArray();
-        var priorState = _stateStore.TryGetContentInstallation(aircraftRoot)?.ContentComponents.GetValueOrDefault(plan.Descriptor.ComponentId) ?? plan.MigratedState;
-        var needsInitialBackup = plan.Sources.Count > 0
-            ? mutations.Where(m => priorState?.Files.Any(f => f.RelativePath == m.RelativePath) != true && File.Exists(m.TargetPath)).ToArray()
-            : [];
+        var priorState = plan.MigratedState ?? _stateStore.TryGetContentInstallation(aircraftRoot)?.ContentComponents.GetValueOrDefault(plan.Descriptor.ComponentId);
+        var needsInitialBackup = mutations.Where(m => File.Exists(m.TargetPath)
+            && (plan.RebasedOriginalPaths.Contains(m.RelativePath)
+                || (plan.Sources.Count > 0 && priorState?.Files.Any(f => f.RelativePath == m.RelativePath) != true))).ToArray();
         if (changedMutations.Length == 0 && needsInitialBackup.Length == 0)
         {
             RecordState(plan, variant, mutations, backups: [], changed: false);
@@ -323,6 +323,7 @@ public sealed class ContentPatchEngine
                     target.LastOperation = stateOperation;
                     target.Backups.AddRange(preRestoreBackups);
                 }
+                installation.HasAuthoritativeContentState = true;
                 installation.ContentComponents.Remove(descriptor.ComponentId);
                 installation.Backups.AddRange(preRestoreBackups);
             }, manageProduct: descriptor.Lifecycle.Activation is ContentPatchActivation.Managed);
@@ -356,10 +357,13 @@ public sealed class ContentPatchEngine
         bool changed,
         IReadOnlyDictionary<string, OriginalFileState>? originals = null)
     {
-        var previous = _stateStore.TryGetContentInstallation(plan.AircraftRoot)?.ContentComponents
-            .GetValueOrDefault(plan.Descriptor.ComponentId) ?? plan.MigratedState;
+        var previous = plan.MigratedState ?? _stateStore.TryGetContentInstallation(plan.AircraftRoot)?.ContentComponents
+            .GetValueOrDefault(plan.Descriptor.ComponentId);
         _stateStore.UpdateContentAndProduct(variant, (installation, target) =>
         {
+            // Load has already imported all legacy owners. Subsequent loads must
+            // not resurrect removed standalone entries from another product record.
+            installation.HasAuthoritativeContentState = true;
             installation.ContentComponents ??= new Dictionary<string, ContentComponentState>(StringComparer.Ordinal);
             if (plan.Action is ContentPatchAction.Uninstall)
             {
@@ -371,7 +375,7 @@ public sealed class ContentPatchEngine
                 var ownedMutations = plan.OwnedRelativePaths is null
                     ? mutations
                     : mutations.Where(mutation => plan.OwnedRelativePaths.Contains(mutation.RelativePath)).ToArray();
-                var fileStates = ownedMutations.Select(mutation => BuildFileState(mutation, previous, originals)).ToList();
+                var fileStates = ownedMutations.Select(mutation => BuildFileState(mutation, previous, originals, plan.RebasedOriginalPaths.Contains(mutation.RelativePath))).ToList();
                 installation.ContentComponents[plan.Descriptor.ComponentId] = new ContentComponentState
                 {
                     ComponentId = plan.Descriptor.ComponentId,
@@ -425,7 +429,8 @@ public sealed class ContentPatchEngine
     private static ContentComponentFileState BuildFileState(
         ResolvedMutation mutation,
         ContentComponentState? previous,
-        IReadOnlyDictionary<string, OriginalFileState>? originals)
+        IReadOnlyDictionary<string, OriginalFileState>? originals,
+        bool rebaseOriginal)
     {
         var previousFile = previous?.Files.FirstOrDefault(file =>
             string.Equals(file.RelativePath, mutation.RelativePath, StringComparison.Ordinal));
@@ -435,16 +440,20 @@ public sealed class ContentPatchEngine
             originals.TryGetValue(mutation.RelativePath, out original);
         }
         var installed = CaptureOriginal(mutation.TargetPath);
+        // Observing another patch's bytes is not a new transition owned by this
+        // component. Retain its last written hash on per-file no-change updates.
+        var preserveTransition = previousFile is not null && original is null;
+        var baseline = rebaseOriginal ? null : previousFile;
         return new ContentComponentFileState
         {
             RelativePath = mutation.RelativePath,
             TargetPath = mutation.TargetPath,
-            BackupPath = previousFile?.BackupPath ?? original?.BackupPath ?? "",
-            OriginalExisted = previousFile?.OriginalExisted ?? original?.Existed ?? installed.Existed,
-            OriginalSizeBytes = previousFile?.OriginalSizeBytes ?? original?.SizeBytes ?? installed.SizeBytes,
-            OriginalSha256 = previousFile?.OriginalSha256 ?? original?.Sha256 ?? installed.Sha256,
-            InstalledSizeBytes = installed.SizeBytes,
-            InstalledSha256 = installed.Sha256
+            BackupPath = baseline?.BackupPath ?? original?.BackupPath ?? "",
+            OriginalExisted = baseline?.OriginalExisted ?? original?.Existed ?? installed.Existed,
+            OriginalSizeBytes = baseline?.OriginalSizeBytes ?? original?.SizeBytes ?? installed.SizeBytes,
+            OriginalSha256 = baseline?.OriginalSha256 ?? original?.Sha256 ?? installed.Sha256,
+            InstalledSizeBytes = preserveTransition ? previousFile!.InstalledSizeBytes : installed.SizeBytes,
+            InstalledSha256 = preserveTransition ? previousFile!.InstalledSha256 : installed.Sha256
         };
     }
 
