@@ -178,11 +178,25 @@ public sealed class MainWindowUiTests
             Assert.Contains("current", fixture.Vm.UpstreamUpdateSummary, StringComparison.OrdinalIgnoreCase);
             Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "v2.S1.51C" && t.IsVisible);
             Assert.Contains(fixture.Vm.AvailableContentPackages, p => p.AvailableVersion.Contains("1.0.0"));
+            Assert.True(fixture.Vm.CompatibilityModulesVisible);
+            Assert.Equal(6, fixture.Vm.CompatibilityModules.Count);
+            Assert.Equal(3, fixture.Vm.CompatibilityModules.Count(m => m.IsSelected && !m.CanChangeSelection));
+            Assert.Equal(3, fixture.Vm.CompatibilityModules.Count(m => !m.IsSelected && m.CanChangeSelection));
+            Assert.True(fixture.Vm.CanRunOptionalPatch);
             Assert.Empty(window.OwnedWindows);
             Assert.True(fixture.Vm.ActionsEnabled);
             Assert.DoesNotContain(fixture.Handler.Requests, u => u.EndsWith(".zip") || u.EndsWith(".7z"));
             SaveFrame(window, "startup-versions.png");
             var tabs = window.GetVisualDescendants().OfType<TabControl>().Single();
+            tabs.SelectedIndex = 1;
+            Dispatcher.UIThread.RunJobs();
+            var modules = window.GetVisualDescendants().OfType<ItemsControl>()
+                .Single(c => ReferenceEquals(c.ItemsSource, fixture.Vm.CompatibilityModules));
+            Assert.True(modules.IsEffectivelyVisible);
+            Assert.Equal(6, modules.ItemCount);
+            modules.BringIntoView();
+            Dispatcher.UIThread.RunJobs();
+            SaveFrame(window, "startup-optional-patches.png");
             tabs.SelectedIndex = 2;
             Dispatcher.UIThread.RunJobs();
             var toggle = window.GetVisualDescendants().OfType<CheckBox>()
@@ -199,6 +213,48 @@ public sealed class MainWindowUiTests
             Assert.False(fixture.Vm.CheckAircraftAndPatchUpdatesOnStartup);
             Assert.DoesNotContain(fixture.Handler.Requests, u => u.Contains("737NG-Updates") || u.EndsWith("/releases/latest"));
             Assert.NotEqual("v2.S1.51C", fixture.Vm.UpstreamAvailableVersion);
+            Assert.True(fixture.Vm.CompatibilityModulesVisible);
+            Assert.Equal(6, fixture.Vm.CompatibilityModules.Count);
+        }
+        finally { Close(window); }
+    });
+
+    [Fact]
+    public Task Startup_PatchPreviewPreservesChoicesAndInstalledSelection_AndDownloadsOnlyOnAction() => Run(async () =>
+    {
+        using var fixture = new Fixture(enabled: true);
+        var window = fixture.Open();
+        try
+        {
+            await Until(() => fixture.Vm.ContentPackageCatalogStatus.StartsWith("Content-package releases checked:", StringComparison.Ordinal));
+            var optional = fixture.Vm.CompatibilityModules.Single(m => m.ModuleId == "cpdlc");
+            optional.IsSelected = true;
+            fixture.Vm.ActionsEnabled = false;
+            fixture.Vm.ActionsEnabled = true;
+            Assert.True(fixture.Vm.CompatibilityModules.Single(m => m.ModuleId == "cpdlc").IsSelected);
+            Assert.DoesNotContain(fixture.Handler.Requests, u => u.EndsWith(".zip"));
+            // The mock has release metadata but deliberately no archives. Review must
+            // attempt preparation, report the failure and preserve selection, not write aircraft files.
+            var aircraft = Path.GetDirectoryName(fixture.Vm.SelectedViewVariant!.AcfPath)!;
+            var files = Directory.GetFiles(aircraft).ToDictionary(p => p, File.ReadAllBytes);
+            await fixture.Vm.ReviewOptionalPatchCommand.ExecuteAsync(null);
+            Assert.Contains(fixture.Handler.Requests, u => u.EndsWith(".zip"));
+            Assert.Contains("rejected", fixture.Vm.OperationTitle);
+            Assert.True(fixture.Vm.CompatibilityModules.Single(m => m.ModuleId == "cpdlc").IsSelected);
+            foreach (var (path, bytes) in files) Assert.Equal(bytes, File.ReadAllBytes(path));
+            Assert.Empty(window.OwnedWindows);
+            var state = new ToolStateStore(fixture.Store.RootPath, fixture.Store.Load().BackupRootPath);
+            state.UpdateContentAndProduct(fixture.Vm.SelectedViewVariant!, (installation, product) =>
+                installation.ContentComponents["wahltho.levelup-737ng.maintenance"] = new()
+                { ComponentId = "wahltho.levelup-737ng.maintenance", EnabledModules = ["vnav", "fans-cdu", "weight-and-balance", "auto-jetway"] });
+            Close(window);
+            window = fixture.Open();
+            await Until(() => fixture.Vm.ContentPackageCatalogStatus.StartsWith("Content-package releases checked:", StringComparison.Ordinal));
+            Assert.True(fixture.Vm.CompatibilityModules.Single(m => m.ModuleId == "auto-jetway").IsSelected);
+            Assert.False(fixture.Vm.CompatibilityModules.Single(m => m.ModuleId == "cpdlc").IsSelected);
+            fixture.Vm.SetAircraftPathFromBrowse(Path.Combine(fixture.Xp, "Aircraft", "zibo-737ng"));
+            Assert.False(fixture.Vm.CompatibilityModulesVisible);
+            Assert.Empty(fixture.Vm.CompatibilityModules);
         }
         finally { Close(window); }
     });

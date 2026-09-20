@@ -12,6 +12,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Content/KnownAircraftBaselines.json" />
     <InternalsVisibleTo Include="LevelUp.NavTableUpdater.Core.Tests" />
   </ItemGroup>
 

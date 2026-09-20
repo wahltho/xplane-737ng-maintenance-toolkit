@@ -599,6 +599,89 @@ public sealed class CompatibilityPackageTests
         Assert.Equal("before\r\n", File.ReadAllText(fixture.TargetPath));
     }
 
+    [Theory]
+    [InlineData(true, "intact", false)]
+    [InlineData(true, "missing", false)]
+    [InlineData(true, "corrupt", false)]
+    [InlineData(false, "missing", false)]
+    [InlineData(false, "corrupt", false)]
+    [InlineData(true, "missing", true)]
+    public async Task OfficialBaseline_RecoversOldOwnershipWithoutOldBackups_AndPreservesRestore(
+        bool migrateStandalone, string backupCondition, bool failWrite)
+    {
+        using var fixture = Fixture.Create(omitStructuralResultHashes: true);
+        var operation = new CompatibilityPackageOperation(fixture.Store, () => false);
+        Assert.True((await operation.RunAsync(ContentPatchAction.Install, fixture.Variant,
+            fixture.PackageDirectory, ["core", "standard"])).Succeeded);
+        var root = Path.GetDirectoryName(fixture.Variant.AcfPath)!;
+        var oldComponent = fixture.Store.TryGetContentInstallation(root)!.ContentComponents["levelup.compatibility"];
+        var oldBackup = Assert.Single(oldComponent.Files).BackupPath;
+        if (backupCondition == "missing") File.Delete(oldBackup);
+        if (backupCondition == "corrupt") File.WriteAllText(oldBackup, "corrupt historical backup");
+        var oldBackupBytes = File.Exists(oldBackup) ? File.ReadAllBytes(oldBackup) : null;
+        var manifestPath = Path.Combine(fixture.PackageDirectory, "package-manifest.json");
+        if (migrateStandalone)
+        {
+            var document = JsonNode.Parse(File.ReadAllText(manifestPath))!;
+            document["packageId"] = "new.group";
+            document["sources"] = JsonSerializer.SerializeToNode(new[] { new {
+                packageId = "levelup.compatibility", moduleId = "core", releaseTag = "v1.0.0",
+                assetSha256 = new string('a', 64), repositoryUrl = "https://github.com/example/core" } });
+            File.WriteAllText(manifestPath, document.ToJsonString());
+        }
+        var baseline = Encoding.UTF8.GetBytes("official release change\r\nbefore\r\n");
+        File.WriteAllBytes(fixture.TargetPath, baseline);
+        var catalog = new KnownAircraftBaselines([new("levelup-737ng", "test-release",
+            "plugins/xlua/scripts/shared.lua", baseline.Length, Sha256(baseline), "https://example.org/release-manifest", new string('a', 64))]);
+        var builder = new CompatibilityPackagePlanBuilder(fixture.Store, null, catalog);
+        var package = CompatibilityPackageLoader.LoadDirectory(fixture.PackageDirectory);
+        var stateBefore = File.ReadAllBytes(fixture.Store.StatePath);
+        // Without independent evidence this is the reporter's disconnected-history failure.
+        var rejected = await new CompatibilityPackagePlanBuilder(fixture.Store).BuildAsync(
+            ContentPatchAction.Install, fixture.Variant, package, ["core", "standard"]);
+        if (migrateStandalone) Assert.False(rejected.IsSafe);
+        var plan = await builder.BuildAsync(ContentPatchAction.Install, fixture.Variant, package, ["core", "standard"]);
+        Assert.True(plan.IsSafe, plan.StatusMessage);
+        Assert.Contains(plan.Log, line => line.StartsWith("[RECOVER]"));
+        Assert.Equal(stateBefore, File.ReadAllBytes(fixture.Store.StatePath));
+        Assert.Equal(baseline, File.ReadAllBytes(fixture.TargetPath));
+        var engine = new ContentPatchEngine(fixture.Store, () => false);
+        if (failWrite)
+        {
+            Directory.CreateDirectory(Path.Combine(root, "write-failure"));
+            plan = plan with { Mutations = [.. plan.Mutations, ContentPatchMutation.Write("write-failure", [1], "fault injection")] };
+            Assert.NotNull(Record.Exception(() => engine.Execute(plan, fixture.Variant)));
+            Assert.Equal(baseline, File.ReadAllBytes(fixture.TargetPath));
+            Assert.Equal(stateBefore, File.ReadAllBytes(fixture.Store.StatePath));
+        }
+        else
+        {
+            Assert.True(engine.Execute(plan, fixture.Variant).Succeeded);
+            var newState = Assert.Single(fixture.Store.TryGetContentInstallation(root)!.ContentComponents).Value;
+            Assert.Equal(Sha256(baseline), Assert.Single(newState.Files).OriginalSha256);
+            Assert.Equal(baseline, File.ReadAllBytes(newState.Files[0].BackupPath));
+            var repeat = await builder.BuildAsync(ContentPatchAction.Update, fixture.Variant, package, ["core", "standard"]);
+            Assert.True(repeat.IsSafe, repeat.StatusMessage);
+            var repeated = engine.Execute(repeat, fixture.Variant);
+            Assert.True(repeated.Succeeded);
+            Assert.False(repeated.Changed);
+            var optional = await builder.BuildAsync(ContentPatchAction.Update, fixture.Variant, package, ["core", "standard", "optional"]);
+            Assert.True(optional.IsSafe, optional.StatusMessage);
+            Assert.True(engine.Execute(optional, fixture.Variant).Succeeded);
+            Assert.Equal("official release change\r\noptional\r\n", File.ReadAllText(fixture.TargetPath));
+            Assert.True(engine.Restore(plan.Descriptor, fixture.Variant).Succeeded);
+            Assert.Equal(baseline, File.ReadAllBytes(fixture.TargetPath));
+            // Recovery is not dependent on the action name or old ownership remaining.
+            var repair = await builder.BuildAsync(ContentPatchAction.Repair, fixture.Variant, package, ["core"]);
+            Assert.True(engine.Execute(repair, fixture.Variant).Succeeded);
+            var uninstall = await builder.BuildAsync(ContentPatchAction.Uninstall, fixture.Variant, package, []);
+            Assert.True(engine.Execute(uninstall, fixture.Variant).Succeeded);
+            Assert.Equal(baseline, File.ReadAllBytes(fixture.TargetPath));
+        }
+        Assert.Equal(oldBackupBytes is not null, File.Exists(oldBackup));
+        if (oldBackupBytes is not null) Assert.Equal(oldBackupBytes, File.ReadAllBytes(oldBackup));
+    }
+
     private sealed class Fixture : IDisposable
     {
         private readonly DeclarativePatchManifestTests.TemporaryDirectory _directory;

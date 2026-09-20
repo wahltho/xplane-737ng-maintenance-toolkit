@@ -1,6 +1,6 @@
 # X-Plane 737NG Maintenance Toolkit User Manual
 
-This manual describes version 0.14.1 of the X-Plane 737NG Maintenance Toolkit.
+This manual describes version 0.14.2 of the X-Plane 737NG Maintenance Toolkit.
 
 The toolkit is a desktop app for selected Zibo and LevelUp 737NG maintenance
 tasks:
@@ -30,7 +30,7 @@ Keep your own backups and use the tool at your own risk.
 
 ## Compatibility And Installation
 
-Version 0.14.1 supports:
+Version 0.14.2 supports:
 
 - X-Plane 12. X-Plane 11 is not supported.
 - Zibo 737-800X 2K and 4K variants.
@@ -228,7 +228,7 @@ explicit confirmation before writing files. Version 0.13.0 offers the LevelUp
 FANS CDU package as an optional LevelUp-only patch. It remains separate from
 aircraft and VNAV updates and is never installed automatically.
 
-At startup, version 0.14.1 checks immutable `catalog-v*` releases in the Toolkit
+At startup, version 0.14.2 checks immutable `catalog-v*` releases in the Toolkit
 repository for updated package discovery metadata. A downloaded catalog becomes
 active only after schema, version, repository URL and minimum Toolkit version
 validation. If the check fails, the app uses its last valid cached catalog and
@@ -709,3 +709,12 @@ Before writing, the Toolkit saves the complete previous state under
 undoes that copy for the selected X-Plane installation, including removing files
 created by it. Restore blocks if a destination has been edited since copying.
 The operation log includes the backup location. Keep the backup folder intact.
+
+### Maintenance module list at startup
+
+For a detected LevelUp installation, the Advanced tab shows the maintenance
+module selection from the catalog immediately, including when automatic release
+checks are disabled. Required modules stay selected; installed optional module
+selections are retained. Merely displaying the list does not download patch
+archives or change aircraft files. Choosing Review, Install or Update prepares
+and validates the packages while keeping the chosen module selection.

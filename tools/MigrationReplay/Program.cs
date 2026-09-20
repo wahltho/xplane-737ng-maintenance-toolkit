@@ -38,7 +38,7 @@ if (args.Length == 4 && args[0] == "--restore-active-group")
     return;
 }
 
-if (args.Length == 4 && args[0] == "--legacy-recovery")
+if (args.Length is 4 or 5 && args[0] == "--legacy-recovery")
 {
     // Clone captured production evidence, relocating paths only. No expected hash
     // or patch-history record is constructed or changed by this recovery probe.
@@ -75,6 +75,23 @@ if (args.Length == 4 && args[0] == "--legacy-recovery")
     legacy.ContentInstallations = legacy.ContentInstallations.Values.ToDictionary(i => Key(i.AircraftFolder));
     legacy.Aircraft = legacy.Aircraft.Values.ToDictionary(i => string.IsNullOrEmpty(i.AcfPath)
         ? Key($"PRODUCT|{family}|{i.AircraftFolder}") : Key(i.AcfPath));
+    // Fault injection only in the isolated clone: model missing historical evidence.
+    var scenario = args.Length == 5 ? args[4] : "intact";
+    if (scenario is not ("intact" or "missing-aircraft-history" or "missing-object-backup" or "corrupt-object-backup" or "stock-no-backups" or "foreign-object"))
+        throw new ArgumentException("Unknown replay scenario.");
+    if (scenario != "intact")
+    {
+        foreach (var target in legacy.Aircraft.Values)
+            target.Backups.RemoveAll(r => r.Operation.StartsWith("AircraftUpdate", StringComparison.Ordinal));
+        if (scenario is "missing-object-backup" or "corrupt-object-backup")
+            foreach (var component in legacy.ContentInstallations.Values.SelectMany(i => i.ContentComponents.Values))
+                foreach (var file in component.Files.Where(f => f.RelativePath == "objects/737_cockpit_ovhd2.obj"))
+                {
+                    if (!file.BackupPath.StartsWith(destination + Path.DirectorySeparatorChar)) throw new Exception("Backup outside clone.");
+                    if (scenario == "missing-object-backup") File.Delete(file.BackupPath);
+                    else File.WriteAllText(file.BackupPath, "corrupt backup");
+                }
+    }
     File.WriteAllText(store.StatePath, JsonSerializer.Serialize(legacy));
     if (store.TryGetContentInstallation(Path.Combine(destination, "aircraft"))!.ContentComponents.Count != 2)
         throw new Exception("Captured standalone ownership was not preserved during relocation.");
@@ -82,10 +99,33 @@ if (args.Length == 4 && args[0] == "--legacy-recovery")
     variant = new AircraftViewAnalyzer().Analyze(aircraft).Variants.First() with { Family = "levelup-737ng" };
     var objectPath = Path.Combine(aircraft, "objects/737_cockpit_ovhd2.obj");
     var officialObject = File.ReadAllBytes(objectPath);
+    if (scenario == "foreign-object") File.AppendAllText(objectPath, "\n# unverified external change\n");
+    if (scenario == "stock-no-backups")
+    {
+        var baselineRoot = Path.Combine(Path.GetDirectoryName(Path.GetDirectoryName(source))!, "baseline-verification", "737NG Series_v2.S1.50");
+        foreach (var file in Directory.GetFiles(baselineRoot, "*", SearchOption.AllDirectories))
+        {
+            var relative = Path.GetRelativePath(baselineRoot, file);
+            if (relative == "objects/737_cockpit_ovhd2.obj") continue;
+            File.Copy(file, Path.Combine(aircraft, relative), true);
+        }
+        foreach (var file in Directory.GetFiles(Path.Combine(destination, "backups"), "*", SearchOption.AllDirectories)) File.Delete(file);
+    }
+    var retainedBackups = Directory.GetFiles(Path.Combine(destination, "backups"), "*", SearchOption.AllDirectories)
+        .ToDictionary(file => file, file => SHA256.HashData(File.ReadAllBytes(file)));
+    var stateBefore = File.ReadAllBytes(store.StatePath);
+    var objectBefore = File.ReadAllBytes(objectPath);
     var operation = new CompatibilityPackageOperation(store, () => false);
     string[] selection = ["vnav", "fans-cdu", "weight-and-balance"];
     var recovered = await operation.RunAsync(ContentPatchAction.Update, variant, args[3], selection);
     File.WriteAllLines(Path.Combine(destination, "legacy-recovery.log"), recovered.Log);
+    if (scenario == "foreign-object")
+    {
+        if (recovered.Succeeded || !stateBefore.SequenceEqual(File.ReadAllBytes(store.StatePath))
+            || !objectBefore.SequenceEqual(File.ReadAllBytes(objectPath))) throw new Exception("Unknown edit protection failed.");
+        Console.WriteLine("PASS unknown object edit blocked; state and aircraft bytes unchanged.");
+        return;
+    }
     if (!recovered.Succeeded) throw new Exception(recovered.Message);
     Console.WriteLine("PASS captured 0.13.12 state: required group installed.");
     var repeated = await operation.RunAsync(ContentPatchAction.Update, variant, args[3], selection);
@@ -98,10 +138,21 @@ if (args.Length == 4 && args[0] == "--legacy-recovery")
     File.WriteAllLines(Path.Combine(destination, "optional-disable.log"), deselected.Log);
     if (!deselected.Succeeded) throw new Exception(deselected.Message);
     Console.WriteLine("PASS captured 0.13.12 state: optional performance enabled and removed.");
+    var groupState = store.TryGetContentInstallation(aircraft)!.ContentComponents["wahltho.levelup-737ng.maintenance"];
+    var expectedRestore = groupState.Files.ToDictionary(f => f.RelativePath,
+        f => f.OriginalExisted ? File.ReadAllBytes(f.BackupPath) : null);
     var restore = operation.Restore(variant, args[3]);
     if (!restore.Succeeded) throw new Exception(restore.Message);
     if (!File.ReadAllBytes(objectPath).SequenceEqual(officialObject)) throw new Exception("Restore lost official delta object.");
-    Console.WriteLine("PASS captured 0.13.12 state: restore preserves official delta object.");
+    foreach (var (relative, expected) in expectedRestore)
+    {
+        var path = Path.Combine(aircraft, relative);
+        if (expected is null ? File.Exists(path) : !File.Exists(path) || !expected.SequenceEqual(File.ReadAllBytes(path)))
+            throw new Exception("Restore mismatch: " + relative);
+    }
+    foreach (var (path, hash) in retainedBackups)
+        if (!File.Exists(path) || !hash.SequenceEqual(SHA256.HashData(File.ReadAllBytes(path)))) throw new Exception("Historical backup changed: " + path);
+    Console.WriteLine("PASS captured 0.13.12 state: all targets restored exactly, official delta object and historical backups preserved.");
     return;
 }
 

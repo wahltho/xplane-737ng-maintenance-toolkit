@@ -10,12 +10,18 @@ public sealed class CompatibilityPackagePlanBuilder
 {
     private readonly ToolStateStore _stateStore;
     private readonly ContentPatchHandlerRegistry _handlers;
+    private readonly KnownAircraftBaselines _baselines;
 
     public CompatibilityPackagePlanBuilder(
         ToolStateStore stateStore,
         ContentPatchHandlerRegistry? handlers = null)
+        : this(stateStore, handlers, KnownAircraftBaselines.BuiltIn) { }
+
+    internal CompatibilityPackagePlanBuilder(ToolStateStore stateStore,
+        ContentPatchHandlerRegistry? handlers, KnownAircraftBaselines baselines)
     {
         _stateStore = stateStore;
+        _baselines = baselines;
         _handlers = handlers ?? ContentPatchHandlerRegistry.CreateBuiltIn();
     }
 
@@ -78,6 +84,14 @@ public sealed class CompatibilityPackagePlanBuilder
             .ToDictionary(group => group.Key, group => group.ToArray(), StringComparer.Ordinal);
         var componentState = _stateStore.TryGetContentInstallation(aircraftRoot)?.ContentComponents?
             .GetValueOrDefault(manifest.PackageId);
+        var verifiedBaselines = new Dictionary<string, KnownAircraftBaseline>(StringComparer.Ordinal);
+        // An exact file hash is authoritative; a version label alone never is.
+        foreach (var relativePath in action is ContentPatchAction.Uninstall ? Enumerable.Empty<string>() : selectedOperations.Keys)
+        {
+            var path = ContentPatchPathSafety.ResolveTarget(aircraftRoot, relativePath, "Official baseline");
+            if (File.Exists(path) && _baselines.Match(selectedProduct, relativePath, File.ReadAllBytes(path)) is { } baseline)
+                verifiedBaselines.Add(relativePath, baseline);
+        }
         ContentComponentState? migrated = null;
         if (manifest.Sources.Count > 0 && action is not ContentPatchAction.Uninstall)
         {
@@ -86,7 +100,7 @@ public sealed class CompatibilityPackagePlanBuilder
                 var installation = _stateStore.TryGetContentInstallation(aircraftRoot);
                 var replacementTargets = FindLegacyAircraftReplacements(aircraftRoot, variant, installation, selectedOperations);
                 migrated = CatalogGroupMigration.Prepare(aircraftRoot, manifest, installation?.ContentComponents,
-                    installation?.Backups, replacementTargets);
+                    installation?.Backups, replacementTargets, verifiedBaselines);
                 if (migrated is not null)
                 {
                     if (componentState is not null)
@@ -148,6 +162,11 @@ public sealed class CompatibilityPackagePlanBuilder
             var currentBytes = currentExists ? File.ReadAllBytes(targetPath) : [];
             expectedSources[relativePath] = currentExists ? Sha256(currentBytes) : null;
             bool sourceExists;
+            if (verifiedBaselines.TryGetValue(relativePath, out var verified)
+                && (!currentExists || currentBytes.LongLength != verified.Size
+                    || !Sha256(currentBytes).Equals(verified.Sha256, StringComparison.OrdinalIgnoreCase)))
+                return Task.FromResult(Blocked(descriptor, manifest, action, aircraftRoot,
+                    $"Target changed during official baseline verification: {relativePath}. Review the operation again.", log));
 
             if (previousFile is null)
             {
@@ -171,66 +190,84 @@ public sealed class CompatibilityPackagePlanBuilder
             {
                 // A clean reinstall at the same path can restore the original file (or
                 // remove a patch-created file) while the external installation state survives.
-                var matchesOriginal = previousFile.OriginalExisted
-                    ? currentExists && currentBytes.LongLength == previousFile.OriginalSizeBytes
-                        && Sha256(currentBytes).Equals(previousFile.OriginalSha256, StringComparison.OrdinalIgnoreCase)
-                    : !currentExists;
-                if (matchesOriginal)
+                var verifiedBaseline = verifiedBaselines.GetValueOrDefault(relativePath);
+                if (verifiedBaseline is not null
+                    && currentExists && currentBytes.LongLength == verifiedBaseline.Size
+                    && Sha256(currentBytes).Equals(verifiedBaseline.Sha256, StringComparison.OrdinalIgnoreCase)
+                    && (!previousFile.OriginalExisted
+                        || !verifiedBaseline.Sha256.Equals(previousFile.OriginalSha256, StringComparison.OrdinalIgnoreCase)
+                        || string.IsNullOrWhiteSpace(previousFile.BackupPath) || !File.Exists(previousFile.BackupPath)
+                        || new FileInfo(previousFile.BackupPath).Length != previousFile.OriginalSizeBytes
+                        || !Sha256(File.ReadAllBytes(previousFile.BackupPath)).Equals(previousFile.OriginalSha256, StringComparison.OrdinalIgnoreCase)))
                 {
-                    // Keep the original backup contract intact for a later Restore.
-                    if (previousFile.OriginalExisted
-                        && (string.IsNullOrWhiteSpace(previousFile.BackupPath)
-                            || !File.Exists(previousFile.BackupPath)
-                            || new FileInfo(previousFile.BackupPath).Length != previousFile.OriginalSizeBytes
-                            || !Sha256(File.ReadAllBytes(previousFile.BackupPath)).Equals(
-                                previousFile.OriginalSha256, StringComparison.OrdinalIgnoreCase)))
-                    {
-                        rebasedOriginalPaths.Add(relativePath);
-                        log.Add($"[RECOVER] {relativePath}: current bytes match recorded original SHA-256 {previousFile.OriginalSha256}; a new verified backup will be created.");
-                    }
-                    sourceExists = currentExists;
-                    sourceBytes = currentBytes;
-                    log.Add($"[REINSTALL] {relativePath} matches its recorded original state; rebuilding selected modules.");
-                }
-                else if (!currentExists)
-                {
-                    return Task.FromResult(Blocked(descriptor, manifest, action, aircraftRoot,
-                        $"Previously managed target is missing: {relativePath}.", log));
-                }
-                else if (!Sha256(currentBytes).Equals(previousFile.InstalledSha256, StringComparison.OrdinalIgnoreCase))
-                {
-                    if (!CanComposeFromCurrentTarget(relativePath, selectedOperations))
-                    {
-                        return Task.FromResult(Blocked(descriptor, manifest, action, aircraftRoot,
-                            $"Managed target changed after installation: {relativePath}.", log));
-                    }
-
+                    rebasedOriginalPaths.Add(relativePath);
+                    log.Add($"[RECOVER] {relativePath}: exact official {verifiedBaseline.Release} baseline; SHA-256={verifiedBaseline.Sha256}; source={verifiedBaseline.SourceManifest}. Historical backups retained; current bytes will be backed up before rebuilding selected modules.");
                     sourceExists = true;
                     sourceBytes = currentBytes;
-                    log.Add($"[COMPOSE] {relativePath} also contains independent changes; validating and preserving them structurally.");
                 }
                 else
                 {
-                    sourceExists = previousFile.OriginalExisted;
-                    if (!sourceExists)
+                    var matchesOriginal = previousFile.OriginalExisted
+                        ? currentExists && currentBytes.LongLength == previousFile.OriginalSizeBytes
+                            && Sha256(currentBytes).Equals(previousFile.OriginalSha256, StringComparison.OrdinalIgnoreCase)
+                        : !currentExists;
+                    if (matchesOriginal)
                     {
-                        sourceBytes = [];
+                        // Keep the original backup contract intact for a later Restore.
+                        if (previousFile.OriginalExisted
+                            && (string.IsNullOrWhiteSpace(previousFile.BackupPath)
+                                || !File.Exists(previousFile.BackupPath)
+                                || new FileInfo(previousFile.BackupPath).Length != previousFile.OriginalSizeBytes
+                                || !Sha256(File.ReadAllBytes(previousFile.BackupPath)).Equals(
+                                    previousFile.OriginalSha256, StringComparison.OrdinalIgnoreCase)))
+                        {
+                            rebasedOriginalPaths.Add(relativePath);
+                            log.Add($"[RECOVER] {relativePath}: current bytes match recorded original SHA-256 {previousFile.OriginalSha256}; a new verified backup will be created.");
+                        }
+                        sourceExists = currentExists;
+                        sourceBytes = currentBytes;
+                        log.Add($"[REINSTALL] {relativePath} matches its recorded original state; rebuilding selected modules.");
+                    }
+                    else if (!currentExists)
+                    {
+                        return Task.FromResult(Blocked(descriptor, manifest, action, aircraftRoot,
+                            $"Previously managed target is missing: {relativePath}.", log));
+                    }
+                    else if (!Sha256(currentBytes).Equals(previousFile.InstalledSha256, StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (!CanComposeFromCurrentTarget(relativePath, selectedOperations))
+                        {
+                            return Task.FromResult(Blocked(descriptor, manifest, action, aircraftRoot,
+                                $"Managed target changed after installation: {relativePath}.", log));
+                        }
+
+                        sourceExists = true;
+                        sourceBytes = currentBytes;
+                        log.Add($"[COMPOSE] {relativePath} also contains independent changes; validating and preserving them structurally.");
                     }
                     else
                     {
-                        if (string.IsNullOrWhiteSpace(previousFile.BackupPath)
-                            || !File.Exists(previousFile.BackupPath))
+                        sourceExists = previousFile.OriginalExisted;
+                        if (!sourceExists)
                         {
-                            return Task.FromResult(Blocked(descriptor, manifest, action, aircraftRoot,
-                                $"Original compatibility-package backup is missing for {relativePath}.", log));
+                            sourceBytes = [];
                         }
-
-                        sourceBytes = File.ReadAllBytes(previousFile.BackupPath);
-                        if (sourceBytes.LongLength != previousFile.OriginalSizeBytes
-                            || !Sha256(sourceBytes).Equals(previousFile.OriginalSha256, StringComparison.OrdinalIgnoreCase))
+                        else
                         {
-                            return Task.FromResult(Blocked(descriptor, manifest, action, aircraftRoot,
-                                $"Original compatibility-package backup failed validation for {relativePath}.", log));
+                            if (string.IsNullOrWhiteSpace(previousFile.BackupPath)
+                                || !File.Exists(previousFile.BackupPath))
+                            {
+                                return Task.FromResult(Blocked(descriptor, manifest, action, aircraftRoot,
+                                    $"Original compatibility-package backup is missing for {relativePath}.", log));
+                            }
+
+                            sourceBytes = File.ReadAllBytes(previousFile.BackupPath);
+                            if (sourceBytes.LongLength != previousFile.OriginalSizeBytes
+                                || !Sha256(sourceBytes).Equals(previousFile.OriginalSha256, StringComparison.OrdinalIgnoreCase))
+                            {
+                                return Task.FromResult(Blocked(descriptor, manifest, action, aircraftRoot,
+                                    $"Original compatibility-package backup failed validation for {relativePath}.", log));
+                            }
                         }
                     }
                 }

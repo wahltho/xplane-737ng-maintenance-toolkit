@@ -1,0 +1,65 @@
+[
+  {
+    "productId": "levelup-737ng",
+    "release": "v2.S1.50",
+    "path": "objects/737_cockpit_ovhd2.obj",
+    "size": 1822719,
+    "sha256": "d702eb4898871cbb079045915ede7579d3cc6b64710c66b828dbf354c515e5f7",
+    "sourceManifest": "https://github.com/petrolpram/737NG-Updates/releases/download/v2.S1.50/737NG.Series_v2.S1.50.manifest.json",
+    "sourceManifestSha256": "69821f3de2206f8897237a0bd10b21b6533e6c61b0c412fcfffa29a277e8943e"
+  },
+  {
+    "productId": "levelup-737ng",
+    "release": "v2.S1.50",
+    "path": "objects/737cockpit_overhead2.dds",
+    "size": 11184952,
+    "sha256": "878e1b0976d9ba6d7aed746db25147c91232a7460b36dd9d730892c40de65979",
+    "sourceManifest": "https://github.com/petrolpram/737NG-Updates/releases/download/v2.S1.50/737NG.Series_v2.S1.50.manifest.json",
+    "sourceManifestSha256": "69821f3de2206f8897237a0bd10b21b6533e6c61b0c412fcfffa29a277e8943e"
+  },
+  {
+    "productId": "levelup-737ng",
+    "release": "v2.S1.50",
+    "path": "objects/737cockpit_overhead2_LIT.dds",
+    "size": 11184952,
+    "sha256": "c4b9af91199649e50a2a5a9241021f1894f3dfa5a767ba8f6550e80a37b3e3ff",
+    "sourceManifest": "https://github.com/petrolpram/737NG-Updates/releases/download/v2.S1.50/737NG.Series_v2.S1.50.manifest.json",
+    "sourceManifestSha256": "69821f3de2206f8897237a0bd10b21b6533e6c61b0c412fcfffa29a277e8943e"
+  },
+  {
+    "productId": "levelup-737ng",
+    "release": "v2.S1.50",
+    "path": "objects/737cockpit_overhead2_NML.png",
+    "size": 8426836,
+    "sha256": "00617d182c630439dcdb634afaa40bf60fc7873dfcacaa6aaeaf37b42ff49aad",
+    "sourceManifest": "https://github.com/petrolpram/737NG-Updates/releases/download/v2.S1.50/737NG.Series_v2.S1.50.manifest.json",
+    "sourceManifestSha256": "69821f3de2206f8897237a0bd10b21b6533e6c61b0c412fcfffa29a277e8943e"
+  },
+  {
+    "productId": "levelup-737ng",
+    "release": "v2.S1.50",
+    "path": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+    "size": 5556105,
+    "sha256": "ff313b0e88c62845ad1c4a2b1f4bd599f57d8799e8d6707bfc10a3369fd63a8e",
+    "sourceManifest": "https://github.com/petrolpram/737NG-Updates/releases/download/v2.S1.50/737NG.Series_v2.S1.50.manifest.json",
+    "sourceManifestSha256": "69821f3de2206f8897237a0bd10b21b6533e6c61b0c412fcfffa29a277e8943e"
+  },
+  {
+    "productId": "levelup-737ng",
+    "release": "v2.S1.50",
+    "path": "plugins/xlua/scripts/B738.tablet/B738.tablet.lua",
+    "size": 842260,
+    "sha256": "7c9e445a2a002f1ef81a0b738ad3c3b791a63c2c313d44d993517e260cd32141",
+    "sourceManifest": "https://github.com/petrolpram/737NG-Updates/releases/download/v2.S1.50/737NG.Series_v2.S1.50.manifest.json",
+    "sourceManifestSha256": "69821f3de2206f8897237a0bd10b21b6533e6c61b0c412fcfffa29a277e8943e"
+  },
+  {
+    "productId": "levelup-737ng",
+    "release": "v2.S1.51C",
+    "path": "objects/737_cockpit_ovhd2.obj",
+    "size": 1822719,
+    "sha256": "a0b8681870c099fe4b770e22ecd659434cbcb3af71479e3f9d459d8810012d3d",
+    "sourceManifest": "https://github.com/petrolpram/737NG-Updates/releases/download/v2.S1.51C/737NG.Series_v2.S1.50_to_v2.S1.51C_patch.manifest.json",
+    "sourceManifestSha256": "0bd1813c6150014fbac0e4804efb4ef0394e037dc55bc95b17ed6e443441427c"
+  }
+]

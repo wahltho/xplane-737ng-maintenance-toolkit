@@ -195,6 +195,32 @@ public sealed class CatalogGroupMigrationTests : IDisposable
         Assert.Throws<InvalidOperationException>(() => CatalogGroupMigration.Prepare(_root, Manifest(), installed));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void VerifiedOfficialBaseline_RebasesDisconnectedOwners_OnlyWhenCurrentBytesMatch(bool foreignEdit)
+    {
+        var installed = States();
+        installed["first"].Files[0].InstalledSha256 = Hash("unrelated history");
+        foreach (var component in installed.Values) File.Delete(component.Files[0].BackupPath);
+        var current = foreignEdit ? "unofficial baseline" : "official baseline";
+        File.WriteAllText(Path.Combine(_root, "shared.lua"), current);
+        var baseline = new KnownAircraftBaseline("levelup-737ng", "release", "shared.lua",
+            Encoding.UTF8.GetByteCount("official baseline"), Hash("official baseline"), "https://example.org/manifest", new string('a', 64));
+        var evidence = new Dictionary<string, KnownAircraftBaseline> { ["shared.lua"] = baseline };
+        if (foreignEdit)
+            Assert.Throws<InvalidOperationException>(() => CatalogGroupMigration.Prepare(_root, Manifest(), installed, verifiedBaselines: evidence));
+        else
+        {
+            var result = CatalogGroupMigration.Prepare(_root, Manifest(), installed, verifiedBaselines: evidence)!;
+            var file = Assert.Single(result.Files);
+            Assert.Equal(Hash(current), file.OriginalSha256);
+            Assert.Equal("", file.BackupPath); // A new backup must be captured by execution.
+        }
+        Assert.Equal(current, File.ReadAllText(Path.Combine(_root, "shared.lua")));
+        Assert.Equal(2, installed.Count);
+    }
+
     private Dictionary<string, ContentComponentState> States() => new()
     {
         ["first"] = State("first", "stock", "first patch"),

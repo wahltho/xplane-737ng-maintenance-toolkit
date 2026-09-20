@@ -11,7 +11,8 @@ internal static class CatalogGroupMigration
     public static ContentComponentState? Prepare(string aircraftRoot, CompatibilityPackageManifest manifest,
         IReadOnlyDictionary<string, ContentComponentState>? installed,
         IReadOnlyList<BackupRecord>? journal = null,
-        IReadOnlySet<string>? structurallyValidatedReplacements = null)
+        IReadOnlySet<string>? structurallyValidatedReplacements = null,
+        IReadOnlyDictionary<string, KnownAircraftBaseline>? verifiedBaselines = null)
     {
         if (manifest.Sources.Count == 0 || installed is null) return null;
         var sourceIds = manifest.Sources.Select(s => s.PackageId).ToHashSet(StringComparer.Ordinal);
@@ -35,6 +36,17 @@ internal static class CatalogGroupMigration
             }
             var current = File.ReadAllBytes(path);
             var currentHash = Hash(current);
+            // Exact release bytes establish a new baseline independently of broken or
+            // missing old history. No old backup is removed or changed. The planner
+            // validates the patch and the engine captures this baseline transactionally.
+            if (verifiedBaselines?.TryGetValue(group.Key, out var baseline) == true
+                && baseline.Size == current.LongLength && Equal(baseline.Sha256, currentHash))
+            {
+                result.Files.Add(new() { RelativePath = group.Key, TargetPath = path,
+                    OriginalExisted = true, OriginalSha256 = currentHash, OriginalSizeBytes = current.LongLength,
+                    InstalledSha256 = currentHash, InstalledSizeBytes = current.LongLength });
+                continue;
+            }
             var files = group.Select(x => x.File).ToArray();
             var initialMatches = files.Where(f => Equal(f.InstalledSha256, currentHash)).ToArray();
             if (initialMatches.Length == 0)
