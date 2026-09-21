@@ -14,9 +14,10 @@ The catalog is deliberately independent from Toolkit application releases:
 
 Adding a package repository does not publish it in the Toolkit. A package is
 visible only after an explicit catalog change, review, version increment and
-catalog release. Catalog 1.7.0 defines a LevelUp group with VNAV, FANS CDU and
-Weight & Balance required; Calculator, AUTO JETWAY and CPDLC FANS PAGES are optional. It requires
-Toolkit 0.13.1. See `../docs/CATALOG_GROUPS.md`.
+catalog release. Catalog 1.9.0 adds the Windows-only YAL Auto-Unicom Helper and
+the LevelUp Lufthansa livery. It requires Toolkit 0.16.1. The LevelUp group
+keeps VNAV, FANS CDU and Weight & Balance required; Calculator, AUTO JETWAY and
+CPDLC FANS PAGES are optional. See `../docs/CATALOG_GROUPS.md`.
 
 Optional livery entries use category `livery` and distribution kind
 `gitHubLiveryRelease`. Their release manifest uses schema 1 and package type

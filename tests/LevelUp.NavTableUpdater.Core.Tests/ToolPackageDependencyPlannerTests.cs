@@ -124,9 +124,9 @@ public sealed class ToolPackageDependencyPlannerTests : IDisposable
     [Fact]
     public void YalStandaloneProviderMinimum_RejectsOlderYalAndAcceptsRequiredBeta()
     {
-        Assert.False(ToolPackageVersion.IsAtLeast("4.7.9", "4.8b1"));
-        Assert.True(ToolPackageVersion.IsAtLeast("4.8b1", "4.8b1"));
-        Assert.True(ToolPackageVersion.IsAtLeast("4.8b2", "4.8b1"));
+        Assert.False(ToolPackageVersion.IsAtLeast("4.8b1", "4.8b2"));
+        Assert.True(ToolPackageVersion.IsAtLeast("4.8b2", "4.8b2"));
+        Assert.True(ToolPackageVersion.IsAtLeast("4.8b3", "4.8b2"));
     }
 
     private ToolStateStore Store() => new(Path.Combine(_root, "state"), Path.Combine(_root, "backups"));

@@ -9,7 +9,7 @@ using an empty array preserves the existing independent-package behavior.
   "dependencies": [
     {
       "packageId": "wahltho.yal",
-      "minimumVersion": "4.8b1"
+      "minimumVersion": "4.8b2"
     }
   ]
 }
@@ -21,7 +21,7 @@ verified installed version satisfies the requirement. Package IDs must be
 unique within a manifest and a package cannot depend on itself.
 
 For the Auto-Unicom Helper, the required declaration is YAL with
-`minimumVersion` `4.8b1`, because earlier YAL releases do not provide the
+`minimumVersion` `4.8b2`, because earlier YAL releases do not provide the
 standalone provider interface.
 
 Dependencies use the catalog entry for repository, product, installation scope

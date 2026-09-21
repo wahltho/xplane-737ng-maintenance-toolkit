@@ -5247,7 +5247,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 AppendLog($"Livery release check: {entry.DisplayName} {release.Manifest.PackageVersion} ({SelectedLiveryReleaseChannel}).");
             }
         }
-        catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidDataException or InvalidOperationException)
+        catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidDataException or InvalidOperationException or TaskCanceledException)
         {
             LiveryPackageStatus = $"Livery release check failed: {ex.Message}";
             AppendLog($"Livery release check failed for {entry.DisplayName}: {ex.Message}");

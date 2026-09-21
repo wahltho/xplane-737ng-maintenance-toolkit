@@ -13,7 +13,7 @@ public sealed class ContentPatchCatalogTests
     [InlineData("osx-arm64", false)]
     public void BundledCatalog_OffersXLinSpeakOnlyOnSupportedPlatform(string platform, bool available)
     {
-        var catalog = ContentPackageCatalog.Parse(File.ReadAllText(BundledCatalogPath()), new Version(0, 14, 0));
+        var catalog = ContentPackageCatalog.Parse(File.ReadAllText(BundledCatalogPath()), new Version(0, 16, 1));
         foreach (var product in new[] { "zibo-737ng", "levelup-737ng" })
         {
             var entries = catalog.ForProduct(product, platform);
@@ -30,7 +30,44 @@ public sealed class ContentPatchCatalogTests
     public void BundledCatalog_PlatformSupportRequiresNewToolkit()
     {
         Assert.Throws<InvalidDataException>(() => ContentPackageCatalog.Parse(
-            File.ReadAllText(BundledCatalogPath()), new Version(0, 13, 13)));
+            File.ReadAllText(BundledCatalogPath()), new Version(0, 16, 0)));
+    }
+
+    [Theory]
+    [InlineData("win-x64", true)]
+    [InlineData("linux-x64", false)]
+    [InlineData("osx-arm64", false)]
+    public void BundledCatalog_AutoUnicomHelperMatchesReleaseContract(string platform, bool available)
+    {
+        var catalog = ContentPackageCatalog.Parse(File.ReadAllText(BundledCatalogPath()), new Version(0, 16, 1));
+        const string id = "wahltho.yal-autounicomhelper";
+
+        foreach (var product in new[] { "zibo-737ng", "levelup-737ng" })
+            Assert.Equal(available, catalog.ForProduct(product, platform).Any(package => package.PackageId == id));
+
+        var entry = Assert.Single(catalog.Packages, package => package.PackageId == id);
+        Assert.Equal(ContentPackageCategory.Tool, entry.Category);
+        Assert.Equal(ContentPatchActivation.ExplicitOptIn, entry.Activation);
+        Assert.Equal("Resources/plugins/YAL_AutoUnicomHelper", entry.TargetPath);
+        Assert.Equal(["win-x64"], entry.SupportedPlatforms);
+        Assert.Equal(["beta"], entry.SupportedChannels);
+        Assert.Equal("YAL-AutoUnicomHelper-*-manifest.json", entry.Distribution.ManifestAssetNamePattern);
+    }
+
+    [Fact]
+    public void BundledCatalog_LufthansaLiveryMatchesReleaseContract()
+    {
+        var catalog = ContentPackageCatalog.Parse(File.ReadAllText(BundledCatalogPath()), new Version(0, 16, 1));
+        const string id = "wahltho.levelup-737ng.livery.lufthansa";
+
+        Assert.DoesNotContain(catalog.ForProduct("zibo-737ng"), package => package.PackageId == id);
+        var entry = Assert.Single(catalog.ForProduct("levelup-737ng"), package => package.PackageId == id);
+        Assert.Equal(ContentPackageCategory.Livery, entry.Category);
+        Assert.Equal(ContentPatchActivation.ExplicitOptIn, entry.Activation);
+        Assert.Equal("aircraftLivery", entry.InstallScope);
+        Assert.Equal(ContentPackageDistributionKind.GitHubLiveryRelease, entry.Distribution.Kind);
+        Assert.Equal("X-Plane-LevelUp-737NG-Lufthansa-Livery-v*.zip", entry.Distribution.AssetNamePattern);
+        Assert.Equal("X-Plane-LevelUp-737NG-Lufthansa-Livery-v*.manifest.json", entry.Distribution.ManifestAssetNamePattern);
     }
 
     [Theory]
@@ -185,8 +222,8 @@ public sealed class ContentPatchCatalogTests
             package => package.PackageId == ContentPatchCatalog.FansCdu.ComponentId);
         var descriptor = ContentPatchCatalog.OptionalPatch(fans);
 
-        Assert.Equal("1.8.0", catalog.CatalogVersion);
-        Assert.Equal("0.14.0", catalog.MinimumToolkitVersion);
+        Assert.Equal("1.9.0", catalog.CatalogVersion);
+        Assert.Equal("0.16.1", catalog.MinimumToolkitVersion);
         Assert.Equal(ContentPackageCategory.OptionalPatch, fans.Category);
         Assert.Equal(ContentPatchActivation.ExplicitOptIn, fans.Activation);
         Assert.Equal("LevelUp-737NG-FANS-CDU-v*.zip", fans.Distribution.AssetNamePattern);
@@ -239,7 +276,7 @@ public sealed class ContentPatchCatalogTests
             catalog.ForProduct("levelup-737ng"),
             package => package.PackageId == "levelup.paintkit");
 
-        Assert.Equal("1.8.0", catalog.CatalogVersion);
+        Assert.Equal("1.9.0", catalog.CatalogVersion);
         Assert.Equal(ContentPackageCategory.Resource, paintkit.Category);
         Assert.Equal(ContentPatchActivation.ExplicitOptIn, paintkit.Activation);
         Assert.Equal(["levelup-737ng"], paintkit.SupportedProducts);
