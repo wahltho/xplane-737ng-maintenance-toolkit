@@ -81,6 +81,73 @@ public sealed class ToolPackageManagerTests
     }
 
     [Fact]
+    public void Apply_WithDependency_RequiresRecordedMinimumAndPersistsResolution()
+    {
+        using var fixture = new Fixture();
+        var package = fixture.CreatePackage("1.0", "helper", "config");
+        package.Release.Manifest.Dependencies =
+        [
+            new ToolPackageDependency { PackageId = "wahltho.yal-runtime", MinimumVersion = "4.8b1" }
+        ];
+        var dependencyRoot = Path.Combine(fixture.XPlaneRoot, "Resources", "plugins", "YAL-runtime");
+        var missing = Assert.Throws<InvalidDataException>(() => fixture.Manager.Apply(
+            fixture.Catalog,
+            package,
+            fixture.XPlaneRoot,
+            ToolPackageAction.Install,
+            [new ToolResolvedDependency("wahltho.yal-runtime", "4.8b1", dependencyRoot, "4.8b1")]));
+        Assert.Contains("missing", missing.Message, StringComparison.OrdinalIgnoreCase);
+
+        fixture.StateStore.UpdateToolInstallation(dependencyRoot, "wahltho.yal-runtime", state =>
+            state.InstalledVersion = "4.8b1");
+        var result = fixture.Manager.Apply(
+            fixture.Catalog,
+            package,
+            fixture.XPlaneRoot,
+            ToolPackageAction.Install,
+            [new ToolResolvedDependency("wahltho.yal-runtime", "4.8b1", dependencyRoot, "4.8b1")]);
+
+        Assert.True(result.Succeeded);
+        var dependency = Assert.Single(fixture.StateStore
+            .TryGetToolInstallation(fixture.XPlaneRoot, fixture.Catalog.PackageId)!.Dependencies);
+        Assert.Equal("wahltho.yal-runtime", dependency.PackageId);
+        Assert.Equal("4.8b1", dependency.MinimumVersion);
+        Assert.Equal("4.8b1", dependency.ResolvedVersion);
+    }
+
+    [Fact]
+    public void Restore_IsBlockedWhenItWouldRemoveRequiredPackage()
+    {
+        using var fixture = new Fixture();
+        var yal = fixture.CreatePackage("4.8b1", "provider", "config");
+        Assert.True(fixture.Manager.Apply(
+            fixture.Catalog,
+            yal,
+            fixture.XPlaneRoot,
+            ToolPackageAction.Install).Succeeded);
+        fixture.StateStore.UpdateToolInstallation(fixture.XPlaneRoot, "wahltho.auto-unicom", state =>
+        {
+            state.InstalledVersion = "1.0";
+            state.Dependencies =
+            [
+                new ToolInstalledDependencyState
+                {
+                    PackageId = fixture.Catalog.PackageId,
+                    MinimumVersion = "4.8b1",
+                    InstallationRoot = fixture.XPlaneRoot,
+                    ResolvedVersion = "4.8b1"
+                }
+            ];
+        });
+
+        var result = fixture.Manager.Restore(fixture.Catalog, fixture.XPlaneRoot);
+
+        Assert.False(result.Succeeded);
+        Assert.Contains("depends", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("provider", fixture.ReadTarget("data/modules/main.lua"));
+    }
+
+    [Fact]
     public void Update_PreservesProtectedAndUnownedFiles()
     {
         using var fixture = new Fixture();

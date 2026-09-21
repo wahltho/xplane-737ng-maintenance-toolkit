@@ -83,6 +83,7 @@ public static class ToolPackageManifestParser
     {
         manifest.SupportedProducts ??= [];
         manifest.SupportedPlatforms ??= [];
+        manifest.Dependencies ??= [];
         manifest.ProtectedPaths ??= [];
         manifest.Files ??= [];
         manifest.Archive ??= new ToolPackageArchive();
@@ -102,6 +103,11 @@ public static class ToolPackageManifestParser
         manifest.Archive.RootPath = manifest.Archive.RootPath.Trim().Trim('/');
         manifest.Archive.Sha256 = manifest.Archive.Sha256.Trim().ToLowerInvariant();
         manifest.SupportedProducts = manifest.SupportedProducts.Select(value => value.Trim()).ToList();
+        foreach (var dependency in manifest.Dependencies)
+        {
+            dependency.PackageId = dependency.PackageId.Trim();
+            dependency.MinimumVersion = dependency.MinimumVersion.Trim().TrimStart('v', 'V');
+        }
         manifest.ProtectedPaths = manifest.ProtectedPaths.Select(NormalizeProtectedPath).ToList();
         foreach (var file in manifest.Files)
         {
@@ -113,6 +119,18 @@ public static class ToolPackageManifestParser
     private static void Validate(ToolPackageManifest manifest)
     {
         PackagePlatform.Validate(manifest.SupportedPlatforms);
+        var dependencyIds = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var dependency in manifest.Dependencies)
+        {
+            if (!IsSafePackageId(dependency.PackageId)
+                || dependency.PackageId.Equals(manifest.PackageId, StringComparison.Ordinal)
+                || !dependencyIds.Add(dependency.PackageId)
+                || (!string.IsNullOrWhiteSpace(dependency.MinimumVersion)
+                    && !ToolPackageVersion.IsValidMinimum(dependency.MinimumVersion)))
+            {
+                throw new InvalidDataException("Tool package manifest contains an invalid, duplicate or self-referencing dependency.");
+            }
+        }
         var directoryLayout = manifest.SchemaVersion == 1
             && manifest.Layout == "directory"
             && manifest.InstallScope is "xPlaneInstallation" or "aircraftInstallation"
@@ -200,6 +218,10 @@ public static class ToolPackageManifestParser
         && value.EndsWith(suffix, StringComparison.OrdinalIgnoreCase);
 
     private static bool IsSha256(string value) => value.Length == 64 && value.All(Uri.IsHexDigit);
+
+    private static bool IsSafePackageId(string value) =>
+        !string.IsNullOrWhiteSpace(value)
+        && value.All(ch => char.IsAsciiLetterOrDigit(ch) || ch is '.' or '-' or '_');
 
     private static StringComparer PathComparer =>
         OperatingSystem.IsWindows() || OperatingSystem.IsMacOS()

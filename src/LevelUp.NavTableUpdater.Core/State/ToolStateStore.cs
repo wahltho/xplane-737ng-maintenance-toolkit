@@ -541,11 +541,13 @@ public sealed class ToolStateStore
         {
             tool.InstalledFiles ??= [];
             tool.ProtectedPaths ??= [];
+            tool.Dependencies ??= [];
             tool.Backups ??= [];
             foreach (var backup in tool.Backups)
             {
                 backup.InstalledFiles ??= [];
                 backup.OverlayFiles ??= [];
+                backup.PreviousDependencies ??= [];
             }
         }
 
@@ -554,6 +556,6 @@ public sealed class ToolStateStore
             resource.InstalledFiles ??= [];
         }
 
-        document.SchemaVersion = Math.Max(document.SchemaVersion, 6);
+        document.SchemaVersion = Math.Max(document.SchemaVersion, 7);
     }
 }

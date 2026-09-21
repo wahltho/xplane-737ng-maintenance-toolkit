@@ -41,6 +41,8 @@ public sealed class ToolPackageManifest
 
     public List<string> SupportedPlatforms { get; set; } = [];
 
+    public List<ToolPackageDependency> Dependencies { get; set; } = [];
+
     public bool RestartRequired { get; set; }
 
     public ToolPackageArchive Archive { get; set; } = new();
@@ -49,6 +51,19 @@ public sealed class ToolPackageManifest
 
     public List<ToolPackageFile> Files { get; set; } = [];
 }
+
+public sealed class ToolPackageDependency
+{
+    public string PackageId { get; set; } = "";
+
+    public string MinimumVersion { get; set; } = "";
+}
+
+public sealed record ToolResolvedDependency(
+    string PackageId,
+    string MinimumVersion,
+    string InstallationRoot,
+    string ResolvedVersion);
 
 public sealed class ToolPackageArchive
 {

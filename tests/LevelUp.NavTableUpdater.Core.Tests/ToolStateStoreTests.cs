@@ -173,7 +173,7 @@ public sealed class ToolStateStoreTests
 
         Assert.Equal("4.7", store.TryGetToolInstallation(firstXPlane, "wahltho.yal")?.InstalledVersion);
         Assert.Equal("4.8-beta.1", store.TryGetToolInstallation(secondXPlane, "wahltho.yal")?.InstalledVersion);
-        Assert.Equal(6, store.Load().SchemaVersion);
+        Assert.Equal(7, store.Load().SchemaVersion);
     }
 
     [Fact]

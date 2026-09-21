@@ -1,5 +1,4 @@
 using System.Security.Cryptography;
-using System.Text.RegularExpressions;
 using LevelUp.NavTableUpdater.Core.Aircraft;
 using LevelUp.NavTableUpdater.Core.Content;
 using LevelUp.NavTableUpdater.Core.Platform;
@@ -91,18 +90,25 @@ public sealed class ToolPackageManager
             release);
         if (release is null)
         {
+            IReadOnlyList<string> recordedFindings = recordedState is null
+                ? []
+                : ValidateRestoreGuard(targetPath, recordedState.InstalledFiles);
             return new ToolPackageInspection(
                 string.IsNullOrWhiteSpace(installedVersion)
                     ? ToolPackageInstallState.InstalledVersionUnknown
-                    : ToolPackageInstallState.Current,
+                    : recordedFindings.Count == 0
+                        ? ToolPackageInstallState.Current
+                        : ToolPackageInstallState.RepairRequired,
                 fullRoot,
                 targetPath,
                 string.IsNullOrWhiteSpace(installedVersion) ? "Unknown" : installedVersion,
                 "Not checked",
                 string.IsNullOrWhiteSpace(installedVersion)
                     ? "Existing installation has no readable version marker"
-                    : "Installed; check the selected release channel for updates",
-                []);
+                    : recordedFindings.Count == 0
+                        ? "Installed and recorded files are verified; check the selected release channel for updates"
+                        : $"Repair required: {recordedFindings.Count} recorded package file(s) are missing or changed",
+                recordedFindings);
         }
 
         if (string.IsNullOrWhiteSpace(installedVersion))
@@ -166,7 +172,8 @@ public sealed class ToolPackageManager
         ContentPackageCatalogEntry catalogEntry,
         ToolPackageProvisionResult package,
         string xPlaneRoot,
-        ToolPackageAction action)
+        ToolPackageAction action,
+        IReadOnlyList<ToolResolvedDependency>? resolvedDependencies = null)
     {
         var log = new List<string>
         {
@@ -192,9 +199,18 @@ public sealed class ToolPackageManager
         var manifest = package.Release.Manifest;
         var toolName = catalogEntry.DisplayName;
         ValidatePackageForCatalog(catalogEntry, manifest);
+        var installedDependencies = ValidateResolvedDependencies(manifest, resolvedDependencies);
         GitHubToolPackageReleaseSource.ValidateExtractedPackage(package.PackageDirectory, manifest);
         var fullRoot = Path.GetFullPath(xPlaneRoot);
         var targetPath = ResolveTarget(fullRoot, manifest.TargetPath);
+        var dependencyBlockers = FindRestoreDependencyBlockers(fullRoot, manifest.PackageId, manifest.PackageVersion);
+        if (dependencyBlockers.Count > 0)
+        {
+            log.AddRange(dependencyBlockers.Select(blocker => $"[BLOCKED] {blocker}"));
+            return MaintenanceOperationResult.Blocked(
+                $"{action} stopped because an installed package requires a newer {toolName} version.",
+                log);
+        }
         var inspection = Inspect(catalogEntry, fullRoot, package.Release);
         if (!ActionMatchesState(action, inspection.State))
         {
@@ -206,6 +222,18 @@ public sealed class ToolPackageManager
 
         if (action is ToolPackageAction.Repair && inspection.State is ToolPackageInstallState.Current)
         {
+            var verifiedFiles = CaptureInstalledFiles(targetPath, manifest);
+            _stateStore.UpdateToolInstallation(fullRoot, manifest.PackageId, state =>
+            {
+                state.TargetPath = targetPath;
+                state.InstalledVersion = manifest.PackageVersion;
+                state.Channel = manifest.Channel;
+                state.LastOperationUtc = DateTimeOffset.UtcNow;
+                state.LastOperation = "Verify";
+                state.InstalledFiles = verifiedFiles;
+                state.ProtectedPaths = [.. manifest.ProtectedPaths];
+                state.Dependencies = installedDependencies;
+            });
             log.Add("[NO-CHANGE] Installed package files already match the release manifest.");
             return MaintenanceOperationResult.NoChange($"{toolName} is current and all package files are verified.", log);
         }
@@ -264,7 +292,8 @@ public sealed class ToolPackageManager
                 PreviousVersion = previousVersion,
                 PreviousChannel = previousChannel,
                 InstalledVersion = manifest.PackageVersion,
-                InstalledFiles = installedFiles
+                InstalledFiles = installedFiles,
+                PreviousDependencies = CloneDependencies(previousState?.Dependencies ?? [])
             };
             _stateStore.UpdateToolInstallation(fullRoot, manifest.PackageId, state =>
             {
@@ -275,6 +304,7 @@ public sealed class ToolPackageManager
                 state.LastOperation = action.ToString();
                 state.InstalledFiles = installedFiles;
                 state.ProtectedPaths = [.. manifest.ProtectedPaths];
+                state.Dependencies = installedDependencies;
                 state.Backups.Add(backup);
             });
 
@@ -345,6 +375,18 @@ public sealed class ToolPackageManager
             return MaintenanceOperationResult.Blocked($"No valid {toolName} backup generation is available for this X-Plane installation.", [.. log, "[BLOCKED] No backup generation."]);
         }
 
+        var dependencyBlockers = FindRestoreDependencyBlockers(
+            fullRoot,
+            catalogEntry.PackageId,
+            generation.PreviousVersion);
+        if (dependencyBlockers.Count > 0)
+        {
+            log.AddRange(dependencyBlockers.Select(blocker => $"[BLOCKED] {blocker}"));
+            return MaintenanceOperationResult.Blocked(
+                $"Restore stopped because an installed package depends on {toolName}.",
+                log);
+        }
+
         var targetPath = ResolveTarget(fullRoot, catalogEntry.TargetPath);
         var guardFindings = ValidateRestoreGuard(targetPath, state.InstalledFiles);
         if (guardFindings.Count > 0)
@@ -401,7 +443,8 @@ public sealed class ToolPackageManager
                 PreviousVersion = state.InstalledVersion,
                 PreviousChannel = state.Channel,
                 InstalledVersion = restoredVersion,
-                InstalledFiles = restoredFiles
+                InstalledFiles = restoredFiles,
+                PreviousDependencies = CloneDependencies(state.Dependencies)
             };
             _stateStore.UpdateToolInstallation(fullRoot, catalogEntry.PackageId, updated =>
             {
@@ -411,6 +454,7 @@ public sealed class ToolPackageManager
                 updated.LastOperationUtc = DateTimeOffset.UtcNow;
                 updated.LastOperation = "Restore";
                 updated.InstalledFiles = restoredFiles;
+                updated.Dependencies = CloneDependencies(generation.PreviousDependencies);
                 updated.Backups.Add(preRestoreGeneration);
             });
 
@@ -801,6 +845,74 @@ public sealed class ToolPackageManager
         }
     }
 
+    private List<ToolInstalledDependencyState> ValidateResolvedDependencies(
+        ToolPackageManifest manifest,
+        IReadOnlyList<ToolResolvedDependency>? resolvedDependencies)
+    {
+        resolvedDependencies ??= [];
+        if (manifest.Dependencies.Count != resolvedDependencies.Count)
+        {
+            throw new InvalidDataException("The resolved tool dependency set does not match the release manifest.");
+        }
+
+        if (resolvedDependencies.Select(dependency => dependency.PackageId).Distinct(StringComparer.Ordinal).Count()
+            != resolvedDependencies.Count)
+        {
+            throw new InvalidDataException("The resolved tool dependency set contains duplicate package IDs.");
+        }
+
+        var resolvedById = resolvedDependencies.ToDictionary(dependency => dependency.PackageId, StringComparer.Ordinal);
+        var installed = new List<ToolInstalledDependencyState>();
+        foreach (var requirement in manifest.Dependencies)
+        {
+            var dependency = resolvedById.GetValueOrDefault(requirement.PackageId);
+            var recorded = dependency is null || string.IsNullOrWhiteSpace(dependency.InstallationRoot)
+                ? null
+                : _stateStore.TryGetToolInstallation(dependency.InstallationRoot, dependency.PackageId);
+            if (dependency is null
+                || !dependency.MinimumVersion.Equals(requirement.MinimumVersion, StringComparison.OrdinalIgnoreCase)
+                || string.IsNullOrWhiteSpace(dependency.InstallationRoot)
+                || !ToolPackageVersion.IsAtLeast(dependency.ResolvedVersion, requirement.MinimumVersion)
+                || recorded is null
+                || !VersionsEqual(recorded.InstalledVersion, dependency.ResolvedVersion)
+                || !ToolPackageVersion.IsAtLeast(recorded.InstalledVersion, requirement.MinimumVersion))
+            {
+                throw new InvalidDataException($"Required package {requirement.PackageId} is missing or below its minimum version.");
+            }
+
+            installed.Add(new ToolInstalledDependencyState
+            {
+                PackageId = dependency.PackageId,
+                MinimumVersion = dependency.MinimumVersion,
+                InstallationRoot = Path.GetFullPath(dependency.InstallationRoot),
+                ResolvedVersion = dependency.ResolvedVersion
+            });
+        }
+
+        return installed;
+    }
+
+    private IReadOnlyList<string> FindRestoreDependencyBlockers(string root, string packageId, string restoredVersion) =>
+        _stateStore.Load().ToolInstallations.Values
+            .Where(installation => !string.IsNullOrWhiteSpace(installation.InstalledVersion))
+            .SelectMany(installation => installation.Dependencies.Select(dependency => (installation, dependency)))
+            .Where(item => item.dependency.PackageId.Equals(packageId, StringComparison.Ordinal)
+                && PathsEqual(item.dependency.InstallationRoot, root)
+                && !ToolPackageVersion.IsAtLeast(restoredVersion, item.dependency.MinimumVersion))
+            .Select(item => $"{item.installation.PackageId} requires {packageId}"
+                + (string.IsNullOrWhiteSpace(item.dependency.MinimumVersion) ? "." : $" {item.dependency.MinimumVersion} or newer."))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+    private static List<ToolInstalledDependencyState> CloneDependencies(IEnumerable<ToolInstalledDependencyState> dependencies) =>
+        dependencies.Select(dependency => new ToolInstalledDependencyState
+        {
+            PackageId = dependency.PackageId,
+            MinimumVersion = dependency.MinimumVersion,
+            InstallationRoot = dependency.InstallationRoot,
+            ResolvedVersion = dependency.ResolvedVersion
+        }).ToList();
+
     private static bool LooksLikeInstallRoot(ContentPackageCatalogEntry catalogEntry, string root)
     {
         if (catalogEntry.InstallScope == "xPlaneInstallation")
@@ -841,7 +953,7 @@ public sealed class ToolPackageManager
         left.Trim().TrimStart('v', 'V').Equals(right.Trim().TrimStart('v', 'V'), StringComparison.OrdinalIgnoreCase);
 
     private static string InferChannel(string version) =>
-        ParseComparableVersion(version)?.Suffix.Length > 0 ? "beta" : "stable";
+        ToolPackageVersion.TryParse(version, out var parsed) && parsed.Suffix.Length > 0 ? "beta" : "stable";
 
     private static string ActionPastTense(ToolPackageAction action) =>
         action switch
@@ -855,72 +967,15 @@ public sealed class ToolPackageManager
 
     private static int? CompareVersions(string left, string right)
     {
-        var leftVersion = ParseComparableVersion(left);
-        var rightVersion = ParseComparableVersion(right);
-        if (leftVersion is null || rightVersion is null)
+        try
+        {
+            return ToolPackageVersion.Compare(left, right);
+        }
+        catch (InvalidDataException)
         {
             return null;
         }
-
-        var numeric = leftVersion.Value.Major.CompareTo(rightVersion.Value.Major);
-        if (numeric == 0)
-        {
-            numeric = leftVersion.Value.Minor.CompareTo(rightVersion.Value.Minor);
-        }
-
-        if (numeric == 0)
-        {
-            numeric = leftVersion.Value.Patch.CompareTo(rightVersion.Value.Patch);
-        }
-
-        if (numeric != 0)
-        {
-            return numeric;
-        }
-
-        if (leftVersion.Value.Suffix.Length == 0 || rightVersion.Value.Suffix.Length == 0)
-        {
-            return leftVersion.Value.Suffix.Length == rightVersion.Value.Suffix.Length
-                ? 0
-                : leftVersion.Value.Suffix.Length == 0 ? 1 : -1;
-        }
-
-        return StringComparer.OrdinalIgnoreCase.Compare(leftVersion.Value.Suffix, rightVersion.Value.Suffix);
     }
-
-    private static ComparableVersion? ParseComparableVersion(string value)
-    {
-        var match = Regex.Match(
-            value.Trim().TrimStart('v', 'V'),
-            @"^(?<major>\d+)(?:\.(?<minor>\d+))?(?:\.(?<patch>\d+))?(?<suffix>.*)$",
-            RegexOptions.CultureInvariant);
-        if (!match.Success
-            || !int.TryParse(match.Groups["major"].Value, out var major)
-            || !TryParsePart(match.Groups["minor"].Value, out var minor)
-            || !TryParsePart(match.Groups["patch"].Value, out var patch))
-        {
-            return null;
-        }
-
-        return new ComparableVersion(
-            major,
-            minor,
-            patch,
-            match.Groups["suffix"].Value.TrimStart('-', '.', '_'));
-    }
-
-    private static bool TryParsePart(string value, out int result)
-    {
-        if (value.Length == 0)
-        {
-            result = 0;
-            return true;
-        }
-
-        return int.TryParse(value, out result);
-    }
-
-    private readonly record struct ComparableVersion(int Major, int Minor, int Patch, string Suffix);
 
     private static StringComparer PathComparer =>
         OperatingSystem.IsWindows() || OperatingSystem.IsMacOS()

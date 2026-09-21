@@ -60,14 +60,23 @@ public sealed class XPlaneOverlayPackageManager
         var state = _stateStore.TryGetToolInstallation(root, catalogEntry.PackageId);
         if (release is null)
         {
+            IReadOnlyList<string> recordedFindings = state is null ? [] : ValidateRestoreGuard(root, state.InstalledFiles);
             return new ToolPackageInspection(
-                state is null ? ToolPackageInstallState.NotInstalled : ToolPackageInstallState.Current,
+                state is null
+                    ? ToolPackageInstallState.NotInstalled
+                    : recordedFindings.Count == 0
+                        ? ToolPackageInstallState.Current
+                        : ToolPackageInstallState.RepairRequired,
                 root,
                 root,
                 state?.InstalledVersion ?? "-",
                 "Not checked",
-                state is null ? "Not installed; release not checked" : "Installed; check the selected release channel for updates",
-                []);
+                state is null
+                    ? "Not installed; release not checked"
+                    : recordedFindings.Count == 0
+                        ? "Installed and recorded files are verified; check the selected release channel for updates"
+                        : $"Repair required: {recordedFindings.Count} recorded package file(s) are missing or changed",
+                recordedFindings);
         }
 
         ValidatePackageForCatalog(catalogEntry, release.Manifest);
@@ -133,7 +142,8 @@ public sealed class XPlaneOverlayPackageManager
         ContentPackageCatalogEntry catalogEntry,
         ToolPackageProvisionResult package,
         string xPlaneRoot,
-        ToolPackageAction action)
+        ToolPackageAction action,
+        IReadOnlyList<ToolResolvedDependency>? resolvedDependencies = null)
     {
         var manifest = package.Release.Manifest;
         var log = new List<string>
@@ -156,8 +166,17 @@ public sealed class XPlaneOverlayPackageManager
         }
 
         ValidatePackageForCatalog(catalogEntry, manifest);
+        var installedDependencies = ValidateResolvedDependencies(manifest, resolvedDependencies);
         GitHubToolPackageReleaseSource.ValidateExtractedPackage(package.PackageDirectory, manifest);
         var root = Path.GetFullPath(xPlaneRoot);
+        var dependencyBlockers = FindRestoreDependencyBlockers(root, manifest.PackageId, manifest.PackageVersion);
+        if (dependencyBlockers.Count > 0)
+        {
+            log.AddRange(dependencyBlockers.Select(blocker => $"[BLOCKED] {blocker}"));
+            return MaintenanceOperationResult.Blocked(
+                $"{action} stopped because an installed package requires a newer {catalogEntry.DisplayName} version.",
+                log);
+        }
         var inspection = Inspect(catalogEntry, root, package.Release);
         if (!ActionMatchesState(action, inspection.State))
         {
@@ -168,6 +187,18 @@ public sealed class XPlaneOverlayPackageManager
 
         if (action is ToolPackageAction.Repair && inspection.State is ToolPackageInstallState.Current)
         {
+            var verifiedFiles = CaptureInstalledFiles(root, manifest);
+            _stateStore.UpdateToolInstallation(root, manifest.PackageId, state =>
+            {
+                state.TargetPath = root;
+                state.InstalledVersion = manifest.PackageVersion;
+                state.Channel = manifest.Channel;
+                state.LastOperationUtc = DateTimeOffset.UtcNow;
+                state.LastOperation = "Verify";
+                state.InstalledFiles = verifiedFiles;
+                state.ProtectedPaths = [.. manifest.ProtectedPaths];
+                state.Dependencies = installedDependencies;
+            });
             return MaintenanceOperationResult.NoChange($"{catalogEntry.DisplayName} is current and all package files are verified.", [.. log, "[NO-CHANGE] All files match."]);
         }
 
@@ -227,7 +258,8 @@ public sealed class XPlaneOverlayPackageManager
                 PreviousChannel = previousState?.Channel ?? "stable",
                 InstalledVersion = manifest.PackageVersion,
                 InstalledFiles = installedFiles,
-                OverlayFiles = backupFiles
+                OverlayFiles = backupFiles,
+                PreviousDependencies = CloneDependencies(previousState?.Dependencies ?? [])
             };
             _stateStore.UpdateToolInstallation(root, manifest.PackageId, state =>
             {
@@ -238,6 +270,7 @@ public sealed class XPlaneOverlayPackageManager
                 state.LastOperation = action.ToString();
                 state.InstalledFiles = installedFiles;
                 state.ProtectedPaths = [.. manifest.ProtectedPaths];
+                state.Dependencies = installedDependencies;
                 state.Backups.Add(generation);
             });
 
@@ -305,6 +338,18 @@ public sealed class XPlaneOverlayPackageManager
             return MaintenanceOperationResult.Blocked(
                 $"No valid {catalogEntry.DisplayName} backup generation is available for this X-Plane installation.",
                 [.. log, "[BLOCKED] No overlay backup generation."]);
+        }
+
+        var dependencyBlockers = FindRestoreDependencyBlockers(
+            root,
+            catalogEntry.PackageId,
+            generation.PreviousVersion);
+        if (dependencyBlockers.Count > 0)
+        {
+            log.AddRange(dependencyBlockers.Select(blocker => $"[BLOCKED] {blocker}"));
+            return MaintenanceOperationResult.Blocked(
+                $"Restore stopped because an installed package depends on {catalogEntry.DisplayName}.",
+                log);
         }
 
         var guardFindings = ValidateRestoreGuard(root, state.InstalledFiles);
@@ -375,6 +420,7 @@ public sealed class XPlaneOverlayPackageManager
                         Protected = false
                     })
                     .ToList();
+                updated.Dependencies = CloneDependencies(generation.PreviousDependencies);
                 updated.Backups.Add(new ToolBackupGenerationState
                 {
                     BackupId = DateTimeOffset.UtcNow.UtcDateTime.ToString("yyyyMMddTHHmmssfffZ"),
@@ -385,7 +431,8 @@ public sealed class XPlaneOverlayPackageManager
                     PreviousChannel = state.Channel,
                     InstalledVersion = generation.PreviousVersion,
                     InstalledFiles = [.. updated.InstalledFiles],
-                    OverlayFiles = currentBackup
+                    OverlayFiles = currentBackup,
+                    PreviousDependencies = CloneDependencies(state.Dependencies)
                 });
             });
 
@@ -572,6 +619,84 @@ public sealed class XPlaneOverlayPackageManager
         }
     }
 
+    private List<ToolInstalledDependencyState> ValidateResolvedDependencies(
+        ToolPackageManifest manifest,
+        IReadOnlyList<ToolResolvedDependency>? resolvedDependencies)
+    {
+        resolvedDependencies ??= [];
+        if (manifest.Dependencies.Count != resolvedDependencies.Count)
+        {
+            throw new InvalidDataException("The resolved tool dependency set does not match the release manifest.");
+        }
+
+        if (resolvedDependencies.Select(dependency => dependency.PackageId).Distinct(StringComparer.Ordinal).Count()
+            != resolvedDependencies.Count)
+        {
+            throw new InvalidDataException("The resolved tool dependency set contains duplicate package IDs.");
+        }
+
+        var resolvedById = resolvedDependencies.ToDictionary(dependency => dependency.PackageId, StringComparer.Ordinal);
+        var installed = new List<ToolInstalledDependencyState>();
+        foreach (var requirement in manifest.Dependencies)
+        {
+            var dependency = resolvedById.GetValueOrDefault(requirement.PackageId);
+            var recorded = dependency is null || string.IsNullOrWhiteSpace(dependency.InstallationRoot)
+                ? null
+                : _stateStore.TryGetToolInstallation(dependency.InstallationRoot, dependency.PackageId);
+            if (dependency is null
+                || !dependency.MinimumVersion.Equals(requirement.MinimumVersion, StringComparison.OrdinalIgnoreCase)
+                || string.IsNullOrWhiteSpace(dependency.InstallationRoot)
+                || !ToolPackageVersion.IsAtLeast(dependency.ResolvedVersion, requirement.MinimumVersion)
+                || recorded is null
+                || !VersionsEqual(recorded.InstalledVersion, dependency.ResolvedVersion)
+                || !ToolPackageVersion.IsAtLeast(recorded.InstalledVersion, requirement.MinimumVersion))
+            {
+                throw new InvalidDataException($"Required package {requirement.PackageId} is missing or below its minimum version.");
+            }
+
+            installed.Add(new ToolInstalledDependencyState
+            {
+                PackageId = dependency.PackageId,
+                MinimumVersion = dependency.MinimumVersion,
+                InstallationRoot = Path.GetFullPath(dependency.InstallationRoot),
+                ResolvedVersion = dependency.ResolvedVersion
+            });
+        }
+
+        return installed;
+    }
+
+    private IReadOnlyList<string> FindRestoreDependencyBlockers(string root, string packageId, string restoredVersion) =>
+        _stateStore.Load().ToolInstallations.Values
+            .Where(installation => !string.IsNullOrWhiteSpace(installation.InstalledVersion))
+            .SelectMany(installation => installation.Dependencies.Select(dependency => (installation, dependency)))
+            .Where(item => item.dependency.PackageId.Equals(packageId, StringComparison.Ordinal)
+                && PathsEqual(item.dependency.InstallationRoot, root)
+                && !ToolPackageVersion.IsAtLeast(restoredVersion, item.dependency.MinimumVersion))
+            .Select(item => $"{item.installation.PackageId} requires {packageId}"
+                + (string.IsNullOrWhiteSpace(item.dependency.MinimumVersion) ? "." : $" {item.dependency.MinimumVersion} or newer."))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+    private static List<ToolInstalledDependencyState> CloneDependencies(IEnumerable<ToolInstalledDependencyState> dependencies) =>
+        dependencies.Select(dependency => new ToolInstalledDependencyState
+        {
+            PackageId = dependency.PackageId,
+            MinimumVersion = dependency.MinimumVersion,
+            InstallationRoot = dependency.InstallationRoot,
+            ResolvedVersion = dependency.ResolvedVersion
+        }).ToList();
+
+    private static bool PathsEqual(string left, string right)
+    {
+        if (string.IsNullOrWhiteSpace(left) || string.IsNullOrWhiteSpace(right)) return false;
+        return Path.TrimEndingDirectorySeparator(Path.GetFullPath(left)).Equals(
+            Path.TrimEndingDirectorySeparator(Path.GetFullPath(right)),
+            OperatingSystem.IsWindows() || OperatingSystem.IsMacOS()
+                ? StringComparison.OrdinalIgnoreCase
+                : StringComparison.Ordinal);
+    }
+
     private static void RejectRootOrTargetLinks(string root, IEnumerable<string> paths)
     {
         RejectLink(root, "X-Plane root");
@@ -672,15 +797,15 @@ public sealed class XPlaneOverlayPackageManager
 
     private static int CompareVersions(string left, string right)
     {
-        var leftVersion = ParseVersion(left);
-        var rightVersion = ParseVersion(right);
-        return leftVersion is not null && rightVersion is not null
-            ? leftVersion.CompareTo(rightVersion)
-            : string.Compare(left, right, StringComparison.OrdinalIgnoreCase);
+        try
+        {
+            return ToolPackageVersion.Compare(left, right);
+        }
+        catch (InvalidDataException)
+        {
+            return string.Compare(left, right, StringComparison.OrdinalIgnoreCase);
+        }
     }
-
-    private static Version? ParseVersion(string value) =>
-        Version.TryParse(value.Trim().TrimStart('v', 'V').Split('-', 2)[0], out var version) ? version : null;
 
     private sealed record AppliedFile(string TargetPath, string RollbackPath, bool OriginalExisted);
 }

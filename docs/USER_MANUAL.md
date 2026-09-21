@@ -267,6 +267,15 @@ If compatible products share the same X-Plane root, the app manages one copy of
 each selected X-Plane-wide tool for that installation. Aircraft components are
 managed separately for each selected aircraft folder.
 
+Tool and aircraft-component release manifests may declare required Toolkit
+packages and an optional minimum version. Before any archive is downloaded or
+file is changed, the app resolves the complete requirement chain and presents
+all required install or update actions in one confirmation dialog. Required
+packages are applied first as separate validated and backed-up transactions.
+Restore or replacement is blocked when it would leave an installed dependent
+package without a compatible requirement. Existing packages without dependency
+metadata retain their previous behavior.
+
 After a user explicitly installs Optimized XLua, the Toolkit maintains it
 across later Zibo or LevelUp aircraft updates. A correctly recorded and
 hash-verified runtime is retained as part of the aircraft update transaction,

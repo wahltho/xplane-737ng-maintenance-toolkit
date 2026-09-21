@@ -7,7 +7,7 @@ tools and conservative view maintenance for supported aircraft variants.
 This repository is the public development home for the app. The architecture
 keeps package content, aircraft patching, and application updates separate.
 
-Release version: **0.14.2**
+Release version: **0.15.0**
 
 Includes [catalog-controlled maintenance groups](docs/CATALOG_GROUPS.md) and configurable startup update notifications.
 
@@ -270,6 +270,9 @@ Release assets remain the preferred package source for normal use.
 - Product-gated aircraft components and X-Plane-wide tool packages with
   separate Stable/Beta release channels and transactional
   install/update/repair/restore.
+- Optional tool-package dependencies with minimum-version checks, transitive
+  planning, one explicit confirmation and dependent-safe restore/downgrade
+  guards.
 - File-wise X-Plane-root overlay packages for tools whose declared runtime
   files span multiple simulator directories without claiming generated data.
 - Aircraft detection and install-state analysis.

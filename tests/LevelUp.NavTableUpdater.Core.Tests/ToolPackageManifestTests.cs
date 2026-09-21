@@ -30,6 +30,42 @@ public sealed class ToolPackageManifestTests
         Assert.True(ToolPackageManifestParser.IsProtectedPath(manifest, "data/modules/configuration/configuration.ini"));
         Assert.True(ToolPackageManifestParser.IsProtectedPath(manifest, "data/output/session/log.txt"));
         Assert.False(ToolPackageManifestParser.IsProtectedPath(manifest, "data/modules/main.lua"));
+        Assert.Empty(manifest.Dependencies);
+    }
+
+    [Fact]
+    public void Parse_OptionalDependencies_NormalizesAndValidatesMinimumVersion()
+    {
+        var json = BuildManifest(Encoding.UTF8.GetBytes("payload"))
+            .Insert(1, "\"dependencies\":[{\"packageId\":\" wahltho.auto-unicom \",\"minimumVersion\":\"v4.8b1\"}],");
+
+        var dependency = Assert.Single(ToolPackageManifestParser.Parse(Encoding.UTF8.GetBytes(json)).Dependencies);
+
+        Assert.Equal("wahltho.auto-unicom", dependency.PackageId);
+        Assert.Equal("4.8b1", dependency.MinimumVersion);
+    }
+
+    [Theory]
+    [InlineData("[{\"packageId\":\"wahltho.yal\"},{\"packageId\":\"wahltho.yal\"}]")]
+    [InlineData("[{\"packageId\":\"wahltho.yal\",\"minimumVersion\":\"banana\"}]")]
+    [InlineData("[{\"packageId\":\"wahltho.yal\",\"minimumVersion\":\"1.2.3.4\"}]")]
+    [InlineData("[{\"packageId\":\"wahltho.yal\",\"minimumVersion\":\"1.x\"}]")]
+    [InlineData("[{\"packageId\":\"wahltho.yal/unsafe\"}]")]
+    public void Parse_InvalidDependenciesAreRejected(string dependencies)
+    {
+        var json = BuildManifest(Encoding.UTF8.GetBytes("payload"))
+            .Insert(1, $"\"dependencies\":{dependencies},");
+
+        Assert.Throws<InvalidDataException>(() => ToolPackageManifestParser.Parse(Encoding.UTF8.GetBytes(json)));
+    }
+
+    [Fact]
+    public void Parse_SelfDependencyIsRejected()
+    {
+        var json = BuildManifest(Encoding.UTF8.GetBytes("payload"))
+            .Insert(1, "\"dependencies\":[{\"packageId\":\"wahltho.yal\"}],");
+
+        Assert.Throws<InvalidDataException>(() => ToolPackageManifestParser.Parse(Encoding.UTF8.GetBytes(json)));
     }
 
     [Fact]

@@ -178,6 +178,10 @@ public sealed class MainWindowUiTests
             Assert.Contains("current", fixture.Vm.UpstreamUpdateSummary, StringComparison.OrdinalIgnoreCase);
             Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "v2.S1.51C" && t.IsVisible);
             Assert.Contains(fixture.Vm.AvailableContentPackages, p => p.AvailableVersion.Contains("1.0.0"));
+            Assert.Equal("Required patches pending", fixture.Vm.MaintenancePatchSummary);
+            Assert.Contains("0 of 3", fixture.Vm.MaintenancePatchDetail, StringComparison.Ordinal);
+            Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(),
+                text => text.Text == fixture.Vm.MaintenancePatchSummary && text.IsVisible);
             Assert.True(fixture.Vm.CompatibilityModulesVisible);
             Assert.Equal(6, fixture.Vm.CompatibilityModules.Count);
             Assert.Equal(3, fixture.Vm.CompatibilityModules.Count(m => m.IsSelected && !m.CanChangeSelection));

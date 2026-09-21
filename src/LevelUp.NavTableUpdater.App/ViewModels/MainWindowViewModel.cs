@@ -423,6 +423,12 @@ public partial class MainWindowViewModel : ViewModelBase
     private bool contentPackageOverviewVisible;
 
     [ObservableProperty]
+    private string maintenancePatchSummary = "No aircraft selected";
+
+    [ObservableProperty]
+    private string maintenancePatchDetail = "Select a supported aircraft to inspect its required patches.";
+
+    [ObservableProperty]
     private bool toolPackageVisible;
 
     [ObservableProperty]
@@ -3992,6 +3998,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private void RefreshContentPackageOverview(bool preserveStatus = false)
     {
+        RefreshMaintenancePatchSummary();
         AvailableContentPackages.Clear();
         var product = SelectedProduct;
         if (product?.IsDetected != true)
@@ -4119,6 +4126,84 @@ public partial class MainWindowViewModel : ViewModelBase
         left.Trim().TrimStart('v', 'V').Equals(
             right.Trim().TrimStart('v', 'V'),
             StringComparison.OrdinalIgnoreCase);
+
+    private void RefreshMaintenancePatchSummary()
+    {
+        if (AircraftProductIds.Normalize(SelectedViewVariant?.Family ?? "") != AircraftProductIds.LevelUp737Ng)
+        {
+            MaintenancePatchSummary = AircraftStatus;
+            MaintenancePatchDetail = $"Installed {LocalPackageVersion}; available {AvailablePackageVersion}.";
+            return;
+        }
+
+        var group = _contentPackageCatalog.ForProduct(AircraftProductIds.LevelUp737Ng)
+            .SingleOrDefault(package => package.Distribution.Kind is ContentPackageDistributionKind.CatalogGroup);
+        if (group is null)
+        {
+            MaintenancePatchSummary = "Required patch catalog unavailable";
+            MaintenancePatchDetail = "The active catalog does not define the LevelUp maintenance group.";
+            return;
+        }
+
+        var required = group.Members
+            .Where(member => member.Policy is CompatibilityModulePolicy.Required)
+            .OrderBy(member => member.InstallationOrder)
+            .ToArray();
+        var aircraftRoot = SelectedViewVariant is null ? "" : Path.GetDirectoryName(SelectedViewVariant.AcfPath) ?? "";
+        var installation = string.IsNullOrWhiteSpace(aircraftRoot)
+            ? null
+            : _stateStore.TryGetContentInstallation(aircraftRoot);
+        var state = installation?.ContentComponents.GetValueOrDefault(group.PackageId);
+
+        string? InstalledVersion(CatalogGroupMember member)
+        {
+            var groupedSource = state?.EnabledModules.Contains(member.ModuleId, StringComparer.Ordinal) == true
+                ? state!.Sources.SingleOrDefault(source => source.ModuleId.Equals(member.ModuleId, StringComparison.Ordinal))
+                : null;
+            if (groupedSource is not null) return groupedSource.ReleaseTag;
+            return installation?.ContentComponents.GetValueOrDefault(member.PackageId)?.PackageVersion;
+        }
+
+        var installedRequired = required.Count(member => !string.IsNullOrWhiteSpace(InstalledVersion(member)));
+        var latestChecked = _catalogGroupResolutions.TryGetValue(group.PackageId, out var resolution);
+        var currentRequired = latestChecked
+            ? required.Count(member =>
+            {
+                var installedVersion = InstalledVersion(member);
+                return !string.IsNullOrWhiteSpace(installedVersion)
+                    && resolution!.Sources.Any(source =>
+                        source.Member.ModuleId.Equals(member.ModuleId, StringComparison.Ordinal)
+                        && ContentVersionsEqual(installedVersion, source.Release.Tag));
+            })
+            : 0;
+
+        if (_contentPatchReleaseErrors.TryGetValue(group.PackageId, out var error))
+        {
+            MaintenancePatchSummary = installedRequired < required.Length
+                ? "Required patches pending; release check failed"
+                : "Required patches installed; release check failed";
+            MaintenancePatchDetail = $"{installedRequired} of {required.Length} required patches are recorded as installed. Latest release check failed: {error}";
+            return;
+        }
+        if (installedRequired < required.Length)
+        {
+            MaintenancePatchSummary = "Required patches pending";
+        }
+        else if (!latestChecked)
+        {
+            MaintenancePatchSummary = "Required patches installed; latest releases not checked";
+        }
+        else
+        {
+            MaintenancePatchSummary = currentRequired == required.Length
+                ? "All required patches are current"
+                : "Required patch updates available";
+        }
+
+        MaintenancePatchDetail = latestChecked
+            ? $"{installedRequired} of {required.Length} required patches are recorded as installed; {currentRequired} match the latest checked releases. Individual versions are listed below."
+            : $"{installedRequired} of {required.Length} required patches are recorded as installed. Individual versions are listed below.";
+    }
 
     partial void OnSelectedToolPackageChanged(ContentPackageCatalogEntry? value)
     {
@@ -4249,52 +4334,89 @@ public partial class MainWindowViewModel : ViewModelBase
         var verb = action.Value is ToolPackageAction.SwitchChannel
             ? "Switch channel"
             : action.Value.ToString();
-        var confirmation = new ConfirmationRequest(
-            $"{verb} {entry.DisplayName}?",
-            $"{entry.DisplayName} {release.Manifest.PackageVersion} ({release.Manifest.Channel}) will be installed under:\n{xPlaneRoot}\n\nExisting component files will be backed up. Manifest-protected and unowned local files will be preserved. X-Plane must be closed and restarted afterward.",
-            verb);
-        if (!await _userInteractionService.ConfirmAsync(confirmation))
-        {
-            ToolPackageStatus = $"{verb} canceled. No X-Plane files were changed.";
-            AppendLog($"Component or tool package {verb.ToLowerInvariant()} canceled before download and file changes.");
-            return;
-        }
-
         IsToolPackageOperationRunning = true;
         ActionsEnabled = false;
-        IsOperationRunning = true;
-        OperationPanelVisible = true;
-        OperationTitle = $"{verb} {entry.DisplayName}";
-        OperationSubtitle = "Downloading and validating the official release package.";
-        OperationProgress = 15;
-        OperationProgressText = "15% - Verifying release metadata and package archive";
-        OperationStatus = "Component or tool package in progress";
-        OperationLog = "";
-        var cancellationToken = BeginCancellableOperation();
+        var operationStarted = false;
         try
         {
-            var source = _toolPackageReleaseSource;
-            var provisioned = await Task.Run(
-                async () => await source.ProvisionAsync(entry, release, cancellationToken),
-                cancellationToken);
-            cancellationToken.ThrowIfCancellationRequested();
-            OperationProgress = 55;
-            OperationSubtitle = $"Creating a backup and staging the verified {entry.DisplayName} installation.";
-            OperationProgressText = $"55% - Backing up and staging {entry.DisplayName}";
-            CanCancelOperation = false;
-            var result = await Task.Run(() => ApplyToolPackage(entry, provisioned, xPlaneRoot, action.Value));
-            foreach (var line in result.Log)
+            ToolPackageStatus = $"Resolving requirements for {entry.DisplayName}. No X-Plane files are changed.";
+            var planner = new ToolPackageDependencyPlanner(_contentPackageCatalog, _stateStore);
+            var plan = await planner.CreateAsync(
+                entry,
+                release,
+                xPlaneRoot,
+                action.Value,
+                SelectedProduct!.Family,
+                ResolveToolInstallRoot,
+                InspectToolPackage,
+                async (dependencyEntry, channel, token) =>
+                {
+                    var key = ToolReleaseKey(dependencyEntry.PackageId, channel);
+                    if (_toolPackageReleases.TryGetValue(key, out var cached)) return cached;
+                    var resolved = await _toolPackageReleaseSource.GetLatestAsync(dependencyEntry, channel, token);
+                    if (resolved is not null) _toolPackageReleases[key] = resolved;
+                    return resolved;
+                });
+
+            var planLines = string.Join('\n', plan.Actions.Select(item =>
+                $"- {ActionLabel(item.Action)} {item.CatalogEntry.DisplayName} {item.Release.Manifest.PackageVersion}"));
+            var confirmation = new ConfirmationRequest(
+                $"{verb} {entry.DisplayName}?",
+                $"The following package plan will be applied in this order:\n\n{planLines}\n\n"
+                + "Each package is validated and backed up separately. If one action fails, later actions are not started. "
+                + "Manifest-protected and unowned local files are preserved. X-Plane must be closed and restarted afterward.",
+                verb);
+            if (!await _userInteractionService.ConfirmAsync(confirmation))
             {
-                AppendOperationLog(line);
+                ToolPackageStatus = $"{verb} canceled. No X-Plane files were changed.";
+                AppendLog($"Component or tool package {verb.ToLowerInvariant()} canceled before download and file changes.");
+                return;
             }
 
-            OperationProgress = result.Succeeded ? 100 : 0;
-            OperationStatus = result.Status;
-            OperationTitle = result.Succeeded ? $"{entry.DisplayName} {result.Status.ToLowerInvariant()}" : $"{entry.DisplayName} blocked";
-            OperationSubtitle = result.Message;
-            OperationProgressText = result.Succeeded ? "100% - Package transaction completed" : "0% - No component or tool files were changed";
-            ToolPackageStatus = result.Message;
-            AppendLog($"Component or tool package {action}: {result.Message}");
+            IsOperationRunning = true;
+            operationStarted = true;
+            OperationPanelVisible = true;
+            OperationTitle = $"{verb} {entry.DisplayName}";
+            OperationSubtitle = "Downloading and validating the approved package plan.";
+            OperationProgress = 10;
+            OperationProgressText = "10% - Verifying release metadata and package archives";
+            OperationStatus = "Component or tool package plan in progress";
+            OperationLog = "";
+            var cancellationToken = BeginCancellableOperation();
+            MaintenanceOperationResult? finalResult = null;
+            for (var index = 0; index < plan.Actions.Count; index++)
+            {
+                var item = plan.Actions[index];
+                var provisioned = await Task.Run(
+                    async () => await _toolPackageReleaseSource.ProvisionAsync(item.CatalogEntry, item.Release, cancellationToken),
+                    cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
+                var progress = 15 + (int)(70d * index / Math.Max(1, plan.Actions.Count));
+                OperationProgress = progress;
+                OperationSubtitle = $"Applying {item.CatalogEntry.DisplayName} {item.Release.Manifest.PackageVersion}.";
+                OperationProgressText = $"{progress}% - {ActionLabel(item.Action)} {item.CatalogEntry.DisplayName}";
+                CanCancelOperation = false;
+                var result = await Task.Run(() => ApplyToolPackage(
+                    item.CatalogEntry,
+                    provisioned,
+                    item.InstallationRoot,
+                    item.Action,
+                    item.ResolvedDependencies));
+                foreach (var line in result.Log) AppendOperationLog(line);
+                AppendLog($"Component or tool package {item.Action}: {result.Message}");
+                finalResult = result;
+                if (!result.Succeeded) break;
+            }
+
+            finalResult ??= MaintenanceOperationResult.Blocked("The approved package plan contained no actions.", []);
+            OperationProgress = finalResult.Succeeded ? 100 : 0;
+            OperationStatus = finalResult.Status;
+            OperationTitle = finalResult.Succeeded ? $"{entry.DisplayName} {finalResult.Status.ToLowerInvariant()}" : $"{entry.DisplayName} blocked";
+            OperationSubtitle = finalResult.Succeeded && plan.Actions.Count > 1
+                ? $"{entry.DisplayName} and {plan.Actions.Count - 1} required package action(s) completed."
+                : finalResult.Message;
+            OperationProgressText = finalResult.Succeeded ? "100% - Approved package plan completed" : "0% - Package plan stopped";
+            ToolPackageStatus = OperationSubtitle;
         }
         catch (OperationCanceledException)
         {
@@ -4317,7 +4439,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
         finally
         {
-            EndCancellableOperation();
+            if (operationStarted) EndCancellableOperation();
             IsOperationRunning = false;
             IsToolPackageOperationRunning = false;
             ActionsEnabled = true;
@@ -4469,10 +4591,15 @@ public partial class MainWindowViewModel : ViewModelBase
         ContentPackageCatalogEntry entry,
         ToolPackageProvisionResult package,
         string installRoot,
-        ToolPackageAction action) =>
+        ToolPackageAction action,
+        IReadOnlyList<ToolResolvedDependency>? resolvedDependencies = null) =>
         IsXPlaneOverlayPackage(entry)
-            ? _xPlaneOverlayPackageManager.Apply(entry, package, installRoot, action)
-            : _toolPackageManager.Apply(entry, package, installRoot, action);
+            ? _xPlaneOverlayPackageManager.Apply(entry, package, installRoot, action, resolvedDependencies)
+            : _toolPackageManager.Apply(entry, package, installRoot, action, resolvedDependencies);
+
+    private static string ActionLabel(ToolPackageAction action) => action is ToolPackageAction.SwitchChannel
+        ? "Switch"
+        : action.ToString();
 
     private MaintenanceOperationResult RestoreToolPackage(
         ContentPackageCatalogEntry entry,

@@ -418,24 +418,14 @@
 
                                                 <StackPanel Grid.Column="2" Spacing="9">
                                                     <TextBlock Text="{Binding MaintenancePatchTitle}" FontSize="15" FontWeight="SemiBold"/>
-                                                    <TextBlock Text="Manifest-owned table payloads and Lua hooks. Modified aircraft scripts are not distributed."
+                                                    <TextBlock Text="Required package status for the selected aircraft. Individual package versions and controls are listed below."
                                                                Foreground="{DynamicResource AppTextSecondaryBrush}"
                                                                TextWrapping="Wrap"/>
-                                                    <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
-                                                        <StackPanel Spacing="2">
-                                                            <TextBlock Classes="label" Text="Installed"/>
-                                                            <TextBlock Text="{Binding LocalPackageVersion}" FontWeight="SemiBold" TextWrapping="Wrap"/>
-                                                        </StackPanel>
-                                                        <StackPanel Grid.Column="1" Spacing="2">
-                                                            <TextBlock Classes="label" Text="Available"/>
-                                                            <TextBlock Text="{Binding AvailablePackageVersion}" FontWeight="SemiBold" TextWrapping="Wrap"/>
-                                                        </StackPanel>
-                                                    </Grid>
                                                     <StackPanel Spacing="2">
                                                         <TextBlock Classes="label" Text="Status"/>
-                                                        <TextBlock Text="{Binding AircraftStatus}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                                        <TextBlock Text="{Binding MaintenancePatchSummary}" FontWeight="SemiBold" TextWrapping="Wrap"/>
                                                     </StackPanel>
-                                                    <TextBlock Text="Technical details and individual review controls remain available in Advanced."
+                                                    <TextBlock Text="{Binding MaintenancePatchDetail}"
                                                                Foreground="{DynamicResource AppTextSecondaryBrush}"
                                                                TextWrapping="Wrap"/>
                                                 </StackPanel>
