@@ -318,7 +318,7 @@
                                     </Border>
                                 </Expander>
 
-                                <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="12">
+                                <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="12">
                                     <Border Grid.Row="0"
                                             Classes="task-card"
                                             IsVisible="{Binding FreshInstallVisible}">
@@ -705,7 +705,83 @@
                                         </Grid>
                                     </Border>
 
-                                    <Border Grid.Row="5" Classes="task-card">
+                                    <Border Grid.Row="5"
+                                            Classes="task-card"
+                                            IsVisible="{Binding LiveryPackageVisible}">
+                                        <Grid RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="12">
+                                            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="16">
+                                                <StackPanel Spacing="4">
+                                                    <TextBlock Text="Liveries" FontSize="18" FontWeight="SemiBold"/>
+                                                    <TextBlock Text="Optional verified liveries for the selected aircraft. Each livery is installed into this aircraft's liveries folder."
+                                                               Foreground="{DynamicResource AppTextSecondaryBrush}"
+                                                               TextWrapping="Wrap"/>
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1" Spacing="3" MinWidth="190">
+                                                    <TextBlock Classes="label" Text="Livery"/>
+                                                    <ComboBox ItemsSource="{Binding AvailableLiveryPackages}"
+                                                              SelectedItem="{Binding SelectedLiveryPackage}">
+                                                        <ComboBox.ItemTemplate>
+                                                            <DataTemplate x:DataType="content:ContentPackageCatalogEntry">
+                                                                <TextBlock Text="{Binding DisplayName}"/>
+                                                            </DataTemplate>
+                                                        </ComboBox.ItemTemplate>
+                                                    </ComboBox>
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="2" Spacing="3" MinWidth="130">
+                                                    <TextBlock Classes="label" Text="Release channel"/>
+                                                    <ComboBox ItemsSource="{Binding LiveryReleaseChannelOptions}"
+                                                              SelectedItem="{Binding SelectedLiveryReleaseChannel}"/>
+                                                </StackPanel>
+                                            </Grid>
+
+                                            <StackPanel Grid.Row="1" Spacing="3">
+                                                <TextBlock Text="{Binding LiveryPackageName}" FontSize="15" FontWeight="SemiBold"/>
+                                                <TextBlock Text="{Binding LiveryPackageDescription}"
+                                                           Foreground="{DynamicResource AppTextSecondaryBrush}"
+                                                           TextWrapping="Wrap"/>
+                                            </StackPanel>
+
+                                            <Grid Grid.Row="2" ColumnDefinitions="Auto,Auto,*" ColumnSpacing="22">
+                                                <StackPanel Spacing="2">
+                                                    <TextBlock Classes="label" Text="Installed"/>
+                                                    <TextBlock Text="{Binding LiveryInstalledVersion}" FontWeight="SemiBold"/>
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1" Spacing="2">
+                                                    <TextBlock Classes="label" Text="Available"/>
+                                                    <TextBlock Text="{Binding LiveryAvailableVersion}" FontWeight="SemiBold"/>
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="2" Spacing="2">
+                                                    <TextBlock Classes="label" Text="Status"/>
+                                                    <TextBlock Text="{Binding LiveryPackageStatus}" TextWrapping="Wrap"/>
+                                                    <TextBlock Classes="path" Text="{Binding LiveryTargetPath}" TextWrapping="Wrap"/>
+                                                </StackPanel>
+                                            </Grid>
+
+                                            <WrapPanel Grid.Row="3" ItemSpacing="8" LineSpacing="8">
+                                                <Button Content="Check release"
+                                                        Command="{Binding CheckLiveryReleaseCommand}"
+                                                        IsEnabled="{Binding CanCheckLiveryRelease}"/>
+                                                <Button Content="{Binding LiveryActionLabel}"
+                                                        Classes="primary"
+                                                        Command="{Binding InstallLiveryCommand}"
+                                                        IsEnabled="{Binding CanInstallLivery}"/>
+                                                <Button Content="Verify"
+                                                        Command="{Binding VerifyLiveryCommand}"
+                                                        IsEnabled="{Binding CanVerifyLivery}"/>
+                                                <Button Content="Repair"
+                                                        Command="{Binding RepairLiveryCommand}"
+                                                        IsEnabled="{Binding CanRepairLivery}"/>
+                                                <Button Content="Open folder"
+                                                        Command="{Binding OpenLiveryFolderCommand}"
+                                                        IsEnabled="{Binding CanOpenLiveryFolder}"/>
+                                                <Button Content="Remove"
+                                                        Command="{Binding RemoveLiveryCommand}"
+                                                        IsEnabled="{Binding CanRemoveLivery}"/>
+                                            </WrapPanel>
+                                        </Grid>
+                                    </Border>
+
+                                    <Border Grid.Row="6" Classes="task-card">
                                         <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="12">
                                             <StackPanel Spacing="4">
                                                 <TextBlock Text="Views After CG Change" FontSize="18" FontWeight="SemiBold"/>

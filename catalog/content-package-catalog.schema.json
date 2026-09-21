@@ -65,7 +65,8 @@
             "optionalPatch",
             "aircraftComponent",
             "tool",
-            "resource"
+            "resource",
+            "livery"
           ]
         },
         "activation": {
@@ -174,6 +175,7 @@
             "gitHubToolRelease",
             "gitHubXPlaneOverlayRelease",
             "gitHubResourceRelease",
+            "gitHubLiveryRelease",
             "catalogGroup",
             "gitHubModuleSource"
           ]

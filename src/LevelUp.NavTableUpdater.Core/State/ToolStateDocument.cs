@@ -2,7 +2,7 @@ namespace LevelUp.NavTableUpdater.Core.State;
 
 public sealed class ToolStateDocument
 {
-    public int SchemaVersion { get; set; } = 7;
+    public int SchemaVersion { get; set; } = 8;
 
     public Dictionary<string, AircraftToolState> Aircraft { get; set; } = new(StringComparer.Ordinal);
 
@@ -11,6 +11,8 @@ public sealed class ToolStateDocument
     public Dictionary<string, ToolInstallationState> ToolInstallations { get; set; } = new(StringComparer.Ordinal);
 
     public Dictionary<string, ResourceInstallationState> ResourceInstallations { get; set; } = new(StringComparer.Ordinal);
+
+    public Dictionary<string, ResourceInstallationState> LiveryInstallations { get; set; } = new(StringComparer.Ordinal);
 }
 
 public sealed class ResourceInstallationState

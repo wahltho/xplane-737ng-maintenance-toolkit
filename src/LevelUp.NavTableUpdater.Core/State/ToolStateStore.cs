@@ -150,6 +150,40 @@ public sealed class ToolStateStore
         }
     }
 
+    public ResourceInstallationState? TryGetLiveryInstallation(string aircraftRoot, string packageId)
+    {
+        var document = Load();
+        return document.LiveryInstallations.GetValueOrDefault(LiveryKey(aircraftRoot, packageId));
+    }
+
+    public void UpdateLiveryInstallation(
+        string aircraftRoot,
+        string packageId,
+        Action<ResourceInstallationState> update)
+    {
+        var document = Load();
+        var root = Path.GetFullPath(aircraftRoot);
+        var key = LiveryKey(root, packageId);
+        if (!document.LiveryInstallations.TryGetValue(key, out var installation))
+        {
+            installation = new ResourceInstallationState { PackageId = packageId };
+            document.LiveryInstallations[key] = installation;
+        }
+
+        installation.DestinationDirectory = Path.Combine(root, "liveries");
+        update(installation);
+        Save(document);
+    }
+
+    public void RemoveLiveryInstallation(string aircraftRoot, string packageId)
+    {
+        var document = Load();
+        if (document.LiveryInstallations.Remove(LiveryKey(aircraftRoot, packageId)))
+        {
+            Save(document);
+        }
+    }
+
     public string CreateToolBackupDirectory(string xPlaneRoot, string packageId, DateTimeOffset createdUtc)
     {
         var rootKey = ToolPathKey(xPlaneRoot)[..16];
@@ -297,6 +331,9 @@ public sealed class ToolStateStore
 
     private static string ToolKey(string xPlaneRoot, string packageId) =>
         $"{ToolPathKey(xPlaneRoot)}:{packageId}";
+
+    private static string LiveryKey(string aircraftRoot, string packageId) =>
+        $"{ToolPathKey(aircraftRoot)}:{packageId}";
 
     private static string ToolPathKey(string path)
     {
@@ -477,6 +514,7 @@ public sealed class ToolStateStore
         document.ContentInstallations ??= new Dictionary<string, ContentInstallationToolState>(StringComparer.Ordinal);
         document.ToolInstallations ??= new Dictionary<string, ToolInstallationState>(StringComparer.Ordinal);
         document.ResourceInstallations ??= new Dictionary<string, ResourceInstallationState>(StringComparer.Ordinal);
+        document.LiveryInstallations ??= new Dictionary<string, ResourceInstallationState>(StringComparer.Ordinal);
         foreach (var installation in document.ContentInstallations.Values)
         {
             installation.ContentComponents ??= new Dictionary<string, ContentComponentState>(StringComparer.Ordinal);
@@ -556,6 +594,11 @@ public sealed class ToolStateStore
             resource.InstalledFiles ??= [];
         }
 
-        document.SchemaVersion = Math.Max(document.SchemaVersion, 7);
+        foreach (var livery in document.LiveryInstallations.Values)
+        {
+            livery.InstalledFiles ??= [];
+        }
+
+        document.SchemaVersion = Math.Max(document.SchemaVersion, 8);
     }
 }

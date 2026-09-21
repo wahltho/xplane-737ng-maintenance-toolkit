@@ -82,7 +82,12 @@ public sealed class GitHubResourcePackageReleaseSource
         }
 
         var archiveAsset = archiveAssets[0];
-        ValidateAsset(owner, repository, archiveAsset, MaximumArchiveBytes, ".7z");
+        ValidateAsset(
+            owner,
+            repository,
+            archiveAsset,
+            MaximumArchiveBytes,
+            catalogEntry.Category is ContentPackageCategory.Livery ? ".zip" : ".7z");
         var archiveDigest = ParseSha256Digest(archiveAsset.Digest, "archive asset");
         if (archiveAsset.Size != manifest.Archive.Size
             || !archiveDigest.Equals(manifest.Archive.Sha256, StringComparison.OrdinalIgnoreCase))
@@ -251,7 +256,13 @@ public sealed class GitHubResourcePackageReleaseSource
             || manifest.SchemaVersion != catalogEntry.Distribution.ManifestSchemaVersion
             || !manifest.Channel.Equals(ChannelName(channel), StringComparison.Ordinal)
             || !manifest.SupportedProducts.ToHashSet(StringComparer.Ordinal)
-                .SetEquals(catalogEntry.SupportedProducts))
+                .SetEquals(catalogEntry.SupportedProducts)
+            || (catalogEntry.Category is ContentPackageCategory.Livery
+                && (manifest.PackageType != "livery"
+                    || manifest.InstallScope != "aircraftLivery"
+                    || !manifest.RestartRequired))
+            || (catalogEntry.Category is ContentPackageCategory.Resource
+                && manifest.PackageType != "resource"))
         {
             throw new InvalidDataException($"Resource manifest identity does not match the trusted catalog entry {catalogEntry.PackageId}.");
         }
@@ -280,8 +291,11 @@ public sealed class GitHubResourcePackageReleaseSource
 
     private static void ValidateCatalogEntry(ContentPackageCatalogEntry entry, ResourceReleaseChannel channel)
     {
-        if (entry.Category is not ContentPackageCategory.Resource
-            || entry.Distribution.Kind is not ContentPackageDistributionKind.GitHubResourceRelease
+        var supported = entry.Category is ContentPackageCategory.Resource
+                && entry.Distribution.Kind is ContentPackageDistributionKind.GitHubResourceRelease
+            || entry.Category is ContentPackageCategory.Livery
+                && entry.Distribution.Kind is ContentPackageDistributionKind.GitHubLiveryRelease;
+        if (!supported
             || !entry.SupportedChannels.Contains(ChannelName(channel), StringComparer.Ordinal))
         {
             throw new InvalidOperationException($"Catalog entry {entry.PackageId} is not configured for the requested resource release channel.");

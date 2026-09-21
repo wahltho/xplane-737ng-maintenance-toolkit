@@ -2,12 +2,12 @@
 
 Cross-platform desktop app for Zibo and LevelUp 737NG maintenance tasks. It
 manages aircraft and VNAV packages, explicit optional patches, X-Plane-wide
-tools and conservative view maintenance for supported aircraft variants.
+tools, verified liveries and conservative view maintenance for supported aircraft variants.
 
 This repository is the public development home for the app. The architecture
 keeps package content, aircraft patching, and application updates separate.
 
-Release version: **0.15.0**
+Release version: **0.16.0**
 
 Includes [catalog-controlled maintenance groups](docs/CATALOG_GROUPS.md) and configurable startup update notifications.
 
@@ -61,7 +61,7 @@ verified macOS download is blocked, follow Apple's documented
 VeloPack-managed installations check for stable Toolkit updates in the
 background. When an update is available, the app offers a cancellable verified
 download followed by an explicitly confirmed restart. Aircraft, VNAV, patch,
-tool and resource updates remain separate from Toolkit application updates.
+tool, resource and livery updates remain separate from Toolkit application updates.
 
 ## First Use
 
@@ -158,6 +158,10 @@ Current capabilities:
 - It offers verified product resources independently from aircraft updates.
   The LevelUp 737NG Paintkit can be downloaded from its official public
   release and safely extracted into a user-selected directory outside X-Plane.
+- It can install, update, verify, explicitly repair and remove catalog-listed
+  livery packages for the selected aircraft. Livery state is recorded per
+  aircraft folder; unmanaged directories and locally changed managed liveries
+  are never overwritten by a normal install or update.
 - GitHub optional-package archives are selected by an explicit asset pattern,
   checked against GitHub's published size and SHA-256 digest, and safely
   reduced to the declared manifest and payload files in the local cache.

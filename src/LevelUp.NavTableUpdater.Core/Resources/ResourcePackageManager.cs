@@ -279,6 +279,266 @@ public sealed class ResourcePackageManager
             state.TargetPath);
     }
 
+    public ResourcePackageInspection InspectLivery(
+        ContentPackageCatalogEntry catalogEntry,
+        ResourcePackageRelease? release,
+        string aircraftRoot,
+        bool verifyHash = false)
+    {
+        ValidateLiveryCatalogEntry(catalogEntry);
+        ArgumentException.ThrowIfNullOrWhiteSpace(aircraftRoot);
+        var root = Path.GetFullPath(aircraftRoot);
+        var state = _stateStore.TryGetLiveryInstallation(root, catalogEntry.PackageId);
+        if (state is null)
+        {
+            return new ResourcePackageInspection(
+                ResourcePackageState.NotInstalled,
+                "-",
+                release?.Manifest.PackageVersion ?? "Not checked",
+                Path.Combine(root, "liveries"),
+                "",
+                "This livery is not installed through the Toolkit for the selected aircraft.");
+        }
+
+        var availableVersion = release?.Manifest.PackageVersion ?? "Not checked";
+        if (!Directory.Exists(state.TargetPath))
+        {
+            return new ResourcePackageInspection(
+                ResourcePackageState.Missing,
+                state.PackageVersion,
+                availableVersion,
+                state.DestinationDirectory,
+                state.TargetPath,
+                "The recorded livery directory is missing and can be installed again.");
+        }
+
+        var integrity = InspectInstallation(state, verifyHash);
+        if (!integrity.Valid)
+        {
+            return new ResourcePackageInspection(
+                ResourcePackageState.VerificationFailed,
+                state.PackageVersion,
+                availableVersion,
+                state.DestinationDirectory,
+                state.TargetPath,
+                integrity.Status.Replace("resource", "livery", StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (release is not null && !VersionsEqual(state.PackageVersion, release.Manifest.PackageVersion))
+        {
+            return new ResourcePackageInspection(
+                ResourcePackageState.UpdateAvailable,
+                state.PackageVersion,
+                availableVersion,
+                state.DestinationDirectory,
+                state.TargetPath,
+                $"Livery {release.Manifest.PackageVersion} is available.");
+        }
+
+        return new ResourcePackageInspection(
+            ResourcePackageState.Current,
+            state.PackageVersion,
+            availableVersion,
+            state.DestinationDirectory,
+            state.TargetPath,
+            verifyHash ? "The installed livery is current and verified." : "The installed livery is present.");
+    }
+
+    public void ValidateLiveryDestination(
+        ContentPackageCatalogEntry catalogEntry,
+        ResourcePackageRelease release,
+        string aircraftRoot,
+        bool allowRepair = false)
+    {
+        ValidateLiveryCatalogEntry(catalogEntry);
+        ValidateRelease(catalogEntry, release);
+        ArgumentException.ThrowIfNullOrWhiteSpace(aircraftRoot);
+        var root = Path.GetFullPath(aircraftRoot);
+        if (!Directory.Exists(root))
+        {
+            throw new DirectoryNotFoundException($"Selected aircraft folder does not exist: {root}");
+        }
+
+        RejectLink(root, "Aircraft folder");
+        var destination = Path.Combine(root, "liveries");
+        if (Directory.Exists(destination))
+        {
+            RejectLink(destination, "Aircraft liveries folder");
+        }
+        else if (File.Exists(destination))
+        {
+            throw new InvalidOperationException($"A file exists where the aircraft liveries folder is required: {destination}.");
+        }
+        var targetPath = TargetPath(destination, release.Manifest.TargetDirectory);
+        var state = _stateStore.TryGetLiveryInstallation(root, catalogEntry.PackageId);
+        if (File.Exists(targetPath))
+        {
+            throw new InvalidOperationException($"A file already exists at the livery destination: {targetPath}.");
+        }
+
+        if (Directory.Exists(targetPath))
+        {
+            if (state is null || !PathsEqual(state.TargetPath, targetPath))
+            {
+                throw new InvalidOperationException(
+                    $"An unmanaged livery directory already exists: {targetPath}. It will not be overwritten.");
+            }
+
+            var integrity = InspectInstallation(state, verifyHash: true);
+            if (!integrity.Valid && !allowRepair)
+            {
+                throw new InvalidOperationException(
+                    $"The managed livery has changed. Use Repair to replace it safely. {integrity.Status}");
+            }
+        }
+
+        EnsureFreeSpace(
+            Directory.Exists(destination) ? destination : root,
+            release.Manifest.Archive.Size + release.Manifest.ExtractedSize + FreeSpaceMarginBytes);
+    }
+
+    public ResourcePackageOperationResult InstallLivery(
+        ContentPackageCatalogEntry catalogEntry,
+        ResourcePackageProvisionResult provisioned,
+        string aircraftRoot,
+        bool repair = false,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateLiveryCatalogEntry(catalogEntry);
+        ValidateRelease(catalogEntry, provisioned.Release);
+        var root = Path.GetFullPath(aircraftRoot);
+        var destination = Path.Combine(root, "liveries");
+        Directory.CreateDirectory(destination);
+        var manifest = provisioned.Release.Manifest;
+        var targetPath = TargetPath(destination, manifest.TargetDirectory);
+        var sourcePath = Path.GetFullPath(provisioned.ArchivePath);
+        if (provisioned.Temporary)
+        {
+            EnsureDirectChild(destination, sourcePath);
+        }
+
+        var stagingPath = TargetPath(destination, $".{manifest.TargetDirectory}.{Guid.NewGuid():N}.staging");
+        var rollbackPath = TargetPath(destination, $".{manifest.TargetDirectory}.{Guid.NewGuid():N}.rollback");
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!FileMatches(sourcePath, manifest.Archive.Size, manifest.Archive.Sha256))
+            {
+                throw new InvalidDataException("Downloaded livery archive failed size/SHA-256 verification.");
+            }
+
+            ValidateLiveryDestination(catalogEntry, provisioned.Release, root, repair);
+            var existing = _stateStore.TryGetLiveryInstallation(root, catalogEntry.PackageId);
+            if (!repair && existing is not null
+                && VersionsEqual(existing.PackageVersion, manifest.PackageVersion)
+                && InspectInstallation(existing, verifyHash: true).Valid)
+            {
+                return new ResourcePackageOperationResult(
+                    true,
+                    false,
+                    $"{catalogEntry.DisplayName} {manifest.PackageVersion} is already installed and verified.",
+                    targetPath);
+            }
+
+            ExtractVerifiedArchive(sourcePath, manifest, stagingPath, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            var movedExisting = false;
+            var installedNew = false;
+            try
+            {
+                if (Directory.Exists(targetPath))
+                {
+                    Directory.Move(targetPath, rollbackPath);
+                    movedExisting = true;
+                }
+
+                Directory.Move(stagingPath, targetPath);
+                installedNew = true;
+                _stateStore.UpdateLiveryInstallation(root, catalogEntry.PackageId, state =>
+                {
+                    state.PackageId = manifest.PackageId;
+                    state.PackageVersion = manifest.PackageVersion;
+                    state.ReleaseTag = manifest.ReleaseTag;
+                    state.Channel = manifest.Channel;
+                    state.TargetPath = targetPath;
+                    state.InstalledFiles = manifest.Files.Select(file => new ResourceInstalledFileState
+                    {
+                        RelativePath = file.Path,
+                        Size = file.Size,
+                        Sha256 = file.Sha256
+                    }).ToList();
+                    state.LastOperationUtc = DateTimeOffset.UtcNow;
+                });
+            }
+            catch
+            {
+                if (installedNew && Directory.Exists(targetPath)) Directory.Delete(targetPath, recursive: true);
+                if (movedExisting && Directory.Exists(rollbackPath)) Directory.Move(rollbackPath, targetPath);
+                throw;
+            }
+
+            if (movedExisting)
+            {
+                try
+                {
+                    Directory.Delete(rollbackPath, recursive: true);
+                }
+                catch (IOException)
+                {
+                    // The verified installation and its state are already committed. A hidden
+                    // rollback directory is safer than undoing a successful installation.
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    // See above. A later manual cleanup can remove the stale rollback directory.
+                }
+            }
+
+            return new ResourcePackageOperationResult(
+                true,
+                true,
+                $"{catalogEntry.DisplayName} {manifest.PackageVersion} was verified and {(repair ? "repaired" : "installed")}.",
+                targetPath);
+        }
+        finally
+        {
+            DeleteDirectoryIfPresent(stagingPath);
+            if (provisioned.Temporary && File.Exists(sourcePath)) File.Delete(sourcePath);
+        }
+    }
+
+    public ResourcePackageOperationResult RemoveLivery(
+        ContentPackageCatalogEntry catalogEntry,
+        string aircraftRoot)
+    {
+        ValidateLiveryCatalogEntry(catalogEntry);
+        var root = Path.GetFullPath(aircraftRoot);
+        var state = _stateStore.TryGetLiveryInstallation(root, catalogEntry.PackageId);
+        if (state is null)
+        {
+            return new ResourcePackageOperationResult(true, false, "No managed livery installation exists.", "");
+        }
+
+        if (Directory.Exists(state.TargetPath))
+        {
+            var integrity = InspectInstallation(state, verifyHash: true);
+            if (!integrity.Valid)
+            {
+                throw new InvalidOperationException(
+                    $"The managed livery has changed and will not be removed automatically. {integrity.Status}");
+            }
+
+            Directory.Delete(state.TargetPath, recursive: true);
+        }
+
+        _stateStore.RemoveLiveryInstallation(root, catalogEntry.PackageId);
+        return new ResourcePackageOperationResult(
+            true,
+            true,
+            $"{catalogEntry.DisplayName} was removed from the selected aircraft.",
+            state.TargetPath);
+    }
+
     private static void ExtractVerifiedArchive(
         string archivePath,
         ResourcePackageManifest manifest,
@@ -287,40 +547,48 @@ public sealed class ResourcePackageManager
     {
         var expected = manifest.Files.ToDictionary(file => file.Path, StringComparer.Ordinal);
         using var archive = OpenArchive(archivePath);
-        if (archive.Type is not ArchiveType.SevenZip || archive.IsEncrypted)
+        var expectedArchiveType = manifest.PackageType == "livery" ? ArchiveType.Zip : ArchiveType.SevenZip;
+        if (archive.Type != expectedArchiveType || archive.IsEncrypted)
         {
-            throw new InvalidDataException("Resource archive must be an unencrypted 7z archive.");
+            throw new InvalidDataException(
+                $"Package archive must be an unencrypted {(expectedArchiveType is ArchiveType.Zip ? "ZIP" : "7z")} archive.");
         }
 
         ValidateArchiveEntries(archive, manifest, expected);
         Directory.CreateDirectory(stagingPath);
 
-        using var reader = archive.ExtractAllEntries();
         var extractedFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var rootPrefix = manifest.ArchiveRoot + "/";
-        while (reader.MoveToNextEntry())
+        if (archive.Type is ArchiveType.Zip)
+        {
+            foreach (var entry in archive.Entries.Where(entry => !entry.IsDirectory))
+            {
+                using var input = entry.OpenEntryStream();
+                ExtractEntry(entry, input);
+            }
+        }
+        else
+        {
+            using var reader = archive.ExtractAllEntries();
+            while (reader.MoveToNextEntry())
+            {
+                if (reader.Entry.IsDirectory) continue;
+                using var input = reader.OpenEntryStream();
+                ExtractEntry(reader.Entry, input);
+            }
+        }
+
+        void ExtractEntry(IEntry entry, Stream input)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var entry = reader.Entry;
             var memberPath = NormalizeArchivePath(entry.Key ?? "");
-            if (memberPath.Equals(manifest.ArchiveRoot, StringComparison.Ordinal))
-            {
-                continue;
-            }
-
             if (!memberPath.StartsWith(rootPrefix, StringComparison.Ordinal)
                 || !string.IsNullOrWhiteSpace(entry.LinkTarget))
             {
                 throw new InvalidDataException(
                     $"Resource archive changed during extraction or contains an unsafe entry: {memberPath}.");
             }
-
             var relativePath = memberPath[rootPrefix.Length..];
-            if (entry.IsDirectory)
-            {
-                continue;
-            }
-
             if (!extractedFiles.Add(relativePath)
                 || !expected.TryGetValue(relativePath, out var expectedFile)
                 || entry.Size != expectedFile.Size)
@@ -331,7 +599,6 @@ public sealed class ResourcePackageManager
 
             var outputPath = ResolveChildPath(stagingPath, relativePath);
             Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
-            using var input = reader.OpenEntryStream();
             using var output = new FileStream(outputPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 131072);
             using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
             var buffer = new byte[131072];
@@ -562,6 +829,16 @@ public sealed class ResourcePackageManager
             || entry.Distribution.Kind is not ContentPackageDistributionKind.GitHubResourceRelease)
         {
             throw new InvalidOperationException($"Catalog entry {entry.PackageId} is not an installable resource.");
+        }
+    }
+
+    private static void ValidateLiveryCatalogEntry(ContentPackageCatalogEntry entry)
+    {
+        if (entry.Category is not ContentPackageCategory.Livery
+            || entry.Distribution.Kind is not ContentPackageDistributionKind.GitHubLiveryRelease
+            || entry.InstallScope != "aircraftLivery")
+        {
+            throw new InvalidOperationException($"Catalog entry {entry.PackageId} is not an installable livery.");
         }
     }
 

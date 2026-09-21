@@ -1,6 +1,6 @@
 # X-Plane 737NG Maintenance Toolkit User Manual
 
-This manual describes version 0.14.2 of the X-Plane 737NG Maintenance Toolkit.
+This manual describes version 0.16.0 of the X-Plane 737NG Maintenance Toolkit.
 
 The toolkit is a desktop app for selected Zibo and LevelUp 737NG maintenance
 tasks:
@@ -14,6 +14,7 @@ tasks:
   Zibo and LevelUp installations.
 - Explicit optional aircraft patches for compatible products.
 - Verified product resources extracted into a user-selected directory.
+- Verified optional liveries installed into the selected aircraft folder.
 
 The app does not replace X-Plane, Zibo, LevelUp or their official installers.
 It works on a selected local aircraft folder and writes only after validation,
@@ -30,7 +31,7 @@ Keep your own backups and use the tool at your own risk.
 
 ## Compatibility And Installation
 
-Version 0.14.2 supports:
+Version 0.16.0 supports:
 
 - X-Plane 12. X-Plane 11 is not supported.
 - Zibo 737-800X 2K and 4K variants.
@@ -135,6 +136,7 @@ following maintenance cards for the selected product:
 - `Components & Aircraft Patches` when a compatible optional patch is listed
 - `Components & Tools`
 - `Resources` when a compatible resource package is listed
+- `Liveries` when a compatible livery package is listed
 - `Views After CG Change`
 
 The installation pane on the left and maintenance pane on the right scroll
@@ -228,7 +230,7 @@ explicit confirmation before writing files. Version 0.13.0 offers the LevelUp
 FANS CDU package as an optional LevelUp-only patch. It remains separate from
 aircraft and VNAV updates and is never installed automatically.
 
-At startup, version 0.14.2 checks immutable `catalog-v*` releases in the Toolkit
+At startup, version 0.16.0 checks immutable `catalog-v*` releases in the Toolkit
 repository for updated package discovery metadata. A downloaded catalog becomes
 active only after schema, version, repository URL and minimum Toolkit version
 validation. If the check fails, the app uses its last valid cached catalog and
@@ -324,6 +326,21 @@ or X-Plane folder unless that location is explicitly selected.
 manager, and `Remove resource` is enabled only for an unchanged Toolkit-managed
 installation. Unknown, changed or additional files block automatic replacement
 or removal. The Paintkit is currently offered on the Stable channel only.
+
+The `Liveries` card manages catalog-listed liveries for the currently selected
+aircraft installation. Click `Check release`, then `Install` after reviewing
+the exact target under `<aircraft>/liveries`. Installed and available versions
+are shown separately. The Toolkit verifies the GitHub release metadata, ZIP,
+manifest and every declared file before publishing the livery directory.
+
+Livery records belong to one aircraft folder, so installations in multiple
+LevelUp or Zibo folders are tracked independently. A normal install or update
+does not overwrite an unmanaged directory or a managed livery that has been
+changed locally. Use `Verify` to check all declared files. If a managed livery
+was changed, `Repair` is enabled and asks for explicit confirmation before
+replacing that directory. `Remove` succeeds only while the managed directory
+still exactly matches its recorded files; unknown or changed files block
+automatic removal.
 
 The `Views After CG Change` card contains view and configuration maintenance for
 the selected aircraft variant.

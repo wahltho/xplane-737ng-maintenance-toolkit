@@ -65,6 +65,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly Dictionary<string, ResourcePackageRelease> _resourcePackageReleases = new(StringComparer.Ordinal);
     private bool _synchronizingToolSelection;
     private bool _synchronizingResourceSelection;
+    private bool _synchronizingLiverySelection;
     private PackageManifest _manifest;
     private AircraftUpstreamUpdateCheckResult? _lastUpstreamUpdateCheck;
     private AircraftUpdateDryRunResult? _lastAircraftUpdateDryRun;
@@ -530,6 +531,60 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private bool isResourcePackageOperationRunning;
 
+    [ObservableProperty]
+    private bool liveryPackageVisible;
+
+    [ObservableProperty]
+    private ContentPackageCatalogEntry? selectedLiveryPackage;
+
+    [ObservableProperty]
+    private string liveryPackageName = "Livery";
+
+    [ObservableProperty]
+    private string liveryPackageDescription = "Optional verified livery for the selected aircraft.";
+
+    [ObservableProperty]
+    private string selectedLiveryReleaseChannel = "stable";
+
+    [ObservableProperty]
+    private IReadOnlyList<string> liveryReleaseChannelOptions = ["stable"];
+
+    [ObservableProperty]
+    private string liveryInstalledVersion = "-";
+
+    [ObservableProperty]
+    private string liveryAvailableVersion = "Not checked";
+
+    [ObservableProperty]
+    private string liveryPackageStatus = "Select a supported aircraft.";
+
+    [ObservableProperty]
+    private string liveryTargetPath = "-";
+
+    [ObservableProperty]
+    private string liveryActionLabel = "Install";
+
+    [ObservableProperty]
+    private bool canCheckLiveryRelease;
+
+    [ObservableProperty]
+    private bool canInstallLivery;
+
+    [ObservableProperty]
+    private bool canVerifyLivery;
+
+    [ObservableProperty]
+    private bool canRepairLivery;
+
+    [ObservableProperty]
+    private bool canOpenLiveryFolder;
+
+    [ObservableProperty]
+    private bool canRemoveLivery;
+
+    [ObservableProperty]
+    private bool isLiveryPackageOperationRunning;
+
     public ObservableCollection<AircraftCandidate> DetectedTargets { get; } = [];
 
     public ObservableCollection<ProductTargetStatus> ProductTargets { get; } = [];
@@ -567,6 +622,8 @@ public partial class MainWindowViewModel : ViewModelBase
     public ObservableCollection<ContentPackageCatalogEntry> AvailableToolPackages { get; } = [];
 
     public ObservableCollection<ContentPackageCatalogEntry> AvailableResourcePackages { get; } = [];
+
+    public ObservableCollection<ContentPackageCatalogEntry> AvailableLiveryPackages { get; } = [];
 
     public ObservableCollection<string> ToolReleaseChannelOptions { get; } = ["stable"];
 
@@ -642,6 +699,7 @@ public partial class MainWindowViewModel : ViewModelBase
             _aircraftUpdateHttpClient);
         selectedToolReleaseChannel = "stable";
         selectedResourceReleaseChannel = "stable";
+        selectedLiveryReleaseChannel = "stable";
         _manifest = _manifests[0];
         _quickViewBaselineAnalyzer = new QuickViewBaselineAnalyzer(_stateStore);
         _applyDefaultViewOperation = new ApplyDefaultViewFromQv0Operation(_stateStore);
@@ -701,6 +759,10 @@ public partial class MainWindowViewModel : ViewModelBase
                 && SelectedProduct?.IsDetected == true && SelectedProduct.Family == startupProduct
                 && SelectedAircraftPath == startupPath,
             RefreshAircraftUpdateCheck, CheckContentPackageCatalog);
+        if (CheckAircraftAndPatchUpdatesOnStartup)
+        {
+            await CheckLiveryReleaseCoreAsync(updateBusyState: false);
+        }
         // Finish startup maintenance state changes before offering an application restart.
         if (CheckToolkitUpdatesOnStartup)
             await ApplicationUpdate.CheckForUpdatesAsync();
@@ -717,9 +779,11 @@ public partial class MainWindowViewModel : ViewModelBase
         _resourcePackageReleases.Clear();
         SynchronizeAvailableToolPackages();
         SynchronizeAvailableResourcePackages();
+        SynchronizeAvailableLiveryPackages();
         RefreshContentPackageOverview();
         RefreshToolPackageOverview();
         RefreshResourcePackageOverview();
+        RefreshLiveryPackageOverview();
         RefreshOptionalPatchStatus();
         AppendLog($"Content package catalog: {result.Detail}");
     }
@@ -1138,6 +1202,7 @@ public partial class MainWindowViewModel : ViewModelBase
             RefreshContentPackageOverview();
             RefreshToolPackageOverview();
             RefreshResourcePackageOverview();
+            RefreshLiveryPackageOverview();
             return;
         }
 
@@ -1147,6 +1212,7 @@ public partial class MainWindowViewModel : ViewModelBase
             RefreshContentPackageOverview();
             RefreshToolPackageOverview();
             RefreshResourcePackageOverview();
+            RefreshLiveryPackageOverview();
             return;
         }
 
@@ -3812,6 +3878,7 @@ public partial class MainWindowViewModel : ViewModelBase
         RefreshContentPackageOverview();
         RefreshToolPackageOverview();
         RefreshResourcePackageOverview();
+        RefreshLiveryPackageOverview();
     }
 
     private void ApplyViewAnalysis(AircraftViewAnalysisResult result, string? preferredAcfPath = null)
@@ -3826,6 +3893,7 @@ public partial class MainWindowViewModel : ViewModelBase
         RefreshFilteredViewVariants(currentSelection);
         RefreshToolPackageOverview();
         RefreshResourcePackageOverview();
+        RefreshLiveryPackageOverview();
         RefreshFreshInstallContext();
     }
 
@@ -3839,6 +3907,7 @@ public partial class MainWindowViewModel : ViewModelBase
         RefreshContentPackageOverview();
         RefreshToolPackageOverview();
         RefreshResourcePackageOverview();
+        RefreshLiveryPackageOverview();
     }
 
     private void RefreshOptionalPatchStatus()
@@ -4689,6 +4758,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         RefreshResourcePackageOverview();
+        RefreshLiveryPackageOverview();
     }
 
     partial void OnSelectedResourceReleaseChannelChanged(string value)
@@ -5082,6 +5152,416 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
+    partial void OnSelectedLiveryPackageChanged(ContentPackageCatalogEntry? value)
+    {
+        if (_synchronizingLiverySelection)
+        {
+            return;
+        }
+
+        var channel = NormalizeResourceReleaseChannel(
+            value,
+            value is null
+                ? "stable"
+                : _settings.ToolReleaseChannels.GetValueOrDefault(value.PackageId, "stable"));
+        _synchronizingLiverySelection = true;
+        try
+        {
+            LiveryReleaseChannelOptions = ResourceReleaseChannels(value);
+            SelectedLiveryReleaseChannel = channel;
+        }
+        finally
+        {
+            _synchronizingLiverySelection = false;
+        }
+
+        RefreshLiveryPackageOverview();
+    }
+
+    partial void OnSelectedLiveryReleaseChannelChanged(string value)
+    {
+        if (_synchronizingLiverySelection)
+        {
+            return;
+        }
+
+        var entry = SelectedLiveryCatalogEntry();
+        var normalized = NormalizeResourceReleaseChannel(entry, value);
+        if (!string.Equals(value, normalized, StringComparison.Ordinal))
+        {
+            SelectedLiveryReleaseChannel = normalized;
+            return;
+        }
+
+        if (entry is null)
+        {
+            return;
+        }
+
+        _settings.ToolReleaseChannels[entry.PackageId] = normalized;
+        _settingsStore.Save(_settings);
+        RefreshLiveryPackageOverview();
+    }
+
+    [RelayCommand]
+    private async Task CheckLiveryRelease()
+    {
+        if (IsLiveryPackageOperationRunning || IsOperationRunning)
+        {
+            return;
+        }
+
+        await CheckLiveryReleaseCoreAsync(updateBusyState: true);
+    }
+
+    private async Task CheckLiveryReleaseCoreAsync(bool updateBusyState)
+    {
+        var entry = SelectedLiveryCatalogEntry();
+        if (entry is null)
+        {
+            return;
+        }
+
+        if (updateBusyState)
+        {
+            IsLiveryPackageOperationRunning = true;
+            ActionsEnabled = false;
+        }
+
+        LiveryPackageStatus = $"Checking the {SelectedLiveryReleaseChannel} {entry.DisplayName} release.";
+        var channel = ParseLiveryReleaseChannel();
+        try
+        {
+            var release = await _resourcePackageReleaseSource.GetLatestAsync(entry, channel);
+            var key = ResourceReleaseKey(entry.PackageId, channel);
+            if (release is null)
+            {
+                _resourcePackageReleases.Remove(key);
+                LiveryPackageStatus = $"No {SelectedLiveryReleaseChannel} livery release is currently available.";
+                AppendLog($"Livery release check: no {SelectedLiveryReleaseChannel} release is available for {entry.DisplayName}.");
+            }
+            else
+            {
+                _resourcePackageReleases[key] = release;
+                LiveryPackageStatus = $"{SelectedLiveryReleaseChannel} release {release.Manifest.PackageVersion} is available.";
+                AppendLog($"Livery release check: {entry.DisplayName} {release.Manifest.PackageVersion} ({SelectedLiveryReleaseChannel}).");
+            }
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidDataException or InvalidOperationException)
+        {
+            LiveryPackageStatus = $"Livery release check failed: {ex.Message}";
+            AppendLog($"Livery release check failed for {entry.DisplayName}: {ex.Message}");
+        }
+        finally
+        {
+            if (updateBusyState)
+            {
+                IsLiveryPackageOperationRunning = false;
+                ActionsEnabled = true;
+            }
+
+            RefreshLiveryPackageOverview(preserveStatus: true);
+        }
+    }
+
+    [RelayCommand]
+    private Task InstallLivery() => RunLiveryInstallAsync(repair: false);
+
+    [RelayCommand]
+    private Task RepairLivery() => RunLiveryInstallAsync(repair: true);
+
+    private async Task RunLiveryInstallAsync(bool repair)
+    {
+        var entry = SelectedLiveryCatalogEntry();
+        var aircraftRoot = CurrentProductAircraftFolderPath();
+        var channel = ParseLiveryReleaseChannel();
+        var release = entry is null
+            ? null
+            : _resourcePackageReleases.GetValueOrDefault(ResourceReleaseKey(entry.PackageId, channel));
+        if (entry is null || release is null || string.IsNullOrWhiteSpace(aircraftRoot)
+            || IsLiveryPackageOperationRunning || IsOperationRunning)
+        {
+            return;
+        }
+
+        try
+        {
+            await Task.Run(() => _resourcePackageManager.ValidateLiveryDestination(
+                entry, release, aircraftRoot, allowRepair: repair));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or InvalidOperationException)
+        {
+            LiveryPackageStatus = $"Livery destination is not available: {ex.Message}";
+            AppendLog($"Livery destination validation failed: {ex.Message}");
+            return;
+        }
+
+        var targetPath = Path.Combine(aircraftRoot, "liveries", release.Manifest.TargetDirectory);
+        var variants = string.Join(", ", release.Manifest.SupportedVariants);
+        var confirmation = new ConfirmationRequest(
+            $"{(repair ? "Repair" : "Install")} {entry.DisplayName}?",
+            $"{entry.DisplayName} {release.Manifest.PackageVersion} will be downloaded, verified and {(repair ? "used to replace the managed livery" : "installed")} at:\n{targetPath}\n\nSupported variants: {variants}",
+            repair ? "Repair" : "Install");
+        if (!await _userInteractionService.ConfirmAsync(confirmation))
+        {
+            LiveryPackageStatus = $"Livery {(repair ? "repair" : "installation")} canceled. No files were changed.";
+            return;
+        }
+
+        IsLiveryPackageOperationRunning = true;
+        ActionsEnabled = false;
+        IsOperationRunning = true;
+        OperationPanelVisible = true;
+        OperationTitle = $"{(repair ? "Repairing" : "Installing")} {entry.DisplayName}";
+        OperationSubtitle = "Downloading and validating the official livery archive.";
+        OperationProgress = 15;
+        OperationProgressText = "15% - Verifying release metadata and livery archive";
+        OperationStatus = "Livery installation in progress";
+        OperationLog = "";
+        var cancellationToken = BeginCancellableOperation();
+        try
+        {
+            var downloadDirectory = Path.Combine(aircraftRoot, "liveries");
+            var provisioned = await _resourcePackageReleaseSource.DownloadAsync(
+                entry, release, downloadDirectory, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            OperationProgress = 70;
+            OperationSubtitle = "Securely extracting and verifying every livery file.";
+            OperationProgressText = "70% - Extracting verified livery into staging";
+            var result = await Task.Run(
+                () => _resourcePackageManager.InstallLivery(
+                    entry, provisioned, aircraftRoot, repair, cancellationToken),
+                cancellationToken);
+            OperationProgress = 100;
+            OperationStatus = "Completed";
+            OperationTitle = $"{entry.DisplayName} {(repair ? "repaired" : "installed")}";
+            OperationSubtitle = result.Message;
+            OperationProgressText = "100% - Livery installation completed and verified";
+            LiveryPackageStatus = result.Message;
+            LiveryTargetPath = result.InstalledPath;
+            AppendLog($"Livery installation: {result.Message} Path: {result.InstalledPath}");
+        }
+        catch (OperationCanceledException)
+        {
+            OperationProgress = 0;
+            OperationStatus = "Canceled";
+            OperationTitle = "Livery installation canceled";
+            OperationSubtitle = "No installed livery directory was changed.";
+            OperationProgressText = "0% - Installation canceled before final placement";
+            LiveryPackageStatus = "Livery installation canceled. No installed livery directory was changed.";
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException or UnauthorizedAccessException or InvalidDataException or InvalidOperationException)
+        {
+            OperationProgress = 0;
+            OperationStatus = "Failed";
+            OperationTitle = $"{entry.DisplayName} installation failed";
+            OperationSubtitle = ex.Message;
+            OperationProgressText = "0% - Livery installation failed";
+            LiveryPackageStatus = $"Livery installation failed: {ex.Message}";
+            AppendLog($"Livery installation failed: {ex.Message}");
+        }
+        finally
+        {
+            EndCancellableOperation();
+            IsOperationRunning = false;
+            IsLiveryPackageOperationRunning = false;
+            ActionsEnabled = true;
+            RefreshLiveryPackageOverview(preserveStatus: true);
+        }
+    }
+
+    [RelayCommand]
+    private async Task VerifyLivery()
+    {
+        var entry = SelectedLiveryCatalogEntry();
+        var aircraftRoot = CurrentProductAircraftFolderPath();
+        if (entry is null || string.IsNullOrWhiteSpace(aircraftRoot)
+            || IsLiveryPackageOperationRunning || IsOperationRunning)
+        {
+            return;
+        }
+
+        IsLiveryPackageOperationRunning = true;
+        ActionsEnabled = false;
+        try
+        {
+            var release = _resourcePackageReleases.GetValueOrDefault(
+                ResourceReleaseKey(entry.PackageId, ParseLiveryReleaseChannel()));
+            var inspection = await Task.Run(() => _resourcePackageManager.InspectLivery(
+                entry, release, aircraftRoot, verifyHash: true));
+            LiveryPackageStatus = inspection.Status;
+            AppendLog($"Livery verification: {entry.DisplayName}: {inspection.Status}");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or InvalidOperationException)
+        {
+            LiveryPackageStatus = $"Livery verification failed: {ex.Message}";
+            AppendLog($"Livery verification failed: {ex.Message}");
+        }
+        finally
+        {
+            IsLiveryPackageOperationRunning = false;
+            ActionsEnabled = true;
+            RefreshLiveryPackageOverview(preserveStatus: true);
+        }
+    }
+
+    [RelayCommand]
+    private void OpenLiveryFolder()
+    {
+        var entry = SelectedLiveryCatalogEntry();
+        var aircraftRoot = CurrentProductAircraftFolderPath();
+        var state = entry is null || string.IsNullOrWhiteSpace(aircraftRoot)
+            ? null
+            : _stateStore.TryGetLiveryInstallation(aircraftRoot, entry.PackageId);
+        if (state is null || !Directory.Exists(state.TargetPath))
+        {
+            LiveryPackageStatus = "The recorded livery folder is not available.";
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo { FileName = state.TargetPath, UseShellExecute = true });
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            LiveryPackageStatus = $"Livery folder could not be opened: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    private async Task RemoveLivery()
+    {
+        var entry = SelectedLiveryCatalogEntry();
+        var aircraftRoot = CurrentProductAircraftFolderPath();
+        if (entry is null || string.IsNullOrWhiteSpace(aircraftRoot)
+            || IsLiveryPackageOperationRunning || IsOperationRunning)
+        {
+            return;
+        }
+
+        var confirmation = new ConfirmationRequest(
+            $"Remove {entry.DisplayName}?",
+            "Only the exact livery directory installed and still fully verified by the Toolkit will be removed. Changed or additional files block removal.",
+            "Remove");
+        if (!await _userInteractionService.ConfirmAsync(confirmation))
+        {
+            LiveryPackageStatus = "Livery removal canceled.";
+            return;
+        }
+
+        IsLiveryPackageOperationRunning = true;
+        ActionsEnabled = false;
+        try
+        {
+            var result = await Task.Run(() => _resourcePackageManager.RemoveLivery(entry, aircraftRoot));
+            LiveryPackageStatus = result.Message;
+            AppendLog($"Livery removal: {result.Message}");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or InvalidOperationException)
+        {
+            LiveryPackageStatus = $"Livery removal failed: {ex.Message}";
+            AppendLog($"Livery removal failed: {ex.Message}");
+        }
+        finally
+        {
+            IsLiveryPackageOperationRunning = false;
+            ActionsEnabled = true;
+            RefreshLiveryPackageOverview(preserveStatus: true);
+        }
+    }
+
+    private void RefreshLiveryPackageOverview(bool preserveStatus = false)
+    {
+        SynchronizeAvailableLiveryPackages();
+        var entry = SelectedLiveryCatalogEntry();
+        var aircraftRoot = CurrentProductAircraftFolderPath();
+        LiveryPackageVisible = entry is not null;
+        if (entry is null || string.IsNullOrWhiteSpace(aircraftRoot))
+        {
+            LiveryInstalledVersion = "-";
+            LiveryAvailableVersion = "Not checked";
+            LiveryTargetPath = "-";
+            if (!preserveStatus) LiveryPackageStatus = "Liveries are available only for compatible detected products.";
+            CanCheckLiveryRelease = false;
+            CanInstallLivery = false;
+            CanVerifyLivery = false;
+            CanRepairLivery = false;
+            CanOpenLiveryFolder = false;
+            CanRemoveLivery = false;
+            return;
+        }
+
+        LiveryPackageName = entry.DisplayName;
+        LiveryPackageDescription = entry.Description;
+        var release = _resourcePackageReleases.GetValueOrDefault(
+            ResourceReleaseKey(entry.PackageId, ParseLiveryReleaseChannel()));
+        var inspection = _resourcePackageManager.InspectLivery(entry, release, aircraftRoot);
+        LiveryInstalledVersion = inspection.InstalledVersion;
+        LiveryAvailableVersion = inspection.AvailableVersion;
+        LiveryTargetPath = string.IsNullOrWhiteSpace(inspection.InstalledPath)
+            ? Path.Combine(aircraftRoot, "liveries")
+            : inspection.InstalledPath;
+        LiveryActionLabel = inspection.State is ResourcePackageState.UpdateAvailable ? "Update" : "Install";
+        if (!preserveStatus) LiveryPackageStatus = inspection.Status;
+
+        var available = ActionsEnabled && !IsOperationRunning && !IsLiveryPackageOperationRunning;
+        var hasState = _stateStore.TryGetLiveryInstallation(aircraftRoot, entry.PackageId) is not null;
+        CanCheckLiveryRelease = available;
+        CanInstallLivery = available && release is not null && inspection.CanInstall
+            && inspection.State is not ResourcePackageState.VerificationFailed;
+        CanVerifyLivery = available && hasState;
+        CanRepairLivery = available && release is not null
+            && inspection.State is ResourcePackageState.VerificationFailed;
+        CanOpenLiveryFolder = available && Directory.Exists(inspection.InstalledPath);
+        CanRemoveLivery = available && hasState;
+    }
+
+    private ContentPackageCatalogEntry? SelectedLiveryCatalogEntry()
+    {
+        var product = SelectedProduct;
+        var entry = SelectedLiveryPackage;
+        return product?.IsDetected == true
+            && entry?.Category is ContentPackageCategory.Livery
+            && entry.SupportedProducts.Contains(product.Family, StringComparer.Ordinal)
+                ? entry
+                : null;
+    }
+
+    private void SynchronizeAvailableLiveryPackages()
+    {
+        var product = SelectedProduct;
+        var liveries = product?.IsDetected == true
+            ? _contentPackageCatalog.ForProduct(product.Family)
+                .Where(package => package.Category is ContentPackageCategory.Livery)
+                .ToArray()
+            : [];
+        var selectedPackageId = SelectedLiveryPackage?.PackageId;
+        var selected = liveries.FirstOrDefault(package =>
+                package.PackageId.Equals(selectedPackageId, StringComparison.Ordinal))
+            ?? liveries.FirstOrDefault();
+
+        _synchronizingLiverySelection = true;
+        try
+        {
+            var listChanged = AvailableLiveryPackages.Count != liveries.Length
+                || AvailableLiveryPackages.Zip(liveries).Any(pair =>
+                    !pair.First.PackageId.Equals(pair.Second.PackageId, StringComparison.Ordinal));
+            if (listChanged) AvailableLiveryPackages.ReplaceWith(liveries);
+            if (!ReferenceEquals(SelectedLiveryPackage, selected)) SelectedLiveryPackage = selected;
+            LiveryReleaseChannelOptions = ResourceReleaseChannels(selected);
+            SelectedLiveryReleaseChannel = NormalizeResourceReleaseChannel(
+                selected,
+                selected is null
+                    ? "stable"
+                    : _settings.ToolReleaseChannels.GetValueOrDefault(selected.PackageId, "stable"));
+        }
+        finally
+        {
+            _synchronizingLiverySelection = false;
+        }
+    }
+
     private string? ResolveCurrentXPlaneRoot() =>
         XPlaneInstallationLocator.Resolve(
             SelectedAircraftPath,
@@ -5202,6 +5682,11 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private ResourceReleaseChannel ParseResourceReleaseChannel() =>
         SelectedResourceReleaseChannel.Equals("beta", StringComparison.OrdinalIgnoreCase)
+            ? ResourceReleaseChannel.Beta
+            : ResourceReleaseChannel.Stable;
+
+    private ResourceReleaseChannel ParseLiveryReleaseChannel() =>
+        SelectedLiveryReleaseChannel.Equals("beta", StringComparison.OrdinalIgnoreCase)
             ? ResourceReleaseChannel.Beta
             : ResourceReleaseChannel.Stable;
 
@@ -5584,6 +6069,7 @@ public partial class MainWindowViewModel : ViewModelBase
         RefreshContentPackageOverview();
         RefreshToolPackageOverview();
         RefreshResourcePackageOverview();
+        RefreshLiveryPackageOverview();
         RefreshFreshInstallContext();
     }
 

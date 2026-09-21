@@ -14,7 +14,8 @@ public enum ContentPackageCategory
     OptionalPatch,
     AircraftComponent,
     Tool,
-    Resource
+    Resource,
+    Livery
 }
 
 public enum ContentPackageDistributionKind
@@ -25,6 +26,7 @@ public enum ContentPackageDistributionKind
     GitHubToolRelease,
     GitHubXPlaneOverlayRelease,
     GitHubResourceRelease,
+    GitHubLiveryRelease,
     CatalogGroup,
     GitHubModuleSource
 }
@@ -261,6 +263,8 @@ public sealed class ContentPackageCatalog
             || (package.Category is ContentPackageCategory.AircraftComponent
                 && package.Activation is not ContentPatchActivation.ExplicitOptIn)
             || (package.Category is ContentPackageCategory.Resource
+                && package.Activation is not ContentPatchActivation.ExplicitOptIn)
+            || (package.Category is ContentPackageCategory.Livery
                 && package.Activation is not ContentPatchActivation.ExplicitOptIn))
         {
             throw new InvalidDataException($"Content package {package.PackageId} has inconsistent category and activation metadata.");
@@ -349,6 +353,26 @@ public sealed class ContentPackageCatalog
                 || package.SupportedChannels.Any(channel => channel is not "stable" and not "beta"))
             {
                 throw new InvalidDataException($"Content package {package.PackageId} has unsafe GitHub resource release metadata.");
+            }
+
+            return;
+        }
+
+        if (package.Distribution.Kind is ContentPackageDistributionKind.GitHubLiveryRelease)
+        {
+            if (package.Category is not ContentPackageCategory.Livery
+                || package.Distribution.ManifestSchemaVersion != 1
+                || !IsSafeAssetPattern(package.Distribution.AssetNamePattern, ".zip")
+                || !IsSafeAssetPattern(package.Distribution.ManifestAssetNamePattern, ".json")
+                || !string.Equals(package.InstallScope, "aircraftLivery", StringComparison.Ordinal)
+                || !string.IsNullOrWhiteSpace(package.TargetPath)
+                || !string.IsNullOrWhiteSpace(package.VersionMarkerPath)
+                || !package.RestartRequired
+                || package.SupportedChannels.Count == 0
+                || package.SupportedChannels.Count != package.SupportedChannels.Distinct(StringComparer.Ordinal).Count()
+                || package.SupportedChannels.Any(channel => channel is not "stable" and not "beta"))
+            {
+                throw new InvalidDataException($"Content package {package.PackageId} has unsafe GitHub livery release metadata.");
             }
 
             return;

@@ -33,6 +33,12 @@ public sealed class ResourcePackageManifest
 
     public List<string> SupportedProducts { get; set; } = [];
 
+    public List<string> SupportedVariants { get; set; } = [];
+
+    public string InstallScope { get; set; } = "";
+
+    public bool RestartRequired { get; set; }
+
     public string DeliveryMode { get; set; } = "";
 
     public string ArchiveRoot { get; set; } = "";
@@ -44,6 +50,15 @@ public sealed class ResourcePackageManifest
     public List<ResourcePackageFile> Files { get; set; } = [];
 
     public ResourcePackageArchive Archive { get; set; } = new();
+
+    public ResourcePackageTotals Totals { get; set; } = new();
+}
+
+public sealed class ResourcePackageTotals
+{
+    public int FileCount { get; set; }
+
+    public long UncompressedBytes { get; set; }
 }
 
 public sealed class ResourcePackageFile

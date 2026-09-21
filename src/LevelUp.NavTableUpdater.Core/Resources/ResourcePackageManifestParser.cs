@@ -48,6 +48,9 @@ public static class ResourcePackageManifestParser
         manifest.SupportedProducts = manifest.SupportedProducts
             .Select(product => product.Trim())
             .ToList();
+        manifest.SupportedVariants ??= [];
+        manifest.SupportedVariants = manifest.SupportedVariants.Select(variant => variant.Trim()).ToList();
+        manifest.InstallScope = manifest.InstallScope.Trim();
         manifest.DeliveryMode = manifest.DeliveryMode.Trim().ToLowerInvariant();
         manifest.ArchiveRoot = manifest.ArchiveRoot.Trim();
         manifest.TargetDirectory = manifest.TargetDirectory.Trim();
@@ -61,12 +64,18 @@ public static class ResourcePackageManifestParser
         manifest.Archive ??= new ResourcePackageArchive();
         manifest.Archive.FileName = manifest.Archive.FileName.Trim();
         manifest.Archive.Sha256 = manifest.Archive.Sha256.Trim().ToLowerInvariant();
+        manifest.Totals ??= new ResourcePackageTotals();
+        if (manifest.PackageType.Equals("livery", StringComparison.Ordinal))
+        {
+            manifest.DeliveryMode = "extract";
+            manifest.ExtractedSize = manifest.Totals.UncompressedBytes;
+        }
     }
 
     private static void Validate(ResourcePackageManifest manifest)
     {
         if (manifest.SchemaVersion != 1
-            || !manifest.PackageType.Equals("resource", StringComparison.Ordinal)
+            || manifest.PackageType is not "resource" and not "livery"
             || !IsSafePackageId(manifest.PackageId)
             || string.IsNullOrWhiteSpace(manifest.PackageVersion)
             || manifest.PackageVersion.Length > 64
@@ -94,9 +103,16 @@ public static class ResourcePackageManifestParser
             throw new InvalidDataException("Resource package manifest has invalid product compatibility metadata.");
         }
 
+        var isLivery = manifest.PackageType.Equals("livery", StringComparison.Ordinal);
         if (!manifest.DeliveryMode.Equals("extract", StringComparison.Ordinal)
             || !IsSafeDirectoryName(manifest.ArchiveRoot)
             || !IsSafeDirectoryName(manifest.TargetDirectory)
+            || (isLivery && (!manifest.ArchiveRoot.Equals(manifest.TargetDirectory, StringComparison.Ordinal)
+                || !manifest.InstallScope.Equals("aircraftLivery", StringComparison.Ordinal)
+                || !manifest.RestartRequired
+                || manifest.SupportedVariants.Count == 0
+                || manifest.SupportedVariants.Count != manifest.SupportedVariants.Distinct(StringComparer.Ordinal).Count()
+                || manifest.SupportedVariants.Any(variant => !IsSafeSegment(variant))))
             || manifest.ExtractedSize is < 0 or > MaximumExtractedBytes
             || manifest.Files.Count == 0
             || manifest.Files.Count > MaximumFiles
@@ -112,11 +128,18 @@ public static class ResourcePackageManifestParser
             throw new InvalidDataException("Resource package extraction metadata is incomplete or unsafe.");
         }
 
-        if (!IsSafeFileName(manifest.Archive.FileName, ".7z")
+        var archiveSuffix = isLivery ? ".zip" : ".7z";
+        if (!IsSafeFileName(manifest.Archive.FileName, archiveSuffix)
             || manifest.Archive.Size <= 0
             || !IsSha256(manifest.Archive.Sha256))
         {
             throw new InvalidDataException("Resource package archive metadata is incomplete or unsafe.");
+        }
+
+        if (isLivery && (manifest.Totals.FileCount != manifest.Files.Count
+            || manifest.Totals.UncompressedBytes != manifest.ExtractedSize))
+        {
+            throw new InvalidDataException("Livery package totals do not match the declared file inventory.");
         }
     }
 

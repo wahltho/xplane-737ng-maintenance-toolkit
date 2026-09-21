@@ -18,6 +18,11 @@ catalog release. Catalog 1.7.0 defines a LevelUp group with VNAV, FANS CDU and
 Weight & Balance required; Calculator, AUTO JETWAY and CPDLC FANS PAGES are optional. It requires
 Toolkit 0.13.1. See `../docs/CATALOG_GROUPS.md`.
 
+Optional livery entries use category `livery` and distribution kind
+`gitHubLiveryRelease`. Their release manifest uses schema 1 and package type
+`livery`; the declared ZIP root and target directory must match. Livery support
+is backward compatible because existing catalog entries require no new fields.
+
 ## Publishing
 
 1. Update `content-package-catalog.json` and increment `catalogVersion`.
