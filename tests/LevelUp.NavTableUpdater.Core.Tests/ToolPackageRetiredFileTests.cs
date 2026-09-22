@@ -31,6 +31,215 @@ public sealed class ToolPackageRetiredFileTests
     }
 
     [Fact]
+    public void SamePathMigrationConfirmation_DistinguishesReplacementsAndRemovals()
+    {
+        using var fixture = new Fixture();
+        var release = fixture.CreateSamePathXlua2Package().Release;
+
+        var details = MainWindowViewModel.BuildToolMigrationDetails(
+        [
+            new ToolPackagePlannedAction(
+                fixture.Catalog,
+                release,
+                fixture.AircraftRoot,
+                ToolPackageAction.Update,
+                [])
+        ]);
+
+        Assert.Contains("Replace legacy files at the same paths: mac_x64/xlua.xpl", details, StringComparison.Ordinal);
+        Assert.Contains("Remove obsolete files: mac_x64/xlua2.xpl", details, StringComparison.Ordinal);
+        Assert.Contains("Preserve protected aircraft files: scripts/**", details, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void FreshInstall_SamePathPackageInstallsRuntimeAndPreservesAircraftScripts()
+    {
+        using var fixture = new Fixture();
+
+        var result = fixture.Manager.Apply(
+            fixture.Catalog,
+            fixture.CreateSamePathXlua2Package(),
+            fixture.AircraftRoot,
+            ToolPackageAction.Update);
+
+        Assert.True(result.Succeeded, result.Message + Environment.NewLine + string.Join(Environment.NewLine, result.Log));
+        fixture.AssertSamePathXlua2Installed();
+        Assert.Equal(fixture.ScriptBytes, fixture.ReadTargetBytes("scripts/B738.test/main.lua"));
+    }
+
+    [Fact]
+    public void ManagedXlua1_SamePathUpdateBacksUpReplacesAndRestoresExactly()
+    {
+        using var fixture = new Fixture();
+        Assert.True(fixture.Manager.Apply(
+            fixture.Catalog,
+            fixture.CreateXlua1Package(),
+            fixture.AircraftRoot,
+            ToolPackageAction.Update).Succeeded);
+        var before = fixture.CaptureTarget();
+        var opt4 = fixture.CreateSamePathXlua2Package();
+
+        var update = fixture.Manager.Apply(fixture.Catalog, opt4, fixture.AircraftRoot, ToolPackageAction.Update);
+
+        Assert.True(update.Succeeded, update.Message + Environment.NewLine + string.Join(Environment.NewLine, update.Log));
+        Assert.Contains(update.Log, line => line.Contains("[REPLACE]", StringComparison.Ordinal));
+        fixture.AssertSamePathXlua2Installed();
+        Assert.Equal(ToolPackageInstallState.Current, fixture.Manager.Inspect(fixture.Catalog, fixture.AircraftRoot, opt4.Release).State);
+        Assert.Equal([.. Fixture.Opt3RuntimePaths], fixture.StateStore
+            .TryGetToolInstallation(fixture.AircraftRoot, fixture.Catalog.PackageId)!.RetiredFiles);
+
+        var restore = fixture.Manager.Restore(fixture.Catalog, fixture.AircraftRoot);
+
+        Assert.True(restore.Succeeded, restore.Message + Environment.NewLine + string.Join(Environment.NewLine, restore.Log));
+        Assert.Equal(before, fixture.CaptureTarget());
+    }
+
+    [Fact]
+    public void UnmanagedHashKnownXlua1_SamePathUpdateSucceeds()
+    {
+        using var fixture = new Fixture();
+        fixture.WriteUnmanagedXlua1();
+
+        var result = fixture.Manager.Apply(
+            fixture.Catalog,
+            fixture.CreateSamePathXlua2Package(),
+            fixture.AircraftRoot,
+            ToolPackageAction.Update);
+
+        Assert.True(result.Succeeded, result.Message + Environment.NewLine + string.Join(Environment.NewLine, result.Log));
+        fixture.AssertSamePathXlua2Installed();
+        Assert.Equal(fixture.ScriptBytes, fixture.ReadTargetBytes("scripts/B738.test/main.lua"));
+    }
+
+    [Fact]
+    public void ManagedOpt3_SamePathUpdateRemovesOldNamesAndRestoresOpt3Exactly()
+    {
+        using var fixture = new Fixture();
+        var opt3 = fixture.CreateXlua2Package();
+        Assert.True(fixture.Manager.Apply(fixture.Catalog, opt3, fixture.AircraftRoot, ToolPackageAction.Update).Succeeded);
+        var before = fixture.CaptureTarget();
+
+        var result = fixture.Manager.Apply(
+            fixture.Catalog,
+            fixture.CreateSamePathXlua2Package(),
+            fixture.AircraftRoot,
+            ToolPackageAction.Update);
+
+        Assert.True(result.Succeeded, result.Message + Environment.NewLine + string.Join(Environment.NewLine, result.Log));
+        fixture.AssertSamePathXlua2Installed();
+        foreach (var path in Fixture.Opt3RuntimePaths)
+            Assert.False(File.Exists(fixture.Target(path)));
+
+        var restore = fixture.Manager.Restore(fixture.Catalog, fixture.AircraftRoot);
+
+        Assert.True(restore.Succeeded, restore.Message + Environment.NewLine + string.Join(Environment.NewLine, restore.Log));
+        Assert.Equal(before, fixture.CaptureTarget());
+    }
+
+    [Fact]
+    public void UnmanagedHashKnownOpt3_SamePathUpdateRemovesOldNames()
+    {
+        using var fixture = new Fixture();
+        fixture.WriteUnmanagedOpt3();
+
+        var result = fixture.Manager.Apply(
+            fixture.Catalog,
+            fixture.CreateSamePathXlua2Package(),
+            fixture.AircraftRoot,
+            ToolPackageAction.Update);
+
+        Assert.True(result.Succeeded, result.Message + Environment.NewLine + string.Join(Environment.NewLine, result.Log));
+        fixture.AssertSamePathXlua2Installed();
+        Assert.Equal(fixture.ScriptBytes, fixture.ReadTargetBytes("scripts/B738.test/main.lua"));
+    }
+
+    [Fact]
+    public void ReappearedKnownXlua1AtReplacementPath_RequiresRepairAndIsReplacedAgain()
+    {
+        using var fixture = new Fixture();
+        var opt4 = fixture.CreateSamePathXlua2Package();
+        Assert.True(fixture.Manager.Apply(fixture.Catalog, opt4, fixture.AircraftRoot, ToolPackageAction.Update).Succeeded);
+        fixture.WriteTarget("mac_x64/xlua.xpl", fixture.OldFiles["mac_x64/xlua.xpl"]);
+
+        var inspection = fixture.Manager.Inspect(fixture.Catalog, fixture.AircraftRoot, opt4.Release);
+        var repair = fixture.Manager.Apply(fixture.Catalog, opt4, fixture.AircraftRoot, ToolPackageAction.Repair);
+
+        Assert.Equal(ToolPackageInstallState.RepairRequired, inspection.State);
+        Assert.True(repair.Succeeded, repair.Message + Environment.NewLine + string.Join(Environment.NewLine, repair.Log));
+        fixture.AssertSamePathXlua2Installed();
+        Assert.NotEmpty(repair.BackupPaths);
+    }
+
+    [Fact]
+    public void ManagedSamePathRuntime_CanUpdateToNewerGenerationThroughOwnershipProof()
+    {
+        using var fixture = new Fixture();
+        var opt4 = fixture.CreateSamePathXlua2Package();
+        Assert.True(fixture.Manager.Apply(fixture.Catalog, opt4, fixture.AircraftRoot, ToolPackageAction.Update).Succeeded);
+        var opt5 = fixture.CreateSamePathXlua2Package("2.0.0b1-opt5", "xlua2-opt5:");
+
+        var result = fixture.Manager.Apply(fixture.Catalog, opt5, fixture.AircraftRoot, ToolPackageAction.Update);
+
+        Assert.True(result.Succeeded, result.Message + Environment.NewLine + string.Join(Environment.NewLine, result.Log));
+        fixture.AssertSamePathXlua2Installed("xlua2-opt5:");
+    }
+
+    [Fact]
+    public void UnknownSamePathRuntime_BlocksBeforeBackup()
+    {
+        using var fixture = new Fixture();
+        fixture.WriteTarget("win_x64/xlua.xpl", Encoding.UTF8.GetBytes("locally modified"));
+        var before = fixture.CaptureTarget();
+
+        var result = fixture.Manager.Apply(
+            fixture.Catalog,
+            fixture.CreateSamePathXlua2Package(),
+            fixture.AircraftRoot,
+            ToolPackageAction.Update);
+
+        Assert.False(result.Succeeded);
+        Assert.Contains(result.Log, line => line.Contains("unknown or locally modified", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(before, fixture.CaptureTarget());
+        Assert.False(Directory.Exists(fixture.BackupRoot));
+    }
+
+    [Theory]
+    [InlineData((int)ToolPackageTransactionPhase.BackupCreated)]
+    [InlineData((int)ToolPackageTransactionPhase.StageValidated)]
+    [InlineData((int)ToolPackageTransactionPhase.TargetActivated)]
+    public void SamePathMigrationFailure_RestoresCompletePreviousDirectoryAndState(int failurePhaseValue)
+    {
+        var failurePhase = (ToolPackageTransactionPhase)failurePhaseValue;
+        using var fixture = new Fixture();
+        Assert.True(fixture.Manager.Apply(
+            fixture.Catalog,
+            fixture.CreateXlua1Package(),
+            fixture.AircraftRoot,
+            ToolPackageAction.Update).Succeeded);
+        var before = fixture.CaptureTarget();
+        var manager = new ToolPackageManager(
+            fixture.StateStore,
+            () => false,
+            "osx-arm64",
+            phase =>
+            {
+                if (phase == failurePhase)
+                    throw new IOException($"Injected failure after {phase}.");
+            });
+
+        Assert.Throws<IOException>(() => manager.Apply(
+            fixture.Catalog,
+            fixture.CreateSamePathXlua2Package(),
+            fixture.AircraftRoot,
+            ToolPackageAction.Update));
+
+        Assert.Equal(before, fixture.CaptureTarget());
+        var state = fixture.StateStore.TryGetToolInstallation(fixture.AircraftRoot, fixture.Catalog.PackageId)!;
+        Assert.Equal("1.3.7r5", state.InstalledVersion);
+        Assert.Empty(state.RetiredFiles);
+    }
+
+    [Fact]
     public void ManagedXlua1_UpdateToXlua2_RetiresOldRuntimesPreservesScriptsAndRestoresExactly()
     {
         using var fixture = new Fixture();
@@ -221,7 +430,7 @@ public sealed class ToolPackageRetiredFileTests
             "lin_x64/xlua.xpl"
         ];
 
-        private static readonly string[] NewRuntimePaths =
+        public static readonly string[] Opt3RuntimePaths =
         [
             "mac_x64/xlua2.xpl",
             "win_x64/xlua2.xpl",
@@ -241,7 +450,7 @@ public sealed class ToolPackageRetiredFileTests
                 path => path,
                 path => Encoding.UTF8.GetBytes("xlua1:" + path),
                 StringComparer.Ordinal);
-            NewFiles = NewRuntimePaths.ToDictionary(
+            NewFiles = Opt3RuntimePaths.ToDictionary(
                 path => path,
                 path => Encoding.UTF8.GetBytes("xlua2:" + path),
                 StringComparer.Ordinal);
@@ -302,11 +511,42 @@ public sealed class ToolPackageRetiredFileTests
             return CreatePackage("2.0.0b1-opt1", "beta", 3, files, retired);
         }
 
+        public ToolPackageProvisionResult CreateSamePathXlua2Package(
+            string version = "2.0.0b1-opt4",
+            string contentPrefix = "xlua2-opt4:")
+        {
+            var files = OldRuntimePaths.ToDictionary(
+                path => path,
+                path => Encoding.UTF8.GetBytes(contentPrefix + path),
+                StringComparer.Ordinal);
+            files["init.lua"] = Encoding.UTF8.GetBytes(contentPrefix + "init");
+            var retired = OldFiles.Select(pair => new ToolPackageRetiredFile
+            {
+                Path = pair.Key,
+                Optional = true,
+                SourceSha256 = [Hash(pair.Value)]
+            }).Concat(NewFiles.Select(pair => new ToolPackageRetiredFile
+            {
+                Path = pair.Key,
+                Optional = true,
+                SourceSha256 = [Hash(pair.Value)]
+            })).ToList();
+            return CreatePackage(version, "beta", 3, files, retired);
+        }
+
         public void WriteUnmanagedXlua1(bool includeLinux = true)
         {
             foreach (var file in OldFiles.Where(pair => includeLinux || pair.Key != "lin_x64/xlua.xpl"))
                 WriteTarget(file.Key, file.Value);
             WriteTarget("init.lua", Encoding.UTF8.GetBytes("unmanaged xlua1 init"));
+            WriteTarget("scripts/B738.test/main.lua", ScriptBytes);
+        }
+
+        public void WriteUnmanagedOpt3()
+        {
+            foreach (var file in NewFiles)
+                WriteTarget(file.Key, file.Value);
+            WriteTarget("init.lua", Encoding.UTF8.GetBytes("unmanaged opt3 init"));
             WriteTarget("scripts/B738.test/main.lua", ScriptBytes);
         }
 
@@ -317,6 +557,15 @@ public sealed class ToolPackageRetiredFileTests
             foreach (var pair in NewFiles)
                 Assert.Equal(pair.Value, ReadTargetBytes(pair.Key));
             Assert.Equal("xlua2 init", Encoding.UTF8.GetString(ReadTargetBytes("init.lua")));
+        }
+
+        public void AssertSamePathXlua2Installed(string contentPrefix = "xlua2-opt4:")
+        {
+            foreach (var path in OldRuntimePaths)
+                Assert.Equal(contentPrefix + path, Encoding.UTF8.GetString(ReadTargetBytes(path)));
+            foreach (var path in Opt3RuntimePaths)
+                Assert.False(File.Exists(Target(path)));
+            Assert.Equal(contentPrefix + "init", Encoding.UTF8.GetString(ReadTargetBytes("init.lua")));
         }
 
         public string Target(string relativePath) =>

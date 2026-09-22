@@ -116,6 +116,19 @@ public sealed class ToolPackageManifestTests
         Assert.Equal(new string('a', 64), Assert.Single(retired.SourceSha256));
     }
 
+    [Fact]
+    public void Parse_Schema3SamePathReplacement_IsAccepted()
+    {
+        var document = JsonNode.Parse(BuildManifest(Encoding.UTF8.GetBytes("payload")))!.AsObject();
+        document["schemaVersion"] = 3;
+        document["retiredFiles"] = Retired("data/modules/main.lua", new string('a', 64));
+
+        var manifest = ToolPackageManifestParser.Parse(Encoding.UTF8.GetBytes(document.ToJsonString()));
+
+        Assert.Equal("data/modules/main.lua", Assert.Single(manifest.Files).Path);
+        Assert.Equal("data/modules/main.lua", Assert.Single(manifest.RetiredFiles).Path);
+    }
+
     [Theory]
     [InlineData(1)]
     [InlineData(4)]
@@ -130,10 +143,9 @@ public sealed class ToolPackageManifestTests
     }
 
     [Theory]
-    [InlineData("data/modules/main.lua")]
     [InlineData("data/output/legacy.xpl")]
     [InlineData("../xlua.xpl")]
-    public void Parse_Schema3OverlappingProtectedOrUnsafeRetiredPath_IsRejected(string path)
+    public void Parse_Schema3ProtectedOrUnsafeRetiredPath_IsRejected(string path)
     {
         var document = JsonNode.Parse(BuildManifest(Encoding.UTF8.GetBytes("payload")))!.AsObject();
         document["schemaVersion"] = 3;

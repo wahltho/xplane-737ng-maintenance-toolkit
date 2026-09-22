@@ -4680,10 +4680,23 @@ public partial class MainWindowViewModel : ViewModelBase
             .Select(action =>
             {
                 var manifest = action.Release.Manifest;
-                return $"{action.CatalogEntry.DisplayName} migration:\n"
-                    + $"- Remove retired files: {string.Join(", ", manifest.RetiredFiles.Select(file => file.Path))}\n"
-                    + $"- Install and verify: {string.Join(", ", manifest.Files.Select(file => file.Path))}\n"
-                    + $"- Preserve protected aircraft files: {string.Join(", ", manifest.ProtectedPaths)}";
+                var installedPaths = manifest.Files.Select(file => file.Path).ToHashSet(ManagedComponentPathComparer);
+                var replacementPaths = manifest.RetiredFiles
+                    .Where(file => installedPaths.Contains(file.Path))
+                    .Select(file => file.Path)
+                    .ToArray();
+                var removedPaths = manifest.RetiredFiles
+                    .Where(file => !installedPaths.Contains(file.Path))
+                    .Select(file => file.Path)
+                    .ToArray();
+                var details = new List<string> { $"{action.CatalogEntry.DisplayName} migration:" };
+                if (replacementPaths.Length > 0)
+                    details.Add($"- Replace legacy files at the same paths: {string.Join(", ", replacementPaths)}");
+                if (removedPaths.Length > 0)
+                    details.Add($"- Remove obsolete files: {string.Join(", ", removedPaths)}");
+                details.Add($"- Install and verify: {string.Join(", ", manifest.Files.Select(file => file.Path))}");
+                details.Add($"- Preserve protected aircraft files: {string.Join(", ", manifest.ProtectedPaths)}");
+                return string.Join('\n', details);
             })
             .ToArray();
         return migrations.Length == 0

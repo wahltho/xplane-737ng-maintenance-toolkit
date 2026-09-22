@@ -253,7 +253,7 @@ public sealed class ToolPackageManager
                 state.LastOperation = "Verify";
                 state.InstalledFiles = verifiedFiles;
                 state.ProtectedPaths = [.. manifest.ProtectedPaths];
-                state.RetiredFiles = manifest.RetiredFiles.Select(file => file.Path).ToList();
+                state.RetiredFiles = ExpectedAbsentRetiredPaths(manifest);
                 state.Dependencies = installedDependencies;
             });
             log.Add("[NO-CHANGE] Installed package files already match the release manifest.");
@@ -281,7 +281,12 @@ public sealed class ToolPackageManager
         }
         if (manifest.RetiredFiles.Count > 0)
         {
-            log.Add($"[MIGRATION] Retire legacy files: {string.Join(", ", manifest.RetiredFiles.Select(file => file.Path))}");
+            var replacementPaths = SamePathReplacementPaths(manifest);
+            var removedPaths = ExpectedAbsentRetiredPaths(manifest);
+            if (replacementPaths.Count > 0)
+                log.Add($"[MIGRATION] Replace legacy files at the same paths: {string.Join(", ", replacementPaths)}");
+            if (removedPaths.Count > 0)
+                log.Add($"[MIGRATION] Remove obsolete files: {string.Join(", ", removedPaths)}");
             log.Add($"[MIGRATION] Install replacement files: {string.Join(", ", manifest.Files.Select(file => file.Path))}");
             log.Add($"[MIGRATION] Preserve protected files: {string.Join(", ", manifest.ProtectedPaths)}");
         }
@@ -345,7 +350,7 @@ public sealed class ToolPackageManager
                 state.LastOperation = action.ToString();
                 state.InstalledFiles = installedFiles;
                 state.ProtectedPaths = [.. manifest.ProtectedPaths];
-                state.RetiredFiles = manifest.RetiredFiles.Select(file => file.Path).ToList();
+                state.RetiredFiles = ExpectedAbsentRetiredPaths(manifest);
                 state.Dependencies = installedDependencies;
                 state.Backups.Add(backup);
             });
@@ -562,7 +567,8 @@ public sealed class ToolPackageManager
             }
         }
 
-        foreach (var retiredFile in manifest.RetiredFiles)
+        var installedPaths = manifest.Files.Select(file => file.Path).ToHashSet(PathComparer);
+        foreach (var retiredFile in manifest.RetiredFiles.Where(file => !installedPaths.Contains(file.Path)))
         {
             var path = ResolveTarget(targetPath, retiredFile.Path);
             if (File.Exists(path) || Directory.Exists(path))
@@ -664,7 +670,9 @@ public sealed class ToolPackageManager
             var protectedPath = ToolPackageManifestParser.IsProtectedPath(manifest, relativePath);
             if (retiredPaths.Contains(relativePath))
             {
-                log.Add($"[RETIRE] Managed legacy file removed from the new installation: {relativePath}");
+                log.Add(packagePaths.Contains(relativePath)
+                    ? $"[REPLACE] Authorized legacy file replaced at the same path: {relativePath}"
+                    : $"[RETIRE] Managed legacy file removed from the new installation: {relativePath}");
                 continue;
             }
             if (!protectedPath && packagePaths.Contains(relativePath))
@@ -699,7 +707,8 @@ public sealed class ToolPackageManager
             }
         }
 
-        foreach (var retiredFile in manifest.RetiredFiles)
+        var installedPaths = manifest.Files.Select(file => file.Path).ToHashSet(PathComparer);
+        foreach (var retiredFile in manifest.RetiredFiles.Where(file => !installedPaths.Contains(file.Path)))
         {
             var path = ResolveTarget(root, retiredFile.Path);
             if (File.Exists(path) || Directory.Exists(path))
@@ -722,6 +731,24 @@ public sealed class ToolPackageManager
                 Protected = ToolPackageManifestParser.IsProtectedPath(manifest, file.Path)
             };
         }).ToList();
+
+    private static List<string> SamePathReplacementPaths(ToolPackageManifest manifest)
+    {
+        var installedPaths = manifest.Files.Select(file => file.Path).ToHashSet(PathComparer);
+        return manifest.RetiredFiles
+            .Where(file => installedPaths.Contains(file.Path))
+            .Select(file => file.Path)
+            .ToList();
+    }
+
+    private static List<string> ExpectedAbsentRetiredPaths(ToolPackageManifest manifest)
+    {
+        var installedPaths = manifest.Files.Select(file => file.Path).ToHashSet(PathComparer);
+        return manifest.RetiredFiles
+            .Where(file => !installedPaths.Contains(file.Path))
+            .Select(file => file.Path)
+            .ToList();
+    }
 
     private static List<ToolInstalledFileState> CaptureAllFiles(string root, IReadOnlyList<string> protectedPaths) =>
         Directory.Exists(root)

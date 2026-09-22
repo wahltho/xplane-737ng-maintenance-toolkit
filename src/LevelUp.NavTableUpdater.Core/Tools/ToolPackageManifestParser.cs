@@ -222,11 +222,10 @@ public static class ToolPackageManifestParser
                 if (!retiredPaths.Add(retiredFile.Path)
                     || retiredFile.SourceSha256.Count != retiredFile.SourceSha256.Distinct(StringComparer.OrdinalIgnoreCase).Count()
                     || retiredFile.SourceSha256.Any(hash => !IsSha256(hash))
-                    || paths.Contains(retiredFile.Path)
                     || IsProtectedPath(manifest, retiredFile.Path))
                 {
                     throw new InvalidDataException(
-                        $"Tool package manifest contains invalid, overlapping or duplicate retired file metadata: {retiredFile.Path}.");
+                        $"Tool package manifest contains invalid or duplicate retired file metadata: {retiredFile.Path}.");
                 }
             }
 

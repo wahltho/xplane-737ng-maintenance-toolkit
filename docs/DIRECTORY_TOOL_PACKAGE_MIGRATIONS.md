@@ -22,9 +22,16 @@ protected and unowned local files.
 ```
 
 Each retired path is relative to `targetPath` and must identify one regular
-file. It cannot overlap a declared package file or a protected path. Paths and
-hashes must be unique and pass the same traversal, symbolic-link and SHA-256
-validation as ordinary package files.
+file. It cannot overlap a protected path. Paths and hashes must be unique and
+pass the same traversal, symbolic-link and SHA-256 validation as ordinary
+package files.
+
+A path may appear in both `retiredFiles` and `files`. This declares a safe
+same-path replacement: the existing file is accepted only through the normal
+retirement hash or package-ownership proof, omitted from the preserved local
+files, and replaced by the new manifest file in staging. A retired path that is
+not also declared in `files` is an expected-absence path and must be absent
+from the staged and activated directory.
 
 `optional: true` allows the old file to be absent before migration, which is
 appropriate for platform-specific runtimes. A present file is removable only
@@ -37,17 +44,19 @@ transaction.
 The manager backs up the complete existing target directory before creating a
 staged image. Retired files are excluded from the staged copy. Protected files,
 including `scripts/**` for XLua, retain their exact bytes and file mode. The
-stage must contain every declared new file with its expected size and hash and
-must contain none of the retired paths before the directory is activated.
+stage must contain every declared new file with its expected size and hash.
+Retired paths that are not same-path replacements must be absent before the
+directory is activated.
 Activation uses a sibling directory swap. A failure after backup, staging or
 activation restores the previous complete directory. X-Plane must be closed
 during apply, repair and restore and must be restarted afterward.
 
 ## Status, repair and restore
 
-The Toolkit persists the retired paths as an expected-absence contract. A
-release is current only when all declared package files are valid and all
-retired paths are absent. A reappeared retired file produces `RepairRequired`.
+The Toolkit persists only retired paths without a corresponding package file as
+an expected-absence contract. A release is current only when all declared
+package files are valid and all expected-absence retired paths are absent. A
+reappeared expected-absence file produces `RepairRequired`.
 Repair can remove it after a new full backup only when the schema-3 manifest
 authorizes its current hash. An unknown or modified file blocks repair.
 
