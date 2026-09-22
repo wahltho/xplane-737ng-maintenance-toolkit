@@ -64,9 +64,9 @@ releases are excluded from this cleanup. Older application release entries and
 their binary assets are removed; their Git tags remain as source-history
 markers.
 
-The current macOS package intentionally omits an icon argument because VeloPack
-expects a `.icns` file there. Final branding should provide platform-native
-icon assets before signed public distribution.
+The current macOS Apple silicon and Intel packages intentionally omit an icon
+argument because VeloPack expects a `.icns` file there. Final branding should
+provide platform-native icon assets before signed public distribution.
 
 ### `Content Catalog`
 

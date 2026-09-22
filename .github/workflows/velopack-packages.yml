@@ -55,6 +55,10 @@ jobs:
             rid: osx-arm64
             main_exe: XPlane737NGMaintenanceToolkit
             pack_icon_args: ""
+          - os: macos-15-intel
+            rid: osx-x64
+            main_exe: XPlane737NGMaintenanceToolkit
+            pack_icon_args: ""
           - os: ubuntu-latest
             rid: linux-x64
             main_exe: XPlane737NGMaintenanceToolkit
@@ -199,7 +203,7 @@ jobs:
             "Included assets:" \
             "" \
             "- Windows x64 setup and portable package" \
-            "- macOS arm64 pkg and portable package" \
+            "- macOS Apple silicon and Intel 64-bit pkg and portable packages" \
             "- Linux x64 AppImage" \
             "- VeloPack full packages and stable channel metadata" \
             "- SHA-256 checksums" \

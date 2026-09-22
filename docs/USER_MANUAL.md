@@ -38,6 +38,7 @@ Version 0.17.1 supports:
 - LevelUp 737-600, 737-700, 737-800, 737-900 and 737-900ER.
 - Windows x64.
 - macOS arm64 (Apple silicon).
+- macOS x64 (Intel 64-bit).
 - Linux x64.
 
 Download the current stable release from:
@@ -50,6 +51,7 @@ Choose one normal-use artifact for the target platform:
 | --- | --- | --- |
 | Windows x64 | `XPlane737NGMaintenanceToolkit-stable-win-x64-Setup.exe` | `XPlane737NGMaintenanceToolkit-stable-win-x64-Portable.zip` |
 | macOS arm64 | `XPlane737NGMaintenanceToolkit-stable-osx-arm64-Setup.pkg` | `XPlane737NGMaintenanceToolkit-stable-osx-arm64-Portable.zip` |
+| macOS Intel x64 | `XPlane737NGMaintenanceToolkit-stable-osx-x64-Setup.pkg` | `XPlane737NGMaintenanceToolkit-stable-osx-x64-Portable.zip` |
 | Linux x64 | `XPlane737NGMaintenanceToolkit-stable-linux-x64.AppImage` | None |
 
 On Windows or macOS, run the setup package or extract the portable ZIP and start

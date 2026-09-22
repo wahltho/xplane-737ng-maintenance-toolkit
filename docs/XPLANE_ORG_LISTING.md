@@ -83,9 +83,10 @@ Get the current release using the links below:
 
 - **Windows x64:** [Installer](https://github.com/wahltho/xplane-737ng-maintenance-toolkit/releases/latest/download/XPlane737NGMaintenanceToolkit-stable-win-x64-Setup.exe) or [portable ZIP](https://github.com/wahltho/xplane-737ng-maintenance-toolkit/releases/latest/download/XPlane737NGMaintenanceToolkit-stable-win-x64-Portable.zip).
 - **macOS Apple silicon:** [Installer](https://github.com/wahltho/xplane-737ng-maintenance-toolkit/releases/latest/download/XPlane737NGMaintenanceToolkit-stable-osx-arm64-Setup.pkg) or [portable ZIP](https://github.com/wahltho/xplane-737ng-maintenance-toolkit/releases/latest/download/XPlane737NGMaintenanceToolkit-stable-osx-arm64-Portable.zip).
+- **macOS Intel 64-bit:** [Installer](https://github.com/wahltho/xplane-737ng-maintenance-toolkit/releases/latest/download/XPlane737NGMaintenanceToolkit-stable-osx-x64-Setup.pkg) or [portable ZIP](https://github.com/wahltho/xplane-737ng-maintenance-toolkit/releases/latest/download/XPlane737NGMaintenanceToolkit-stable-osx-x64-Portable.zip).
 - **Linux x64:** [AppImage](https://github.com/wahltho/xplane-737ng-maintenance-toolkit/releases/latest/download/XPlane737NGMaintenanceToolkit-stable-linux-x64.AppImage). Make the downloaded file executable before launching it.
 
-For checksums and release notes, visit the [latest release page](https://github.com/wahltho/xplane-737ng-maintenance-toolkit/releases/latest). Use the installer, portable ZIP or AppImage for a manual installation; the other package and feed files support the built-in updater. The macOS build is for Apple silicon. X-Plane 11 is not supported.
+For checksums and release notes, visit the [latest release page](https://github.com/wahltho/xplane-737ng-maintenance-toolkit/releases/latest). Use the installer, portable ZIP or AppImage for a manual installation; the other package and feed files support the built-in updater. Separate macOS builds support Apple silicon and Intel 64-bit Macs. X-Plane 11 is not supported.
 
 The Windows and macOS builds are unsigned, and the macOS build is not notarized. Verify the download against the release checksums. If macOS blocks a verified download, follow [Apple's Open Anyway instructions](https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac).
 
