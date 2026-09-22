@@ -49,7 +49,18 @@ public sealed class ToolPackageManifest
 
     public List<string> ProtectedPaths { get; set; } = [];
 
+    public List<ToolPackageRetiredFile> RetiredFiles { get; set; } = [];
+
     public List<ToolPackageFile> Files { get; set; } = [];
+}
+
+public sealed class ToolPackageRetiredFile
+{
+    public string Path { get; set; } = "";
+
+    public bool Optional { get; set; }
+
+    public List<string> SourceSha256 { get; set; } = [];
 }
 
 public sealed class ToolPackageDependency

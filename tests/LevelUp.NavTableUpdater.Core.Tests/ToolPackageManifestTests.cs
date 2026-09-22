@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using LevelUp.NavTableUpdater.Core.Tools;
 
 namespace LevelUp.NavTableUpdater.Core.Tests;
@@ -91,6 +92,77 @@ public sealed class ToolPackageManifestTests
         Assert.Equal("aircraftInstallation", manifest.InstallScope);
         Assert.Equal("plugins/xlua", manifest.TargetPath);
     }
+
+    [Fact]
+    public void Parse_Schema3DirectoryManifest_NormalizesRetiredFiles()
+    {
+        var document = JsonNode.Parse(BuildManifest(Encoding.UTF8.GetBytes("payload")))!.AsObject();
+        document["schemaVersion"] = 3;
+        document["retiredFiles"] = new JsonArray
+        {
+            new JsonObject
+            {
+                ["path"] = "legacy/xlua.xpl",
+                ["optional"] = true,
+                ["sourceSha256"] = new JsonArray(new string('A', 64))
+            }
+        };
+
+        var manifest = ToolPackageManifestParser.Parse(Encoding.UTF8.GetBytes(document.ToJsonString()));
+
+        var retired = Assert.Single(manifest.RetiredFiles);
+        Assert.Equal("legacy/xlua.xpl", retired.Path);
+        Assert.True(retired.Optional);
+        Assert.Equal(new string('a', 64), Assert.Single(retired.SourceSha256));
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(4)]
+    public void Parse_RetiredFilesOutsideSchema3_AreRejected(int schemaVersion)
+    {
+        var document = JsonNode.Parse(BuildManifest(Encoding.UTF8.GetBytes("payload")))!.AsObject();
+        document["schemaVersion"] = schemaVersion;
+        document["retiredFiles"] = Retired("legacy/xlua.xpl", new string('a', 64));
+
+        Assert.Throws<InvalidDataException>(() =>
+            ToolPackageManifestParser.Parse(Encoding.UTF8.GetBytes(document.ToJsonString())));
+    }
+
+    [Theory]
+    [InlineData("data/modules/main.lua")]
+    [InlineData("data/output/legacy.xpl")]
+    [InlineData("../xlua.xpl")]
+    public void Parse_Schema3OverlappingProtectedOrUnsafeRetiredPath_IsRejected(string path)
+    {
+        var document = JsonNode.Parse(BuildManifest(Encoding.UTF8.GetBytes("payload")))!.AsObject();
+        document["schemaVersion"] = 3;
+        document["retiredFiles"] = Retired(path, new string('a', 64));
+
+        Assert.Throws<InvalidDataException>(() =>
+            ToolPackageManifestParser.Parse(Encoding.UTF8.GetBytes(document.ToJsonString())));
+    }
+
+    [Fact]
+    public void Parse_Schema3InvalidOrDuplicateRetirementHashes_AreRejected()
+    {
+        var document = JsonNode.Parse(BuildManifest(Encoding.UTF8.GetBytes("payload")))!.AsObject();
+        document["schemaVersion"] = 3;
+        document["retiredFiles"] = Retired("legacy/xlua.xpl", "bad", "bad");
+
+        Assert.Throws<InvalidDataException>(() =>
+            ToolPackageManifestParser.Parse(Encoding.UTF8.GetBytes(document.ToJsonString())));
+    }
+
+    private static JsonArray Retired(string path, params string[] hashes) =>
+    [
+        new JsonObject
+        {
+            ["path"] = path,
+            ["optional"] = true,
+            ["sourceSha256"] = new JsonArray(hashes.Select(hash => (JsonNode?)JsonValue.Create(hash)).ToArray())
+        }
+    ];
 
     internal static string BuildManifest(byte[] packageFile, string channel = "stable", string version = "4.7")
     {

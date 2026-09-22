@@ -85,6 +85,7 @@ public static class ToolPackageManifestParser
         manifest.SupportedPlatforms ??= [];
         manifest.Dependencies ??= [];
         manifest.ProtectedPaths ??= [];
+        manifest.RetiredFiles ??= [];
         manifest.Files ??= [];
         manifest.Archive ??= new ToolPackageArchive();
         manifest.PackageId = manifest.PackageId.Trim();
@@ -93,7 +94,7 @@ public static class ToolPackageManifestParser
         manifest.Channel = manifest.Channel.Trim().ToLowerInvariant();
         manifest.Repository = manifest.Repository.TrimEnd('/');
         manifest.InstallScope = manifest.InstallScope.Trim();
-        manifest.Layout = string.IsNullOrWhiteSpace(manifest.Layout) && manifest.SchemaVersion == 1
+        manifest.Layout = string.IsNullOrWhiteSpace(manifest.Layout) && manifest.SchemaVersion is 1 or 3
             ? "directory"
             : manifest.Layout.Trim();
         manifest.TargetPath = string.IsNullOrWhiteSpace(manifest.TargetPath)
@@ -109,6 +110,14 @@ public static class ToolPackageManifestParser
             dependency.MinimumVersion = dependency.MinimumVersion.Trim().TrimStart('v', 'V');
         }
         manifest.ProtectedPaths = manifest.ProtectedPaths.Select(NormalizeProtectedPath).ToList();
+        foreach (var retiredFile in manifest.RetiredFiles)
+        {
+            retiredFile.SourceSha256 ??= [];
+            retiredFile.Path = NormalizeRelativePath(retiredFile.Path);
+            retiredFile.SourceSha256 = retiredFile.SourceSha256
+                .Select(hash => hash.Trim().ToLowerInvariant())
+                .ToList();
+        }
         foreach (var file in manifest.Files)
         {
             file.Path = NormalizeRelativePath(file.Path);
@@ -131,7 +140,7 @@ public static class ToolPackageManifestParser
                 throw new InvalidDataException("Tool package manifest contains an invalid, duplicate or self-referencing dependency.");
             }
         }
-        var directoryLayout = manifest.SchemaVersion == 1
+        var directoryLayout = manifest.SchemaVersion is 1 or 3
             && manifest.Layout == "directory"
             && manifest.InstallScope is "xPlaneInstallation" or "aircraftInstallation"
             && !string.IsNullOrWhiteSpace(manifest.TargetPath);
@@ -193,6 +202,38 @@ public static class ToolPackageManifestParser
         if (manifest.ProtectedPaths.Count != manifest.ProtectedPaths.Distinct(PathComparer).Count())
         {
             throw new InvalidDataException("Tool package manifest contains duplicate protected paths.");
+        }
+
+        if (manifest.SchemaVersion == 1 && manifest.RetiredFiles.Count != 0)
+        {
+            throw new InvalidDataException("Tool package manifest schema 1 cannot declare retired files.");
+        }
+
+        if (manifest.SchemaVersion == 3)
+        {
+            if (manifest.RetiredFiles.Count == 0)
+            {
+                throw new InvalidDataException("Tool package manifest schema 3 must declare retired files.");
+            }
+
+            var retiredPaths = new HashSet<string>(PathComparer);
+            foreach (var retiredFile in manifest.RetiredFiles)
+            {
+                if (!retiredPaths.Add(retiredFile.Path)
+                    || retiredFile.SourceSha256.Count != retiredFile.SourceSha256.Distinct(StringComparer.OrdinalIgnoreCase).Count()
+                    || retiredFile.SourceSha256.Any(hash => !IsSha256(hash))
+                    || paths.Contains(retiredFile.Path)
+                    || IsProtectedPath(manifest, retiredFile.Path))
+                {
+                    throw new InvalidDataException(
+                        $"Tool package manifest contains invalid, overlapping or duplicate retired file metadata: {retiredFile.Path}.");
+                }
+            }
+
+            if (manifest.Files.Any(file => IsProtectedPath(manifest, file.Path)))
+            {
+                throw new InvalidDataException("Schema 3 package files must not overlap protected paths.");
+            }
         }
 
         if (overlayLayout && manifest.Files.Any(file => IsProtectedPath(manifest, file.Path)))

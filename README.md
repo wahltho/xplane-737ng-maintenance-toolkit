@@ -7,7 +7,7 @@ tools, verified liveries and conservative view maintenance for supported aircraf
 This repository is the public development home for the app. The architecture
 keeps package content, aircraft patching, and application updates separate.
 
-Release version: **0.16.1**
+Release version: **0.17.0**
 
 Includes [catalog-controlled maintenance groups](docs/CATALOG_GROUPS.md) and configurable startup update notifications.
 
@@ -259,6 +259,7 @@ Release assets remain the preferred package source for normal use.
 - [CI/CD Preparation](docs/CI_CD.md)
 - [Zibo ACF CG Catalog Builder](docs/ZIBO_ACF_CG_CATALOG.md)
 - [LevelUp ACF CG History](docs/LEVELUP_ACF_CG_HISTORY.md)
+- [Directory Tool-Package Migrations](docs/DIRECTORY_TOOL_PACKAGE_MIGRATIONS.md)
 
 ## Current Scope
 

@@ -189,6 +189,20 @@
         "manifestSchemaVersion": {
           "type": "integer",
           "minimum": 1
+        },
+        "manifestSchemaVersions": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "stable": {
+              "type": "integer",
+              "enum": [1, 3]
+            },
+            "beta": {
+              "type": "integer",
+              "enum": [1, 3]
+            }
+          }
         }
       }
     },

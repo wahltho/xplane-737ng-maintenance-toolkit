@@ -4429,11 +4429,14 @@ public partial class MainWindowViewModel : ViewModelBase
 
             var planLines = string.Join('\n', plan.Actions.Select(item =>
                 $"- {ActionLabel(item.Action)} {item.CatalogEntry.DisplayName} {item.Release.Manifest.PackageVersion}"));
+            var migrationDetails = BuildToolMigrationDetails(plan.Actions);
             var confirmation = new ConfirmationRequest(
                 $"{verb} {entry.DisplayName}?",
                 $"The following package plan will be applied in this order:\n\n{planLines}\n\n"
                 + "Each package is validated and backed up separately. If one action fails, later actions are not started. "
-                + "Manifest-protected and unowned local files are preserved. X-Plane must be closed and restarted afterward.",
+                + "Manifest-protected and unowned local files are preserved except for explicitly declared retired files. "
+                + "X-Plane must be closed and restarted afterward."
+                + migrationDetails,
                 verb);
             if (!await _userInteractionService.ConfirmAsync(confirmation))
             {
@@ -4669,6 +4672,24 @@ public partial class MainWindowViewModel : ViewModelBase
     private static string ActionLabel(ToolPackageAction action) => action is ToolPackageAction.SwitchChannel
         ? "Switch"
         : action.ToString();
+
+    internal static string BuildToolMigrationDetails(IReadOnlyList<ToolPackagePlannedAction> actions)
+    {
+        var migrations = actions
+            .Where(action => action.Release.Manifest.RetiredFiles.Count > 0)
+            .Select(action =>
+            {
+                var manifest = action.Release.Manifest;
+                return $"{action.CatalogEntry.DisplayName} migration:\n"
+                    + $"- Remove retired files: {string.Join(", ", manifest.RetiredFiles.Select(file => file.Path))}\n"
+                    + $"- Install and verify: {string.Join(", ", manifest.Files.Select(file => file.Path))}\n"
+                    + $"- Preserve protected aircraft files: {string.Join(", ", manifest.ProtectedPaths)}";
+            })
+            .ToArray();
+        return migrations.Length == 0
+            ? ""
+            : "\n\n" + string.Join("\n\n", migrations);
+    }
 
     private MaintenanceOperationResult RestoreToolPackage(
         ContentPackageCatalogEntry entry,

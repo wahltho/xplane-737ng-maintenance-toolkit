@@ -173,7 +173,36 @@ public sealed class ToolStateStoreTests
 
         Assert.Equal("4.7", store.TryGetToolInstallation(firstXPlane, "wahltho.yal")?.InstalledVersion);
         Assert.Equal("4.8-beta.1", store.TryGetToolInstallation(secondXPlane, "wahltho.yal")?.InstalledVersion);
-        Assert.Equal(8, store.Load().SchemaVersion);
+        Assert.Equal(9, store.Load().SchemaVersion);
+    }
+
+    [Fact]
+    public void Load_LegacyToolState_NormalizesRetirementAndProtectionGenerationFields()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"xplane-737ng-state-tests-{Guid.NewGuid():N}");
+        var stateRoot = Path.Combine(root, "state");
+        Directory.CreateDirectory(stateRoot);
+        File.WriteAllText(Path.Combine(stateRoot, "state.json"), """
+            {
+              "SchemaVersion": 8,
+              "ToolInstallations": {
+                "legacy": {
+                  "PackageId": "wahltho.optimized-xlua",
+                  "Backups": [ { "BackupId": "old" } ]
+                }
+              }
+            }
+            """);
+        var store = new ToolStateStore(stateRoot, Path.Combine(root, "backups"));
+
+        var document = store.Load();
+        var installation = Assert.Single(document.ToolInstallations.Values);
+        var generation = Assert.Single(installation.Backups);
+
+        Assert.Equal(9, document.SchemaVersion);
+        Assert.Empty(installation.RetiredFiles);
+        Assert.Empty(generation.PreviousRetiredFiles);
+        Assert.Empty(generation.PreviousProtectedPaths);
     }
 
     [Fact]

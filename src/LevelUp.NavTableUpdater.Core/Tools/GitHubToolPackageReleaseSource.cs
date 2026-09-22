@@ -437,7 +437,7 @@ public sealed class GitHubToolPackageReleaseSource
             || !manifest.Repository.TrimEnd('/').Equals(catalogEntry.RepositoryUrl.TrimEnd('/'), StringComparison.OrdinalIgnoreCase)
             || !manifest.InstallScope.Equals(catalogEntry.InstallScope, StringComparison.Ordinal)
             || !manifest.TargetPath.Equals(catalogEntry.TargetPath, StringComparison.Ordinal)
-            || manifest.SchemaVersion != catalogEntry.Distribution.ManifestSchemaVersion
+            || manifest.SchemaVersion != catalogEntry.Distribution.ManifestSchemaVersionFor(ChannelName(channel))
             || manifest.RestartRequired != catalogEntry.RestartRequired
             || !actualProducts.SetEquals(expectedProducts)
             || !manifest.SupportedPlatforms.ToHashSet(StringComparer.Ordinal).SetEquals(catalogEntry.SupportedPlatforms)

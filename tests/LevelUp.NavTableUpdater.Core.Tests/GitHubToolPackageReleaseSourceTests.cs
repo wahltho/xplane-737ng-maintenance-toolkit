@@ -84,6 +84,20 @@ public sealed class GitHubToolPackageReleaseSourceTests
     }
 
     [Fact]
+    public async Task BetaSchema3Release_UsesChannelSpecificCatalogContract()
+    {
+        using var fixture = new ReleaseFixture("4.8-beta.1", "beta", prerelease: true, schemaVersion: 3);
+        using var client = fixture.CreateClient();
+        var source = new GitHubToolPackageReleaseSource(client, fixture.CacheRoot);
+
+        var release = await source.GetLatestAsync(fixture.Catalog, ToolReleaseChannel.Beta);
+
+        Assert.NotNull(release);
+        Assert.Equal(3, release.Manifest.SchemaVersion);
+        Assert.Equal("legacy/runtime.xpl", Assert.Single(release.Manifest.RetiredFiles).Path);
+    }
+
+    [Fact]
     public async Task StableRelease_WithRPrefixedTag_MatchesPackageVersion()
     {
         using var fixture = new ReleaseFixture("2.1", "stable", prerelease: false, tagPrefix: "r");
@@ -149,7 +163,8 @@ public sealed class GitHubToolPackageReleaseSourceTests
             bool addUndeclaredFile = false,
             string tagPrefix = "v",
             bool overlay = false,
-            string[]? supportedPlatforms = null)
+            string[]? supportedPlatforms = null,
+            int schemaVersion = 1)
         {
             _version = version;
             _tag = tagPrefix + version;
@@ -175,7 +190,7 @@ public sealed class GitHubToolPackageReleaseSourceTests
             _manifestName = overlay ? $"737NGRealbenchLogger-{version}-manifest.json" : $"YAL-{version}-manifest.json";
             _manifest = JsonSerializer.SerializeToUtf8Bytes(new
             {
-                schemaVersion = overlay ? 2 : 1,
+                schemaVersion = overlay ? 2 : schemaVersion,
                 packageId = overlay ? "wahltho.737ng-realbench-logger" : "wahltho.yal",
                 packageVersion = version,
                 releaseTag = _tag,
@@ -202,6 +217,17 @@ public sealed class GitHubToolPackageReleaseSourceTests
                         "data/modules/configuration/wprefs.ini",
                         "data/output/**"
                     },
+                retiredFiles = schemaVersion == 3
+                    ? new[]
+                    {
+                        new
+                        {
+                            path = "legacy/runtime.xpl",
+                            optional = true,
+                            sourceSha256 = new[] { new string('c', 64) }
+                        }
+                    }
+                    : null,
                 files = files.Select(file => new
                 {
                     path = file.Key,
@@ -256,7 +282,14 @@ public sealed class GitHubToolPackageReleaseSourceTests
                     ManifestAssetNamePattern = overlay
                         ? "737NGRealbenchLogger-*-manifest.json"
                         : "YAL-*-manifest.json",
-                    ManifestSchemaVersion = overlay ? 2 : 1
+                    ManifestSchemaVersion = overlay || schemaVersion == 1 ? overlay ? 2 : 1 : null,
+                    ManifestSchemaVersions = schemaVersion == 3
+                        ? new Dictionary<string, int>(StringComparer.Ordinal)
+                        {
+                            ["stable"] = 1,
+                            ["beta"] = 3
+                        }
+                        : new Dictionary<string, int>(StringComparer.Ordinal)
                 }
             };
         }

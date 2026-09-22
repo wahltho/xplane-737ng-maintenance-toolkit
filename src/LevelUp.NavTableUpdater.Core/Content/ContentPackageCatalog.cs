@@ -97,6 +97,13 @@ public sealed class ContentPackageDistribution
     public string ManifestAssetNamePattern { get; set; } = "";
 
     public int? ManifestSchemaVersion { get; set; }
+
+    public Dictionary<string, int> ManifestSchemaVersions { get; set; } = new(StringComparer.Ordinal);
+
+    public int? ManifestSchemaVersionFor(string channel) =>
+        ManifestSchemaVersions.TryGetValue(channel, out var version)
+            ? version
+            : ManifestSchemaVersion;
 }
 
 public sealed class ContentPackageCatalog
@@ -188,6 +195,7 @@ public sealed class ContentPackageCatalog
             if (package.SupportedPlatforms.Count > 0 && package.Category is not (ContentPackageCategory.Tool or ContentPackageCategory.AircraftComponent))
                 throw new InvalidDataException("supportedPlatforms is supported for tools and aircraft components only.");
             package.Distribution ??= new ContentPackageDistribution();
+            package.Distribution.ManifestSchemaVersions ??= new Dictionary<string, int>(StringComparer.Ordinal);
             if (!IsSafePackageId(package.PackageId)
                 || !packageIds.Add(package.PackageId)
                 || string.IsNullOrWhiteSpace(package.DisplayName)
@@ -273,6 +281,13 @@ public sealed class ContentPackageCatalog
 
     private static void ValidateDistribution(ContentPackageCatalogEntry package)
     {
+        if (package.Distribution.Kind is not ContentPackageDistributionKind.GitHubToolRelease
+            && package.Distribution.ManifestSchemaVersions.Count != 0)
+        {
+            throw new InvalidDataException(
+                $"Content package {package.PackageId} uses channel-specific manifest schemas outside a GitHub tool release.");
+        }
+
         if (package.Distribution.Kind is ContentPackageDistributionKind.CatalogGroup)
         {
             if (package.Category is not ContentPackageCategory.CompatibilityPackage)
@@ -303,8 +318,16 @@ public sealed class ContentPackageCatalog
             var expectedScope = package.Category is ContentPackageCategory.AircraftComponent
                 ? "aircraftInstallation"
                 : "xPlaneInstallation";
+            var hasLegacySchema = package.Distribution.ManifestSchemaVersion == 1
+                && package.Distribution.ManifestSchemaVersions.Count == 0;
+            var hasChannelSchemas = package.Distribution.ManifestSchemaVersion is null
+                && package.Distribution.ManifestSchemaVersions.Count == package.SupportedChannels.Count
+                && package.SupportedChannels.All(channel =>
+                    package.Distribution.ManifestSchemaVersions.GetValueOrDefault(channel) is 1 or 3)
+                && package.Distribution.ManifestSchemaVersions.Keys.All(channel =>
+                    package.SupportedChannels.Contains(channel, StringComparer.Ordinal));
             if (!supportedCategory
-                || package.Distribution.ManifestSchemaVersion != 1
+                || (!hasLegacySchema && !hasChannelSchemas)
                 || !IsSafeAssetPattern(package.Distribution.ManifestAssetNamePattern, ".json")
                 || !string.Equals(package.InstallScope, expectedScope, StringComparison.Ordinal)
                 || !IsSafeRelativePath(package.TargetPath)

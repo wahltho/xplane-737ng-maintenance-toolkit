@@ -352,6 +352,55 @@ public sealed class ContentPatchCatalogTests
         Assert.Equal(1, yansh.Distribution.ManifestSchemaVersion);
     }
 
+    [Fact]
+    public void ChannelSpecificToolManifestSchemas_AcceptStable1AndBeta3()
+    {
+        var catalog = ContentPackageCatalog.Parse(BuildChannelSchemaCatalog(
+            "\"manifestSchemaVersions\": { \"stable\": 1, \"beta\": 3 }"));
+
+        var distribution = Assert.Single(catalog.Packages).Distribution;
+        Assert.Null(distribution.ManifestSchemaVersion);
+        Assert.Equal(1, distribution.ManifestSchemaVersionFor("stable"));
+        Assert.Equal(3, distribution.ManifestSchemaVersionFor("beta"));
+    }
+
+    [Theory]
+    [InlineData("\"manifestSchemaVersion\": 1, \"manifestSchemaVersions\": { \"stable\": 1, \"beta\": 3 }")]
+    [InlineData("\"manifestSchemaVersions\": { \"stable\": 1 }")]
+    [InlineData("\"manifestSchemaVersions\": { \"stable\": 1, \"beta\": 2 }")]
+    public void ChannelSpecificToolManifestSchemas_RejectAmbiguousIncompleteOrUnsupportedContracts(string schemaContract)
+    {
+        Assert.Throws<InvalidDataException>(() =>
+            ContentPackageCatalog.Parse(BuildChannelSchemaCatalog(schemaContract)));
+    }
+
+    private static string BuildChannelSchemaCatalog(string schemaContract) => $$"""
+        {
+          "schemaVersion": 1,
+          "catalogVersion": "1.0.0",
+          "packages": [
+            {
+              "packageId": "wahltho.optimized-xlua",
+              "displayName": "Optimized XLua",
+              "description": "Aircraft runtime.",
+              "category": "aircraftComponent",
+              "activation": "explicitOptIn",
+              "supportedProducts": ["zibo-737ng", "levelup-737ng"],
+              "repositoryUrl": "https://github.com/wahltho/XLua",
+              "restartRequired": true,
+              "installScope": "aircraftInstallation",
+              "targetPath": "plugins/xlua",
+              "supportedChannels": ["stable", "beta"],
+              "distribution": {
+                "kind": "gitHubToolRelease",
+                "manifestAssetNamePattern": "Xlua.*-manifest.json",
+                {{schemaContract}}
+              }
+            }
+          ]
+        }
+        """;
+
     private static string BundledCatalogPath() =>
         Path.Combine(AppContext.BaseDirectory, "Content", "content-package-catalog.json");
 

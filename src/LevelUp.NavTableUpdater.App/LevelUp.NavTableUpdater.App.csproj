@@ -3,7 +3,7 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <AssemblyName>XPlane737NGMaintenanceToolkit</AssemblyName>
-    <Version>0.16.1</Version>
+    <Version>0.17.0</Version>
     <Authors>X-Plane 737NG Maintenance Toolkit contributors</Authors>
     <Product>X-Plane 737NG Maintenance Toolkit</Product>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -32,5 +32,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\LevelUp.NavTableUpdater.Core\LevelUp.NavTableUpdater.Core.csproj" />
+    <InternalsVisibleTo Include="LevelUp.NavTableUpdater.Core.Tests" />
   </ItemGroup>
 </Project>

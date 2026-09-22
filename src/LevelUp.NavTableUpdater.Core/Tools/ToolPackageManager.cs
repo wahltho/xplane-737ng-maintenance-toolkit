@@ -14,17 +14,38 @@ public enum ToolPackageAction
     Repair
 }
 
+internal enum ToolPackageTransactionPhase
+{
+    BackupCreated,
+    StageValidated,
+    TargetActivated
+}
+
 public sealed class ToolPackageManager
 {
     private readonly ToolStateStore _stateStore;
     private readonly string _runtimeIdentifier;
     private readonly Func<bool> _isXPlaneRunning;
+    private readonly Action<ToolPackageTransactionPhase>? _transactionObserver;
 
-    public ToolPackageManager(ToolStateStore stateStore, Func<bool>? isXPlaneRunning = null, string? runtimeIdentifier = null)
+    public ToolPackageManager(
+        ToolStateStore stateStore,
+        Func<bool>? isXPlaneRunning = null,
+        string? runtimeIdentifier = null)
+        : this(stateStore, isXPlaneRunning, runtimeIdentifier, null)
+    {
+    }
+
+    internal ToolPackageManager(
+        ToolStateStore stateStore,
+        Func<bool>? isXPlaneRunning,
+        string? runtimeIdentifier,
+        Action<ToolPackageTransactionPhase>? transactionObserver)
     {
         _stateStore = stateStore;
         _runtimeIdentifier = runtimeIdentifier ?? PackagePlatform.Current;
         _isXPlaneRunning = isXPlaneRunning ?? XPlaneProcessDetector.IsXPlaneRunning;
+        _transactionObserver = transactionObserver;
     }
 
     public ToolPackageInspection Inspect(
@@ -92,7 +113,7 @@ public sealed class ToolPackageManager
         {
             IReadOnlyList<string> recordedFindings = recordedState is null
                 ? []
-                : ValidateRestoreGuard(targetPath, recordedState.InstalledFiles);
+                : ValidateRestoreGuard(targetPath, recordedState.InstalledFiles, recordedState.RetiredFiles);
             return new ToolPackageInspection(
                 string.IsNullOrWhiteSpace(installedVersion)
                     ? ToolPackageInstallState.InstalledVersionUnknown
@@ -232,6 +253,7 @@ public sealed class ToolPackageManager
                 state.LastOperation = "Verify";
                 state.InstalledFiles = verifiedFiles;
                 state.ProtectedPaths = [.. manifest.ProtectedPaths];
+                state.RetiredFiles = manifest.RetiredFiles.Select(file => file.Path).ToList();
                 state.Dependencies = installedDependencies;
             });
             log.Add("[NO-CHANGE] Installed package files already match the release manifest.");
@@ -249,6 +271,20 @@ public sealed class ToolPackageManager
             previousState,
             package.Release);
         var previousChannel = previousState?.Channel ?? InferChannel(previousVersion);
+        var retirementBlockers = ValidateRetiredFilesForApply(targetPath, manifest, previousState);
+        if (retirementBlockers.Count > 0)
+        {
+            log.AddRange(retirementBlockers.Select(blocker => $"[BLOCKED] {blocker}"));
+            return MaintenanceOperationResult.Blocked(
+                $"{action} stopped because a retired {toolName} file is missing or cannot be safely removed.",
+                log);
+        }
+        if (manifest.RetiredFiles.Count > 0)
+        {
+            log.Add($"[MIGRATION] Retire legacy files: {string.Join(", ", manifest.RetiredFiles.Select(file => file.Path))}");
+            log.Add($"[MIGRATION] Install replacement files: {string.Join(", ", manifest.Files.Select(file => file.Path))}");
+            log.Add($"[MIGRATION] Preserve protected files: {string.Join(", ", manifest.ProtectedPaths)}");
+        }
         var backupRoot = _stateStore.CreateToolBackupDirectory(fullRoot, manifest.PackageId, createdUtc);
         var backupPath = Path.Combine(backupRoot, Path.GetFileName(targetPath));
         if (sourceExisted)
@@ -266,6 +302,7 @@ public sealed class ToolPackageManager
         var stageMoved = false;
         try
         {
+            _transactionObserver?.Invoke(ToolPackageTransactionPhase.BackupCreated);
             CopyDirectory(package.PackageDirectory, stagePath, overwrite: false);
             if (sourceExisted)
             {
@@ -273,6 +310,7 @@ public sealed class ToolPackageManager
             }
 
             ValidateInstallImage(stagePath, manifest);
+            _transactionObserver?.Invoke(ToolPackageTransactionPhase.StageValidated);
             if (sourceExisted)
             {
                 Directory.Move(targetPath, rollbackPath);
@@ -281,6 +319,7 @@ public sealed class ToolPackageManager
 
             Directory.Move(stagePath, targetPath);
             stageMoved = true;
+            _transactionObserver?.Invoke(ToolPackageTransactionPhase.TargetActivated);
             ValidateInstallImage(targetPath, manifest);
             var installedFiles = CaptureInstalledFiles(targetPath, manifest);
             var backup = new ToolBackupGenerationState
@@ -293,7 +332,9 @@ public sealed class ToolPackageManager
                 PreviousChannel = previousChannel,
                 InstalledVersion = manifest.PackageVersion,
                 InstalledFiles = installedFiles,
-                PreviousDependencies = CloneDependencies(previousState?.Dependencies ?? [])
+                PreviousDependencies = CloneDependencies(previousState?.Dependencies ?? []),
+                PreviousProtectedPaths = [.. previousState?.ProtectedPaths ?? []],
+                PreviousRetiredFiles = [.. previousState?.RetiredFiles ?? []]
             };
             _stateStore.UpdateToolInstallation(fullRoot, manifest.PackageId, state =>
             {
@@ -304,6 +345,7 @@ public sealed class ToolPackageManager
                 state.LastOperation = action.ToString();
                 state.InstalledFiles = installedFiles;
                 state.ProtectedPaths = [.. manifest.ProtectedPaths];
+                state.RetiredFiles = manifest.RetiredFiles.Select(file => file.Path).ToList();
                 state.Dependencies = installedDependencies;
                 state.Backups.Add(backup);
             });
@@ -359,9 +401,9 @@ public sealed class ToolPackageManager
             return MaintenanceOperationResult.Blocked("X-Plane is running. Close X-Plane before restoring plugins.", [.. log, "[BLOCKED] X-Plane is running."]);
         }
 
-        if (!XPlaneInstallationLocator.LooksLikeXPlaneRoot(xPlaneRoot))
+        if (!LooksLikeInstallRoot(catalogEntry, xPlaneRoot))
         {
-            return MaintenanceOperationResult.Blocked("The selected X-Plane installation root is invalid.", [.. log, "[BLOCKED] Invalid X-Plane root."]);
+            return MaintenanceOperationResult.Blocked("The selected package installation root is invalid.", [.. log, "[BLOCKED] Invalid package installation root."]);
         }
 
         var fullRoot = Path.GetFullPath(xPlaneRoot);
@@ -388,7 +430,7 @@ public sealed class ToolPackageManager
         }
 
         var targetPath = ResolveTarget(fullRoot, catalogEntry.TargetPath);
-        var guardFindings = ValidateRestoreGuard(targetPath, state.InstalledFiles);
+        var guardFindings = ValidateRestoreGuard(targetPath, state.InstalledFiles, state.RetiredFiles);
         if (guardFindings.Count > 0)
         {
             log.AddRange(guardFindings.Select(finding => $"[BLOCKED] {finding}"));
@@ -444,7 +486,9 @@ public sealed class ToolPackageManager
                 PreviousChannel = state.Channel,
                 InstalledVersion = restoredVersion,
                 InstalledFiles = restoredFiles,
-                PreviousDependencies = CloneDependencies(state.Dependencies)
+                PreviousDependencies = CloneDependencies(state.Dependencies),
+                PreviousProtectedPaths = [.. state.ProtectedPaths],
+                PreviousRetiredFiles = [.. state.RetiredFiles]
             };
             _stateStore.UpdateToolInstallation(fullRoot, catalogEntry.PackageId, updated =>
             {
@@ -454,6 +498,8 @@ public sealed class ToolPackageManager
                 updated.LastOperationUtc = DateTimeOffset.UtcNow;
                 updated.LastOperation = "Restore";
                 updated.InstalledFiles = restoredFiles;
+                updated.ProtectedPaths = [.. generation.PreviousProtectedPaths];
+                updated.RetiredFiles = [.. generation.PreviousRetiredFiles];
                 updated.Dependencies = CloneDependencies(generation.PreviousDependencies);
                 updated.Backups.Add(preRestoreGeneration);
             });
@@ -516,12 +562,22 @@ public sealed class ToolPackageManager
             }
         }
 
+        foreach (var retiredFile in manifest.RetiredFiles)
+        {
+            var path = ResolveTarget(targetPath, retiredFile.Path);
+            if (File.Exists(path) || Directory.Exists(path))
+            {
+                findings.Add($"Retired file is present: {retiredFile.Path}");
+            }
+        }
+
         return findings;
     }
 
     private static IReadOnlyList<string> ValidateRestoreGuard(
         string targetPath,
-        IReadOnlyList<ToolInstalledFileState> installedFiles)
+        IReadOnlyList<ToolInstalledFileState> installedFiles,
+        IReadOnlyList<string> retiredFiles)
     {
         if (installedFiles.Count == 0)
         {
@@ -538,7 +594,59 @@ public sealed class ToolPackageManager
             }
         }
 
+        foreach (var retiredFile in retiredFiles)
+        {
+            var path = ResolveTarget(targetPath, retiredFile);
+            if (File.Exists(path) || Directory.Exists(path))
+            {
+                findings.Add($"Retired file appeared after installation: {retiredFile}");
+            }
+        }
+
         return findings;
+    }
+
+    private static IReadOnlyList<string> ValidateRetiredFilesForApply(
+        string targetPath,
+        ToolPackageManifest manifest,
+        ToolInstallationState? previousState)
+    {
+        var blockers = new List<string>();
+        foreach (var retiredFile in manifest.RetiredFiles)
+        {
+            var path = ResolveTarget(targetPath, retiredFile.Path);
+            if (!File.Exists(path))
+            {
+                if (Directory.Exists(path))
+                {
+                    blockers.Add($"Retired path is not a regular file: {retiredFile.Path}");
+                }
+                else if (!retiredFile.Optional
+                    && (previousState is null || !VersionsEqual(previousState.InstalledVersion, manifest.PackageVersion)))
+                {
+                    blockers.Add($"Required retired file is missing: {retiredFile.Path}");
+                }
+                continue;
+            }
+
+            RejectLink(path, "Retired tool file");
+            var info = new FileInfo(path);
+            var hash = HashFile(path);
+            var manifestAuthorizes = retiredFile.SourceSha256.Contains(hash, StringComparer.OrdinalIgnoreCase);
+            var stateAuthorizes = previousState is not null
+                && PathsEqual(previousState.TargetPath, targetPath)
+                && previousState.InstalledFiles.Any(file =>
+                    !file.Protected
+                    && PathComparer.Equals(file.RelativePath, retiredFile.Path)
+                    && file.Size == info.Length
+                    && file.Sha256.Equals(hash, StringComparison.OrdinalIgnoreCase));
+            if (!manifestAuthorizes && !stateAuthorizes)
+            {
+                blockers.Add($"Retired file has an unknown or locally modified SHA-256: {retiredFile.Path} ({hash})");
+            }
+        }
+
+        return blockers;
     }
 
     private static void PreserveLocalFiles(
@@ -548,11 +656,17 @@ public sealed class ToolPackageManager
         ICollection<string> log)
     {
         var packagePaths = manifest.Files.Select(file => file.Path).ToHashSet(PathComparer);
+        var retiredPaths = manifest.RetiredFiles.Select(file => file.Path).ToHashSet(PathComparer);
         foreach (var sourcePath in EnumerateFilesWithoutLinks(sourceRoot))
         {
             RejectLink(sourcePath, "Existing tool file");
             var relativePath = NormalizeRelativePath(Path.GetRelativePath(sourceRoot, sourcePath));
             var protectedPath = ToolPackageManifestParser.IsProtectedPath(manifest, relativePath);
+            if (retiredPaths.Contains(relativePath))
+            {
+                log.Add($"[RETIRE] Managed legacy file removed from the new installation: {relativePath}");
+                continue;
+            }
             if (!protectedPath && packagePaths.Contains(relativePath))
             {
                 continue;
@@ -582,6 +696,15 @@ public sealed class ToolPackageManager
                 && !FileMatches(path, file.Size, file.Sha256))
             {
                 throw new InvalidDataException($"Staged tool image failed verification: {file.Path}.");
+            }
+        }
+
+        foreach (var retiredFile in manifest.RetiredFiles)
+        {
+            var path = ResolveTarget(root, retiredFile.Path);
+            if (File.Exists(path) || Directory.Exists(path))
+            {
+                throw new InvalidDataException($"Staged tool image still contains retired file: {retiredFile.Path}.");
             }
         }
     }
@@ -838,6 +961,7 @@ public sealed class ToolPackageManager
             || !catalog.InstallScope.Equals(manifest.InstallScope, StringComparison.Ordinal)
             || !catalog.TargetPath.Equals(manifest.TargetPath, StringComparison.Ordinal)
             || !catalog.RepositoryUrl.TrimEnd('/').Equals(manifest.Repository.TrimEnd('/'), StringComparison.OrdinalIgnoreCase)
+            || catalog.Distribution.ManifestSchemaVersionFor(manifest.Channel) != manifest.SchemaVersion
             || !manifest.SupportedProducts.ToHashSet(StringComparer.Ordinal).SetEquals(catalog.SupportedProducts)
             || !manifest.SupportedPlatforms.ToHashSet(StringComparer.Ordinal).SetEquals(catalog.SupportedPlatforms))
         {
