@@ -4289,7 +4289,7 @@ public partial class MainWindowViewModel : ViewModelBase
         _synchronizingToolSelection = true;
         try
         {
-            ToolReleaseChannelOptions.ReplaceWith(ToolReleaseChannels(value));
+            SynchronizeChannelOptions(ToolReleaseChannelOptions, ToolReleaseChannels(value));
             SelectedToolReleaseChannel = channel;
         }
         finally
@@ -4730,8 +4730,7 @@ public partial class MainWindowViewModel : ViewModelBase
         try
         {
             var toolListChanged = AvailableToolPackages.Count != tools.Length
-                || AvailableToolPackages.Zip(tools).Any(pair =>
-                    !pair.First.PackageId.Equals(pair.Second.PackageId, StringComparison.Ordinal));
+                || AvailableToolPackages.Zip(tools).Any(pair => !ReferenceEquals(pair.First, pair.Second));
             if (toolListChanged)
             {
                 AvailableToolPackages.ReplaceWith(tools);
@@ -4743,7 +4742,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 selected is null
                     ? "stable"
                     : _settings.ToolReleaseChannels.GetValueOrDefault(selected.PackageId, "stable"));
-            ToolReleaseChannelOptions.ReplaceWith(ToolReleaseChannels(selected));
+            SynchronizeChannelOptions(ToolReleaseChannelOptions, ToolReleaseChannels(selected));
             SelectedToolReleaseChannel = channel;
         }
         finally
@@ -4767,7 +4766,7 @@ public partial class MainWindowViewModel : ViewModelBase
         _synchronizingResourceSelection = true;
         try
         {
-            ResourceReleaseChannelOptions = ResourceReleaseChannels(value);
+            SynchronizeResourceChannelOptions(ResourceReleaseChannels(value));
             SelectedResourceReleaseChannel = channel;
             ResourceDestinationPath = value is null
                 ? ""
@@ -5145,8 +5144,7 @@ public partial class MainWindowViewModel : ViewModelBase
         try
         {
             var listChanged = AvailableResourcePackages.Count != resources.Length
-                || AvailableResourcePackages.Zip(resources).Any(pair =>
-                    !pair.First.PackageId.Equals(pair.Second.PackageId, StringComparison.Ordinal));
+                || AvailableResourcePackages.Zip(resources).Any(pair => !ReferenceEquals(pair.First, pair.Second));
             if (listChanged)
             {
                 AvailableResourcePackages.ReplaceWith(resources);
@@ -5160,7 +5158,7 @@ public partial class MainWindowViewModel : ViewModelBase
                     : _stateStore.TryGetResourceInstallation(selected.PackageId)?.DestinationDirectory ?? "";
             }
 
-            ResourceReleaseChannelOptions = ResourceReleaseChannels(selected);
+            SynchronizeResourceChannelOptions(ResourceReleaseChannels(selected));
             SelectedResourceReleaseChannel = NormalizeResourceReleaseChannel(
                 selected,
                 selected is null
@@ -5566,11 +5564,10 @@ public partial class MainWindowViewModel : ViewModelBase
         try
         {
             var listChanged = AvailableLiveryPackages.Count != liveries.Length
-                || AvailableLiveryPackages.Zip(liveries).Any(pair =>
-                    !pair.First.PackageId.Equals(pair.Second.PackageId, StringComparison.Ordinal));
+                || AvailableLiveryPackages.Zip(liveries).Any(pair => !ReferenceEquals(pair.First, pair.Second));
             if (listChanged) AvailableLiveryPackages.ReplaceWith(liveries);
             if (!ReferenceEquals(SelectedLiveryPackage, selected)) SelectedLiveryPackage = selected;
-            LiveryReleaseChannelOptions = ResourceReleaseChannels(selected);
+            SynchronizeLiveryChannelOptions(ResourceReleaseChannels(selected));
             SelectedLiveryReleaseChannel = NormalizeResourceReleaseChannel(
                 selected,
                 selected is null
@@ -5741,6 +5738,32 @@ public partial class MainWindowViewModel : ViewModelBase
             .Distinct(StringComparer.Ordinal)
             .ToArray();
         return channels is { Length: > 0 } ? channels : ["stable"];
+    }
+
+    private static void SynchronizeChannelOptions(
+        ObservableCollection<string> current,
+        IReadOnlyList<string> desired)
+    {
+        if (!current.SequenceEqual(desired, StringComparer.Ordinal))
+        {
+            current.ReplaceWith(desired);
+        }
+    }
+
+    private void SynchronizeResourceChannelOptions(IReadOnlyList<string> desired)
+    {
+        if (!ResourceReleaseChannelOptions.SequenceEqual(desired, StringComparer.Ordinal))
+        {
+            ResourceReleaseChannelOptions = desired;
+        }
+    }
+
+    private void SynchronizeLiveryChannelOptions(IReadOnlyList<string> desired)
+    {
+        if (!LiveryReleaseChannelOptions.SequenceEqual(desired, StringComparer.Ordinal))
+        {
+            LiveryReleaseChannelOptions = desired;
+        }
     }
 
     private static string NormalizeResourceReleaseChannel(

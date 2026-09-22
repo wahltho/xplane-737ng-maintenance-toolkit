@@ -28,6 +28,81 @@ public sealed class UiTestAppBuilder
 
 public sealed class MainWindowUiTests
 {
+    [Fact]
+    public Task CatalogRefresh_AndRepeatedSelections_KeepPackageAndChannelDropdownsComplete() => Run(async () =>
+    {
+        using var fixture = new Fixture(enabled: false);
+        var window = fixture.Open();
+        try
+        {
+            await Until(() => fixture.Vm.SelectedProduct?.IsDetected == true
+                && fixture.Vm.InstallLog.Contains("Content package catalog:"));
+
+            var toolCombo = window.GetVisualDescendants().OfType<ComboBox>()
+                .Single(combo => ReferenceEquals(combo.ItemsSource, fixture.Vm.AvailableToolPackages));
+            var resourceCombo = window.GetVisualDescendants().OfType<ComboBox>()
+                .Single(combo => ReferenceEquals(combo.ItemsSource, fixture.Vm.AvailableResourcePackages));
+            var liveryCombo = window.GetVisualDescendants().OfType<ComboBox>()
+                .Single(combo => ReferenceEquals(combo.ItemsSource, fixture.Vm.AvailableLiveryPackages));
+
+            Assert.Same(fixture.Vm.SelectedToolPackage, toolCombo.SelectedItem);
+            Assert.Same(fixture.Vm.SelectedResourcePackage, resourceCombo.SelectedItem);
+            Assert.Same(fixture.Vm.SelectedLiveryPackage, liveryCombo.SelectedItem);
+            Assert.Contains(fixture.Vm.AvailableToolPackages,
+                entry => ReferenceEquals(entry, fixture.Vm.SelectedToolPackage));
+            Assert.Contains(fixture.Vm.AvailableResourcePackages,
+                entry => ReferenceEquals(entry, fixture.Vm.SelectedResourcePackage));
+            Assert.Contains(fixture.Vm.AvailableLiveryPackages,
+                entry => ReferenceEquals(entry, fixture.Vm.SelectedLiveryPackage));
+
+            var expectedTools = fixture.Vm.AvailableToolPackages.Select(entry => entry.PackageId).ToArray();
+            var xluaIndex = fixture.Vm.AvailableToolPackages.ToList()
+                .FindIndex(entry => entry.PackageId == "wahltho.optimized-xlua");
+            var yalIndex = fixture.Vm.AvailableToolPackages.ToList()
+                .FindIndex(entry => entry.PackageId == "wahltho.yal");
+            Assert.True(xluaIndex >= 0);
+            Assert.True(yalIndex >= 0);
+
+            toolCombo.IsDropDownOpen = true;
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal(expectedTools.Length, toolCombo.ItemCount);
+            toolCombo.IsDropDownOpen = false;
+
+            toolCombo.SelectedIndex = xluaIndex;
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal(expectedTools, fixture.Vm.AvailableToolPackages.Select(entry => entry.PackageId));
+            Assert.Same(fixture.Vm.AvailableToolPackages[xluaIndex], toolCombo.SelectedItem);
+            toolCombo.IsDropDownOpen = true;
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal(expectedTools.Length, toolCombo.ItemCount);
+            toolCombo.IsDropDownOpen = false;
+
+            var channelCombo = window.GetVisualDescendants().OfType<ComboBox>()
+                .Single(combo => ReferenceEquals(combo.ItemsSource, fixture.Vm.ToolReleaseChannelOptions));
+            Assert.Equal(["stable", "beta"], fixture.Vm.ToolReleaseChannelOptions);
+            channelCombo.SelectedItem = "beta";
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal(["stable", "beta"], fixture.Vm.ToolReleaseChannelOptions);
+            Assert.Equal("beta", channelCombo.SelectedItem);
+            Assert.Equal("beta", fixture.Vm.SelectedToolReleaseChannel);
+            channelCombo.IsDropDownOpen = true;
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal(2, channelCombo.ItemCount);
+            channelCombo.IsDropDownOpen = false;
+
+            toolCombo.SelectedIndex = yalIndex;
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal(expectedTools, fixture.Vm.AvailableToolPackages.Select(entry => entry.PackageId));
+            Assert.Same(fixture.Vm.AvailableToolPackages[yalIndex], toolCombo.SelectedItem);
+            toolCombo.SelectedIndex = xluaIndex;
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal(expectedTools, fixture.Vm.AvailableToolPackages.Select(entry => entry.PackageId));
+            Assert.Same(fixture.Vm.AvailableToolPackages[xluaIndex], toolCombo.SelectedItem);
+            Assert.Equal("beta", fixture.Vm.SelectedToolReleaseChannel);
+        }
+        finally { Close(window); }
+    });
+
     [Theory]
     [InlineData(980, 680)]
     [InlineData(1180, 780)]
