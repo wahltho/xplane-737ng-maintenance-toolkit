@@ -56,6 +56,11 @@ public sealed record ContentPatchMutation(
         new(relativePath, ContentPatchMutationKind.Delete, DesiredBytes: null, description);
 }
 
+public sealed record ContentPatchScopeSnapshot(
+    string RelativePath,
+    bool DirectoryExisted,
+    IReadOnlyDictionary<string, string> FileHashes);
+
 public sealed record ContentPatchPlan(
     ContentPatchDescriptor Descriptor,
     string PackageVersion,
@@ -69,6 +74,12 @@ public sealed record ContentPatchPlan(
     public IReadOnlyList<string> EnabledModules { get; init; } = [];
 
     public IReadOnlySet<string>? OwnedRelativePaths { get; init; }
+
+    public IReadOnlyList<ContentPatchScopeSnapshot> ExpectedScopes { get; init; } = [];
+
+    public IReadOnlyList<ContentPatchScopeSnapshot> FinalScopes { get; init; } = [];
+
+    public IReadOnlyList<LevelUp.NavTableUpdater.Core.State.ContentComponentScopeState> OwnedScopes { get; init; } = [];
 
     public IReadOnlyDictionary<string, string?> ExpectedSourceHashes { get; init; } = new Dictionary<string, string?>();
 

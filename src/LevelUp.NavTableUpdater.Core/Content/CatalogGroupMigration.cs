@@ -18,9 +18,25 @@ internal static class CatalogGroupMigration
         var sourceIds = manifest.Sources.Select(s => s.PackageId).ToHashSet(StringComparer.Ordinal);
         var previous = installed.Where(p => sourceIds.Contains(p.Key)).Select(p => p.Value).ToArray();
         if (previous.Length == 0) return null;
-        var targets = manifest.Modules.SelectMany(m => m.Targets).Select(t => t.RelativePath).ToHashSet(StringComparer.Ordinal);
+        var targets = manifest.Modules.SelectMany(m => m.Targets.Select(t => t.RelativePath)
+            .Concat(m.RetiredFiles.Select(file => file.RelativePath))).ToHashSet(StringComparer.Ordinal);
         var result = new ContentComponentState { ComponentId = manifest.PackageId,
             InstalledUtc = previous.Min(p => p.InstalledUtc), RestoreAvailable = previous.All(p => p.RestoreAvailable) };
+        foreach (var scope in previous.SelectMany(owner => owner.Scopes))
+        {
+            var existing = result.Scopes.FirstOrDefault(item => item.RelativePath == scope.RelativePath);
+            if (existing is not null)
+            {
+                if (existing.OriginalDirectoryExisted != scope.OriginalDirectoryExisted)
+                    throw new InvalidOperationException($"Catalog migration has conflicting scope history: {scope.RelativePath}.");
+                continue;
+            }
+            result.Scopes.Add(new ContentComponentScopeState
+            {
+                RelativePath = scope.RelativePath,
+                OriginalDirectoryExisted = scope.OriginalDirectoryExisted
+            });
+        }
         foreach (var group in previous.SelectMany(p => p.Files.Select(f => (Owner: p, File: f)))
             .GroupBy(f => f.File.RelativePath, StringComparer.Ordinal))
         {
@@ -28,10 +44,21 @@ internal static class CatalogGroupMigration
             var path = ContentPatchPathSafety.ResolveTarget(aircraftRoot, group.Key, "Catalog migration");
             if (!File.Exists(path))
             {
-                if (!group.Any(x => !x.File.OriginalExisted))
-                    throw new InvalidOperationException($"Migration target is missing: {group.Key}.");
-                // A clean baseline also removes files originally created by a patch.
-                result.Files.Add(new() { RelativePath = group.Key, TargetPath = path, OriginalExisted = false });
+                var absentOwners = group.Where(x => string.IsNullOrWhiteSpace(x.File.InstalledSha256)).ToArray();
+                if (absentOwners.Length == 1 && group.Count() == 1)
+                {
+                    var file = absentOwners[0].File;
+                    if (file.OriginalExisted && !BackupMatches(file))
+                        throw new InvalidOperationException($"Original backup failed verification for retired file {group.Key}.");
+                    result.Files.Add(CopyOriginal(file, path, null, null, file.BackupPath));
+                    result.Files[^1].RelativePath = group.Key;
+                }
+                else if (group.Any(x => !x.File.OriginalExisted))
+                {
+                    // A clean baseline also removes files originally created by a patch.
+                    result.Files.Add(new() { RelativePath = group.Key, TargetPath = path, OriginalExisted = false });
+                }
+                else throw new InvalidOperationException($"Migration target is missing: {group.Key}.");
                 continue;
             }
             var current = File.ReadAllBytes(path);
@@ -138,7 +165,7 @@ internal static class CatalogGroupMigration
     }
 
     private static ContentComponentFileState CopyOriginal(ContentComponentFileState original,
-        string path, string hash, long size, string backup) => new()
+        string path, string? hash, long? size, string backup) => new()
     {
         RelativePath = original.RelativePath, TargetPath = path, BackupPath = backup,
         OriginalExisted = original.OriginalExisted, OriginalSha256 = original.OriginalSha256,

@@ -46,9 +46,28 @@ public sealed class ContentPatchEngine
             if (!string.Equals(currentHash, expected.Value, StringComparison.OrdinalIgnoreCase))
                 return MaintenanceOperationResult.Blocked($"Target changed after planning: {expected.Key}. Review the operation again.", log);
         }
-        var mutations = NormalizeMutations(aircraftRoot, plan.Mutations);
-        if (mutations.Count == 0)
+        foreach (var expected in plan.ExpectedScopes)
         {
+            try
+            {
+                if (!ContentPatchPathSafety.ScopeMatches(
+                    ContentPatchPathSafety.CaptureFlatScope(aircraftRoot, expected.RelativePath), expected))
+                    return MaintenanceOperationResult.Blocked(
+                        $"Managed scope changed after planning: {expected.RelativePath}. Review the operation again.", log);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return MaintenanceOperationResult.Blocked(ex.Message, log);
+            }
+        }
+        var mutations = NormalizeMutations(aircraftRoot, plan.Mutations);
+        var directoryChanges = plan.FinalScopes.Any(final =>
+            plan.ExpectedScopes.Single(expected => expected.RelativePath == final.RelativePath).DirectoryExisted
+                != final.DirectoryExisted);
+        if (mutations.Count == 0 && !directoryChanges)
+        {
+            try { ValidateFinalScopes(plan.FinalScopes, aircraftRoot); }
+            catch (InvalidOperationException ex) { return MaintenanceOperationResult.Blocked(ex.Message, log); }
             log.Add("[NO-CHANGE] The patch plan contains no file changes.");
             return MaintenanceOperationResult.NoChange(plan.StatusMessage, log);
         }
@@ -57,9 +76,13 @@ public sealed class ContentPatchEngine
         var priorState = plan.MigratedState ?? _stateStore.TryGetContentInstallation(aircraftRoot)?.ContentComponents.GetValueOrDefault(plan.Descriptor.ComponentId);
         var needsInitialBackup = mutations.Where(m => File.Exists(m.TargetPath)
             && (plan.RebasedOriginalPaths.Contains(m.RelativePath)
-                || (plan.Sources.Count > 0 && priorState?.Files.Any(f => f.RelativePath == m.RelativePath) != true))).ToArray();
-        if (changedMutations.Length == 0 && needsInitialBackup.Length == 0)
+                || ((plan.Sources.Count > 0
+                        || plan.OwnedScopes.Any(scope => IsInScope(m.RelativePath, scope.RelativePath)))
+                    && priorState?.Files.Any(f => f.RelativePath == m.RelativePath) != true))).ToArray();
+        if (changedMutations.Length == 0 && needsInitialBackup.Length == 0 && !directoryChanges)
         {
+            try { ValidateFinalScopes(plan.FinalScopes, aircraftRoot); }
+            catch (InvalidOperationException ex) { return MaintenanceOperationResult.Blocked(ex.Message, log); }
             RecordState(plan, variant, mutations, backups: [], changed: false);
             log.Add("[NO-CHANGE] Every planned target already has the requested state.");
             return MaintenanceOperationResult.NoChange(plan.StatusMessage, log);
@@ -72,6 +95,11 @@ public sealed class ContentPatchEngine
 
         try
         {
+            foreach (var expected in plan.ExpectedScopes)
+            {
+                var scopePath = ContentPatchPathSafety.ResolveTarget(aircraftRoot, expected.RelativePath, "Managed scope rollback");
+                rollback.Push(() => RestoreScopeDirectory(scopePath, expected.DirectoryExisted));
+            }
             foreach (var mutation in changedMutations.Concat(needsInitialBackup).DistinctBy(m => m.RelativePath))
             {
                 var original = CaptureOriginal(mutation.TargetPath);
@@ -124,6 +152,9 @@ public sealed class ContentPatchEngine
                 ValidateMutation(mutation);
                 log.Add($"[PATCH] {mutation.Description}: {mutation.RelativePath}");
             }
+
+            ApplyFinalScopeDirectories(plan.FinalScopes, aircraftRoot);
+            ValidateFinalScopes(plan.FinalScopes, aircraftRoot);
 
             backupRecords.AddRange(BuildBackupRecords(plan, variant, mutations, originalStates, createdUtc));
             RecordState(plan, variant, mutations, backupRecords, changed: true, originalStates);
@@ -190,6 +221,27 @@ public sealed class ContentPatchEngine
         }
 
         var files = new List<RestoreFile>(component.Files.Count);
+        var restoreScopes = new List<(ContentComponentScopeState State, ContentPatchScopeSnapshot Current)>();
+        foreach (var scope in component.Scopes)
+        {
+            try
+            {
+                var current = ContentPatchPathSafety.CaptureFlatScope(aircraftRoot, scope.RelativePath);
+                var expected = new ContentPatchScopeSnapshot(scope.RelativePath, true,
+                    component.Files.Where(file => IsInScope(file.RelativePath, scope.RelativePath)
+                        && !string.IsNullOrWhiteSpace(file.InstalledSha256))
+                        .ToDictionary(file => Path.GetFileName(file.RelativePath),
+                            file => file.InstalledSha256!, StringComparer.Ordinal));
+                if (!ContentPatchPathSafety.ScopeMatches(current, expected))
+                    return MaintenanceOperationResult.Blocked(
+                        $"Managed scope changed after installation: {scope.RelativePath}.", log);
+                restoreScopes.Add((scope, current));
+            }
+            catch (InvalidOperationException ex)
+            {
+                return MaintenanceOperationResult.Blocked(ex.Message, log);
+            }
+        }
         foreach (var file in component.Files)
         {
             var targetPath = ContentPatchPathSafety.ResolveTarget(aircraftRoot, file.RelativePath, "Restore target");
@@ -240,6 +292,11 @@ public sealed class ContentPatchEngine
         var rollback = new Stack<Action>();
         try
         {
+            foreach (var scope in restoreScopes)
+            {
+                var scopePath = ContentPatchPathSafety.ResolveTarget(aircraftRoot, scope.State.RelativePath, "Restore scope rollback");
+                rollback.Push(() => RestoreScopeDirectory(scopePath, scope.Current.DirectoryExisted));
+            }
             foreach (var file in files)
             {
                 if (file.Installed.Existed)
@@ -308,6 +365,15 @@ public sealed class ContentPatchEngine
 
                 log.Add($"[RESTORE] {file.State.RelativePath}");
             }
+
+            var finalScopes = restoreScopes.Select(scope => new ContentPatchScopeSnapshot(
+                scope.State.RelativePath,
+                scope.State.OriginalDirectoryExisted,
+                component.Files.Where(file => IsInScope(file.RelativePath, scope.State.RelativePath)
+                    && file.OriginalExisted).ToDictionary(file => Path.GetFileName(file.RelativePath),
+                        file => file.OriginalSha256!, StringComparer.Ordinal))).ToArray();
+            ApplyFinalScopeDirectories(finalScopes, aircraftRoot);
+            ValidateFinalScopes(finalScopes, aircraftRoot);
 
             _stateStore.UpdateContentAndProduct(variant, (installation, target) =>
             {
@@ -386,7 +452,8 @@ public sealed class ContentPatchEngine
                     RestoreAvailable = previous?.RestoreAvailable ?? plan.RestoreAvailable,
                     EnabledModules = [.. plan.EnabledModules],
                     Sources = [.. plan.Sources],
-                    Files = fileStates
+                    Files = fileStates,
+                    Scopes = [.. plan.OwnedScopes]
                 };
             }
 
@@ -425,6 +492,54 @@ public sealed class ContentPatchEngine
             target.Backups.AddRange(backups);
         }, manageProduct: plan.Descriptor.Lifecycle.Activation is ContentPatchActivation.Managed);
     }
+
+    private static void ApplyFinalScopeDirectories(
+        IReadOnlyList<ContentPatchScopeSnapshot> scopes, string aircraftRoot)
+    {
+        foreach (var scope in scopes)
+        {
+            var path = ContentPatchPathSafety.ResolveTarget(aircraftRoot, scope.RelativePath, "Managed scope");
+            if (scope.DirectoryExisted)
+            {
+                Directory.CreateDirectory(path);
+            }
+            else if (Directory.Exists(path))
+            {
+                if (Directory.EnumerateFileSystemEntries(path).Any())
+                    throw new InvalidOperationException($"Managed scope is not empty: {scope.RelativePath}.");
+                Directory.Delete(path);
+            }
+        }
+    }
+
+    private static void ValidateFinalScopes(
+        IReadOnlyList<ContentPatchScopeSnapshot> scopes, string aircraftRoot)
+    {
+        foreach (var scope in scopes)
+        {
+            var actual = ContentPatchPathSafety.CaptureFlatScope(aircraftRoot, scope.RelativePath);
+            if (!ContentPatchPathSafety.ScopeMatches(actual, scope))
+                throw new InvalidOperationException($"Managed scope final state differs from the manifest: {scope.RelativePath}.");
+        }
+    }
+
+    private static void RestoreScopeDirectory(string path, bool existed)
+    {
+        if (existed)
+        {
+            Directory.CreateDirectory(path);
+        }
+        else if (Directory.Exists(path))
+        {
+            if (Directory.EnumerateFileSystemEntries(path).Any())
+                throw new InvalidOperationException($"Cannot roll back nonempty managed scope: {path}.");
+            Directory.Delete(path);
+        }
+    }
+
+    private static bool IsInScope(string relativePath, string scope) =>
+        relativePath.StartsWith(scope.TrimEnd('/') + "/", StringComparison.Ordinal)
+        && !relativePath[(scope.TrimEnd('/').Length + 1)..].Contains('/');
 
     private static ContentComponentFileState BuildFileState(
         ResolvedMutation mutation,

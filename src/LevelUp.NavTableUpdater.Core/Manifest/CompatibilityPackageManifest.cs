@@ -38,6 +38,9 @@ public sealed class CompatibilityPackageManifest
 
 public sealed class CompatibilityPackageModule
 {
+    [System.Text.Json.Serialization.JsonIgnore]
+    public int SourceSchemaVersion { get; set; }
+
     public string ModuleId { get; set; } = "";
 
     public string DisplayName { get; set; } = "";
@@ -59,6 +62,22 @@ public sealed class CompatibilityPackageModule
     public List<DeclarativePatchPayload> Payloads { get; set; } = [];
 
     public List<DeclarativePatchTarget> Targets { get; set; } = [];
+
+    public List<CompatibilityRetiredFile> RetiredFiles { get; set; } = [];
+
+    public List<CompatibilityManagedScope> ManagedScopes { get; set; } = [];
+}
+
+public sealed class CompatibilityRetiredFile
+{
+    public string RelativePath { get; set; } = "";
+    public List<string> SourceSha256 { get; set; } = [];
+}
+
+public sealed class CompatibilityManagedScope
+{
+    public string RelativePath { get; set; } = "";
+    public string Mode { get; set; } = "";
 }
 
 public sealed class ResolvedCatalogSource

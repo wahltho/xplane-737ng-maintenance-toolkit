@@ -82,13 +82,20 @@ public sealed class CompatibilityPackagePlanBuilder
             .SelectMany(module => module.Targets.Select(target => new ModuleTarget(module, target)))
             .GroupBy(item => item.Target.RelativePath, StringComparer.Ordinal)
             .ToDictionary(group => group.Key, group => group.ToArray(), StringComparer.Ordinal);
+        var selectedRetirements = selectedModules.SelectMany(module => module.RetiredFiles)
+            .ToDictionary(file => file.RelativePath, StringComparer.Ordinal);
+        var selectedScopes = selectedModules.SelectMany(module => module.ManagedScopes)
+            .ToDictionary(scope => scope.RelativePath, StringComparer.Ordinal);
         var componentState = _stateStore.TryGetContentInstallation(aircraftRoot)?.ContentComponents?
             .GetValueOrDefault(manifest.PackageId);
         var verifiedBaselines = new Dictionary<string, KnownAircraftBaseline>(StringComparer.Ordinal);
         // An exact file hash is authoritative; a version label alone never is.
         foreach (var relativePath in action is ContentPatchAction.Uninstall ? Enumerable.Empty<string>() : selectedOperations.Keys)
         {
-            var path = ContentPatchPathSafety.ResolveTarget(aircraftRoot, relativePath, "Official baseline");
+            string path;
+            try { path = ContentPatchPathSafety.ResolveTarget(aircraftRoot, relativePath, "Official baseline"); }
+            catch (InvalidOperationException ex)
+            { return Task.FromResult(Blocked(descriptor, manifest, action, aircraftRoot, ex.Message, log)); }
             if (File.Exists(path) && _baselines.Match(selectedProduct, relativePath, File.ReadAllBytes(path)) is { } baseline)
                 verifiedBaselines.Add(relativePath, baseline);
         }
@@ -142,7 +149,43 @@ public sealed class CompatibilityPackagePlanBuilder
                 "No compatibility modules are selected; no aircraft files need to change."));
         }
 
+        var previousScopes = componentState?.Scopes ?? [];
+        foreach (var oldScope in previousScopes)
+        {
+            var declaringModule = manifest.Modules.FirstOrDefault(module => module.ManagedScopes.Any(scope =>
+                scope.RelativePath.Equals(oldScope.RelativePath, StringComparison.Ordinal)));
+            if (declaringModule is null)
+                return Task.FromResult(Blocked(descriptor, manifest, action, aircraftRoot,
+                    $"Previously managed scope was omitted from the package: {oldScope.RelativePath}.", log));
+            if (componentState!.Files.Any(file => IsInScope(file.RelativePath, oldScope.RelativePath)
+                && !declaringModule.Targets.Any(target => target.RelativePath == file.RelativePath)
+                && !declaringModule.RetiredFiles.Any(retired => retired.RelativePath == file.RelativePath)))
+                return Task.FromResult(Blocked(descriptor, manifest, action, aircraftRoot,
+                    $"Previously owned scope path was omitted without retirement: {oldScope.RelativePath}.", log));
+        }
+
+        var scopePaths = selectedScopes.Keys.Concat(previousScopes.Select(scope => scope.RelativePath))
+            .Distinct(StringComparer.Ordinal).ToArray();
+        var expectedScopes = new List<ContentPatchScopeSnapshot>();
+        foreach (var scopePath in scopePaths)
+        {
+            ContentPatchScopeSnapshot snapshot;
+            try { snapshot = ContentPatchPathSafety.CaptureFlatScope(aircraftRoot, scopePath); }
+            catch (InvalidOperationException ex)
+            { return Task.FromResult(Blocked(descriptor, manifest, action, aircraftRoot, ex.Message, log)); }
+            var permitted = selectedScopes.ContainsKey(scopePath)
+                ? selectedOperations.Keys.Concat(selectedRetirements.Keys)
+                    .Where(path => IsInScope(path, scopePath)).ToHashSet(StringComparer.Ordinal)
+                : componentState!.Files.Where(file => IsInScope(file.RelativePath, scopePath))
+                    .Select(file => file.RelativePath).ToHashSet(StringComparer.Ordinal);
+            if (snapshot.FileHashes.Keys.Any(name => !permitted.Contains(scopePath + "/" + name)))
+                return Task.FromResult(Blocked(descriptor, manifest, action, aircraftRoot,
+                    $"Managed scope contains an undeclared file: {scopePath}.", log));
+            expectedScopes.Add(snapshot);
+        }
+
         var targetPaths = selectedOperations.Keys
+            .Concat(selectedRetirements.Keys)
             .Concat(componentState?.Files.Select(file => file.RelativePath) ?? [])
             .Distinct(StringComparer.Ordinal)
             .OrderBy(path => path, StringComparer.Ordinal)
@@ -150,6 +193,7 @@ public sealed class CompatibilityPackagePlanBuilder
         var mutations = new List<ContentPatchMutation>();
         var expectedSources = new Dictionary<string, string?>(StringComparer.Ordinal);
         var rebasedOriginalPaths = new HashSet<string>(StringComparer.Ordinal);
+        var desiredStates = new Dictionary<string, string?>(StringComparer.Ordinal);
 
         foreach (var relativePath in targetPaths)
         {
@@ -172,7 +216,7 @@ public sealed class CompatibilityPackagePlanBuilder
             {
                 sourceExists = currentExists;
                 sourceBytes = currentBytes;
-                if (!currentExists
+                if (!currentExists && !selectedRetirements.ContainsKey(relativePath)
                     && (!selectedOperations.TryGetValue(relativePath, out var newFileOperations)
                         || !newFileOperations[0].Target.Operation.Equals("copy-file-v1", StringComparison.Ordinal)))
                 {
@@ -228,6 +272,26 @@ public sealed class CompatibilityPackagePlanBuilder
                         sourceBytes = currentBytes;
                         log.Add($"[REINSTALL] {relativePath} matches its recorded original state; rebuilding selected modules.");
                     }
+                    else if (!currentExists && string.IsNullOrWhiteSpace(previousFile.InstalledSha256))
+                    {
+                        sourceExists = previousFile.OriginalExisted;
+                        try { sourceBytes = sourceExists ? LoadOriginal(previousFile, relativePath) : []; }
+                        catch (InvalidOperationException ex)
+                        { return Task.FromResult(Blocked(descriptor, manifest, action, aircraftRoot, ex.Message, log)); }
+                    }
+                    else if (currentExists && string.IsNullOrWhiteSpace(previousFile.InstalledSha256)
+                        && manifest.Modules.SelectMany(module => module.RetiredFiles)
+                            .FirstOrDefault(retired => retired.RelativePath == relativePath) is { } reappearedRetirement)
+                    {
+                        if (!reappearedRetirement.SourceSha256.Contains(Sha256(currentBytes), StringComparer.OrdinalIgnoreCase))
+                            return Task.FromResult(Blocked(descriptor, manifest, action, aircraftRoot,
+                                $"Retired file reappeared with an unknown hash: {relativePath}.", log));
+                        sourceExists = previousFile.OriginalExisted;
+                        try { sourceBytes = sourceExists ? LoadOriginal(previousFile, relativePath) : []; }
+                        catch (InvalidOperationException ex)
+                        { return Task.FromResult(Blocked(descriptor, manifest, action, aircraftRoot, ex.Message, log)); }
+                        log.Add($"[REPAIR] Recognized retired file reappeared: {relativePath}.");
+                    }
                     else if (!currentExists)
                     {
                         return Task.FromResult(Blocked(descriptor, manifest, action, aircraftRoot,
@@ -275,6 +339,16 @@ public sealed class CompatibilityPackagePlanBuilder
 
             var desiredBytes = sourceBytes;
             var desiredExists = sourceExists;
+            if (selectedRetirements.TryGetValue(relativePath, out var retirement))
+            {
+                if (currentExists && !retirement.SourceSha256.Contains(expectedSources[relativePath]!, StringComparer.OrdinalIgnoreCase)
+                    && (previousFile is null || !string.Equals(previousFile.InstalledSha256,
+                        expectedSources[relativePath], StringComparison.OrdinalIgnoreCase)))
+                    return Task.FromResult(Blocked(descriptor, manifest, action, aircraftRoot,
+                        $"Retired file has an unknown hash: {relativePath}.", log));
+                desiredExists = false;
+                desiredBytes = [];
+            }
             if (selectedOperations.TryGetValue(relativePath, out var operations))
             {
                 foreach (var operation in operations)
@@ -290,6 +364,14 @@ public sealed class CompatibilityPackagePlanBuilder
                     var inputHash = desiredExists ? Sha256(desiredBytes) : "<missing>";
                     if (operation.Target.Operation.Equals("copy-file-v1", StringComparison.Ordinal))
                     {
+                        if (selectedScopes.Keys.Any(scope => IsInScope(relativePath, scope))
+                            && currentExists
+                            && !string.Equals(expectedSources[relativePath], operation.Target.ResultSha256,
+                                StringComparison.OrdinalIgnoreCase)
+                            && !operation.Target.SourceSha256.Contains(expectedSources[relativePath]!,
+                                StringComparer.OrdinalIgnoreCase))
+                            return Task.FromResult(Blocked(descriptor, manifest, action, aircraftRoot,
+                                $"Managed-scope copy target has an unknown source hash: {relativePath}.", log));
                         if (desiredExists
                             && operation.Target.ResultSha256?.Equals(inputHash, StringComparison.OrdinalIgnoreCase) == true)
                         {
@@ -389,11 +471,26 @@ public sealed class CompatibilityPackagePlanBuilder
                             : "Removed disabled compatibility modules")
                     : ContentPatchMutation.Delete(relativePath, "Removed file created by disabled compatibility module"));
             }
-            else if ((componentState is not null || manifest.Sources.Count > 0) && selectedOperations.ContainsKey(relativePath))
+            else if (selectedRetirements.ContainsKey(relativePath))
+            {
+                mutations.Add(ContentPatchMutation.Delete(relativePath, "Retained expected retired-file absence"));
+            }
+            else if ((componentState is not null || manifest.Sources.Count > 0 || selectedScopes.Keys.Any(scope => IsInScope(relativePath, scope)))
+                && selectedOperations.ContainsKey(relativePath))
             {
                 mutations.Add(ContentPatchMutation.Write(relativePath, desiredBytes, "Retained verified compatibility target"));
             }
+            desiredStates[relativePath] = desiredExists ? Sha256(desiredBytes) : null;
         }
+
+        var finalScopes = BuildFinalScopes(expectedScopes, desiredStates, selectedScopes.Keys,
+            selectedOperations.Keys, previousScopes);
+        var ownedScopes = selectedScopes.Keys.Select(path => new ContentComponentScopeState
+        {
+            RelativePath = path,
+            OriginalDirectoryExisted = previousScopes.FirstOrDefault(scope => scope.RelativePath == path)?
+                .OriginalDirectoryExisted ?? expectedScopes.Single(scope => scope.RelativePath == path).DirectoryExisted
+        }).ToArray();
 
         var status = mutations.Count == 0
             ? $"{descriptor.DisplayName} {manifest.DisplayVersion} already matches the selected modules."
@@ -413,7 +510,11 @@ public sealed class CompatibilityPackagePlanBuilder
             ExpectedSourceHashes = expectedSources,
             MigratedState = migrated,
             RebasedOriginalPaths = rebasedOriginalPaths,
-            OwnedRelativePaths = selectedOperations.Keys.ToHashSet(StringComparer.Ordinal)
+            OwnedRelativePaths = selectedOperations.Keys.Concat(selectedRetirements.Keys)
+                .ToHashSet(StringComparer.Ordinal),
+            ExpectedScopes = expectedScopes,
+            FinalScopes = finalScopes,
+            OwnedScopes = ownedScopes
         });
     }
 
@@ -513,11 +614,30 @@ public sealed class CompatibilityPackagePlanBuilder
         }
 
         var mutations = new List<ContentPatchMutation>();
+        var expectedScopes = new List<ContentPatchScopeSnapshot>();
+        var finalScopes = new List<ContentPatchScopeSnapshot>();
+        foreach (var scope in state.Scopes)
+        {
+            ContentPatchScopeSnapshot snapshot;
+            try { snapshot = ContentPatchPathSafety.CaptureFlatScope(aircraftRoot, scope.RelativePath); }
+            catch (InvalidOperationException ex)
+            { return Blocked(descriptor, manifest, ContentPatchAction.Uninstall, aircraftRoot, ex.Message, log); }
+            var owned = state.Files.Where(file => IsInScope(file.RelativePath, scope.RelativePath)).ToArray();
+            if (snapshot.FileHashes.Keys.Any(name => !owned.Any(file => file.RelativePath == scope.RelativePath + "/" + name)))
+                return Blocked(descriptor, manifest, ContentPatchAction.Uninstall, aircraftRoot,
+                    $"Managed scope contains an undeclared file: {scope.RelativePath}.", log);
+            expectedScopes.Add(snapshot);
+            finalScopes.Add(new(scope.RelativePath, scope.OriginalDirectoryExisted,
+                owned.Where(file => file.OriginalExisted).ToDictionary(
+                    file => Path.GetFileName(file.RelativePath), file => file.OriginalSha256!, StringComparer.Ordinal)));
+        }
         foreach (var file in state.Files)
         {
             var targetPath = ContentPatchPathSafety.ResolveTarget(aircraftRoot, file.RelativePath, "Compatibility uninstall target");
-            if (!File.Exists(targetPath)
-                || !Sha256(File.ReadAllBytes(targetPath)).Equals(file.InstalledSha256, StringComparison.OrdinalIgnoreCase))
+            var installedExists = !string.IsNullOrWhiteSpace(file.InstalledSha256);
+            if (File.Exists(targetPath) != installedExists
+                || (installedExists && !Sha256(File.ReadAllBytes(targetPath))
+                    .Equals(file.InstalledSha256, StringComparison.OrdinalIgnoreCase)))
             {
                 return Blocked(descriptor, manifest, ContentPatchAction.Uninstall, aircraftRoot,
                     $"Installed compatibility target changed after installation: {file.RelativePath}.", log);
@@ -555,7 +675,54 @@ public sealed class CompatibilityPackagePlanBuilder
             mutations,
             log,
             IsSafe: true,
-            $"{descriptor.DisplayName} will be uninstalled and original files restored.");
+            $"{descriptor.DisplayName} will be uninstalled and original files restored.")
+        {
+            ExpectedScopes = expectedScopes,
+            FinalScopes = finalScopes
+        };
+    }
+
+    private static bool IsInScope(string path, string scope) =>
+        path.StartsWith(scope.TrimEnd('/') + "/", StringComparison.Ordinal)
+        && !path[(scope.TrimEnd('/').Length + 1)..].Contains('/');
+
+    private static byte[] LoadOriginal(ContentComponentFileState file, string path)
+    {
+        if (string.IsNullOrWhiteSpace(file.BackupPath) || !File.Exists(file.BackupPath))
+            throw new InvalidOperationException($"Original compatibility-package backup is missing for {path}.");
+        var bytes = File.ReadAllBytes(file.BackupPath);
+        if (bytes.LongLength != file.OriginalSizeBytes
+            || !Sha256(bytes).Equals(file.OriginalSha256, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException($"Original compatibility-package backup failed validation for {path}.");
+        return bytes;
+    }
+
+    private static IReadOnlyList<ContentPatchScopeSnapshot> BuildFinalScopes(
+        IReadOnlyList<ContentPatchScopeSnapshot> expected,
+        IReadOnlyDictionary<string, string?> desired,
+        IEnumerable<string> selectedScopes,
+        IEnumerable<string> selectedTargets,
+        IReadOnlyList<ContentComponentScopeState> previousScopes)
+    {
+        var selected = selectedScopes.ToHashSet(StringComparer.Ordinal);
+        var targetSet = selectedTargets.ToHashSet(StringComparer.Ordinal);
+        return expected.Select(scope =>
+        {
+            var files = new Dictionary<string, string>(scope.FileHashes, StringComparer.Ordinal);
+            foreach (var pair in desired.Where(pair => IsInScope(pair.Key, scope.RelativePath)))
+            {
+                var name = Path.GetFileName(pair.Key);
+                if (pair.Value is null) files.Remove(name);
+                else files[name] = pair.Value;
+            }
+            if (selected.Contains(scope.RelativePath)
+                && files.Keys.Any(name => !targetSet.Contains(scope.RelativePath + "/" + name)))
+                throw new InvalidOperationException($"Managed scope final allowlist is incomplete: {scope.RelativePath}.");
+            var originalExisted = previousScopes.FirstOrDefault(previous => previous.RelativePath == scope.RelativePath)?
+                .OriginalDirectoryExisted ?? scope.DirectoryExisted;
+            return new ContentPatchScopeSnapshot(scope.RelativePath,
+                selected.Contains(scope.RelativePath) || files.Count > 0 || originalExisted, files);
+        }).ToArray();
     }
 
     private static ContentPatchPlan Blocked(

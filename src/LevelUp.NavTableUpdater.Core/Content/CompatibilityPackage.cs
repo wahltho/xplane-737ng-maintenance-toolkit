@@ -89,7 +89,7 @@ public static class CompatibilityPackageLoader
             var root = json.RootElement;
             return root.TryGetProperty("schemaVersion", out var schema)
                 && schema.TryGetInt32(out var schemaVersion)
-                && schemaVersion == CompatibilityPackageManifestParser.CurrentSchemaVersion
+                && CompatibilityPackageManifestParser.SupportsSchema(schemaVersion)
                 && root.TryGetProperty("packageType", out var packageType)
                 && packageType.ValueEquals(CompatibilityPackageManifestParser.PackageType);
         }

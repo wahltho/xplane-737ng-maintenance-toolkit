@@ -164,6 +164,52 @@ public sealed class GitHubContentPatchReleaseSourceTests
     }
 
     [Fact]
+    public async Task Schema4CompatibilityArchive_ProvisionsAndReloadsManagedScopeFromCache()
+    {
+        var payload = "new object"u8.ToArray();
+        var hash = Convert.ToHexString(SHA256.HashData(payload)).ToLowerInvariant();
+        var manifest = JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            schemaVersion = 4, packageType = "compatibilityPackage",
+            packageId = "example.levelup.fans", packageVersion = "0.1.2",
+            repositoryUrl = "https://github.com/example/levelup-fans",
+            aircraftFamily = "LevelUp 737NG Series", supportedProducts = new[] { "levelup-737ng" },
+            restartRequired = true,
+            modules = new[] { new
+            {
+                moduleId = "gse", displayName = "GSE", description = "Managed objects",
+                policy = "required", defaultEnabled = true, installationOrder = 10,
+                payloads = new[] { new { path = "new.obj", size = payload.Length, sha256 = hash } },
+                targets = new[] { new { operation = "copy-file-v1", payload = "new.obj",
+                    relativePath = "objects/GSE/new.obj", resultSha256 = hash } },
+                retiredFiles = new[] { new { relativePath = "objects/GSE/old.obj",
+                    sourceSha256 = new[] { new string('a', 64) } } },
+                managedScopes = new[] { new { relativePath = "objects/GSE", mode = "flatExclusive" } }
+            } }
+        });
+        using var archiveBytes = new MemoryStream();
+        using (var zip = new ZipArchive(archiveBytes, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            WriteEntry(zip, "bundle/package-manifest.json", manifest);
+            WriteEntry(zip, "bundle/modules/gse/new.obj", payload);
+        }
+        using var directory = new DeclarativePatchManifestTests.TemporaryDirectory();
+        using var client = CreateClient(archiveBytes.ToArray());
+        var source = new GitHubContentPatchReleaseSource(client, directory.Path);
+        var entry = BuildCatalogEntry();
+        entry.Category = ContentPackageCategory.CompatibilityPackage;
+        entry.Activation = ContentPatchActivation.Managed;
+        entry.Distribution.ManifestSchemaVersion = 4;
+        var release = await source.GetLatestAsync(entry);
+
+        var first = await source.ProvisionCompatibilityAsync(entry, release);
+        var cached = await source.ProvisionCompatibilityAsync(entry, release);
+        Assert.Equal(4, first.Package.Manifest.SchemaVersion);
+        Assert.Equal("objects/GSE", Assert.Single(Assert.Single(cached.Package.Manifest.Modules).ManagedScopes).RelativePath);
+        Assert.Equal("objects/GSE/old.obj", Assert.Single(Assert.Single(cached.Package.Manifest.Modules).RetiredFiles).RelativePath);
+    }
+
+    [Fact]
     public async Task GetLatest_WhenAssetDigestIsInvalid_RejectsRelease()
     {
         var archive = BuildArchive();

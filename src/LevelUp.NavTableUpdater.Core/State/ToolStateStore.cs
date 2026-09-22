@@ -525,6 +525,7 @@ public sealed class ToolStateStore
                 component.EnabledModules ??= [];
                 component.Sources ??= [];
                 component.Files ??= [];
+                component.Scopes ??= [];
             }
         }
 
@@ -538,6 +539,7 @@ public sealed class ToolStateStore
                 component.EnabledModules ??= [];
                 component.Sources ??= [];
                 component.Files ??= [];
+                component.Scopes ??= [];
             }
             if (!string.IsNullOrWhiteSpace(target.InstalledContentPackageId)
                 && !target.ContentComponents.ContainsKey(target.InstalledContentPackageId))

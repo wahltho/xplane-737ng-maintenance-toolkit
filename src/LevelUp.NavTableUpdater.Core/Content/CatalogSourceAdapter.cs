@@ -82,6 +82,9 @@ internal static class CatalogSourceAdapter
             version = parsed.PackageVersion; repository = parsed.RepositoryUrl; packageId = parsed.PackageId;
             ValidateProducts(root, entry);
             var sourceModule = parsed.Modules.Single(m => m.ModuleId == member.ModuleId);
+            module.SourceSchemaVersion = parsed.SchemaVersion;
+            module.RetiredFiles = sourceModule.RetiredFiles;
+            module.ManagedScopes = sourceModule.ManagedScopes;
             root = root.GetProperty("modules").EnumerateArray().Single(m => m.GetProperty("moduleId").GetString() == member.ModuleId);
             module.Requires = sourceModule.Requires; module.ConflictsWith = sourceModule.ConflictsWith;
             module.SupportedUpstreamReleases = parsed.SupportedUpstreamReleases;

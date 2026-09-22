@@ -141,6 +141,42 @@ The existing VNAV and FANS package workflows remain available during
 migration. No incomplete compatibility package is advertised in the bundled
 online catalog until an authorized release exists.
 
+## Schema 4 managed scopes
+
+Schema 3 remains valid for existing compatibility packages. A package that
+declares `retiredFiles` or `managedScopes` must use schema 4; older Toolkit
+versions reject that schema rather than treating it as a copy-only package.
+For a flat exclusive directory such as `objects/GSE`, the owning module may
+declare:
+
+```json
+"managedScopes": [
+  { "relativePath": "objects/GSE", "mode": "flatExclusive" }
+],
+"retiredFiles": [
+  {
+    "relativePath": "objects/GSE/old.obj",
+    "sourceSha256": ["<known old-file SHA-256>"]
+  }
+]
+```
+
+All paths are relative to the aircraft root. The scope contains only direct
+files: no subdirectories, links or undeclared files. Its final contents must
+match the module's `copy-file-v1` targets exactly; declared retired files must
+be absent. An existing file can be replaced or retired only when its hash is
+the declared target hash, an allowed source hash, or a matching recorded
+Toolkit-owned version. Unknown files and changed hashes block the operation.
+On update, every previously owned scope path must remain a copy target or be
+explicitly retired. An absent retired file is valid on repeated application.
+
+Scope contents are checked when planning, immediately before execution, and
+after all file mutations but before the transaction commits. Each changed
+file uses the normal backup and rollback records. Only the scope's original
+directory-existence flag is added to state; uninstall or restore removes an
+empty scope directory only if it did not exist before installation. Direct
+restore also rejects any unexpected file or directory in the scope.
+
 ## Full aircraft baseline replacement
 
 A Toolkit-managed full baseline replacement archives the current content-patch

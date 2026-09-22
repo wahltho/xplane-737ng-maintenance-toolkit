@@ -184,10 +184,11 @@ public sealed partial class GitHubContentPatchReleaseSource
     {
         ValidateGitHubDistribution(catalogEntry);
         if (catalogEntry.Category is not ContentPackageCategory.CompatibilityPackage
-            || catalogEntry.Distribution.ManifestSchemaVersion != CompatibilityPackageManifestParser.CurrentSchemaVersion)
+            || catalogEntry.Distribution.ManifestSchemaVersion is not
+                (CompatibilityPackageManifestParser.LegacySchemaVersion or CompatibilityPackageManifestParser.CurrentSchemaVersion))
         {
             throw new InvalidOperationException(
-                $"Content package {catalogEntry.PackageId} is not a schema-v3 compatibility package.");
+                $"Content package {catalogEntry.PackageId} is not a supported compatibility package.");
         }
 
         ArgumentNullException.ThrowIfNull(release);
@@ -376,7 +377,7 @@ public sealed partial class GitHubContentPatchReleaseSource
         {
             throw new InvalidDataException($"Content package manifest JSON is invalid: {ex.Message}", ex);
         }
-        if (schemaVersion == CompatibilityPackageManifestParser.CurrentSchemaVersion)
+        if (CompatibilityPackageManifestParser.SupportsSchema(schemaVersion))
         {
             var compatibility = CompatibilityPackageManifestParser.Parse(manifestJson);
             foreach (var module in compatibility.Modules)

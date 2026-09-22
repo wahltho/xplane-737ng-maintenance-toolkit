@@ -45,6 +45,50 @@ public sealed class CatalogSourceAdapterTests : IDisposable
         Assert.Throws<InvalidDataException>(() => CatalogSourceAdapter.Convert(member, entry, release with { Tag = "v2.0.0" }, archive, _root));
     }
 
+    [Fact]
+    public void Schema4CompatibilitySource_PreservesScopeAndRetirementMetadata()
+    {
+        var payload = "new object"u8.ToArray();
+        var hash = Convert.ToHexString(SHA256.HashData(payload)).ToLowerInvariant();
+        var oldHash = Convert.ToHexString(SHA256.HashData("old object"u8)).ToLowerInvariant();
+        var source = new
+        {
+            schemaVersion = 4, packageType = "compatibilityPackage",
+            packageId = "fixture", packageVersion = "1.0.0",
+            repositoryUrl = "https://github.com/example/fixture",
+            aircraftFamily = "LevelUp 737NG Series", supportedProducts = new[] { "levelup-737ng" },
+            restartRequired = true,
+            modules = new[] { new
+            {
+                moduleId = "module", displayName = "Module", description = "Managed objects",
+                policy = "required", defaultEnabled = true, installationOrder = 10,
+                payloads = new[] { new { path = "new.obj", size = payload.Length, sha256 = hash } },
+                targets = new[] { new { operation = "copy-file-v1", payload = "new.obj",
+                    relativePath = "objects/GSE/new.obj", resultSha256 = hash } },
+                retiredFiles = new[] { new { relativePath = "objects/GSE/old.obj",
+                    sourceSha256 = new[] { oldHash } } },
+                managedScopes = new[] { new { relativePath = "objects/GSE", mode = "flatExclusive" } }
+            } }
+        };
+        var member = new CatalogGroupMember { ModuleId = "module", SourceFormat = "compatibility",
+            ManifestPath = "package-manifest.json", Policy = CompatibilityModulePolicy.Required };
+        var entry = new ContentPackageCatalogEntry { PackageId = "fixture", DisplayName = "Fixture",
+            Description = "Test source", RepositoryUrl = "https://github.com/example/fixture",
+            SupportedProducts = ["levelup-737ng"] };
+        var archive = new Dictionary<string, byte[]>
+        {
+            ["package-manifest.json"] = JsonSerializer.SerializeToUtf8Bytes(source),
+            ["modules/module/new.obj"] = payload
+        };
+
+        var module = CatalogSourceAdapter.Convert(member, entry,
+            new ContentPatchRelease("v1.0.0", "", "fixture.zip", "", 0, ""), archive, _root);
+        Assert.Equal(4, module.SourceSchemaVersion);
+        Assert.Equal("objects/GSE", Assert.Single(module.ManagedScopes).RelativePath);
+        Assert.Equal(oldHash, Assert.Single(Assert.Single(module.RetiredFiles).SourceSha256));
+        Assert.Equal(payload, File.ReadAllBytes(Path.Combine(_root, "new.obj")));
+    }
+
     private static (CatalogGroupMember, ContentPackageCatalogEntry, ContentPatchRelease, Dictionary<string,byte[]>) Fixture(string format)
     {
         var payload = JsonSerializer.SerializeToUtf8Bytes(new { format = "exact-text-replacements-v1", replacements = new[] { new { oldLines = new[] { "original" }, newLines = new[] { "patched" } } } });

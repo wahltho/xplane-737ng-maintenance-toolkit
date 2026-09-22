@@ -7,7 +7,7 @@ tools, verified liveries and conservative view maintenance for supported aircraf
 This repository is the public development home for the app. The architecture
 keeps package content, aircraft patching, and application updates separate.
 
-Release version: **0.18.0**
+Release version: **0.19.0**
 
 Includes [catalog-controlled maintenance groups](docs/CATALOG_GROUPS.md) and configurable startup update notifications.
 

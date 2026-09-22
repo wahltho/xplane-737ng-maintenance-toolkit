@@ -220,6 +220,14 @@ public sealed class ContentComponentState
     public List<LevelUp.NavTableUpdater.Core.Manifest.ResolvedCatalogSource> Sources { get; set; } = [];
 
     public List<ContentComponentFileState> Files { get; set; } = [];
+
+    public List<ContentComponentScopeState> Scopes { get; set; } = [];
+}
+
+public sealed class ContentComponentScopeState
+{
+    public string RelativePath { get; set; } = "";
+    public bool OriginalDirectoryExisted { get; set; }
 }
 
 public sealed class ContentComponentFileState
