@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "catalogVersion": "1.9.0",
-  "minimumToolkitVersion": "0.16.1",
+  "catalogVersion": "1.10.0",
+  "minimumToolkitVersion": "0.17.0",
   "packages": [
     {
       "packageId": "x-plane-zibo-vnav-descent-tables",
@@ -106,7 +106,10 @@
       "distribution": {
         "kind": "gitHubToolRelease",
         "manifestAssetNamePattern": "Xlua.*-manifest.json",
-        "manifestSchemaVersion": 1
+        "manifestSchemaVersions": {
+          "stable": 1,
+          "beta": 3
+        }
       }
     },
     {

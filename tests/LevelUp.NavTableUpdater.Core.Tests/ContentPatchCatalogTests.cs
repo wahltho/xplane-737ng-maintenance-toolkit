@@ -13,7 +13,7 @@ public sealed class ContentPatchCatalogTests
     [InlineData("osx-arm64", false)]
     public void BundledCatalog_OffersXLinSpeakOnlyOnSupportedPlatform(string platform, bool available)
     {
-        var catalog = ContentPackageCatalog.Parse(File.ReadAllText(BundledCatalogPath()), new Version(0, 16, 1));
+        var catalog = ContentPackageCatalog.Parse(File.ReadAllText(BundledCatalogPath()), new Version(0, 17, 0));
         foreach (var product in new[] { "zibo-737ng", "levelup-737ng" })
         {
             var entries = catalog.ForProduct(product, platform);
@@ -30,7 +30,7 @@ public sealed class ContentPatchCatalogTests
     public void BundledCatalog_PlatformSupportRequiresNewToolkit()
     {
         Assert.Throws<InvalidDataException>(() => ContentPackageCatalog.Parse(
-            File.ReadAllText(BundledCatalogPath()), new Version(0, 16, 0)));
+            File.ReadAllText(BundledCatalogPath()), new Version(0, 16, 1)));
     }
 
     [Theory]
@@ -39,7 +39,7 @@ public sealed class ContentPatchCatalogTests
     [InlineData("osx-arm64", false)]
     public void BundledCatalog_AutoUnicomHelperMatchesReleaseContract(string platform, bool available)
     {
-        var catalog = ContentPackageCatalog.Parse(File.ReadAllText(BundledCatalogPath()), new Version(0, 16, 1));
+        var catalog = ContentPackageCatalog.Parse(File.ReadAllText(BundledCatalogPath()), new Version(0, 17, 0));
         const string id = "wahltho.yal-autounicomhelper";
 
         foreach (var product in new[] { "zibo-737ng", "levelup-737ng" })
@@ -57,7 +57,7 @@ public sealed class ContentPatchCatalogTests
     [Fact]
     public void BundledCatalog_LufthansaLiveryMatchesReleaseContract()
     {
-        var catalog = ContentPackageCatalog.Parse(File.ReadAllText(BundledCatalogPath()), new Version(0, 16, 1));
+        var catalog = ContentPackageCatalog.Parse(File.ReadAllText(BundledCatalogPath()), new Version(0, 17, 0));
         const string id = "wahltho.levelup-737ng.livery.lufthansa";
 
         Assert.DoesNotContain(catalog.ForProduct("zibo-737ng"), package => package.PackageId == id);
@@ -222,8 +222,8 @@ public sealed class ContentPatchCatalogTests
             package => package.PackageId == ContentPatchCatalog.FansCdu.ComponentId);
         var descriptor = ContentPatchCatalog.OptionalPatch(fans);
 
-        Assert.Equal("1.9.0", catalog.CatalogVersion);
-        Assert.Equal("0.16.1", catalog.MinimumToolkitVersion);
+        Assert.Equal("1.10.0", catalog.CatalogVersion);
+        Assert.Equal("0.17.0", catalog.MinimumToolkitVersion);
         Assert.Equal(ContentPackageCategory.OptionalPatch, fans.Category);
         Assert.Equal(ContentPatchActivation.ExplicitOptIn, fans.Activation);
         Assert.Equal("LevelUp-737NG-FANS-CDU-v*.zip", fans.Distribution.AssetNamePattern);
@@ -276,7 +276,7 @@ public sealed class ContentPatchCatalogTests
             catalog.ForProduct("levelup-737ng"),
             package => package.PackageId == "levelup.paintkit");
 
-        Assert.Equal("1.9.0", catalog.CatalogVersion);
+        Assert.Equal("1.10.0", catalog.CatalogVersion);
         Assert.Equal(ContentPackageCategory.Resource, paintkit.Category);
         Assert.Equal(ContentPatchActivation.ExplicitOptIn, paintkit.Activation);
         Assert.Equal(["levelup-737ng"], paintkit.SupportedProducts);
@@ -307,6 +307,9 @@ public sealed class ContentPatchCatalogTests
         Assert.Equal("plugins/xlua", xlua.TargetPath);
         Assert.Equal(ContentPackageDistributionKind.GitHubToolRelease, xlua.Distribution.Kind);
         Assert.Equal("Xlua.*-manifest.json", xlua.Distribution.ManifestAssetNamePattern);
+        Assert.Null(xlua.Distribution.ManifestSchemaVersion);
+        Assert.Equal(1, xlua.Distribution.ManifestSchemaVersionFor("stable"));
+        Assert.Equal(3, xlua.Distribution.ManifestSchemaVersionFor("beta"));
     }
 
     [Fact]

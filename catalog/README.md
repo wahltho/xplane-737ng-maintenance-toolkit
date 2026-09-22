@@ -14,8 +14,9 @@ The catalog is deliberately independent from Toolkit application releases:
 
 Adding a package repository does not publish it in the Toolkit. A package is
 visible only after an explicit catalog change, review, version increment and
-catalog release. Catalog 1.9.0 adds the Windows-only YAL Auto-Unicom Helper and
-the LevelUp Lufthansa livery. It requires Toolkit 0.16.1. The LevelUp group
+catalog release. Catalog 1.10.0 enables the XLua 2 prerelease on the Optimized
+XLua beta channel while Stable continues to resolve XLua 1.3.7r5. Its
+channel-specific schema contract requires Toolkit 0.17.0. The LevelUp group
 keeps VNAV, FANS CDU and Weight & Balance required; Calculator, AUTO JETWAY and
 CPDLC FANS PAGES are optional. See `../docs/CATALOG_GROUPS.md`.
 
