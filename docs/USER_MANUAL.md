@@ -1,6 +1,6 @@
 # X-Plane 737NG Maintenance Toolkit User Manual
 
-This manual describes version 0.19.1 of the X-Plane 737NG Maintenance Toolkit.
+This manual describes version 0.20.0 of the X-Plane 737NG Maintenance Toolkit.
 
 The toolkit is a desktop app for selected Zibo and LevelUp 737NG maintenance
 tasks:
@@ -31,7 +31,7 @@ Keep your own backups and use the tool at your own risk.
 
 ## Compatibility And Installation
 
-Version 0.19.1 supports:
+Version 0.20.0 supports:
 
 - X-Plane 12. X-Plane 11 is not supported.
 - Zibo 737-800X 2K and 4K variants.
@@ -148,6 +148,14 @@ compact progress panel stays at the top right, including status, elapsed time
 and Cancel when cancellation is available. Expand `Operation log` below that
 panel to inspect the detailed output.
 
+The header on every tab identifies the Toolkit as an independent project, not
+an official Zibo Mod product. Community patches and components are labelled in
+the Start and Advanced tabs. Before an independent package changes a Zibo
+aircraft, the confirmation dialog requires a separate acknowledgement that is
+unchecked by default. The dialog links to the Toolkit project page or, for
+Optimized XLua, its own project page for feedback. Official Zibo support does
+not cover independent package changes.
+
 Zibo and LevelUp aircraft are treated as equal 737NG targets. The app enables
 only the actions that apply to the detected aircraft and available package
 sources.
@@ -232,7 +240,7 @@ explicit confirmation before writing files. Version 0.13.0 offers the LevelUp
 FANS CDU package as an optional LevelUp-only patch. It remains separate from
 aircraft and VNAV updates and is never installed automatically.
 
-At startup, version 0.19.1 checks immutable `catalog-v*` releases in the Toolkit
+At startup, version 0.20.0 checks immutable `catalog-v*` releases in the Toolkit
 repository for updated package discovery metadata. A downloaded catalog becomes
 active only after schema, version, repository URL and minimum Toolkit version
 validation. If the check fails, the app uses its last valid cached catalog and

@@ -5,7 +5,12 @@ public sealed record ConfirmationRequest(
     string Message,
     string ConfirmText,
     string CancelText = "Cancel",
-    bool ShowCancel = true);
+    bool ShowCancel = true)
+{
+    public bool RequiresUnofficialAcknowledgement { get; init; }
+    public string IndependentProjectUrl { get; init; } = IndependentProjectNotice.ToolkitUrl;
+    public string IndependentProjectLabel { get; init; } = "Toolkit project and feedback";
+}
 
 public sealed record MessageRequest(
     string Title,

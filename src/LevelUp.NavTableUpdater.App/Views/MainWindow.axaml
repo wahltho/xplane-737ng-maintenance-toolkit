@@ -129,7 +129,15 @@
                                    FontSize="13"
                                    VerticalAlignment="Center"/>
                     </StackPanel>
-                    <TextBlock Text="Target-neutral maintenance for supported Zibo and LevelUp 737NG aircraft" Foreground="{DynamicResource AppHeaderSecondaryBrush}"/>
+                    <TextBlock Text="This toolkit is NOT an official Zibo Mod product. Independent project by wahltho."
+                               Foreground="#FF8B93" FontWeight="Bold"/>
+                    <TextBlock Text="Official Zibo support does not cover this toolkit or files it changes."
+                               Foreground="#FF8B93"/>
+                    <Button Content="Toolkit project and feedback"
+                            FontWeight="Bold" HorizontalAlignment="Left"
+                            Foreground="#FFFFFF" Background="#3D1118"
+                            BorderBrush="#E55C65" BorderThickness="1"
+                            Padding="6,2" Click="OpenToolkitProject_Click"/>
                 </StackPanel>
                 <Border Grid.Column="1"
                         Background="{DynamicResource AppLogoBackgroundBrush}"
@@ -418,6 +426,9 @@
 
                                                 <StackPanel Grid.Column="2" Spacing="9">
                                                     <TextBlock Text="{Binding MaintenancePatchTitle}" FontSize="15" FontWeight="SemiBold"/>
+                                                    <TextBlock Text="Independent patch packages are not part of the official Zibo Mod release."
+                                                               Foreground="#D94753" FontWeight="Bold" TextWrapping="Wrap"
+                                                               IsVisible="{Binding IsZiboSelected}"/>
                                                     <TextBlock Text="Required package status for the selected aircraft. Individual package versions and controls are listed below."
                                                                Foreground="{DynamicResource AppTextSecondaryBrush}"
                                                                TextWrapping="Wrap"/>
@@ -485,6 +496,8 @@
                                                                     <StackPanel Spacing="2">
                                                                         <TextBlock Text="{Binding DisplayName}" FontSize="15" FontWeight="SemiBold"/>
                                                                         <TextBlock Text="{Binding CategoryLabel}" Classes="label"/>
+                                                                        <TextBlock Text="Unofficial community package"
+                                                                                   Foreground="#D94753" FontWeight="Bold"/>
                                                                     </StackPanel>
                                                                     <WrapPanel Grid.Column="1" ItemSpacing="8" LineSpacing="8" VerticalAlignment="Center">
                                                                         <TextBlock Text="Managed in Updates"
@@ -571,6 +584,9 @@
                                                 <TextBlock Text="{Binding ToolPackageDescription}"
                                                            Foreground="{DynamicResource AppTextSecondaryBrush}"
                                                            TextWrapping="Wrap"/>
+                                                <TextBlock Text="Unofficial optional component; aircraft components are not part of the Zibo Mod release."
+                                                           Foreground="#D94753" FontWeight="Bold" TextWrapping="Wrap"
+                                                           IsVisible="{Binding IsZiboSelected}"/>
                                             </StackPanel>
 
                                             <Grid Grid.Row="2" ColumnDefinitions="Auto,Auto,*" ColumnSpacing="22">
@@ -879,6 +895,9 @@
                             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
                                 <StackPanel Spacing="7">
                                     <TextBlock Text="Optional Patches" FontSize="16" FontWeight="SemiBold"/>
+                                    <TextBlock Text="Unofficial community patches can change aircraft files; official Zibo support does not cover them."
+                                               Foreground="#D94753" FontWeight="Bold" TextWrapping="Wrap"
+                                               IsVisible="{Binding IsZiboSelected}"/>
                                     <TextBlock Text="{Binding OptionalPatchName}" FontWeight="SemiBold"/>
                                     <TextBlock Text="{Binding OptionalPatchStatus}"
                                                Foreground="{DynamicResource AppTextSecondaryBrush}"
@@ -989,6 +1008,9 @@
                             <Border Classes="card">
                                 <StackPanel Spacing="8">
                                     <TextBlock Text="VNAV Components" FontSize="16" FontWeight="SemiBold"/>
+                                    <TextBlock Text="VNAV patch content is an independent community change, not part of the official Zibo Mod release."
+                                               Foreground="#D94753" FontWeight="Bold" TextWrapping="Wrap"
+                                               IsVisible="{Binding IsZiboSelected}"/>
                                     <ItemsControl ItemsSource="{Binding Components}">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate x:DataType="analysis:ComponentStatus">

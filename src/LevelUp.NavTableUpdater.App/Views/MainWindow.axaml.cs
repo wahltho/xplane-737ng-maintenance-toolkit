@@ -1,5 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
+using System.Diagnostics;
+using LevelUp.NavTableUpdater.App.Services;
 using LevelUp.NavTableUpdater.App.ViewModels;
 
 namespace LevelUp.NavTableUpdater.App.Views;
@@ -9,6 +11,11 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+    }
+
+    private void OpenToolkitProject_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        Process.Start(new ProcessStartInfo(IndependentProjectNotice.ToolkitUrl) { UseShellExecute = true });
     }
 
     protected override async void OnOpened(EventArgs e)

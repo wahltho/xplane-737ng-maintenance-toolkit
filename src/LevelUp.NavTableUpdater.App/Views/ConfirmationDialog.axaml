@@ -10,7 +10,7 @@
         ShowInTaskbar="False"
         WindowStartupLocation="CenterOwner"
         Background="{DynamicResource AppSurfaceBrush}">
-    <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="18" Margin="24">
+    <Grid RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="14" Margin="24">
         <TextBlock Text="{Binding Title}"
                    FontSize="22"
                    FontWeight="SemiBold"
@@ -23,7 +23,27 @@
                    Foreground="{DynamicResource AppTextSecondaryBrush}"
                    TextWrapping="Wrap"/>
 
-        <StackPanel Grid.Row="2"
+        <Border Grid.Row="2" x:Name="UnofficialNotice"
+                IsVisible="{Binding RequiresUnofficialAcknowledgement}"
+                Background="#3D1118" BorderBrush="#E55C65" BorderThickness="1"
+                CornerRadius="5" Padding="12">
+            <StackPanel Spacing="8">
+                <TextBlock Text="UNOFFICIAL ZIBO AIRCRAFT CHANGE"
+                           FontWeight="Bold" Foreground="#FF8B93"/>
+                <TextBlock Text="These files are not part of the official Zibo Mod release and may be overwritten by a later official update. Zibo, Skymatix and official Zibo channels do not support these changes."
+                           Foreground="#FFFFFF" TextWrapping="Wrap"/>
+                <Button Content="{Binding IndependentProjectLabel}"
+                        HorizontalAlignment="Left" FontWeight="Bold"
+                        Foreground="#FFFFFF" Background="#3D1118"
+                        BorderBrush="#E55C65" BorderThickness="1"
+                        Click="OpenProject_Click"/>
+                <CheckBox x:Name="UnofficialAcknowledgement"
+                          Content="I understand this is an independent change and will use the project page for feedback."
+                          Foreground="#FFFFFF" IsChecked="False" Click="Acknowledgement_Changed"/>
+            </StackPanel>
+        </Border>
+
+        <StackPanel Grid.Row="3"
                     Orientation="Horizontal"
                     HorizontalAlignment="Right"
                     Spacing="10">
@@ -31,7 +51,7 @@
                     MinWidth="100"
                     IsVisible="{Binding ShowCancel}"
                     Click="Cancel_Click"/>
-            <Button Content="{Binding ConfirmText}"
+            <Button x:Name="ConfirmButton" Content="{Binding ConfirmText}"
                     MinWidth="130"
                     Background="{DynamicResource AppPrimaryBrush}"
                     Foreground="{DynamicResource AppPrimaryForegroundBrush}"

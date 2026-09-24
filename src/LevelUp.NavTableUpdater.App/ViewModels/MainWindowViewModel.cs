@@ -142,6 +142,9 @@ public partial class MainWindowViewModel : ViewModelBase
     private ProductTargetStatus? selectedProduct;
 
     [ObservableProperty]
+    private bool isZiboSelected;
+
+    [ObservableProperty]
     private string selectedProductName = "No supported product";
 
     [ObservableProperty]
@@ -1195,6 +1198,8 @@ public partial class MainWindowViewModel : ViewModelBase
 
     partial void OnSelectedProductChanged(ProductTargetStatus? value)
     {
+        IsZiboSelected = value?.IsDetected == true
+            && AircraftProductIds.Normalize(value.Family) == AircraftProductIds.Zibo737Ng;
         RefreshSelectedProductSummary(value);
         if (value is null)
         {
@@ -1333,6 +1338,12 @@ public partial class MainWindowViewModel : ViewModelBase
 
         if (string.Equals(action, "Restore", StringComparison.OrdinalIgnoreCase))
         {
+            if (AircraftProductIds.Normalize(selectedVariant.Family) == AircraftProductIds.Zibo737Ng
+                && !await _userInteractionService.ConfirmAsync(IndependentProjectNotice.ForAircraftMutation(
+                    new ConfirmationRequest("Restore unofficial VNAV content?",
+                        "The Toolkit will restore the recorded VNAV backup in this Zibo aircraft.", "Restore VNAV"),
+                    selectedVariant.Family)))
+                return;
             var product = AircraftProductIdentity.FromVariant(selectedVariant);
             var restoreResult = RunViewMaintenanceAction(
                 "Restore VNAV backup",
@@ -1410,7 +1421,7 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
-        var confirmation = new ConfirmationRequest(
+        var confirmation = IndependentProjectNotice.ForAircraftMutation(new ConfirmationRequest(
             $"{operationName} optional patch?",
             string.Join(
                 Environment.NewLine,
@@ -1422,7 +1433,7 @@ public partial class MainWindowViewModel : ViewModelBase
                     "This is an explicit optional transaction. Payloads are hash-validated; targets are hash- or structurally validated and backed up before any file is changed."
                 ]),
             operationName,
-            "Cancel");
+            "Cancel"), selectedVariant.Family);
         if (!await _userInteractionService.ConfirmAsync(confirmation))
         {
             AppendLog($"Optional patch {operationName} canceled before validation and file writes.");
@@ -1613,7 +1624,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 .Where(module => selectedModules.Contains(module.ModuleId, StringComparer.Ordinal))
                 .OrderBy(module => module.InstallationOrder)
                 .Select(module => $"- {module.DisplayName} ({module.Policy})"));
-        var confirmation = new ConfirmationRequest(
+        var confirmation = IndependentProjectNotice.ForAircraftMutation(new ConfirmationRequest(
             $"{operationName} compatibility package?",
             string.Join(
                 Environment.NewLine,
@@ -1626,7 +1637,7 @@ public partial class MainWindowViewModel : ViewModelBase
                     "The complete module set is validated and applied as one backed-up transaction. Required modules and dependencies are enforced by the manifest."
                 ]),
             operationName,
-            "Cancel");
+            "Cancel"), selectedVariant.Family);
         if (!await _userInteractionService.ConfirmAsync(confirmation))
         {
             AppendLog($"Compatibility package {operationName} canceled before validation and file writes.");
@@ -1879,7 +1890,7 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
-        var confirmation = new ConfirmationRequest(
+        var confirmation = IndependentProjectNotice.ForAircraftMutation(new ConfirmationRequest(
             $"Restore {catalogEntry.DisplayName}?",
             string.Join(
                 Environment.NewLine,
@@ -1890,7 +1901,7 @@ public partial class MainWindowViewModel : ViewModelBase
                     "The Toolkit will restore the exact pre-installation files only when every current target still matches its recorded installed hash."
                 ]),
             "Restore",
-            "Cancel");
+            "Cancel"), selectedVariant.Family);
         if (!await _userInteractionService.ConfirmAsync(confirmation))
         {
             AppendLog($"Optional patch restore canceled for {catalogEntry.DisplayName}.");
@@ -3613,7 +3624,7 @@ public partial class MainWindowViewModel : ViewModelBase
             return null;
         }
 
-        var confirmation = new ConfirmationRequest(
+        var confirmation = IndependentProjectNotice.ForAircraftMutation(new ConfirmationRequest(
             "Update VNAV descent tables?",
             string.Join(
                 Environment.NewLine,
@@ -3627,20 +3638,21 @@ public partial class MainWindowViewModel : ViewModelBase
                     "VNAV content is installed as a separate manifest-controlled transaction with its own validation and backup."
                 ]),
             "Update VNAV tables",
-            "Not now");
+            "Not now"), selectedVariant.Family);
         if (!await _userInteractionService.ConfirmAsync(confirmation))
         {
             AppendLog("VNAV maintenance action skipped.");
             return null;
         }
 
-        return await RunVnavContentAction(action.Value, selectedVariant);
+        return await RunVnavContentAction(action.Value, selectedVariant, confirmIndependentChange: false);
     }
 
     private async Task<MaintenanceOperationResult> RunVnavContentAction(
         VnavContentAction action,
         AircraftVariantViewAnalysis selectedVariant,
-        bool confirmGroup = true)
+        bool confirmGroup = true,
+        bool confirmIndependentChange = true)
     {
         var catalogGroup = _contentPackageCatalog.ForProduct(AircraftProductIds.Normalize(selectedVariant.Family) ?? selectedVariant.Family)
             .SingleOrDefault(p => p.Distribution.Kind is ContentPackageDistributionKind.CatalogGroup);
@@ -3656,6 +3668,15 @@ public partial class MainWindowViewModel : ViewModelBase
                 return new MaintenanceOperationResult(false, false, "Required patches pending",
                     "Catalog group action canceled; required patches are still pending.", [], []);
         }
+        if (confirmIndependentChange
+            && AircraftProductIds.Normalize(selectedVariant.Family) == AircraftProductIds.Zibo737Ng
+            && !await _userInteractionService.ConfirmAsync(IndependentProjectNotice.ForAircraftMutation(
+                new ConfirmationRequest(
+                    $"{action} unofficial VNAV content?",
+                    "VNAV descent tables change files in the selected Zibo aircraft. The operation validates and backs up the affected files.",
+                    $"{action} VNAV"), selectedVariant.Family)))
+            return new MaintenanceOperationResult(false, false, "VNAV action canceled",
+                "No unofficial VNAV files were changed.", [], []);
         OperationPanelVisible = true;
         OperationLog = "";
         OperationElapsed = "00:00s";
@@ -4438,6 +4459,11 @@ public partial class MainWindowViewModel : ViewModelBase
                 + "X-Plane must be closed and restarted afterward."
                 + migrationDetails,
                 verb);
+            if (plan.Actions.Any(item => item.CatalogEntry.InstallScope == "aircraftInstallation"))
+                confirmation = IndependentProjectNotice.ForAircraftMutation(
+                    confirmation,
+                    SelectedProduct?.Family,
+                    plan.Actions.Any(item => item.CatalogEntry.PackageId == "wahltho.optimized-xlua"));
             if (!await _userInteractionService.ConfirmAsync(confirmation))
             {
                 ToolPackageStatus = $"{verb} canceled. No X-Plane files were changed.";
@@ -4537,6 +4563,10 @@ public partial class MainWindowViewModel : ViewModelBase
             $"Restore {entry.DisplayName}?",
             $"The latest valid {entry.DisplayName} backup for this installation will be restored. Restore is blocked if package-owned files changed afterward.\n\n{xPlaneRoot}",
             "Restore");
+        if (entry.InstallScope == "aircraftInstallation")
+            confirmation = IndependentProjectNotice.ForAircraftMutation(
+                confirmation, SelectedProduct?.Family,
+                entry.PackageId == "wahltho.optimized-xlua");
         if (!await _userInteractionService.ConfirmAsync(confirmation))
         {
             ToolPackageStatus = "Restore canceled. No X-Plane files were changed.";

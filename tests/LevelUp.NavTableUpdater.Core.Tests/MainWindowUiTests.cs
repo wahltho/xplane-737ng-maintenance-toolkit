@@ -29,6 +29,74 @@ public sealed class UiTestAppBuilder
 public sealed class MainWindowUiTests
 {
     [Fact]
+    public Task UnofficialChange_RequiresExplicitUncheckedAcknowledgement() => Run(() =>
+    {
+        var request = IndependentProjectNotice.ForAircraftMutation(
+            new ConfirmationRequest("Install XLua?", "Files will change.", "Install"),
+            AircraftProductIds.Zibo737Ng, optimizedXlua: true);
+        Assert.True(request.RequiresUnofficialAcknowledgement);
+        Assert.Equal(IndependentProjectNotice.OptimizedXluaUrl, request.IndependentProjectUrl);
+        Assert.False(IndependentProjectNotice.ForAircraftMutation(
+            new ConfirmationRequest("Install?", "Official package.", "Install"),
+            AircraftProductIds.LevelUp737Ng).RequiresUnofficialAcknowledgement);
+
+        var dialog = new ConfirmationDialog(request);
+        dialog.Show();
+        try
+        {
+            Dispatcher.UIThread.RunJobs();
+            var confirm = Button(dialog, "Install");
+            var acknowledgement = dialog.FindControl<CheckBox>("UnofficialAcknowledgement")!;
+            Assert.True(acknowledgement.IsVisible);
+            Assert.False(acknowledgement.IsChecked);
+            Assert.False(confirm.IsEffectivelyEnabled);
+            Assert.Contains(dialog.GetVisualDescendants().OfType<TextBlock>(),
+                text => text.Text == "UNOFFICIAL ZIBO AIRCRAFT CHANGE" && text.IsEffectivelyVisible);
+            SaveFrame(dialog, "unofficial-confirmation.png");
+            Press(dialog, acknowledgement);
+            Assert.True(confirm.IsEffectivelyEnabled);
+            Press(dialog, acknowledgement);
+            Assert.False(confirm.IsEffectivelyEnabled);
+            Press(dialog, acknowledgement);
+            Assert.True(confirm.IsEffectivelyEnabled);
+            Press(dialog, confirm);
+            Assert.False(dialog.IsVisible);
+        }
+        finally { if (dialog.IsVisible) dialog.Close(); }
+        var ordinary = new ConfirmationDialog(new ConfirmationRequest("Apply official update?", "Official archive.", "Apply"));
+        ordinary.Show();
+        try
+        {
+            Dispatcher.UIThread.RunJobs();
+            Assert.False(ordinary.FindControl<Border>("UnofficialNotice")!.IsVisible);
+            Assert.True(Button(ordinary, "Apply").IsEffectivelyEnabled);
+        }
+        finally { ordinary.Close(); }
+        return Task.CompletedTask;
+    });
+
+    [Fact]
+    public Task IndependentProjectHeader_RemainsVisibleOnEveryTab() => Run(async () =>
+    {
+        using var fixture = new Fixture(enabled: false);
+        var window = fixture.Open();
+        try
+        {
+            await Until(() => fixture.Vm.SelectedProduct?.IsDetected == true);
+            var tabControl = window.GetVisualDescendants().OfType<TabControl>().Single();
+            foreach (var index in Enumerable.Range(0, tabControl.ItemCount))
+            {
+                tabControl.SelectedIndex = index;
+                Dispatcher.UIThread.RunJobs();
+                Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(),
+                    text => text.Text?.StartsWith("This toolkit is NOT an official Zibo Mod product.") == true && text.IsEffectivelyVisible);
+                Assert.True(Button(window, "Toolkit project and feedback").IsEffectivelyVisible);
+            }
+        }
+        finally { Close(window); }
+    });
+
+    [Fact]
     public Task CatalogRefresh_AndRepeatedSelections_KeepPackageAndChannelDropdownsComplete() => Run(async () =>
     {
         using var fixture = new Fixture(enabled: false);
