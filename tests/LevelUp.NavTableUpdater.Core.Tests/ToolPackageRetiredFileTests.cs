@@ -237,6 +237,37 @@ public sealed class ToolPackageRetiredFileTests
         var state = fixture.StateStore.TryGetToolInstallation(fixture.AircraftRoot, fixture.Catalog.PackageId)!;
         Assert.Equal("1.3.7r5", state.InstalledVersion);
         Assert.Empty(state.RetiredFiles);
+        Assert.Empty(Directory.EnumerateDirectories(Path.Combine(fixture.AircraftRoot, "plugins"), ".xlua.*"));
+        Assert.Empty(Directory.EnumerateDirectories(fixture.AircraftRoot, ".xlua.*"));
+    }
+
+    [Fact]
+    public void XluaUpdate_StagesAndRollsBackOutsidePlugins()
+    {
+        using var fixture = new Fixture();
+        Assert.True(fixture.Manager.Apply(
+            fixture.Catalog, fixture.CreateXlua1Package(), fixture.AircraftRoot, ToolPackageAction.Update).Succeeded);
+        var stagesObserved = false;
+        var rollbackObserved = false;
+        var manager = new ToolPackageManager(fixture.StateStore, () => false, "osx-arm64", phase =>
+        {
+            Assert.Empty(Directory.EnumerateDirectories(Path.Combine(fixture.AircraftRoot, "plugins"), ".xlua.*"));
+            if (phase == ToolPackageTransactionPhase.StageValidated)
+                stagesObserved = Directory.EnumerateDirectories(fixture.AircraftRoot, ".xlua.stage-*").Any();
+            if (phase == ToolPackageTransactionPhase.TargetActivated)
+                rollbackObserved = Directory.EnumerateDirectories(fixture.AircraftRoot, ".xlua.rollback-*").Any();
+        });
+
+        var update = manager.Apply(
+            fixture.Catalog, fixture.CreateSamePathXlua2Package(), fixture.AircraftRoot, ToolPackageAction.Update);
+        var restore = manager.Restore(fixture.Catalog, fixture.AircraftRoot);
+
+        Assert.True(update.Succeeded, update.Message);
+        Assert.True(restore.Succeeded, restore.Message);
+        Assert.True(stagesObserved);
+        Assert.True(rollbackObserved);
+        Assert.Empty(Directory.EnumerateDirectories(Path.Combine(fixture.AircraftRoot, "plugins"), ".xlua.*"));
+        Assert.Empty(Directory.EnumerateDirectories(fixture.AircraftRoot, ".xlua.*"));
     }
 
     [Fact]

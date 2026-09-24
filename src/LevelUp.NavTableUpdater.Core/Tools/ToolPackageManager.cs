@@ -298,11 +298,11 @@ public sealed class ToolPackageManager
             log.Add($"[BACKUP] Existing {toolName} installation copied to {backupPath}");
         }
 
-        var targetParent = Path.GetDirectoryName(targetPath)
-            ?? throw new InvalidOperationException("Tool target has no parent directory.");
-        Directory.CreateDirectory(targetParent);
-        var stagePath = Path.Combine(targetParent, $".{Path.GetFileName(targetPath)}.stage-{Guid.NewGuid():N}");
-        var rollbackPath = Path.Combine(targetParent, $".{Path.GetFileName(targetPath)}.rollback-{Guid.NewGuid():N}");
+        var transactionParent = ResolveTransactionParent(fullRoot, targetPath);
+        Directory.CreateDirectory(transactionParent);
+        Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
+        var stagePath = Path.Combine(transactionParent, $".{Path.GetFileName(targetPath)}.stage-{Guid.NewGuid():N}");
+        var rollbackPath = Path.Combine(transactionParent, $".{Path.GetFileName(targetPath)}.rollback-{Guid.NewGuid():N}");
         var targetMoved = false;
         var stageMoved = false;
         try
@@ -381,15 +381,9 @@ public sealed class ToolPackageManager
         }
         finally
         {
-            if (Directory.Exists(stagePath))
-            {
-                Directory.Delete(stagePath, recursive: true);
-            }
-
-            if (!targetMoved && Directory.Exists(rollbackPath))
-            {
-                Directory.Delete(rollbackPath, recursive: true);
-            }
+            TryDeleteDirectory(stagePath, log);
+            if (!targetMoved)
+                TryDeleteDirectory(rollbackPath, log);
         }
     }
 
@@ -455,9 +449,13 @@ public sealed class ToolPackageManager
             CopyDirectory(targetPath, preRestorePath, overwrite: false);
         }
 
-        var targetParent = Path.GetDirectoryName(targetPath)!;
-        var rollbackPath = Path.Combine(targetParent, $".{Path.GetFileName(targetPath)}.restore-{Guid.NewGuid():N}");
-        var stagedPath = Path.Combine(targetParent, $".{Path.GetFileName(targetPath)}.stage-{Guid.NewGuid():N}");
+        var transactionParent = ResolveTransactionParent(fullRoot, targetPath);
+        Directory.CreateDirectory(transactionParent);
+        Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
+        var rollbackPath = Path.Combine(transactionParent, $".{Path.GetFileName(targetPath)}.restore-{Guid.NewGuid():N}");
+        var stagedPath = Path.Combine(transactionParent, $".{Path.GetFileName(targetPath)}.stage-{Guid.NewGuid():N}");
+        var targetMoved = false;
+        var stageMoved = false;
         string restoredVersion;
         List<ToolInstalledFileState> restoredFiles;
         try
@@ -470,11 +468,13 @@ public sealed class ToolPackageManager
             if (currentExisted)
             {
                 Directory.Move(targetPath, rollbackPath);
+                targetMoved = true;
             }
 
             if (generation.SourceExisted)
             {
                 Directory.Move(stagedPath, targetPath);
+                stageMoved = true;
             }
 
             restoredVersion = generation.SourceExisted
@@ -509,16 +509,17 @@ public sealed class ToolPackageManager
                 updated.Backups.Add(preRestoreGeneration);
             });
 
+            targetMoved = false;
             TryDeleteDirectory(rollbackPath, log);
         }
         catch
         {
-            if (Directory.Exists(targetPath))
+            if (stageMoved && Directory.Exists(targetPath))
             {
                 Directory.Delete(targetPath, recursive: true);
             }
 
-            if (Directory.Exists(rollbackPath))
+            if (targetMoved && Directory.Exists(rollbackPath))
             {
                 Directory.Move(rollbackPath, targetPath);
             }
@@ -527,10 +528,7 @@ public sealed class ToolPackageManager
         }
         finally
         {
-            if (Directory.Exists(stagedPath))
-            {
-                Directory.Delete(stagedPath, recursive: true);
-            }
+            TryDeleteDirectory(stagedPath, log);
         }
 
         log.Add(generation.SourceExisted
@@ -842,6 +840,21 @@ public sealed class ToolPackageManager
         }
     }
 
+    private static string ResolveTransactionParent(string root, string targetPath)
+    {
+        // Keep complete plugin images out of X-Plane's plugin search directory.
+        // A directory move stays on the same volume by using the parent of plugins.
+        var parent = Path.GetDirectoryName(targetPath)
+            ?? throw new InvalidOperationException("Tool target has no parent directory.");
+        for (var current = parent; !PathsEqual(current, root); current = Path.GetDirectoryName(current)!)
+        {
+            if (Path.GetFileName(current).Equals("plugins", StringComparison.OrdinalIgnoreCase))
+                return Path.GetDirectoryName(current)!;
+        }
+
+        return parent;
+    }
+
     private static void TryDeleteDirectory(string path, ICollection<string> log)
     {
         if (!Directory.Exists(path))
@@ -855,7 +868,7 @@ public sealed class ToolPackageManager
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            log.Add($"[WARN] Temporary rollback directory could not be removed: {path} ({ex.Message})");
+            log.Add($"[WARN] Temporary transaction directory could not be removed: {path} ({ex.Message})");
         }
     }
 
