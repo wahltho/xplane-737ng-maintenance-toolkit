@@ -1,6 +1,6 @@
 # X-Plane 737NG Maintenance Toolkit User Manual
 
-This manual describes version 0.20.0 of the X-Plane 737NG Maintenance Toolkit.
+This manual describes version 0.20.1 of the X-Plane 737NG Maintenance Toolkit.
 
 The toolkit is a desktop app for selected Zibo and LevelUp 737NG maintenance
 tasks:
@@ -31,7 +31,7 @@ Keep your own backups and use the tool at your own risk.
 
 ## Compatibility And Installation
 
-Version 0.20.0 supports:
+Version 0.20.1 supports:
 
 - X-Plane 12. X-Plane 11 is not supported.
 - Zibo 737-800X 2K and 4K variants.
@@ -240,7 +240,7 @@ explicit confirmation before writing files. Version 0.13.0 offers the LevelUp
 FANS CDU package as an optional LevelUp-only patch. It remains separate from
 aircraft and VNAV updates and is never installed automatically.
 
-At startup, version 0.20.0 checks immutable `catalog-v*` releases in the Toolkit
+At startup, the Toolkit checks immutable `catalog-v*` releases in the Toolkit
 repository for updated package discovery metadata. A downloaded catalog becomes
 active only after schema, version, repository URL and minimum Toolkit version
 validation. If the check fails, the app uses its last valid cached catalog and
@@ -685,9 +685,9 @@ Use `Dump to file` on the Advanced tab to export the visible operation log into
 the configured diagnostics folder. Review the file before posting it and attach
 it when reporting a problem.
 
-Report Toolkit issues at:
-
-https://github.com/wahltho/xplane-737ng-maintenance-toolkit/issues
+Report Toolkit issues on the [MTK Discord server](https://discord.gg/ySS88PMuyC),
+in the comments on the [Toolkit download page](https://forums.x-plane.org/files/file/101018-x-plane-737ng-maintenance-toolkit/),
+or through [GitHub Issues](https://github.com/wahltho/xplane-737ng-maintenance-toolkit/issues).
 
 Include the Toolkit version, operating system, detected product, operation being
 attempted and exported log. Do not upload complete copyrighted aircraft files.

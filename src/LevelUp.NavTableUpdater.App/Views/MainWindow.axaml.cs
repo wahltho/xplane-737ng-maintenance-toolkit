@@ -18,6 +18,11 @@ public partial class MainWindow : Window
         Process.Start(new ProcessStartInfo(IndependentProjectNotice.ToolkitUrl) { UseShellExecute = true });
     }
 
+    private void OpenDiscordSupport_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        Process.Start(new ProcessStartInfo(IndependentProjectNotice.DiscordSupportUrl) { UseShellExecute = true });
+    }
+
     protected override async void OnOpened(EventArgs e)
     {
         base.OnOpened(e);

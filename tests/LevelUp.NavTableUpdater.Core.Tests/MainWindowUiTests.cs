@@ -90,7 +90,8 @@ public sealed class MainWindowUiTests
                 Dispatcher.UIThread.RunJobs();
                 Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(),
                     text => text.Text?.StartsWith("This toolkit is NOT an official Zibo Mod product.") == true && text.IsEffectivelyVisible);
-                Assert.True(Button(window, "Toolkit project and feedback").IsEffectivelyVisible);
+                Assert.True(Button(window, "Toolkit page and comments").IsEffectivelyVisible);
+                Assert.True(Button(window, "MTK support on Discord").IsEffectivelyVisible);
             }
         }
         finally { Close(window); }

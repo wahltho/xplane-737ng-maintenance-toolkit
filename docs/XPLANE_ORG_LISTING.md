@@ -8,11 +8,17 @@ X-Plane 737NG Maintenance Toolkit
 
 ## Short Description
 
-Install and update supported Zibo and LevelUp aircraft in X-Plane 12, apply maintenance patches, manage optional tools, and maintain views and hardware settings.
+Independent community tool to install and update supported Zibo and LevelUp aircraft in X-Plane 12, apply maintenance patches, manage optional tools, and maintain views and hardware settings.
 
 ## Full Description
 
 The **X-Plane 737NG Maintenance Toolkit (MTK)** helps you install, update and maintain supported **Zibo 737-800X and LevelUp 737NG** aircraft in **X-Plane 12**. It brings aircraft updates, required maintenance patches, optional add-ons and configuration tools into one application.
+
+### Independent project and support
+
+**This Toolkit is an independent project by wahltho, not an official Zibo Mod product.** It can obtain official Zibo aircraft packages from the Skymatix feed, but the Toolkit itself and the additional components it offers are separate community software.
+
+**Optimized XLua, VNAV Descent Tables, AUTO JETWAY, CPDLC FANS Pages and other Toolkit patches that change Zibo aircraft files are unofficial.** A later official Zibo update may overwrite these changes. For Toolkit and patch questions, use [my Discord server](https://discord.gg/ySS88PMuyC) or the comments on [this MTK download page](https://forums.x-plane.org/files/file/101018-x-plane-737ng-maintenance-toolkit/) and include the Toolkit log. For Optimized XLua, use [its own download page](https://forums.x-plane.org/files/file/97545-xlua-performance-improvements/). **Please do not ask Zibo, Skymatix or official Zibo support channels for help with the Toolkit or its independent components.**
 
 ## Updating an existing aircraft
 

@@ -7,7 +7,7 @@ tools, verified liveries and conservative view maintenance for supported aircraf
 This repository is the public development home for the app. The architecture
 keeps package content, aircraft patching, and application updates separate.
 
-Release version: **0.20.0**
+Release version: **0.20.1**
 
 Includes [catalog-controlled maintenance groups](docs/CATALOG_GROUPS.md) and configurable startup update notifications.
 
@@ -97,8 +97,10 @@ product unless explicitly stated otherwise.
 
 The app displays this distinction on every screen. Before it installs, updates
 or repairs independent packages in a Zibo aircraft, its confirmation dialog
-requires a separate acknowledgement. The [Toolkit project page](https://forums.x-plane.org/files/file/101018-x-plane-737ng-maintenance-toolkit/)
-is the feedback destination for Toolkit changes; [Optimized XLua](https://forums.x-plane.org/files/file/97545-xlua-performance-improvements/)
+requires a separate acknowledgement. For Toolkit support, use the
+[MTK Discord server](https://discord.gg/ySS88PMuyC) or the comments on the
+[Toolkit project page](https://forums.x-plane.org/files/file/101018-x-plane-737ng-maintenance-toolkit/).
+[Optimized XLua](https://forums.x-plane.org/files/file/97545-xlua-performance-improvements/)
 has its own project page. Official Zibo support does not cover those changes.
 
 The toolkit can modify aircraft installation files after validation and backup.

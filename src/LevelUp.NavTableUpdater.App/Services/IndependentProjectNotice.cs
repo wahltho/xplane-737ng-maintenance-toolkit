@@ -6,6 +6,7 @@ public static class IndependentProjectNotice
 {
     public const string ToolkitUrl = "https://forums.x-plane.org/files/file/101018-x-plane-737ng-maintenance-toolkit/";
     public const string OptimizedXluaUrl = "https://forums.x-plane.org/files/file/97545-xlua-performance-improvements/";
+    public const string DiscordSupportUrl = "https://discord.gg/ySS88PMuyC";
 
     public static ConfirmationRequest ForAircraftMutation(
         ConfirmationRequest request,

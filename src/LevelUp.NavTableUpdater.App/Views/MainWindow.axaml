@@ -133,11 +133,18 @@
                                Foreground="#FF8B93" FontWeight="Bold"/>
                     <TextBlock Text="Official Zibo support does not cover this toolkit or files it changes."
                                Foreground="#FF8B93"/>
-                    <Button Content="Toolkit project and feedback"
-                            FontWeight="Bold" HorizontalAlignment="Left"
-                            Foreground="#FFFFFF" Background="#3D1118"
-                            BorderBrush="#E55C65" BorderThickness="1"
-                            Padding="6,2" Click="OpenToolkitProject_Click"/>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="Toolkit page and comments"
+                                FontWeight="Bold" HorizontalAlignment="Left"
+                                Foreground="#FFFFFF" Background="#3D1118"
+                                BorderBrush="#E55C65" BorderThickness="1"
+                                Padding="6,2" Click="OpenToolkitProject_Click"/>
+                        <Button Content="MTK support on Discord"
+                                FontWeight="Bold" HorizontalAlignment="Left"
+                                Foreground="#FFFFFF" Background="#3D1118"
+                                BorderBrush="#E55C65" BorderThickness="1"
+                                Padding="6,2" Click="OpenDiscordSupport_Click"/>
+                    </StackPanel>
                 </StackPanel>
                 <Border Grid.Column="1"
                         Background="{DynamicResource AppLogoBackgroundBrush}"
