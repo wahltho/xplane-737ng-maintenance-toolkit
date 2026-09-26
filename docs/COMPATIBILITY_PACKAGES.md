@@ -127,6 +127,21 @@ operation for several modules sharing one loader slot. Existing exact marked
 content is idempotent; partial, duplicate or edited markers block the complete
 transaction.
 
+`migrate-marked-block-v1` also accepts `legacyBlocks`: complete, exact older
+blocks including their begin and end markers. With no markers it inserts the
+current block at one unique anchor; with one exact current block it makes no
+change; with one declared legacy block it replaces only that block. Unknown,
+partial, duplicated or misplaced markers block the transaction. This operation
+identifier is required in the manifest, so older Toolkit versions reject the
+package rather than treating the migration as an ordinary insertion.
+
+A migration from a previously managed file that has changed independently
+since the Toolkit recorded its installed hash is blocked. The Toolkit cannot
+derive a reversible original from that historical backup without also losing
+the independent edits. Existing structural composition remains available for
+other operations, but disables full Restore and Uninstall when such independent
+changes are incorporated into a managed file.
+
 ## Transaction Rules
 
 Before writing, the Toolkit validates package identity, supported product and

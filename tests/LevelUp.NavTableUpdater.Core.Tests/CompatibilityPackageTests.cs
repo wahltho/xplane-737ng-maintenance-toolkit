@@ -322,6 +322,91 @@ public sealed class CompatibilityPackageTests
         Assert.False(updated.Changed);
         Assert.Equal(composed, File.ReadAllText(fixture.TargetPath));
         Assert.Contains(updated.Log, line => line.StartsWith("[COMPOSE]", StringComparison.Ordinal));
+        Assert.False(fixture.Store.TryGetContentInstallation(Path.GetDirectoryName(fixture.Variant.AcfPath)!)!
+            .ContentComponents["levelup.compatibility"].RestoreAvailable);
+        var restore = operation.Restore(fixture.Variant, fixture.PackageDirectory);
+        Assert.False(restore.Succeeded);
+        Assert.Equal(composed, File.ReadAllText(fixture.TargetPath));
+        var uninstall = await operation.RunAsync(ContentPatchAction.Uninstall, fixture.Variant,
+            fixture.PackageDirectory, ["core"]);
+        Assert.False(uninstall.Succeeded);
+        Assert.Equal(composed, File.ReadAllText(fixture.TargetPath));
+    }
+
+    [Fact]
+    public async Task MarkedBlockMigration_UpgradesKnownLegacyAndRestoresOriginal()
+    {
+        using var fixture = Fixture.Create(singleComposableModule: true, omitStructuralResultHashes: true);
+        var operation = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false);
+        Assert.True((await operation.RunAsync(ContentPatchAction.Install, fixture.Variant,
+            fixture.PackageDirectory, ["core"])).Succeeded);
+        var independentPackage = fixture.CreateIndependentMarkedBlockPackage();
+        Assert.True((await operation.RunAsync(ContentPatchAction.Install, fixture.Variant,
+            independentPackage, ["independent"])).Succeeded);
+        ConfigureMarkedBlockMigration(independentPackage);
+
+        var updated = await operation.RunAsync(ContentPatchAction.Update, fixture.Variant,
+            independentPackage, ["independent"]);
+
+        Assert.True(updated.Succeeded, updated.Message);
+        Assert.Equal("core\r\n-- BEGIN INDEPENDENT\r\nindependent v2\r\n-- END INDEPENDENT\r\n",
+            File.ReadAllText(fixture.TargetPath));
+        Assert.True(operation.Restore(fixture.Variant, independentPackage).Succeeded);
+        Assert.Equal("core\r\n", File.ReadAllText(fixture.TargetPath));
+    }
+
+    [Fact]
+    public async Task MarkedBlockMigration_WithIndependentEdit_BlocksBeforeChangingFileOrState()
+    {
+        using var fixture = Fixture.Create(singleComposableModule: true, omitStructuralResultHashes: true);
+        var operation = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false);
+        Assert.True((await operation.RunAsync(ContentPatchAction.Install, fixture.Variant,
+            fixture.PackageDirectory, ["core"])).Succeeded);
+        var independentPackage = fixture.CreateIndependentMarkedBlockPackage();
+        Assert.True((await operation.RunAsync(ContentPatchAction.Install, fixture.Variant,
+            independentPackage, ["independent"])).Succeeded);
+        ConfigureMarkedBlockMigration(independentPackage);
+        var edited = File.ReadAllText(fixture.TargetPath) + "foreign edit\r\n";
+        File.WriteAllText(fixture.TargetPath, edited, new UTF8Encoding(false));
+        var previous = fixture.Store.TryGetContentInstallation(Path.GetDirectoryName(fixture.Variant.AcfPath)!)!
+            .ContentComponents["independent.compatibility"].PackageVersion;
+
+        var updated = await operation.RunAsync(ContentPatchAction.Update, fixture.Variant,
+            independentPackage, ["independent"]);
+
+        Assert.False(updated.Succeeded);
+        Assert.Contains("independent changes", updated.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(edited, File.ReadAllText(fixture.TargetPath));
+        Assert.Equal(previous, fixture.Store.TryGetContentInstallation(Path.GetDirectoryName(fixture.Variant.AcfPath)!)!
+            .ContentComponents["independent.compatibility"].PackageVersion);
+    }
+
+    private static void ConfigureMarkedBlockMigration(string packageRoot)
+    {
+        var payloadPath = Path.Combine(packageRoot, "modules", "independent", "insert.json");
+        var payload = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new
+        {
+            format = "migrate-marked-block-v1",
+            name = "Independent block",
+            beginMarker = "-- BEGIN INDEPENDENT",
+            endMarker = "-- END INDEPENDENT",
+            contentLines = new[] { "independent v2" },
+            anchorLines = new[] { "core" },
+            position = "after",
+            legacyBlocks = new[]
+            {
+                new[] { "-- BEGIN INDEPENDENT", "independent", "-- END INDEPENDENT" }
+            }
+        }));
+        File.WriteAllBytes(payloadPath, payload);
+        var manifestPath = Path.Combine(packageRoot, "package-manifest.json");
+        var manifest = JsonNode.Parse(File.ReadAllText(manifestPath))!;
+        manifest["packageVersion"] = "2.0.0";
+        var module = manifest["modules"]![0]!;
+        module["payloads"]![0]!["size"] = payload.LongLength;
+        module["payloads"]![0]!["sha256"] = Sha256(payload);
+        module["targets"]![0]!["operation"] = "migrate-marked-block-v1";
+        File.WriteAllText(manifestPath, manifest.ToJsonString(), new UTF8Encoding(false));
     }
 
     [Fact]

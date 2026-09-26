@@ -26,6 +26,7 @@ public sealed class ContentPatchHandlerRegistry
             new ExactTextReplacementsPatchHandler(),
             new VnavManifestPatchHandler(),
             new MarkedBlockInsertionPatchHandler(),
+            new MarkedBlockMigrationPatchHandler(),
             new Obj8FansLabelsPatchHandler(),
             new SparseBytesPatchHandler(),
             new PngRgbaRegionPatchHandler()

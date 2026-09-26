@@ -240,10 +240,12 @@ public sealed class ContentPatchEngine
 
         if (!component.RestoreAvailable)
         {
-            log.Add("[BLOCKED] The installation was adopted without an original backup.");
-            return MaintenanceOperationResult.Blocked(
-                $"No original restore backup is available for {descriptor.DisplayName}.",
-                log);
+            var reason = component.Files.Any(file => file.OriginalExisted
+                && !string.IsNullOrWhiteSpace(file.BackupPath))
+                ? $"No safe complete restore is available for {descriptor.DisplayName}; independent changes may be present in managed files."
+                : $"No original restore backup is available for {descriptor.DisplayName}.";
+            log.Add($"[BLOCKED] {reason}");
+            return MaintenanceOperationResult.Blocked(reason, log);
         }
 
         var files = new List<RestoreFile>(component.Files.Count);
@@ -475,7 +477,7 @@ public sealed class ContentPatchEngine
                     InstalledUtc = previous?.InstalledUtc ?? now,
                     LastOperationUtc = now,
                     LastOperation = $"ContentPatch{plan.Action}",
-                    RestoreAvailable = previous?.RestoreAvailable ?? plan.RestoreAvailable,
+                    RestoreAvailable = (previous?.RestoreAvailable ?? true) && plan.RestoreAvailable,
                     EnabledModules = [.. plan.EnabledModules],
                     Sources = [.. plan.Sources],
                     Files = fileStates,

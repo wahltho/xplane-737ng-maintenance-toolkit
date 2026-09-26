@@ -160,6 +160,46 @@ public sealed class ContentPatchHandlerTests
         Assert.Contains("partial, duplicated or modified", error.Message, StringComparison.Ordinal);
     }
 
+    private static JsonDocument MigrationPayload() => JsonDocument.Parse("""
+        {
+          "format": "migrate-marked-block-v1",
+          "name": "VREF loader",
+          "beginMarker": "-- BEGIN VREF",
+          "endMarker": "-- END VREF",
+          "anchorLines": ["jit.off()"],
+          "position": "after",
+          "contentLines": ["new loader"],
+          "legacyBlocks": [["-- BEGIN VREF", "old loader", "-- END VREF"]]
+        }
+        """);
+
+    [Theory]
+    [InlineData("jit.off()\nforeign\n", "jit.off()\n-- BEGIN VREF\nnew loader\n-- END VREF\nforeign\n")]
+    [InlineData("jit.off()\r\nforeign\r\n-- BEGIN VREF\r\nold loader\r\n-- END VREF\r\n",
+        "jit.off()\r\nforeign\r\n-- BEGIN VREF\r\nnew loader\r\n-- END VREF\r\n")]
+    public void MarkedBlockMigration_InsertsOrReplacesOnlyItsKnownBlock(string source, string expected)
+    {
+        using var payload = MigrationPayload();
+        var handler = new MarkedBlockMigrationPatchHandler();
+        var result = handler.Apply(Encoding.UTF8.GetBytes(source), payload.RootElement);
+
+        Assert.Equal(expected, Encoding.UTF8.GetString(result));
+        Assert.Equal(result, handler.Apply(result, payload.RootElement));
+    }
+
+    [Theory]
+    [InlineData("jit.off()\n-- BEGIN VREF\nmodified loader\n-- END VREF\n")]
+    [InlineData("jit.off()\n-- BEGIN VREF\nold loader\n-- END VREF\n-- BEGIN VREF\nold loader\n-- END VREF\n")]
+    [InlineData("jit.off()\n-- BEGIN VREF\nold loader\n")]
+    [InlineData("jit.off()\n-- END VREF\n")]
+    [InlineData("-- BEGIN VREF\nold loader\n-- END VREF\njit.off()\n")]
+    public void MarkedBlockMigration_RejectsUnknownDuplicatePartialOrMisplacedBlock(string source)
+    {
+        using var payload = MigrationPayload();
+        Assert.Throws<InvalidOperationException>(() =>
+            new MarkedBlockMigrationPatchHandler().Apply(Encoding.UTF8.GetBytes(source), payload.RootElement));
+    }
+
     [Fact]
     public void SparseBytes_AppliesBoundedHunkAndVerifiesResult()
     {

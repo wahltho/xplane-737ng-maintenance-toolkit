@@ -207,6 +207,7 @@ public sealed class CompatibilityPackagePlanBuilder
         var mutations = new List<ContentPatchMutation>();
         var expectedSources = new Dictionary<string, string?>(StringComparer.Ordinal);
         var rebasedOriginalPaths = new HashSet<string>(StringComparer.Ordinal);
+        var composedCurrentPaths = new HashSet<string>(StringComparer.Ordinal);
         var desiredStates = new Dictionary<string, string?>(StringComparer.Ordinal);
 
         foreach (var relativePath in targetPaths)
@@ -319,8 +320,20 @@ public sealed class CompatibilityPackagePlanBuilder
                                 $"Managed target changed after installation: {relativePath}.", log));
                         }
 
+                        // A legacy marked-block migration can preserve unrelated edits in the
+                        // installed file, but the recorded original backup cannot reconstruct
+                        // those edits on Restore. Do not promise a reversible migration here.
+                        if (selectedOperations[relativePath].Any(operation =>
+                            operation.Target.Operation == "migrate-marked-block-v1"))
+                        {
+                            return Task.FromResult(Blocked(descriptor, manifest, action, aircraftRoot,
+                                $"Cannot safely migrate {relativePath} after independent changes; the original backup cannot restore those changes.",
+                                [.. log, $"[BLOCKED] {relativePath} differs from its recorded installed hash; marked-block migration requires an unchanged managed source."]));
+                        }
+
                         sourceExists = true;
                         sourceBytes = currentBytes;
+                        composedCurrentPaths.Add(relativePath);
                         log.Add($"[COMPOSE] {relativePath} also contains independent changes; validating and preserving them structurally.");
                     }
                     else
@@ -524,6 +537,7 @@ public sealed class CompatibilityPackagePlanBuilder
             ExpectedSourceHashes = expectedSources,
             MigratedState = migrated,
             RebasedOriginalPaths = rebasedOriginalPaths,
+            RestoreAvailable = componentState?.RestoreAvailable != false && composedCurrentPaths.Count == 0,
             OwnedRelativePaths = selectedOperations.Keys.Concat(selectedRetirements.Keys)
                 .ToHashSet(StringComparer.Ordinal),
             ExpectedScopes = expectedScopes,
@@ -626,6 +640,10 @@ public sealed class CompatibilityPackagePlanBuilder
             return Blocked(descriptor, manifest, ContentPatchAction.Uninstall, aircraftRoot,
                 "No toolkit-owned compatibility package state is available for a safe uninstall.", log);
         }
+
+        if (!state.RestoreAvailable)
+            return Blocked(descriptor, manifest, ContentPatchAction.Uninstall, aircraftRoot,
+                "No safe complete restore is available after independent changes were composed into a managed file.", log);
 
         var mutations = new List<ContentPatchMutation>();
         var expectedScopes = new List<ContentPatchScopeSnapshot>();
