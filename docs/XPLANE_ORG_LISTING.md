@@ -52,7 +52,7 @@ The Toolkit checks the patch repositories for current releases and validates the
 
 Optional aircraft patches include:
 
-- **Tablet Performance Calculator** for LevelUp
+- **Tablet Performance Calculator** for compatible Zibo and LevelUp aircraft
 - **AUTO JETWAY** for supported Zibo and LevelUp aircraft
 - **CPDLC FANS Pages** for supported Zibo and LevelUp aircraft
 

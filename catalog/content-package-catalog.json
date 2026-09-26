@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "catalogVersion": "1.11.0",
+  "catalogVersion": "1.12.0",
   "minimumToolkitVersion": "0.18.0",
   "packages": [
     {
@@ -53,10 +53,11 @@
     {
       "packageId": "x-plane-zibo-40535-tablet-performance-calculator",
       "displayName": "Tablet Performance Calculator",
-      "description": "Optional takeoff and landing performance calculations on the existing LevelUp tablet pages.",
+      "description": "Optional takeoff and landing performance calculations on the existing Zibo and LevelUp tablet pages.",
       "category": "compatibilityPackage",
       "activation": "managed",
       "supportedProducts": [
+        "zibo-737ng",
         "levelup-737ng"
       ],
       "repositoryUrl": "https://github.com/wahltho/X-Plane-Zibo-LevelUp-737NG-Tablet-Performance-Calculator",

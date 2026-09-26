@@ -14,7 +14,9 @@ The catalog is deliberately independent from Toolkit application releases:
 
 Adding a package repository does not publish it in the Toolkit. A package is
 visible only after an explicit catalog change, review, version increment and
-catalog release. Catalog 1.11.0 enables the same-path XLua 2 opt4 prerelease on
+catalog release. Catalog 1.12.0 offers the Tablet Performance Calculator to
+compatible Zibo installations as well as LevelUp, using package v0.1.7.
+Catalog 1.11.0 enables the same-path XLua 2 opt4 prerelease on
 the Optimized XLua beta channel while Stable continues to resolve XLua
 1.3.7r5. Its schema-3 replacement contract requires Toolkit 0.18.0. The LevelUp group
 keeps VNAV, FANS CDU and Weight & Balance required; Calculator, AUTO JETWAY and

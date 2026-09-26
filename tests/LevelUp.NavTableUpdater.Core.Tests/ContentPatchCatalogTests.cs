@@ -222,7 +222,7 @@ public sealed class ContentPatchCatalogTests
             package => package.PackageId == ContentPatchCatalog.FansCdu.ComponentId);
         var descriptor = ContentPatchCatalog.OptionalPatch(fans);
 
-        Assert.Equal("1.11.0", catalog.CatalogVersion);
+        Assert.Equal("1.12.0", catalog.CatalogVersion);
         Assert.Equal("0.18.0", catalog.MinimumToolkitVersion);
         Assert.Equal(ContentPackageCategory.OptionalPatch, fans.Category);
         Assert.Equal(ContentPatchActivation.ExplicitOptIn, fans.Activation);
@@ -240,6 +240,8 @@ public sealed class ContentPatchCatalogTests
         var performance = Assert.Single(
             catalog.ForProduct("levelup-737ng"),
             package => package.PackageId == "x-plane-zibo-40535-tablet-performance-calculator");
+        Assert.Contains(performance, catalog.ForProduct("zibo-737ng"));
+        Assert.Equal(["zibo-737ng", "levelup-737ng"], performance.SupportedProducts);
         Assert.Equal(ContentPackageCategory.CompatibilityPackage, performance.Category);
         Assert.Equal(ContentPatchActivation.Managed, performance.Activation);
         Assert.Equal(3, performance.Distribution.ManifestSchemaVersion);
@@ -276,7 +278,7 @@ public sealed class ContentPatchCatalogTests
             catalog.ForProduct("levelup-737ng"),
             package => package.PackageId == "levelup.paintkit");
 
-        Assert.Equal("1.11.0", catalog.CatalogVersion);
+        Assert.Equal("1.12.0", catalog.CatalogVersion);
         Assert.Equal(ContentPackageCategory.Resource, paintkit.Category);
         Assert.Equal(ContentPatchActivation.ExplicitOptIn, paintkit.Activation);
         Assert.Equal(["levelup-737ng"], paintkit.SupportedProducts);
