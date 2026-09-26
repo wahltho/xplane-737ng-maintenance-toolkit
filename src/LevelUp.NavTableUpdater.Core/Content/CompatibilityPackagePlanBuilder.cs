@@ -86,8 +86,15 @@ public sealed class CompatibilityPackagePlanBuilder
             .ToDictionary(file => file.RelativePath, StringComparer.Ordinal);
         var selectedScopes = selectedModules.SelectMany(module => module.ManagedScopes)
             .ToDictionary(scope => scope.RelativePath, StringComparer.Ordinal);
-        var componentState = _stateStore.TryGetContentInstallation(aircraftRoot)?.ContentComponents?
-            .GetValueOrDefault(manifest.PackageId);
+        var installation = _stateStore.TryGetContentInstallation(aircraftRoot);
+        var componentState = installation?.ContentComponents?.GetValueOrDefault(manifest.PackageId);
+        var standaloneTargets = selectedOperations.Keys.Concat(selectedRetirements.Keys)
+            .Concat(componentState?.Files.Select(file => file.RelativePath) ?? []);
+        string? standaloneConflict;
+        try { standaloneConflict = StandalonePatchOwnershipGuard.FindConflict(aircraftRoot, standaloneTargets, installation?.ContentComponents); }
+        catch (InvalidOperationException ex) { standaloneConflict = ex.Message; }
+        if (standaloneConflict is not null)
+            return Task.FromResult(Blocked(descriptor, manifest, action, aircraftRoot, standaloneConflict, log));
         var verifiedBaselines = new Dictionary<string, KnownAircraftBaseline>(StringComparer.Ordinal);
         // An exact file hash is authoritative; a version label alone never is.
         foreach (var relativePath in action is ContentPatchAction.Uninstall ? Enumerable.Empty<string>() : selectedOperations.Keys)
@@ -104,7 +111,6 @@ public sealed class CompatibilityPackagePlanBuilder
         {
             try
             {
-                var installation = _stateStore.TryGetContentInstallation(aircraftRoot);
                 var replacementTargets = FindLegacyAircraftReplacements(aircraftRoot, variant, installation, selectedOperations);
                 migrated = CatalogGroupMigration.Prepare(aircraftRoot, manifest, installation?.ContentComponents,
                     installation?.Backups, replacementTargets, verifiedBaselines);

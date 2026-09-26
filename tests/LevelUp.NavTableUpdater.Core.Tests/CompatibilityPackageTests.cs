@@ -15,6 +15,31 @@ namespace LevelUp.NavTableUpdater.Core.Tests;
 public sealed class CompatibilityPackageTests
 {
     [Fact]
+    public async Task Plan_WhenStandalonePatchOwnsSharedFms_BlocksBeforeAdoptingItsBytes()
+    {
+        using var fixture = Fixture.Create();
+        var root = Path.GetDirectoryName(fixture.Variant.AcfPath)!;
+        const string fms = "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua";
+        var fmsPath = Path.Combine(root, fms.Replace('/', Path.DirectorySeparatorChar));
+        Directory.CreateDirectory(Path.GetDirectoryName(fmsPath)!);
+        File.WriteAllText(fmsPath, "before\r\n", new UTF8Encoding(false));
+        var manifestPath = Path.Combine(fixture.PackageDirectory, "package-manifest.json");
+        File.WriteAllText(manifestPath, File.ReadAllText(manifestPath)
+            .Replace("plugins/xlua/scripts/shared.lua", fms, StringComparison.Ordinal));
+        Directory.CreateDirectory(Path.Combine(root, ".zibo-auto-jetway-patch"));
+        File.WriteAllText(Path.Combine(root, ".zibo-auto-jetway-patch", "state.json"), "{}");
+        var operation = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false);
+
+        var plan = await operation.PlanAsync(ContentPatchAction.Install, fixture.Variant,
+            fixture.PackageDirectory, ["core", "standard"]);
+
+        Assert.False(plan.IsSafe);
+        Assert.Contains("AUTO JETWAY", plan.StatusMessage, StringComparison.Ordinal);
+        Assert.Equal("before\r\n", File.ReadAllText(fmsPath));
+        Assert.Empty(fixture.Store.Load().ContentInstallations);
+    }
+
+    [Fact]
     public void Parse_WithInvalidPolicyDefaults_RejectsManifest()
     {
         using var fixture = Fixture.Create();

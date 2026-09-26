@@ -18,6 +18,7 @@ public sealed class VnavContentOperation
 {
     private readonly IPackagePayloadSource _payloadSource;
     private readonly ContentPatchEngine _engine;
+    private readonly ToolStateStore _stateStore;
     private readonly VnavContentPlanBuilder _planBuilder = new();
     private readonly AircraftInstallAnalyzer _analyzer = new();
     private readonly Func<bool> _isXPlaneRunning;
@@ -27,6 +28,7 @@ public sealed class VnavContentOperation
         IPackagePayloadSource payloadSource,
         Func<bool>? isXPlaneRunning = null)
     {
+        _stateStore = stateStore;
         _payloadSource = payloadSource;
         _isXPlaneRunning = isXPlaneRunning ?? XPlaneProcessDetector.IsXPlaneRunning;
         _engine = new ContentPatchEngine(stateStore, _isXPlaneRunning);
@@ -56,6 +58,19 @@ public sealed class VnavContentOperation
                     "[BLOCKED] X-Plane is running."
                 ]);
         }
+
+        var selectedRoot = Path.GetDirectoryName(variant.AcfPath) ?? "";
+        string? standaloneConflict;
+        try
+        {
+            standaloneConflict = StandalonePatchOwnershipGuard.FindConflict(selectedRoot,
+                [manifest.TargetRelativePath],
+                _stateStore.TryGetContentInstallation(selectedRoot)?.ContentComponents);
+        }
+        catch (InvalidOperationException ex) { standaloneConflict = ex.Message; }
+        if (standaloneConflict is not null)
+            return MaintenanceOperationResult.Blocked(standaloneConflict,
+                [$"[START] VNAV {action} for {variant.DisplayName}", $"[BLOCKED] {standaloneConflict}"]);
 
         IReadOnlyDictionary<string, PackagePayload> payloads = new Dictionary<string, PackagePayload>();
         if (genericAction is not ContentPatchAction.Uninstall)

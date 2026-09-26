@@ -896,6 +896,44 @@ public sealed class ZiboUpstreamUpdateTests
                 || Path.GetFileName(path).Contains("toolkit-stage", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void FullReplacement_WhenStandalonePatchAppearsBeforeSwap_DoesNotReplaceAircraft()
+    {
+        using var fixture = AircraftUpdateFixture.Create();
+        var existingPath = Path.Combine(fixture.AircraftPath, "existing.txt");
+        File.WriteAllText(existingPath, "original");
+        var fullPackage = BuildFullPackage();
+        var fullZip = Path.Combine(fixture.Path, fullPackage.FileName);
+        CreateZip(fullZip,
+            ("B737-800X/b738_4k.acf", "baseline acf"),
+            ("B737-800X/plugins/zibomod/plugin.xpl", "plugin"),
+            ("B737-800X/existing.txt", "replacement"));
+        var cachedFull = new AircraftUpdatePackageCache(Path.Combine(fixture.Path, "cache"))
+            .ImportZip(fullZip, fullPackage);
+        var check = BuildUpdateCheck(AircraftUpdatePlanAction.InstallBaselineAndCumulativePatch,
+            "Install full baseline", [fullPackage]);
+        var store = TestToolStateStore.Create(fixture.Path);
+        var operation = new AircraftFullBaselineReplacement(store);
+
+        var result = operation.Apply(BuildVariant("zibo-737ng", "4.03.8", fixture.AcfPath), check,
+            [cachedFull], CancellationToken.None,
+            writePhaseStarting: () =>
+            {
+                var stateFolder = Path.Combine(fixture.AircraftPath, ".zibo-cpdlc-patch");
+                Directory.CreateDirectory(stateFolder);
+                File.WriteAllText(Path.Combine(stateFolder, "state.json"), "{}");
+            },
+            preservationPlans: [], log: new List<string>());
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("Blocked", result.Status);
+        Assert.Equal("original", File.ReadAllText(existingPath));
+        Assert.Empty(store.Load().Aircraft);
+        Assert.DoesNotContain(Directory.EnumerateFileSystemEntries(Path.GetDirectoryName(fixture.AircraftPath)!),
+            path => Path.GetFileName(path).Contains("toolkit-stage", StringComparison.Ordinal)
+                || Path.GetFileName(path).Contains("toolkit-backup", StringComparison.Ordinal));
+    }
+
     [Theory]
     [InlineData("4.05.35", 4, 5, 35)]
     [InlineData("Zibo 4.05", 4, 5, 0)]

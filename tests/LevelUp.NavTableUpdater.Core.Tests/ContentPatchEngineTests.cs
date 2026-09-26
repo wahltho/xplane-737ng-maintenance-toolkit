@@ -7,6 +7,56 @@ namespace LevelUp.NavTableUpdater.Core.Tests;
 
 public sealed class ContentPatchEngineTests
 {
+    private const string Fms = "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua";
+
+    [Fact]
+    public void Execute_WhenStandalonePatchOwnsTarget_BlocksBeforeBackupOrWrite()
+    {
+        using var directory = new DeclarativePatchManifestTests.TemporaryDirectory();
+        var root = Path.Combine(directory.Path, "aircraft");
+        var target = Path.Combine(root, Fms.Replace('/', Path.DirectorySeparatorChar));
+        Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+        File.WriteAllText(target, "standalone patch");
+        Directory.CreateDirectory(Path.Combine(root, ".zibo-cpdlc-patch"));
+        File.WriteAllText(Path.Combine(root, ".zibo-cpdlc-patch", "state.json"), "{}");
+        var store = TestToolStateStore.Create(Path.Combine(directory.Path, "state"));
+        var engine = new ContentPatchEngine(store, () => false);
+        var plan = CreatePlan(CreateDescriptor(ContentPatchActivation.Managed), root,
+            ContentPatchMutation.Write(Fms, Encoding.UTF8.GetBytes("MTK patch"), "test"));
+
+        var result = engine.Execute(plan, CreateVariant(Path.Combine(root, "737_70NG.acf")));
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("Blocked", result.Status);
+        Assert.Equal("standalone patch", File.ReadAllText(target));
+        Assert.Empty(store.Load().ContentInstallations);
+    }
+
+    [Fact]
+    public void Restore_WhenStandalonePatchStateAppears_BlocksBeforeChangingTarget()
+    {
+        using var directory = new DeclarativePatchManifestTests.TemporaryDirectory();
+        var root = Path.Combine(directory.Path, "aircraft");
+        var target = Path.Combine(root, Fms.Replace('/', Path.DirectorySeparatorChar));
+        Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+        File.WriteAllText(target, "stock");
+        var store = TestToolStateStore.Create(Path.Combine(directory.Path, "state"));
+        var engine = new ContentPatchEngine(store, () => false);
+        var descriptor = CreateDescriptor(ContentPatchActivation.Managed);
+        var variant = CreateVariant(Path.Combine(root, "737_70NG.acf"));
+        Assert.True(engine.Execute(CreatePlan(descriptor, root,
+            ContentPatchMutation.Write(Fms, Encoding.UTF8.GetBytes("MTK patch"), "test")), variant).Succeeded);
+        Directory.CreateDirectory(Path.Combine(root, ".zibo-cpdlc-patch"));
+        File.WriteAllText(Path.Combine(root, ".zibo-cpdlc-patch", "state.json"), "{}");
+
+        var result = engine.Restore(descriptor, variant);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("Blocked", result.Status);
+        Assert.Equal("MTK patch", File.ReadAllText(target));
+        Assert.NotNull(store.TryGetContentInstallation(root)?.ContentComponents.GetValueOrDefault(descriptor.ComponentId));
+    }
+
     [Fact]
     public void ExecuteAndRestore_RestoresExactPreInstallState()
     {

@@ -34,7 +34,19 @@ public sealed class ContentPatchEngine
         }
 
         var aircraftRoot = Path.GetFullPath(plan.AircraftRoot);
-        var owner = _stateStore.TryGetContentInstallation(aircraftRoot)?.ContentComponents.Values
+        var installation = _stateStore.TryGetContentInstallation(aircraftRoot);
+        var standaloneTargets = plan.Mutations.Select(mutation => mutation.RelativePath)
+            .Concat(plan.ExpectedSourceHashes.Keys)
+            .Concat(plan.OwnedRelativePaths ?? Enumerable.Empty<string>());
+        string? standaloneConflict;
+        try { standaloneConflict = StandalonePatchOwnershipGuard.FindConflict(aircraftRoot, standaloneTargets, installation?.ContentComponents); }
+        catch (InvalidOperationException ex) { standaloneConflict = ex.Message; }
+        if (standaloneConflict is not null)
+        {
+            log.Add($"[BLOCKED] {standaloneConflict}");
+            return MaintenanceOperationResult.Blocked(standaloneConflict, log);
+        }
+        var owner = installation?.ContentComponents.Values
             .FirstOrDefault(component => component.ComponentId != plan.Descriptor.ComponentId
                 && component.Sources.Any(source => source.PackageId == plan.Descriptor.ComponentId));
         if (owner is not null)
@@ -210,6 +222,20 @@ public sealed class ContentPatchEngine
             return MaintenanceOperationResult.Blocked(
                 $"No restorable backup is recorded for {descriptor.DisplayName}.",
                 log);
+        }
+
+        string? standaloneConflict;
+        try
+        {
+            standaloneConflict = StandalonePatchOwnershipGuard.FindConflict(aircraftRoot,
+                component.Files.Select(file => file.RelativePath),
+                _stateStore.TryGetContentInstallation(aircraftRoot)?.ContentComponents);
+        }
+        catch (InvalidOperationException ex) { standaloneConflict = ex.Message; }
+        if (standaloneConflict is not null)
+        {
+            log.Add($"[BLOCKED] {standaloneConflict}");
+            return MaintenanceOperationResult.Blocked(standaloneConflict, log);
         }
 
         if (!component.RestoreAvailable)

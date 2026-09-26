@@ -269,6 +269,39 @@ public sealed class LevelUpAircraftUpdatePackageTests : IDisposable
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public void Apply_WhenStandalonePatchExistsBeforeOrAtWriteBoundary_BlocksBeforeAircraftChanges(bool atWriteBoundary)
+    {
+        var fixture = CreatePackageFixture();
+        var variant = BuildVariant(fixture.AircraftPath, "2.S1.0");
+        var existingPath = Path.Combine(fixture.AircraftPath, "existing.txt");
+        File.WriteAllText(existingPath, "original");
+        var selection = new LevelUpAircraftUpdatePackageLoader().Load(fixture.ManifestPath, variant);
+        var imported = new AircraftUpdatePackageCache(Path.Combine(_root, "cache"))
+            .ImportPackage(fixture.ArchivePath, selection.Package!);
+        var store = TestToolStateStore.Create(_root);
+        var operation = new AircraftUpdateOperation(store, isXPlaneRunning: () => false);
+        void AddStandaloneState()
+        {
+            var stateFolder = Path.Combine(fixture.AircraftPath, ".levelup-fans-cdu-patch");
+            Directory.CreateDirectory(stateFolder);
+            File.WriteAllText(Path.Combine(stateFolder, "state.json"), "{}");
+        }
+        if (!atWriteBoundary) AddStandaloneState();
+
+        var result = operation.Apply(variant, selection.UpdateCheck, [imported],
+            writePhaseStarting: atWriteBoundary ? AddStandaloneState : null);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("Blocked", result.Status);
+        Assert.Contains("FANS CDU", result.Message, StringComparison.Ordinal);
+        Assert.Equal("original", File.ReadAllText(existingPath));
+        Assert.False(File.Exists(Path.Combine(fixture.AircraftPath, "new-file.txt")));
+        Assert.Empty(store.Load().Aircraft);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public void Delta_ReconcilesOnlyReplacedOwnership_AndRestoresItAtomically(bool corruptBackup)
     {
         var fixture = CreatePackageFixture();

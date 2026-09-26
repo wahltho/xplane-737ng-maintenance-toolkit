@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text.Json;
 using LevelUp.NavTableUpdater.Core.Aircraft;
+using LevelUp.NavTableUpdater.Core.Content;
 using LevelUp.NavTableUpdater.Core.Platform;
 using LevelUp.NavTableUpdater.Core.State;
 
@@ -72,6 +73,14 @@ public sealed class AircraftUpdateOperation
         {
             log.Add("[NO-CHANGE] Current upstream plan does not require package changes.");
             return MaintenanceOperationResult.NoChange("No upstream aircraft package changes are required.", log);
+        }
+
+        var standaloneConflict = StandalonePatchOwnershipGuard.FindAircraftUpdateConflict(
+            aircraftFolder, _stateStore.TryGetContentInstallation(aircraftFolder)?.ContentComponents);
+        if (standaloneConflict is not null)
+        {
+            log.Add($"[BLOCKED] {standaloneConflict}");
+            return MaintenanceOperationResult.Blocked(standaloneConflict, log);
         }
 
         var cacheValidation = ValidateCachedPackages(updateCheck.RequiredPackages, cachedPackages);
@@ -163,6 +172,13 @@ public sealed class AircraftUpdateOperation
         }
 
         writePhaseStarting?.Invoke();
+        standaloneConflict = StandalonePatchOwnershipGuard.FindAircraftUpdateConflict(
+            aircraftFolder, _stateStore.TryGetContentInstallation(aircraftFolder)?.ContentComponents);
+        if (standaloneConflict is not null)
+        {
+            log.Add($"[BLOCKED] {standaloneConflict}");
+            return MaintenanceOperationResult.Blocked(standaloneConflict, log);
+        }
         var createdUtc = DateTimeOffset.UtcNow;
         var backupRecords = new List<BackupRecord>();
         var preImagesByTarget = new Dictionary<string, BackupRecord>(StringComparerForCurrentPlatform());

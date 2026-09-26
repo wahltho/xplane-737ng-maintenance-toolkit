@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text.Json;
 using LevelUp.NavTableUpdater.Core.Aircraft;
+using LevelUp.NavTableUpdater.Core.Content;
 using LevelUp.NavTableUpdater.Core.State;
 
 namespace LevelUp.NavTableUpdater.Core.Upstream;
@@ -67,6 +68,13 @@ internal sealed class AircraftFullBaselineReplacement
             cancellationToken.ThrowIfCancellationRequested();
 
             writePhaseStarting?.Invoke();
+            var standaloneConflict = StandalonePatchOwnershipGuard.FindAircraftUpdateConflict(
+                selectedFolder, _stateStore.TryGetContentInstallation(selectedFolder)?.ContentComponents);
+            if (standaloneConflict is not null)
+            {
+                log.Add($"[BLOCKED] {standaloneConflict}");
+                return MaintenanceOperationResult.Blocked(standaloneConflict, log.ToArray());
+            }
             Directory.Move(targetFolder, backupPath);
             targetMoved = true;
             _afterTargetMoved?.Invoke();

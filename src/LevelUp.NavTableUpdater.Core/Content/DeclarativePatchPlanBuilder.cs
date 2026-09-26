@@ -52,8 +52,16 @@ public sealed class DeclarativePatchPlanBuilder : IContentPatchPlanBuilder<Decla
                 log));
         }
 
-        var componentState = _stateStore.TryGetContentInstallation(aircraftRoot)?.ContentComponents?
-            .GetValueOrDefault(manifest.PackageId);
+        var installation = _stateStore.TryGetContentInstallation(aircraftRoot);
+        var componentState = installation?.ContentComponents?.GetValueOrDefault(manifest.PackageId);
+        var standaloneTargets = manifest.Targets.Select(target => target.RelativePath)
+            .Concat(componentState?.Files.Select(file => file.RelativePath) ?? []);
+        string? standaloneConflict;
+        try { standaloneConflict = StandalonePatchOwnershipGuard.FindConflict(aircraftRoot, standaloneTargets, installation?.ContentComponents); }
+        catch (InvalidOperationException ex) { standaloneConflict = ex.Message; }
+        if (standaloneConflict is not null)
+            return Task.FromResult(ContentPatchPlan.Blocked(descriptor, manifest.PackageVersion, action,
+                aircraftRoot, standaloneConflict, [.. log, $"[BLOCKED] {standaloneConflict}"]));
         if (action is ContentPatchAction.Uninstall)
         {
             return Task.FromResult(BuildUninstallPlan(descriptor, manifest, aircraftRoot, componentState, log));
