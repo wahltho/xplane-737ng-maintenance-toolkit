@@ -13,6 +13,7 @@ public sealed class StandalonePatchOwnershipGuardTests
     [InlineData(".levelup-fans-cdu-patch/state.json", "objects/737_cockpit_ovhd2.obj")]
     [InlineData(".zibo-auto-jetway-patch/state.json", Fms)]
     [InlineData(".zibo-cpdlc-patch/state.json", Fms)]
+    [InlineData(".zibo-intentional-fixes-clean35/state.json", Fms)]
     public void StandaloneState_BlocksOnlyItsTargets(string statePath, string target)
     {
         using var directory = new DeclarativePatchManifestTests.TemporaryDirectory();
@@ -31,6 +32,7 @@ public sealed class StandalonePatchOwnershipGuardTests
     [InlineData(Fms, "-- BEGIN LEVELUP_NG_WB FMS_EMPTY_WEIGHT", "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua.levelupngwb.backup")]
     [InlineData(Tablet, "-- BEGIN LEVELUP_NG_WB DOFILE", "plugins/xlua/scripts/B738.tablet/B738.tablet.lua.levelupngwb.backup")]
     [InlineData(Tablet, "-- BEGIN UPSTREAM_TABLET_PERF_CALC DOFILE", "plugins/xlua/scripts/B738.tablet/B738.tablet.lua.backup")]
+    [InlineData(Fms, "-- FIX: GLS service-level display mapping (GLS/LPV/LP)", ".zibo-intentional-fixes-clean35/original.lua")]
     public void ActiveLegacyPatch_BlocksButStaleBackupAloneDoesNot(string target, string signature, string backup)
     {
         using var directory = new DeclarativePatchManifestTests.TemporaryDirectory();
@@ -72,6 +74,25 @@ public sealed class StandalonePatchOwnershipGuardTests
         Assert.Null(StandalonePatchOwnershipGuard.FindConflict(directory.Path, [Tablet],
             new Dictionary<string, ContentComponentState> { [owned.ComponentId] = owned }));
         Assert.Null(StandalonePatchOwnershipGuard.FindAircraftUpdateConflict(directory.Path,
+            new Dictionary<string, ContentComponentState> { [owned.ComponentId] = owned }));
+    }
+
+    [Theory]
+    [InlineData("intentional-fixes-zibo")]
+    [InlineData("intentional-fixes-levelup")]
+    public void ToolkitOwnedIntentionalFixMarker_RemainsUsable(string moduleId)
+    {
+        using var directory = new DeclarativePatchManifestTests.TemporaryDirectory();
+        Write(directory.Path, Fms, "-- FIX: GLS service-level display mapping (GLS/LPV/LP)\n");
+        var owned = new ContentComponentState
+        {
+            ComponentId = "wahltho.zibo-40535.maintenance",
+            EnabledModules = [moduleId],
+            Sources = [new ResolvedCatalogSource { PackageId = "wahltho.zibo-40535.intentional-fixes" }],
+            Files = [new ContentComponentFileState { RelativePath = Fms }]
+        };
+
+        Assert.Null(StandalonePatchOwnershipGuard.FindConflict(directory.Path, [Fms],
             new Dictionary<string, ContentComponentState> { [owned.ComponentId] = owned }));
     }
 

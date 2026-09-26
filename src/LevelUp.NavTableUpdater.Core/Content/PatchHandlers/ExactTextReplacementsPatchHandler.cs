@@ -24,23 +24,22 @@ public sealed class ExactTextReplacementsPatchHandler : IContentPatchHandler
             var name = replacement.TryGetProperty("name", out var nameValue) && nameValue.ValueKind is JsonValueKind.String
                 ? nameValue.GetString() ?? "unnamed replacement"
                 : "unnamed replacement";
-            if (FindSequence(newLines, oldLines).Count > 0)
-            {
-                throw new InvalidOperationException(
-                    $"{name}: old block occurs inside the installed block and cannot be classified idempotently.");
-            }
-
             var oldMatches = FindSequence(lines, oldLines);
             var newMatches = FindSequence(lines, newLines);
             var legacyMatches = FindLegacyBlocks(lines, replacement, name);
+            // An insertion may retain the complete source block. Treat it as
+            // installed only when every old match belongs to the single new
+            // block; an additional source match remains ambiguous.
+            var oldContainedInInstalled = newMatches.Count == 1 && oldMatches.All(start =>
+                start >= newMatches[0] && start + oldLines.Count <= newMatches[0] + newLines.Count);
+            if (oldContainedInInstalled && legacyMatches.Count == 0)
+            {
+                continue;
+            }
             if (oldMatches.Count == 1 && newMatches.Count == 0 && legacyMatches.Count == 0)
             {
                 lines.RemoveRange(oldMatches[0], oldLines.Count);
                 lines.InsertRange(oldMatches[0], newLines);
-            }
-            else if (oldMatches.Count == 0 && newMatches.Count == 1 && legacyMatches.Count == 0)
-            {
-                continue;
             }
             else if (oldMatches.Count == 0 && newMatches.Count == 0 && legacyMatches.Count == 1)
             {

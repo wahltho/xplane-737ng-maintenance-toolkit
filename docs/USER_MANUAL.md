@@ -1,6 +1,6 @@
 # X-Plane 737NG Maintenance Toolkit User Manual
 
-This manual describes version 0.21.0 of the X-Plane 737NG Maintenance Toolkit.
+This manual describes version 0.21.1 of the X-Plane 737NG Maintenance Toolkit.
 
 The toolkit is a desktop app for selected Zibo and LevelUp 737NG maintenance
 tasks:
@@ -31,7 +31,7 @@ Keep your own backups and use the tool at your own risk.
 
 ## Compatibility And Installation
 
-Version 0.21.0 supports:
+Version 0.21.1 supports:
 
 - X-Plane 12. X-Plane 11 is not supported.
 - Zibo 737-800X 2K and 4K variants.
@@ -427,6 +427,10 @@ The LevelUp maintenance group installs VNAV, FANS CDU and Weight & Balance as
 required modules. Existing optional selections are retained during updates;
 unselected optional modules are not automatically enabled. Separate manual
 package actions retain their own confirmation.
+The Zibo group has no required modules. VNAV, Tablet Performance Calculator,
+AUTO JETWAY, CPDLC FANS PAGES and Intentional Fixes are selected individually.
+In both groups Intentional Fixes runs last; its CPDLC and LevelUp W&B targets
+run only when those functional modules are selected.
 
 Use `Dump to file` to export the visible install and operation logs into the
 configured diagnostics export folder. A dialog shows the saved path with
@@ -711,12 +715,18 @@ attempted and exported log. Do not upload complete copyrighted aircraft files.
 ## LevelUp maintenance group
 
 The catalog groups VNAV Descent Tables, Weight & Balance and FANS CDU as required
-modules. Tablet Performance Calculator and AUTO JETWAY are optional. Review the
+modules. Tablet Performance Calculator, AUTO JETWAY, CPDLC FANS PAGES and
+Intentional Fixes are optional. Review the
 group to choose optional modules, then apply the common installation plan.
 Each source continues updating from its own GitHub releases. Existing installed
 modules are adopted only with verifiable backup state; an unsafe migration is
 blocked without changing aircraft files. The group owns subsequent updates and
 restores for its member patches. See [Catalog groups](CATALOG_GROUPS.md).
+
+The Zibo group offers VNAV Descent Tables, Tablet Performance Calculator,
+AUTO JETWAY, CPDLC FANS PAGES and Intentional Fixes as optional modules. No
+module is selected by default. Intentional Fixes is applied after the selected
+functional modules.
 
 
 ### Startup aircraft and patch checks

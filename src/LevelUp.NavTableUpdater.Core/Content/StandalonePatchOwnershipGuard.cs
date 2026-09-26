@@ -11,7 +11,7 @@ internal static class StandalonePatchOwnershipGuard
     private const string Tablet = "plugins/xlua/scripts/B738.tablet/B738.tablet.lua";
 
     private sealed record StateMarker(string Name, string Path, string Remedy, string[] Targets);
-    private sealed record LegacyMarker(string Name, string PackageId, string ModuleId,
+    private sealed record LegacyMarker(string Name, string PackageId, string[] ModuleIds,
         string Target, string Signature, string Remedy, string[] Backups);
 
     private static readonly StateMarker[] StateMarkers =
@@ -23,30 +23,37 @@ internal static class StandalonePatchOwnershipGuard
         new("AUTO JETWAY", ".zibo-auto-jetway-patch/state.json",
             "Run the AUTO JETWAY standalone installer with 'uninstall --aircraft-root <aircraft folder>'.", [Fms, Tablet]),
         new("CPDLC FANS PAGES", ".zibo-cpdlc-patch/state.json",
-            "Run the CPDLC standalone installer with 'uninstall --aircraft-root <aircraft folder>'.", [Fms])
+            "Run the CPDLC standalone installer with 'uninstall --aircraft-root <aircraft folder>'.", [Fms]),
+        new("Intentional Fixes", ".zibo-intentional-fixes-clean35/state.json",
+            "Run the Intentional Fixes standalone installer with 'uninstall --aircraft-root <aircraft folder>'.", [Fms])
     ];
 
     private static readonly LegacyMarker[] LegacyMarkers =
     [
-        new("Zibo VNAV descent tables", "x-plane-zibo-vnav-descent-tables", "vnav", Fms,
+        new("Zibo VNAV descent tables", "x-plane-zibo-vnav-descent-tables", ["vnav"], Fms,
             "-- BEGIN ZIBO_VNAV_DESCENT_TABLES",
             "Follow the Zibo VNAV standalone README's backup restore procedure, preserving any other Lua edits.",
             ["plugins/xlua/scripts/B738.a_fms/B738.a_fms.backup"]),
-        new("LevelUp VNAV descent tables", "x-plane-levelup-737ng-vnav-descent-tables", "vnav", Fms,
+        new("LevelUp VNAV descent tables", "x-plane-levelup-737ng-vnav-descent-tables", ["vnav"], Fms,
             "-- BEGIN LEVELUP_VNAV_DESCENT_TABLES",
             "Follow the LevelUp VNAV standalone README's backup restore procedure, preserving any other Lua edits.",
             ["plugins/xlua/scripts/B738.a_fms/B738.a_fms.backup"]),
-        new("LevelUp Weight & Balance", "wahltho.levelup-737ng.weight-and-balance", "weight-and-balance", Tablet,
+        new("LevelUp Weight & Balance", "wahltho.levelup-737ng.weight-and-balance", ["weight-and-balance"], Tablet,
             "-- BEGIN LEVELUP_NG_WB", "Run the Weight & Balance standalone installer with '--uninstall'.",
             ["plugins/xlua/scripts/B738.tablet/B738.tablet.lua.levelupngwb.backup",
                                           "plugins/xlua/scripts/B738.tablet/B738.tablet.lua.levelup700wb.backup"]),
-        new("LevelUp Weight & Balance", "wahltho.levelup-737ng.weight-and-balance", "weight-and-balance", Fms,
+        new("LevelUp Weight & Balance", "wahltho.levelup-737ng.weight-and-balance", ["weight-and-balance"], Fms,
             "-- BEGIN LEVELUP_NG_WB", "Run the Weight & Balance standalone installer with '--uninstall'.",
             ["plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua.levelupngwb.backup"]),
         new("Tablet Performance Calculator", "x-plane-zibo-40535-tablet-performance-calculator",
-            "tablet-performance-calculator", Tablet, "-- BEGIN UPSTREAM_TABLET_PERF_CALC",
+            ["tablet-performance-calculator"], Tablet, "-- BEGIN UPSTREAM_TABLET_PERF_CALC",
             "Run the Tablet Performance Calculator standalone installer with '--uninstall'.",
-            ["plugins/xlua/scripts/B738.tablet/B738.tablet.lua.backup"])
+            ["plugins/xlua/scripts/B738.tablet/B738.tablet.lua.backup"]),
+        new("Intentional Fixes", "wahltho.zibo-40535.intentional-fixes",
+            ["intentional-fixes-zibo", "intentional-fixes-levelup"], Fms,
+            "-- FIX: GLS service-level display mapping (GLS/LPV/LP)",
+            "Run the Intentional Fixes standalone installer with 'uninstall --aircraft-root <aircraft folder>'.",
+            [".zibo-intentional-fixes-clean35/state.json"])
     ];
 
     public static string? FindConflict(string aircraftRoot, IEnumerable<string> targetPaths,
@@ -68,7 +75,7 @@ internal static class StandalonePatchOwnershipGuard
             var toolkitOwnsPatch = toolkitComponents?.Values.Any(component =>
                 (component.ComponentId == marker.PackageId && component.Files.Any(file => file.RelativePath == marker.Target))
                 || (component.Sources.Any(source => source.PackageId == marker.PackageId)
-                    && component.EnabledModules.Contains(marker.ModuleId, StringComparer.Ordinal)
+                    && component.EnabledModules.Any(marker.ModuleIds.Contains)
                     && component.Files.Any(file => file.RelativePath == marker.Target))) == true;
             if (!toolkitOwnsPatch)
                 return Blocked(marker.Name, marker.Backups.FirstOrDefault(path => Exists(aircraftRoot, path)) ?? marker.Target,

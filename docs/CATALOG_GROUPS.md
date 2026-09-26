@@ -9,9 +9,11 @@ repositories remain the only published sources. There is no additional bundle
 archive, bundle repository or bundle release to maintain.
 
 The LevelUp group requires VNAV descent tables, FANS CDU and Weight & Balance.
-Tablet Performance Calculator, AUTO JETWAY and CPDLC FANS PAGES are optional. Zibo retains
-its existing product-specific entries; the group implementation is not tied to
-LevelUp in code.
+Tablet Performance Calculator, AUTO JETWAY, CPDLC FANS PAGES and Intentional Fixes
+are optional. The Zibo group has no required patches: VNAV, Tablet Performance
+Calculator, AUTO JETWAY, CPDLC FANS PAGES and Intentional Fixes are all opt-in.
+Intentional Fixes is ordered last in each group and never selects CPDLC or
+Weight & Balance on the user's behalf.
 
 ## Resolution and execution
 
@@ -25,6 +27,9 @@ transaction rewrite code, including marker migration, rather than new hooks.
 Schema 5 can make individual targets conditional on other selected group
 modules. The referenced modules must run earlier in the group. Older clients
 reject schema-5 packages rather than applying their targets unconditionally.
+The Intentional Fixes source additionally requires Toolkit 0.21.1 because its
+exact-text payloads retain source lines inside installed blocks; older handlers
+reject those safe insertions.
 
 A local preparation directory is a cache, not another distributed product.
 Its internal identity hashes the catalog group definition and resolved release

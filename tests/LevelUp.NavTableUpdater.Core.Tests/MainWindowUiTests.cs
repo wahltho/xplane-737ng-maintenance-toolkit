@@ -327,9 +327,9 @@ public sealed class MainWindowUiTests
             Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(),
                 text => text.Text == fixture.Vm.MaintenancePatchSummary && text.IsVisible);
             Assert.True(fixture.Vm.CompatibilityModulesVisible);
-            Assert.Equal(6, fixture.Vm.CompatibilityModules.Count);
+            Assert.Equal(7, fixture.Vm.CompatibilityModules.Count);
             Assert.Equal(3, fixture.Vm.CompatibilityModules.Count(m => m.IsSelected && !m.CanChangeSelection));
-            Assert.Equal(3, fixture.Vm.CompatibilityModules.Count(m => !m.IsSelected && m.CanChangeSelection));
+            Assert.Equal(4, fixture.Vm.CompatibilityModules.Count(m => !m.IsSelected && m.CanChangeSelection));
             Assert.True(fixture.Vm.CanRunOptionalPatch);
             Assert.Empty(window.OwnedWindows);
             Assert.True(fixture.Vm.ActionsEnabled);
@@ -341,7 +341,7 @@ public sealed class MainWindowUiTests
             var modules = window.GetVisualDescendants().OfType<ItemsControl>()
                 .Single(c => ReferenceEquals(c.ItemsSource, fixture.Vm.CompatibilityModules));
             Assert.True(modules.IsEffectivelyVisible);
-            Assert.Equal(6, modules.ItemCount);
+            Assert.Equal(7, modules.ItemCount);
             modules.BringIntoView();
             Dispatcher.UIThread.RunJobs();
             SaveFrame(window, "startup-optional-patches.png");
@@ -362,7 +362,7 @@ public sealed class MainWindowUiTests
             Assert.DoesNotContain(fixture.Handler.Requests, u => u.Contains("737NG-Updates") || u.EndsWith("/releases/latest"));
             Assert.NotEqual("v2.S1.51C", fixture.Vm.UpstreamAvailableVersion);
             Assert.True(fixture.Vm.CompatibilityModulesVisible);
-            Assert.Equal(6, fixture.Vm.CompatibilityModules.Count);
+            Assert.Equal(7, fixture.Vm.CompatibilityModules.Count);
         }
         finally { Close(window); }
     });
@@ -401,8 +401,13 @@ public sealed class MainWindowUiTests
             Assert.True(fixture.Vm.CompatibilityModules.Single(m => m.ModuleId == "auto-jetway").IsSelected);
             Assert.False(fixture.Vm.CompatibilityModules.Single(m => m.ModuleId == "cpdlc").IsSelected);
             fixture.Vm.SetAircraftPathFromBrowse(Path.Combine(fixture.Xp, "Aircraft", "zibo-737ng"));
-            Assert.False(fixture.Vm.CompatibilityModulesVisible);
-            Assert.Empty(fixture.Vm.CompatibilityModules);
+            Assert.True(fixture.Vm.CompatibilityModulesVisible);
+            Assert.Equal(5, fixture.Vm.CompatibilityModules.Count);
+            Assert.All(fixture.Vm.CompatibilityModules, module =>
+            {
+                Assert.True(module.CanChangeSelection);
+                Assert.False(module.IsSelected);
+            });
         }
         finally { Close(window); }
     });

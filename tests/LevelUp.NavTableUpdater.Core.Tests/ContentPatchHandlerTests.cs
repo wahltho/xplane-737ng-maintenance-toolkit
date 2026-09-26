@@ -55,7 +55,7 @@ public sealed class ContentPatchHandlerTests
     }
 
     [Fact]
-    public void ExactText_WhenOldBlockOccursInsideInstalledBlock_RejectsNonIdempotentPayload()
+    public void ExactText_WhenOldBlockOccursInsideInstalledBlock_RemainsIdempotent()
     {
         using var payload = JsonDocument.Parse("""
             {
@@ -70,10 +70,13 @@ public sealed class ContentPatchHandlerTests
             }
             """);
 
-        var error = Assert.Throws<InvalidOperationException>(() =>
-            new ExactTextReplacementsPatchHandler().Apply(Encoding.UTF8.GetBytes("old\n"), payload.RootElement));
+        var handler = new ExactTextReplacementsPatchHandler();
+        var installed = handler.Apply(Encoding.UTF8.GetBytes("old\n"), payload.RootElement);
 
-        Assert.Contains("cannot be classified idempotently", error.Message, StringComparison.Ordinal);
+        Assert.Equal("old\nadditional\n", Encoding.UTF8.GetString(installed));
+        Assert.Equal(installed, handler.Apply(installed, payload.RootElement));
+        Assert.Throws<InvalidOperationException>(() =>
+            handler.Apply(Encoding.UTF8.GetBytes("old\nadditional\nold\n"), payload.RootElement));
     }
 
     private static JsonDocument LegacyAwareTextPayload() => JsonDocument.Parse("""

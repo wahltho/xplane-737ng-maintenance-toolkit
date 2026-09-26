@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "catalogVersion": "1.12.0",
-  "minimumToolkitVersion": "0.18.0",
+  "catalogVersion": "1.13.0",
+  "minimumToolkitVersion": "0.21.1",
   "packages": [
     {
       "packageId": "x-plane-zibo-vnav-descent-tables",
@@ -331,9 +331,27 @@
       }
     },
     {
+      "packageId": "wahltho.zibo-40535.intentional-fixes",
+      "displayName": "Intentional Fixes",
+      "description": "Optional unofficial corrections to existing Zibo and LevelUp FMS behavior. Conditional corrections do not install CPDLC or Weight & Balance.",
+      "category": "compatibilityPackage",
+      "activation": "managed",
+      "supportedProducts": [
+        "zibo-737ng",
+        "levelup-737ng"
+      ],
+      "repositoryUrl": "https://github.com/wahltho/X-Plane-Zibo-LevelUp-737NG-Intentional-Fixes",
+      "restartRequired": true,
+      "distribution": {
+        "kind": "gitHubReleaseArchive",
+        "assetNamePattern": "X-Plane-Zibo-LevelUp-737NG-Intentional-Fixes-MTK-v*.zip",
+        "manifestSchemaVersion": 5
+      }
+    },
+    {
       "packageId": "wahltho.levelup-737ng.maintenance",
       "displayName": "LevelUp maintenance patches",
-      "description": "VNAV descent tables, FANS CDU and Weight & Balance are required. Calculator, AUTO JETWAY and CPDLC FANS PAGES are optional. Sources update directly from their own releases.",
+      "description": "VNAV descent tables, FANS CDU and Weight & Balance are required. Calculator, AUTO JETWAY, CPDLC FANS PAGES and Intentional Fixes are optional. Sources update directly from their own releases.",
       "category": "compatibilityPackage",
       "activation": "managed",
       "supportedProducts": [
@@ -398,6 +416,77 @@
           "sourceFormat": "compatibility",
           "manifestPath": "package-manifest.json",
           "assetNamePattern": "X-Plane-Zibo-LevelUp-737NG-CPDLC-v*.zip"
+        },
+        {
+          "packageId": "wahltho.zibo-40535.intentional-fixes",
+          "moduleId": "intentional-fixes-levelup",
+          "policy": "optional",
+          "installationOrder": 70,
+          "sourceFormat": "compatibility",
+          "manifestPath": "package-manifest.json",
+          "assetNamePattern": "X-Plane-Zibo-LevelUp-737NG-Intentional-Fixes-MTK-v*.zip"
+        }
+      ]
+    },
+    {
+      "packageId": "wahltho.zibo-40535.maintenance",
+      "displayName": "Zibo optional patches",
+      "description": "Optional VNAV descent tables, Tablet Performance Calculator, AUTO JETWAY, CPDLC FANS PAGES and Intentional Fixes. No patch is required or selected automatically.",
+      "category": "compatibilityPackage",
+      "activation": "managed",
+      "supportedProducts": [
+        "zibo-737ng"
+      ],
+      "repositoryUrl": "https://github.com/wahltho/xplane-737ng-maintenance-toolkit",
+      "restartRequired": true,
+      "distribution": {
+        "kind": "catalogGroup"
+      },
+      "members": [
+        {
+          "packageId": "x-plane-zibo-vnav-descent-tables",
+          "moduleId": "vnav",
+          "policy": "optional",
+          "installationOrder": 10,
+          "sourceFormat": "vnav",
+          "manifestPath": "package-manifest.txt",
+          "assetNamePattern": "zibo-vnav-descent-installer.zip"
+        },
+        {
+          "packageId": "x-plane-zibo-40535-tablet-performance-calculator",
+          "moduleId": "tablet-performance-calculator",
+          "policy": "optional",
+          "installationOrder": 30,
+          "sourceFormat": "compatibility",
+          "manifestPath": "package-manifest.json",
+          "assetNamePattern": "zibo-40535-tablet-performance-calculator-v*.zip"
+        },
+        {
+          "packageId": "wahltho.zibo-40535.auto-jetway",
+          "moduleId": "auto-jetway",
+          "policy": "optional",
+          "installationOrder": 50,
+          "sourceFormat": "compatibility",
+          "manifestPath": "package-manifest.json",
+          "assetNamePattern": "X-Plane-Zibo-Auto-Jetway-v*.zip"
+        },
+        {
+          "packageId": "wahltho.zibo-40535.cpdlc",
+          "moduleId": "cpdlc",
+          "policy": "optional",
+          "installationOrder": 60,
+          "sourceFormat": "compatibility",
+          "manifestPath": "package-manifest.json",
+          "assetNamePattern": "X-Plane-Zibo-LevelUp-737NG-CPDLC-v*.zip"
+        },
+        {
+          "packageId": "wahltho.zibo-40535.intentional-fixes",
+          "moduleId": "intentional-fixes-zibo",
+          "policy": "optional",
+          "installationOrder": 70,
+          "sourceFormat": "compatibility",
+          "manifestPath": "package-manifest.json",
+          "assetNamePattern": "X-Plane-Zibo-LevelUp-737NG-Intentional-Fixes-MTK-v*.zip"
         }
       ]
     }
