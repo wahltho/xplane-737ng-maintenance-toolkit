@@ -406,8 +406,8 @@ public sealed class ContentPackageCatalog
             ContentPackageCategory.OptionalPatch => package.Activation is ContentPatchActivation.ExplicitOptIn
                 && package.Distribution.ManifestSchemaVersion == 2,
             ContentPackageCategory.CompatibilityPackage => package.Activation is ContentPatchActivation.Managed
-                && package.Distribution.ManifestSchemaVersion is
-                    CompatibilityPackageManifestParser.LegacySchemaVersion or CompatibilityPackageManifestParser.CurrentSchemaVersion,
+                && package.Distribution.ManifestSchemaVersion is { } compatibilitySchema
+                && CompatibilityPackageManifestParser.SupportsSchema(compatibilitySchema),
             _ => false
         };
         if (!supportedPatchArchive

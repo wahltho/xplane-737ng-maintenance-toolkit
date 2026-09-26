@@ -6,9 +6,11 @@ namespace LevelUp.NavTableUpdater.Core.Manifest;
 
 public static class CompatibilityPackageManifestParser
 {
-    public const int CurrentSchemaVersion = 4;
+    public const int CurrentSchemaVersion = 5;
+    public const int ManagedContentSchemaVersion = 4;
     public const int LegacySchemaVersion = 3;
-    public static bool SupportsSchema(int version) => version is LegacySchemaVersion or CurrentSchemaVersion;
+    public static bool SupportsSchema(int version) =>
+        version is LegacySchemaVersion or ManagedContentSchemaVersion or CurrentSchemaVersion;
     public const string PackageType = "compatibilityPackage";
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -92,11 +94,16 @@ public static class CompatibilityPackageManifestParser
             module.ConflictsWith ??= [];
             module.Payloads ??= [];
             module.Targets ??= [];
+            foreach (var target in module.Targets)
+                target.WhenModulesSelected ??= [];
             module.RetiredFiles ??= [];
             module.ManagedScopes ??= [];
             if (manifest.SchemaVersion == LegacySchemaVersion
                 && (module.RetiredFiles.Count != 0 || module.ManagedScopes.Count != 0))
                 throw new InvalidOperationException("Schema 4 is required for retiredFiles and managedScopes.");
+            if (manifest.SchemaVersion < CurrentSchemaVersion
+                && module.Targets.Any(target => target.WhenModulesSelected.Count != 0))
+                throw new InvalidOperationException("Schema 5 is required for conditional module targets.");
             RequireSafeId(module.ModuleId, "moduleId");
             Require(module.DisplayName, $"module {module.ModuleId} displayName");
             Require(module.Description, $"module {module.ModuleId} description");
@@ -144,7 +151,26 @@ public static class CompatibilityPackageManifestParser
             ValidateRelationships(module, moduleIds);
         }
 
-        if (manifest.SchemaVersion == CurrentSchemaVersion)
+        var modulesById = manifest.Modules.ToDictionary(module => module.ModuleId, StringComparer.Ordinal);
+        foreach (var module in manifest.Modules)
+        {
+            foreach (var target in module.Targets)
+                foreach (var id in target.WhenModulesSelected)
+                {
+                    if (!modulesById.TryGetValue(id, out var prerequisite))
+                    {
+                        // Independent source manifests can refer to modules added by the catalog group.
+                        if (manifest.Sources.Count > 0)
+                            throw new InvalidOperationException("Resolved catalog group contains an unknown conditional module target.");
+                        continue;
+                    }
+                    if (prerequisite.InstallationOrder >= module.InstallationOrder)
+                        throw new InvalidOperationException(
+                            $"Conditional target in module {module.ModuleId} must run after module {id}.");
+                }
+        }
+
+        if (manifest.SchemaVersion >= ManagedContentSchemaVersion)
         {
             var allRetirements = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var allTargets = manifest.Modules.SelectMany(module => module.Targets)
@@ -248,6 +274,7 @@ public static class CompatibilityPackageManifestParser
 
         foreach (var target in module.Targets)
         {
+            target.WhenModulesSelected ??= [];
             Require(target.Operation, $"module {module.ModuleId} target operation");
             DeclarativePatchManifestParser.ValidateRelativePath(target.RelativePath, $"module {module.ModuleId} target path");
             DeclarativePatchManifestParser.ValidateRelativePath(target.Payload, $"module {module.ModuleId} target payload");
@@ -262,6 +289,15 @@ public static class CompatibilityPackageManifestParser
             {
                 throw new InvalidOperationException($"Module {module.ModuleId} target {target.RelativePath} has invalid SHA-256 metadata.");
             }
+
+            if (target.WhenModulesSelected.Count != target.WhenModulesSelected.Distinct(StringComparer.Ordinal).Count()
+                || target.WhenModulesSelected.Any(id => id.Equals(module.ModuleId, StringComparison.Ordinal)))
+            {
+                throw new InvalidOperationException(
+                    $"Module {module.ModuleId} target {target.RelativePath} has invalid conditional module IDs.");
+            }
+            foreach (var id in target.WhenModulesSelected)
+                RequireSafeId(id, $"module {module.ModuleId} conditional module ID");
 
             if (target.Operation.Equals("copy-file-v1", StringComparison.Ordinal)
                 && (target.ResultSha256 is null

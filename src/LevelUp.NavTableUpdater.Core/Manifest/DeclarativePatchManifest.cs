@@ -43,4 +43,6 @@ public sealed class DeclarativePatchTarget
     public List<string> SourceSha256 { get; set; } = [];
 
     public string? ResultSha256 { get; set; }
+
+    public List<string> WhenModulesSelected { get; set; } = [];
 }

@@ -18,9 +18,13 @@ LevelUp in code.
 The resolver reads current stable GitHub release metadata and fixes each tag
 and archive hash for one operation. It downloads and verifies the original
 release archives before planning any aircraft changes. Legacy VNAV,
-declarative schema 2, compatibility schema 3 and the existing module-source
+declarative schema 2, compatibility schemas 3–5 and the existing module-source
 format are adapted to the existing compatibility planner. VNAV uses its existing
 transaction rewrite code, including marker migration, rather than new hooks.
+
+Schema 5 can make individual targets conditional on other selected group
+modules. The referenced modules must run earlier in the group. Older clients
+reject schema-5 packages rather than applying their targets unconditionally.
 
 A local preparation directory is a cache, not another distributed product.
 Its internal identity hashes the catalog group definition and resolved release

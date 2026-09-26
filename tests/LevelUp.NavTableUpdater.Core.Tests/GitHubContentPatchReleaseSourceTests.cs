@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using LevelUp.NavTableUpdater.Core.Content;
+using LevelUp.NavTableUpdater.Core.Manifest;
 
 namespace LevelUp.NavTableUpdater.Core.Tests;
 
@@ -207,6 +208,101 @@ public sealed class GitHubContentPatchReleaseSourceTests
         Assert.Equal(4, first.Package.Manifest.SchemaVersion);
         Assert.Equal("objects/GSE", Assert.Single(Assert.Single(cached.Package.Manifest.Modules).ManagedScopes).RelativePath);
         Assert.Equal("objects/GSE/old.obj", Assert.Single(Assert.Single(cached.Package.Manifest.Modules).RetiredFiles).RelativePath);
+    }
+
+    [Fact]
+    public async Task CatalogGroup_MaterializesSchema4FunctionAndSchema5ConditionalFix()
+    {
+        using var directory = new DeclarativePatchManifestTests.TemporaryDirectory();
+        var functionalPayload = "optional\r\n"u8.ToArray();
+        var fixPayload = JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            format = "exact-text-replacements-v1",
+            replacements = new[] { new { oldLines = new[] { "optional" }, newLines = new[] { "hardened" } } }
+        });
+        static string Hash(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+        static byte[] Archive(byte[] manifest, string moduleId, string payloadName, byte[] payload)
+        {
+            using var output = new MemoryStream();
+            using (var zip = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true))
+            {
+                WriteEntry(zip, "package-manifest.json", manifest);
+                WriteEntry(zip, $"modules/{moduleId}/{payloadName}", payload);
+            }
+            return output.ToArray();
+        }
+
+        var functionalArchive = Archive(JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            schemaVersion = 4, packageType = "compatibilityPackage",
+            packageId = "example.functional", packageVersion = "1.0.0",
+            repositoryUrl = "https://github.com/example/functional",
+            aircraftFamily = "LevelUp 737NG Series", supportedProducts = new[] { "levelup-737ng" },
+            modules = new[] { new
+            {
+                moduleId = "functional", displayName = "Functional", description = "Optional feature",
+                policy = "optional", defaultEnabled = false, installationOrder = 10,
+                payloads = new[] { new { path = "functional.lua", size = functionalPayload.Length, sha256 = Hash(functionalPayload) } },
+                targets = new[] { new { operation = "copy-file-v1", payload = "functional.lua",
+                    relativePath = "plugins/xlua/scripts/shared.lua", resultSha256 = Hash(functionalPayload) } }
+            } }
+        }), "functional", "functional.lua", functionalPayload);
+        var fixArchive = Archive(JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            schemaVersion = 5, packageType = "compatibilityPackage",
+            packageId = "example.fix", packageVersion = "1.0.0",
+            repositoryUrl = "https://github.com/example/fix",
+            aircraftFamily = "LevelUp 737NG Series", supportedProducts = new[] { "levelup-737ng" },
+            modules = new[] { new
+            {
+                moduleId = "fix", displayName = "Fix", description = "Conditional fix",
+                policy = "required", defaultEnabled = true, installationOrder = 90,
+                payloads = new[] { new { path = "fix.json", size = fixPayload.Length, sha256 = Hash(fixPayload) } },
+                targets = new[] { new { operation = "exact-text-replacements-v1", payload = "fix.json",
+                    relativePath = "plugins/xlua/scripts/shared.lua", whenModulesSelected = new[] { "functional" } } }
+            } }
+        }), "fix", "fix.json", fixPayload);
+
+        ContentPackageCatalogEntry SourceEntry(string id, int schema) => new()
+        {
+            PackageId = $"example.{id}", DisplayName = id, Description = id,
+            RepositoryUrl = $"https://github.com/example/{id}", SupportedProducts = ["levelup-737ng"],
+            Distribution = new() { Kind = ContentPackageDistributionKind.GitHubReleaseArchive,
+                ManifestSchemaVersion = schema }
+        };
+        ContentPatchRelease Release(string id, byte[] archive) => new("v1.0.0", "",
+            $"{id}.zip", $"https://github.com/example/{id}/releases/download/v1.0.0/{id}.zip",
+            archive.Length, Hash(archive));
+        var group = new ContentPackageCatalogEntry
+        {
+            PackageId = "example.group", DisplayName = "Grouped fixes",
+            RepositoryUrl = "https://github.com/example/group", SupportedProducts = ["levelup-737ng"],
+            Distribution = new() { Kind = ContentPackageDistributionKind.CatalogGroup }
+        };
+        var sources = new List<(CatalogGroupMember, ContentPackageCatalogEntry, ContentPatchRelease)>
+        {
+            (new() { ModuleId = "functional", PackageId = "example.functional", SourceFormat = "compatibility",
+                ManifestPath = "package-manifest.json", Policy = CompatibilityModulePolicy.Optional,
+                InstallationOrder = 10 }, SourceEntry("functional", 4), Release("functional", functionalArchive)),
+            (new() { ModuleId = "fix", PackageId = "example.fix", SourceFormat = "compatibility",
+                ManifestPath = "package-manifest.json", Policy = CompatibilityModulePolicy.Required,
+                InstallationOrder = 90 }, SourceEntry("fix", 5), Release("fix", fixArchive))
+        };
+        using var client = new HttpClient(new StubHandler(new Dictionary<string, byte[]>
+        {
+            [sources[0].Item3.AssetUrl] = functionalArchive,
+            [sources[1].Item3.AssetUrl] = fixArchive
+        }));
+        var releaseSource = new GitHubContentPatchReleaseSource(client, directory.Path);
+
+        var provisioned = await releaseSource.ProvisionGroupAsync(new(group, sources, "catalog-test"));
+        var reloaded = CompatibilityPackageLoader.LoadDirectory(provisioned.PackageDirectory);
+        Assert.Equal(5, reloaded.Manifest.SchemaVersion);
+        Assert.Equal(["functional", "fix"], reloaded.Manifest.Modules.Select(module => module.ModuleId));
+        Assert.Equal(["functional"], Assert.Single(reloaded.Manifest.Modules[1].Targets).WhenModulesSelected);
+        Assert.Equal(["fix"], CompatibilityPackagePlanBuilder.DefaultSelection(reloaded.Manifest));
+        Assert.Equal(["functional", "fix"], CompatibilityPackagePlanBuilder.ResolveSelection(
+            reloaded.Manifest, ["functional", "fix"]));
     }
 
     [Fact]

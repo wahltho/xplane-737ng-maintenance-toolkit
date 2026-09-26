@@ -99,6 +99,16 @@ one or several modules. Module `installationOrder` and then target array order
 define the pipeline. Each operation validates the output of the preceding
 operation before it runs.
 
+Schema 5 targets may declare `whenModulesSelected`, an array of module IDs.
+The target participates in the pipeline only when every named module is in the
+resolved selection. This lets one final fix-only module harden CPDLC, W&B or
+another optional functional module without selecting or creating that feature.
+Every named module must have a lower `installationOrder` than the conditional
+target's module; an incorrectly ordered resolved package is rejected.
+When the condition is true, normal structural validation remains mandatory;
+an incompatible selected module therefore blocks instead of being mistaken
+for an absent module. Older schemas may not declare conditional targets.
+
 For structurally validated text operations, `sourceSha256` and
 `resultSha256` are optional known-build fingerprints. A differing whole-file
 hash does not block a target when the handler can still identify exactly one

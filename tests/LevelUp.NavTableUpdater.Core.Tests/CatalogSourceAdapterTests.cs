@@ -89,6 +89,53 @@ public sealed class CatalogSourceAdapterTests : IDisposable
         Assert.Equal(payload, File.ReadAllBytes(Path.Combine(_root, "new.obj")));
     }
 
+    [Fact]
+    public void Schema5CompatibilitySource_PreservesConditionalTargetMetadata()
+    {
+        var payload = JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            format = "exact-text-replacements-v1",
+            replacements = new[] { new { oldLines = new[] { "optional" }, newLines = new[] { "hardened" } } }
+        });
+        var hash = Convert.ToHexString(SHA256.HashData(payload)).ToLowerInvariant();
+        var source = new
+        {
+            schemaVersion = 5, packageType = "compatibilityPackage",
+            packageId = "fixture", packageVersion = "1.0.0",
+            repositoryUrl = "https://github.com/example/fixture",
+            aircraftFamily = "LevelUp 737NG Series", supportedProducts = new[] { "levelup-737ng" },
+            restartRequired = true,
+            modules = new[] { new
+            {
+                moduleId = "module", displayName = "Module", description = "Conditional hardening",
+                policy = "required", defaultEnabled = true, installationOrder = 90,
+                payloads = new[] { new { path = "patch.json", size = payload.Length, sha256 = hash } },
+                targets = new[] { new
+                {
+                    operation = "exact-text-replacements-v1", payload = "patch.json",
+                    relativePath = "plugins/xlua/scripts/shared.lua",
+                    whenModulesSelected = new[] { "optional-module" }
+                } }
+            } }
+        };
+        var member = new CatalogGroupMember { ModuleId = "module", SourceFormat = "compatibility",
+            ManifestPath = "package-manifest.json", Policy = CompatibilityModulePolicy.Optional };
+        var entry = new ContentPackageCatalogEntry { PackageId = "fixture", DisplayName = "Fixture",
+            Description = "Test source", RepositoryUrl = "https://github.com/example/fixture",
+            SupportedProducts = ["levelup-737ng"] };
+        var archive = new Dictionary<string, byte[]>
+        {
+            ["package-manifest.json"] = JsonSerializer.SerializeToUtf8Bytes(source),
+            ["modules/module/patch.json"] = payload
+        };
+
+        var module = CatalogSourceAdapter.Convert(member, entry,
+            new ContentPatchRelease("v1.0.0", "", "fixture.zip", "", 0, ""), archive, _root);
+
+        Assert.Equal(5, module.SourceSchemaVersion);
+        Assert.Equal(["optional-module"], Assert.Single(module.Targets).WhenModulesSelected);
+    }
+
     private static (CatalogGroupMember, ContentPackageCatalogEntry, ContentPatchRelease, Dictionary<string,byte[]>) Fixture(string format)
     {
         var payload = JsonSerializer.SerializeToUtf8Bytes(new { format = "exact-text-replacements-v1", replacements = new[] { new { oldLines = new[] { "original" }, newLines = new[] { "patched" } } } });

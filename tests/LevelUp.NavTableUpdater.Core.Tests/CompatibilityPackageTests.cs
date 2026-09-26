@@ -74,6 +74,110 @@ public sealed class CompatibilityPackageTests
     }
 
     [Fact]
+    public void Parse_WhenConditionalTargetUsesOlderSchema_RejectsManifest()
+    {
+        using var fixture = Fixture.Create();
+        fixture.AddConditionalHardeningModule(schemaVersion: 4);
+        var json = File.ReadAllText(Path.Combine(fixture.PackageDirectory, "package-manifest.json"));
+
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            CompatibilityPackageManifestParser.Parse(json));
+
+        Assert.Contains("Schema 5", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Plan_ConditionalTargetRunsOnlyWhenNamedFunctionalModuleIsSelected()
+    {
+        using var fixture = Fixture.Create();
+        fixture.AddConditionalHardeningModule();
+        var operation = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false);
+
+        var withoutOptional = await operation.PlanAsync(
+            ContentPatchAction.Install,
+            fixture.Variant,
+            fixture.PackageDirectory,
+            ["core", "standard", "hardening"]);
+        var withOptional = await operation.PlanAsync(
+            ContentPatchAction.Install,
+            fixture.Variant,
+            fixture.PackageDirectory,
+            ["core", "standard", "optional", "hardening"]);
+
+        Assert.True(withoutOptional.IsSafe, withoutOptional.StatusMessage);
+        Assert.Equal("standard\r\n", Encoding.UTF8.GetString(Assert.Single(withoutOptional.Mutations).DesiredBytes!));
+        Assert.Contains(withoutOptional.Log, line => line.Contains("[CONDITION]", StringComparison.Ordinal));
+        Assert.True(withOptional.IsSafe, withOptional.StatusMessage);
+        Assert.Equal("hardened\r\n", Encoding.UTF8.GetString(Assert.Single(withOptional.Mutations).DesiredBytes!));
+    }
+
+    [Fact]
+    public async Task Update_ConditionalTargetTracksFunctionalModuleSelectionAndPreservesRestore()
+    {
+        using var fixture = Fixture.Create();
+        fixture.AddConditionalHardeningModule();
+        var operation = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false);
+
+        var installed = await operation.RunAsync(ContentPatchAction.Install, fixture.Variant,
+            fixture.PackageDirectory, ["core", "standard", "optional", "hardening"]);
+        Assert.True(installed.Succeeded, installed.Message);
+        Assert.Equal("hardened\r\n", File.ReadAllText(fixture.TargetPath));
+
+        var reduced = await operation.RunAsync(ContentPatchAction.Update, fixture.Variant,
+            fixture.PackageDirectory, ["core", "standard", "hardening"]);
+        Assert.True(reduced.Succeeded, reduced.Message);
+        Assert.Equal("standard\r\n", File.ReadAllText(fixture.TargetPath));
+
+        var restoredSelection = await operation.RunAsync(ContentPatchAction.Update, fixture.Variant,
+            fixture.PackageDirectory, ["core", "standard", "optional", "hardening"]);
+        Assert.True(restoredSelection.Succeeded, restoredSelection.Message);
+        Assert.Equal("hardened\r\n", File.ReadAllText(fixture.TargetPath));
+
+        var restored = operation.Restore(fixture.Variant, fixture.PackageDirectory);
+        Assert.True(restored.Succeeded, restored.Message);
+        Assert.Equal("before\r\n", File.ReadAllText(fixture.TargetPath));
+    }
+
+    [Fact]
+    public void Parse_ResolvedGroupWithUnknownConditionalModule_RejectsManifest()
+    {
+        using var fixture = Fixture.Create();
+        fixture.AddConditionalHardeningModule(requiredModuleId: "not-in-group");
+        var manifestPath = Path.Combine(fixture.PackageDirectory, "package-manifest.json");
+        var manifest = JsonNode.Parse(File.ReadAllText(manifestPath))!.AsObject();
+        manifest["sources"] = JsonSerializer.SerializeToNode(new[]
+        {
+            new
+            {
+                packageId = "fixture.source", moduleId = "hardening", releaseTag = "v1.0.0",
+                assetSha256 = new string('0', 64), repositoryUrl = "https://github.com/example/fixture"
+            }
+        });
+
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            CompatibilityPackageManifestParser.Parse(manifest.ToJsonString()));
+
+        Assert.Contains("unknown conditional module", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Parse_ConditionalTargetBeforeItsFunctionalModule_RejectsManifest()
+    {
+        using var fixture = Fixture.Create();
+        fixture.AddConditionalHardeningModule();
+        var manifestPath = Path.Combine(fixture.PackageDirectory, "package-manifest.json");
+        var manifest = JsonNode.Parse(File.ReadAllText(manifestPath))!.AsObject();
+        var hardening = manifest["modules"]!.AsArray().Single(module =>
+            module!["moduleId"]!.GetValue<string>() == "hardening")!.AsObject();
+        hardening["installationOrder"] = 25;
+
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            CompatibilityPackageManifestParser.Parse(manifest.ToJsonString()));
+
+        Assert.Contains("must run after module optional", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task InstallUpdateAndRestore_RebuildsSharedTargetAsOneModulePipeline()
     {
         using var fixture = Fixture.Create();
@@ -819,6 +923,54 @@ public sealed class CompatibilityPackageTests
                 "test");
             var store = TestToolStateStore.Create(Path.Combine(directory.Path, "state"));
             return new Fixture(directory, packageRoot, targetPath, variant, store);
+        }
+
+        public void AddConditionalHardeningModule(int schemaVersion = 5, string requiredModuleId = "optional")
+        {
+            const string moduleId = "hardening";
+            const string payloadName = "hardening.json";
+            var moduleRoot = Path.Combine(PackageDirectory, "modules", moduleId);
+            Directory.CreateDirectory(moduleRoot);
+            var payload = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new
+            {
+                format = "exact-text-replacements-v1",
+                replacements = new[]
+                {
+                    new { name = "optional hardening", oldLines = new[] { "optional" }, newLines = new[] { "hardened" } }
+                }
+            }));
+            File.WriteAllBytes(Path.Combine(moduleRoot, payloadName), payload);
+
+            var manifestPath = Path.Combine(PackageDirectory, "package-manifest.json");
+            var manifest = JsonNode.Parse(File.ReadAllText(manifestPath))!.AsObject();
+            manifest["schemaVersion"] = schemaVersion;
+            manifest["modules"]!.AsArray().Add(JsonSerializer.SerializeToNode(new
+            {
+                moduleId,
+                displayName = "Intentional hardening",
+                description = "Hardens an optional functional module without selecting it.",
+                policy = "optional",
+                defaultEnabled = false,
+                installationOrder = 40,
+                requires = Array.Empty<string>(),
+                conflictsWith = Array.Empty<string>(),
+                payloads = new[]
+                {
+                    new { path = payloadName, size = payload.LongLength, sha256 = Sha256(payload) }
+                },
+                targets = new[]
+                {
+                    new
+                    {
+                        operation = "exact-text-replacements-v1",
+                        payload = payloadName,
+                        relativePath = "plugins/xlua/scripts/shared.lua",
+                        sourceSha256 = Array.Empty<string>(),
+                        whenModulesSelected = new[] { requiredModuleId }
+                    }
+                }
+            }));
+            File.WriteAllText(manifestPath, manifest.ToJsonString(), new UTF8Encoding(false));
         }
 
         public string CreateIndependentMarkedBlockPackage()

@@ -77,9 +77,17 @@ public sealed class CompatibilityPackagePlanBuilder
                 return Task.FromResult(Blocked(descriptor, manifest, action, aircraftRoot, $"Module {module.ModuleId} does not support this aircraft release.", log));
 
         var selectedIds = selectedModules.Select(module => module.ModuleId).ToArray();
+        var selectedIdSet = selectedIds.ToHashSet(StringComparer.Ordinal);
         log.Add($"[MODULES] {string.Join(", ", selectedModules.Select(module => $"{module.ModuleId} ({module.Policy})"))}");
+        foreach (var module in selectedModules)
+            foreach (var target in module.Targets.Where(target =>
+                target.WhenModulesSelected.Any(required => !selectedIdSet.Contains(required))))
+                log.Add($"[CONDITION] {module.ModuleId}/{target.RelativePath}: skipped unless modules "
+                    + $"[{string.Join(", ", target.WhenModulesSelected)}] are selected.");
         var selectedOperations = selectedModules
-            .SelectMany(module => module.Targets.Select(target => new ModuleTarget(module, target)))
+            .SelectMany(module => module.Targets
+                .Where(target => target.WhenModulesSelected.All(selectedIdSet.Contains))
+                .Select(target => new ModuleTarget(module, target)))
             .GroupBy(item => item.Target.RelativePath, StringComparer.Ordinal)
             .ToDictionary(group => group.Key, group => group.ToArray(), StringComparer.Ordinal);
         var selectedRetirements = selectedModules.SelectMany(module => module.RetiredFiles)

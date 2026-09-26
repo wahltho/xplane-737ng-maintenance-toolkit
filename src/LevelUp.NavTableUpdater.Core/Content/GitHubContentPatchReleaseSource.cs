@@ -184,8 +184,8 @@ public sealed partial class GitHubContentPatchReleaseSource
     {
         ValidateGitHubDistribution(catalogEntry);
         if (catalogEntry.Category is not ContentPackageCategory.CompatibilityPackage
-            || catalogEntry.Distribution.ManifestSchemaVersion is not
-                (CompatibilityPackageManifestParser.LegacySchemaVersion or CompatibilityPackageManifestParser.CurrentSchemaVersion))
+            || catalogEntry.Distribution.ManifestSchemaVersion is not { } compatibilitySchema
+            || !CompatibilityPackageManifestParser.SupportsSchema(compatibilitySchema))
         {
             throw new InvalidOperationException(
                 $"Content package {catalogEntry.PackageId} is not a supported compatibility package.");

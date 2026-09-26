@@ -79,8 +79,8 @@ public sealed partial class GitHubContentPatchReleaseSource
                 Directory.CreateDirectory(moduleRoot);
                 var module = CatalogSourceAdapter.Convert(member, entry, release, files, moduleRoot);
                 manifest.Modules.Add(module);
-                if (module.SourceSchemaVersion == CompatibilityPackageManifestParser.CurrentSchemaVersion)
-                    manifest.SchemaVersion = CompatibilityPackageManifestParser.CurrentSchemaVersion;
+                if (CompatibilityPackageManifestParser.SupportsSchema(module.SourceSchemaVersion))
+                    manifest.SchemaVersion = Math.Max(manifest.SchemaVersion, module.SourceSchemaVersion);
                 manifest.Sources.Add(new() { PackageId = entry.PackageId, ModuleId = member.ModuleId,
                     ReleaseTag = release.Tag, AssetSha256 = release.AssetSha256, RepositoryUrl = entry.RepositoryUrl });
                 File.Delete(archivePath);
