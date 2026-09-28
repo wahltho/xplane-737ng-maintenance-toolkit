@@ -319,7 +319,12 @@ public sealed class ToolStateStore
     private static string ProductTargetKey(AircraftVariantViewAnalysis variant)
     {
         var product = AircraftProductIdentity.FromVariant(variant);
-        var normalized = $"PRODUCT|{product.Family}|{ProductFolder(variant)}".ToUpperInvariant();
+        return ProductTargetKey(product.Family, ProductFolder(variant));
+    }
+
+    internal static string ProductTargetKey(string family, string aircraftFolder)
+    {
+        var normalized = $"PRODUCT|{family}|{Path.GetFullPath(aircraftFolder)}".ToUpperInvariant();
         return HashKey(normalized);
     }
 
@@ -347,7 +352,7 @@ public sealed class ToolStateStore
         return Convert.ToHexString(bytes).ToLowerInvariant();
     }
 
-    private static string PathKey(string path)
+    internal static string PathKey(string path)
     {
         var normalized = Path.GetFullPath(path).ToUpperInvariant();
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(normalized));

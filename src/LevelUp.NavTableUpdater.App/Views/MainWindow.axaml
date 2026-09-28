@@ -259,6 +259,13 @@
                                                     Command="{Binding ScanCommand}"
                                                     HorizontalAlignment="Stretch"/>
                                         </Grid>
+                                        <StackPanel Spacing="6" IsVisible="{Binding CanReconnectMovedAircraft}">
+                                            <TextBlock Text="{Binding MovedAircraftNotice}" TextWrapping="Wrap"
+                                                       Foreground="{DynamicResource AppTextSecondaryBrush}"/>
+                                            <Button Content="Reconnect moved aircraft history"
+                                                    Command="{Binding ReconnectMovedAircraftCommand}"
+                                                    HorizontalAlignment="Stretch"/>
+                                        </StackPanel>
                                     </StackPanel>
 
                                     <StackPanel Grid.Row="2" Spacing="4" IsVisible="{Binding DetectedTargetsVisible}">

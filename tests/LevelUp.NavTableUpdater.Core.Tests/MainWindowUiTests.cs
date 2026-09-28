@@ -29,6 +29,59 @@ public sealed class UiTestAppBuilder
 public sealed class MainWindowUiTests
 {
     [Fact]
+    public Task MovedAircraft_IsOfferedOnTheStartScreenAfterScanningNewFolder() => Run(async () =>
+    {
+        using var fixture = new Fixture(enabled: false);
+        var window = fixture.Open();
+        try
+        {
+            await Until(() => fixture.Vm.SelectedProduct?.IsDetected == true
+                && fixture.Vm.SelectedViewVariant is not null);
+            var variant = fixture.Vm.SelectedViewVariant!;
+            var former = fixture.Vm.SelectedProduct!.AircraftFolderPath;
+            var current = Path.Combine(fixture.Xp, "Aircraft", "Planes", Path.GetFileName(former));
+            const string relative = "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua";
+            var target = Path.Combine(former, relative.Replace('/', Path.DirectorySeparatorChar));
+            var backup = Path.Combine(fixture.Store.RootPath, "backups", "original.lua");
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            Directory.CreateDirectory(Path.GetDirectoryName(backup)!);
+            File.WriteAllText(target, "managed patch");
+            File.WriteAllText(backup, "original file");
+            var store = new ToolStateStore(fixture.Store.RootPath);
+            store.UpdateContentAndProduct(variant, (installation, product) =>
+            {
+                installation.HasAuthoritativeContentState = true;
+                var component = new ContentComponentState
+                {
+                    ComponentId = "wahltho.levelup-737ng.maintenance",
+                    Files = [new ContentComponentFileState
+                    {
+                        RelativePath = relative,
+                        TargetPath = target,
+                        BackupPath = backup,
+                        OriginalExisted = true,
+                        OriginalSizeBytes = new FileInfo(backup).Length,
+                        OriginalSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(backup))),
+                        InstalledSizeBytes = new FileInfo(target).Length,
+                        InstalledSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(target)))
+                    }]
+                };
+                installation.ContentComponents[component.ComponentId] = component;
+                product.ContentComponents[component.ComponentId] = component;
+            });
+            Directory.CreateDirectory(Path.GetDirectoryName(current)!);
+            Directory.Move(former, current);
+
+            fixture.Vm.SetAircraftPathFromBrowse(current);
+
+            Assert.True(fixture.Vm.CanReconnectMovedAircraft);
+            Assert.Contains(former, fixture.Vm.MovedAircraftNotice);
+            Assert.True(Button(window, "Reconnect moved aircraft history").IsEffectivelyVisible);
+        }
+        finally { Close(window); }
+    });
+
+    [Fact]
     public Task UnofficialChange_RequiresExplicitUncheckedAcknowledgement() => Run(() =>
     {
         var request = IndependentProjectNotice.ForAircraftMutation(

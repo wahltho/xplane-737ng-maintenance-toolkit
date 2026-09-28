@@ -28,6 +28,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly ToolkitSettingsStore _settingsStore;
     private readonly ToolkitSettingsDocument _settings;
     private readonly ToolStateStore _stateStore;
+    private readonly MovedAircraftStateRecovery _movedAircraftStateRecovery;
     private readonly QuickViewBaselineAnalyzer _quickViewBaselineAnalyzer;
     private readonly ApplyDefaultViewFromQv0Operation _applyDefaultViewOperation;
     private readonly ApplyQuickViewCgAdaptOperation _applyQuickViewCgAdaptOperation;
@@ -80,6 +81,13 @@ public partial class MainWindowViewModel : ViewModelBase
     private string? _catalogPreviewGroupId;
     private string? _moduleSelectionAircraftRoot;
     private string? _moduleSelectionPackageId;
+    private MovedAircraftStateCandidate? _movedAircraftCandidate;
+
+    [ObservableProperty]
+    private bool canReconnectMovedAircraft;
+
+    [ObservableProperty]
+    private string movedAircraftNotice = "";
 
     private static string FormatToolkitVersion()
     {
@@ -667,6 +675,7 @@ public partial class MainWindowViewModel : ViewModelBase
         checkToolkitUpdatesOnStartup = _settings.CheckToolkitUpdatesOnStartup;
         checkAircraftAndPatchUpdatesOnStartup = _settings.CheckAircraftAndPatchUpdatesOnStartup;
         _stateStore = new ToolStateStore(_settingsStore.RootPath, _settings.BackupRootPath);
+        _movedAircraftStateRecovery = new MovedAircraftStateRecovery(_stateStore);
         _aircraftUpdatePackageCache = new AircraftUpdatePackageCache(_settings.AircraftUpdateCacheRootPath);
         SelectedAircraftPath = _settings.SelectedAircraftPath;
         BackupRootPath = _stateStore.BackupRootPath;
@@ -1300,8 +1309,66 @@ public partial class MainWindowViewModel : ViewModelBase
         ApplyManifest(SelectManifest(viewResult));
         var result = _analyzer.Analyze(CurrentProductAircraftFolderPath(), _manifest);
         ApplyAnalysis(result);
+        RefreshMovedAircraftCandidate();
         AppendLog($"Scan complete using {_manifest.PackageId}: {result.StateLabel}.");
         AppendLog($"View utility scan complete: {viewResult.StateLabel}.");
+    }
+
+    private void RefreshMovedAircraftCandidate()
+    {
+        _movedAircraftCandidate = null;
+        CanReconnectMovedAircraft = false;
+        MovedAircraftNotice = "";
+        if (SelectedProduct?.IsDetected != true || string.IsNullOrWhiteSpace(SelectedProduct.AircraftFolderPath))
+            return;
+        try
+        {
+            _movedAircraftCandidate = _movedAircraftStateRecovery.FindCandidate(
+                SelectedProduct.AircraftFolderPath, SelectedProduct.Family);
+            if (_movedAircraftCandidate is null) return;
+            CanReconnectMovedAircraft = true;
+            MovedAircraftNotice = $"This aircraft appears to have moved from {_movedAircraftCandidate.PreviousFolder}. " +
+                $"The Toolkit verified {_movedAircraftCandidate.VerifiedFiles} managed files and " +
+                $"{_movedAircraftCandidate.VerifiedBackups} backups. Reconnect its existing installation history before updating.";
+            AppendLog($"Moved aircraft state detected: {_movedAircraftCandidate.PreviousFolder} -> {_movedAircraftCandidate.CurrentFolder}.");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException
+            or InvalidOperationException or ArgumentException)
+        {
+            AppendLog($"Moved aircraft state check could not complete: {ex.Message}");
+        }
+    }
+
+    [RelayCommand]
+    private async Task ReconnectMovedAircraft()
+    {
+        var candidate = _movedAircraftCandidate;
+        if (candidate is null || IsOperationRunning) return;
+        var confirmed = await _userInteractionService.ConfirmAsync(new ConfirmationRequest(
+            "Reconnect moved aircraft?",
+            $"Previous folder: {candidate.PreviousFolder}\nCurrent folder: {candidate.CurrentFolder}\n\n" +
+            $"The Toolkit verified {candidate.VerifiedFiles} managed files and {candidate.VerifiedBackups} backups. " +
+            "It will move the ownership and restore history to the current path. Aircraft files and backups will not be changed.",
+            "Reconnect"));
+        if (!confirmed) return;
+        try
+        {
+            var stateCopy = _movedAircraftStateRecovery.Reconnect(candidate);
+            AppendLog($"Moved aircraft state reconnected. Previous state saved at {stateCopy}.");
+            Scan();
+            await _userInteractionService.ShowMessageAsync(new MessageRequest(
+                "Aircraft history reconnected",
+                $"The Toolkit now recognizes the managed patches at {candidate.CurrentFolder}. " +
+                $"The previous state file was saved at {stateCopy}. No aircraft files or backups were changed."));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException
+            or InvalidOperationException or ArgumentException)
+        {
+            AppendLog($"Moved aircraft reconnect blocked: {ex.Message}");
+            await _userInteractionService.ShowMessageAsync(new MessageRequest(
+                "Aircraft history was not changed", ex.Message));
+            Scan();
+        }
     }
 
     [RelayCommand]
