@@ -9,11 +9,14 @@ repositories remain the only published sources. There is no additional bundle
 archive, bundle repository or bundle release to maintain.
 
 The LevelUp group requires VNAV descent tables, FANS CDU and Weight & Balance.
-Tablet Performance Calculator, AUTO JETWAY, CPDLC FANS PAGES and Intentional Fixes
-are optional. The Zibo group has no required patches: VNAV, Tablet Performance
+Tablet Performance Calculator, AUTO JETWAY, CPDLC FANS PAGES, Intentional Fixes
+and LevelUp GSE are optional. The Zibo group has no required patches: VNAV, Tablet Performance
 Calculator, AUTO JETWAY, CPDLC FANS PAGES and Intentional Fixes are all opt-in.
-Intentional Fixes is ordered last in each group and never selects CPDLC or
-Weight & Balance on the user's behalf.
+Intentional Fixes follows the other existing FMS patches in each group and
+never selects CPDLC or Weight & Balance on the user's behalf.
+LevelUp GSE follows Intentional Fixes in the LevelUp group only. Its schema-4
+managed scopes remove known native GSE files with backups and block unknown
+content; simulator placement checks across all variants remain open.
 
 ## Resolution and execution
 

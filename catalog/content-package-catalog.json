@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "catalogVersion": "1.13.0",
+  "catalogVersion": "1.14.0",
   "minimumToolkitVersion": "0.21.1",
   "packages": [
     {
@@ -349,9 +349,26 @@
       }
     },
     {
+      "packageId": "jt8d17.levelup-737ng.gse",
+      "displayName": "LevelUp GSE",
+      "description": "Optional ground equipment and static stairs for the five LevelUp 737NG variants. Equipment positions across all variants still need simulator feedback.",
+      "category": "compatibilityPackage",
+      "activation": "managed",
+      "supportedProducts": [
+        "levelup-737ng"
+      ],
+      "repositoryUrl": "https://github.com/wahltho/X-Plane-LevelUp-GSE",
+      "restartRequired": true,
+      "distribution": {
+        "kind": "gitHubReleaseArchive",
+        "assetNamePattern": "levelup-gse-*.zip",
+        "manifestSchemaVersion": 4
+      }
+    },
+    {
       "packageId": "wahltho.levelup-737ng.maintenance",
       "displayName": "LevelUp maintenance patches",
-      "description": "VNAV descent tables, FANS CDU and Weight & Balance are required. Calculator, AUTO JETWAY, CPDLC FANS PAGES and Intentional Fixes are optional. Sources update directly from their own releases.",
+      "description": "VNAV descent tables, FANS CDU and Weight & Balance are required. Calculator, AUTO JETWAY, CPDLC FANS PAGES, Intentional Fixes and LevelUp GSE are optional. Sources update directly from their own releases.",
       "category": "compatibilityPackage",
       "activation": "managed",
       "supportedProducts": [
@@ -425,6 +442,15 @@
           "sourceFormat": "compatibility",
           "manifestPath": "package-manifest.json",
           "assetNamePattern": "X-Plane-Zibo-LevelUp-737NG-Intentional-Fixes-MTK-v*.zip"
+        },
+        {
+          "packageId": "jt8d17.levelup-737ng.gse",
+          "moduleId": "gse",
+          "policy": "optional",
+          "installationOrder": 80,
+          "sourceFormat": "compatibility",
+          "manifestPath": "package-manifest.json",
+          "assetNamePattern": "levelup-gse-*.zip"
         }
       ]
     },

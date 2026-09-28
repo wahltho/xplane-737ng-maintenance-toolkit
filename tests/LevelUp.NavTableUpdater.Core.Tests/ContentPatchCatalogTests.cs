@@ -222,7 +222,7 @@ public sealed class ContentPatchCatalogTests
             package => package.PackageId == ContentPatchCatalog.FansCdu.ComponentId);
         var descriptor = ContentPatchCatalog.OptionalPatch(fans);
 
-        Assert.Equal("1.13.0", catalog.CatalogVersion);
+        Assert.Equal("1.14.0", catalog.CatalogVersion);
         Assert.Equal("0.21.1", catalog.MinimumToolkitVersion);
         Assert.Equal(ContentPackageCategory.OptionalPatch, fans.Category);
         Assert.Equal(ContentPatchActivation.ExplicitOptIn, fans.Activation);
@@ -263,7 +263,7 @@ public sealed class ContentPatchCatalogTests
         Assert.Equal(new[] { "vnav", "fans-cdu", "weight-and-balance" },
             group.Members.Where(m => m.Policy is LevelUp.NavTableUpdater.Core.Manifest.CompatibilityModulePolicy.Required)
                 .OrderBy(m => m.InstallationOrder).Select(m => m.ModuleId));
-        Assert.Equal(new[] { "tablet-performance-calculator", "auto-jetway", "cpdlc", "intentional-fixes-levelup" },
+        Assert.Equal(new[] { "tablet-performance-calculator", "auto-jetway", "cpdlc", "intentional-fixes-levelup", "gse" },
             group.Members.Where(m => m.Policy is LevelUp.NavTableUpdater.Core.Manifest.CompatibilityModulePolicy.Optional)
                 .OrderBy(m => m.InstallationOrder).Select(m => m.ModuleId));
         Assert.DoesNotContain(catalog.ForProduct("zibo-737ng"), package => package.PackageId == group.PackageId);
@@ -283,6 +283,18 @@ public sealed class ContentPatchCatalogTests
         Assert.Equal(5, intentional.Distribution.ManifestSchemaVersion);
         Assert.Equal("X-Plane-Zibo-LevelUp-737NG-Intentional-Fixes-MTK-v*.zip",
             intentional.Distribution.AssetNamePattern);
+
+        var gse = Assert.Single(catalog.ForProduct("levelup-737ng"),
+            package => package.PackageId == "jt8d17.levelup-737ng.gse");
+        Assert.DoesNotContain(catalog.ForProduct("zibo-737ng"), package => package.PackageId == gse.PackageId);
+        Assert.Equal(ContentPackageCategory.CompatibilityPackage, gse.Category);
+        Assert.Equal(4, gse.Distribution.ManifestSchemaVersion);
+        Assert.Equal("levelup-gse-*.zip", gse.Distribution.AssetNamePattern);
+        var gseMember = Assert.Single(group.Members, member => member.PackageId == gse.PackageId);
+        Assert.Equal("gse", gseMember.ModuleId);
+        Assert.Equal(LevelUp.NavTableUpdater.Core.Manifest.CompatibilityModulePolicy.Optional, gseMember.Policy);
+        Assert.Equal("compatibility", gseMember.SourceFormat);
+        Assert.Equal("package-manifest.json", gseMember.ManifestPath);
     }
 
     [Fact]
@@ -294,7 +306,7 @@ public sealed class ContentPatchCatalogTests
             catalog.ForProduct("levelup-737ng"),
             package => package.PackageId == "levelup.paintkit");
 
-        Assert.Equal("1.13.0", catalog.CatalogVersion);
+        Assert.Equal("1.14.0", catalog.CatalogVersion);
         Assert.Equal(ContentPackageCategory.Resource, paintkit.Category);
         Assert.Equal(ContentPatchActivation.ExplicitOptIn, paintkit.Activation);
         Assert.Equal(["levelup-737ng"], paintkit.SupportedProducts);
