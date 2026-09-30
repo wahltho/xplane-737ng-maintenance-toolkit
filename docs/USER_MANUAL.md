@@ -685,9 +685,34 @@ distributions unless a dedicated update source is defined.
 
 ## Support And Diagnostics
 
-Use `Dump to file` on the Advanced tab to export the visible operation log into
-the configured diagnostics folder. Review the file before posting it and attach
-it when reporting a problem.
+On the **Advanced** tab, use **Export diagnostic package** under **Support
+diagnostics**. The ZIP is saved in the configured diagnostics folder. Its path
+is shown when the export finishes. Attach that ZIP when reporting a problem;
+it provides more information than a screenshot of an error message.
+
+The package contains `report.txt`, `diagnostics.json` and `operation-log.txt`:
+Toolkit/catalog versions, operating system and architecture, selected aircraft,
+last displayed installed/available package versions, selected modules, recorded
+component ownership, observed file hashes, referenced backup checks and logs.
+It does not refresh online releases, upload anything, or change the aircraft or
+installation state. No aircraft, backup, settings or raw state files are included.
+
+**Anonymize local paths** is selected by default. It replaces local roots in
+both the report and logs with labels such as `[AIRCRAFT]` and `[BACKUPS]`. Turn
+it off only if exact paths are needed for support. Recognized credential fields
+are redacted in either mode. Review the files before sharing: free-text logs may
+still contain details you entered.
+
+The export works without an aircraft selection and also reports a missing or
+unreadable state file. It checks recorded files and file backups by size and
+SHA-256; directory backups are checked for presence only. Hash differences are
+reported as observations, not automatic repair advice: another patch may have
+changed the same file since an older snapshot. The export does not prove a full
+restore chain or correct operation in X-Plane. Hashing is limited to 512 MiB and
+5,000 checks per report; skipped checks are reported. **Cancel export** stops
+collection without leaving a partial ZIP.
+
+`Dump to file` remains available for exporting only the visible operation log.
 
 Report Toolkit issues on the [MTK Discord server](https://discord.gg/ySS88PMuyC),
 in the comments on the [Toolkit download page](https://forums.x-plane.org/files/file/101018-x-plane-737ng-maintenance-toolkit/),
@@ -709,8 +734,8 @@ attempted and exported log. Do not upload complete copyrighted aircraft files.
   `petrolpram/737NG-Updates` endpoint to be reachable and to contain a published
   compatible release. Draft or offline packages require manual
   manifest/archive import.
-- `Dump to file` exports the current visible operation log. A broader bundled
-  diagnostic-report workflow is still a planned product feature.
+- Diagnostic packages do not contain aircraft files or verify complete directory
+  backups. They are local support snapshots, not simulator validation.
 
 ## LevelUp maintenance group
 

@@ -29,6 +29,49 @@ public sealed class UiTestAppBuilder
 public sealed class MainWindowUiTests
 {
     [Fact]
+    public Task Diagnostics_AdvancedControlsExportAnAnonymizedPackageWithoutChangingAircraft() => Run(async () =>
+    {
+        using var fixture = new Fixture(enabled: false);
+        var window = fixture.Open();
+        try
+        {
+            await Until(() => fixture.Vm.SelectedViewVariant is not null && fixture.Vm.CanExportDiagnostics);
+            var acf = fixture.Vm.SelectedViewVariant!.AcfPath;
+            var before = File.ReadAllBytes(acf);
+            window.GetVisualDescendants().OfType<TabControl>().Single().SelectedIndex = 1;
+            Dispatcher.UIThread.RunJobs();
+            var anonymize = window.GetVisualDescendants().OfType<CheckBox>()
+                .Single(c => Equals(c.Content, "Anonymize local paths"));
+            Assert.True(anonymize.IsChecked);
+            Assert.True(anonymize.IsEffectivelyVisible);
+            var export = Button(window, "Export diagnostic package");
+            Assert.True(export.IsEffectivelyVisible);
+            Assert.False(Button(window, "Cancel export").IsEffectivelyEnabled);
+            export.BringIntoView();
+            Dispatcher.UIThread.RunJobs();
+            SaveFrame(window, "diagnostic-export.png");
+            Press(window, export);
+            await Until(() => window.OwnedWindows.Any(w => w.Title == "Diagnostics saved"));
+            Assert.False(export.IsEffectivelyEnabled);
+            var path = Assert.Single(Directory.GetFiles(fixture.Store.Load().DiagnosticsExportRootPath, "*.zip"));
+            using (var archive = System.IO.Compression.ZipFile.OpenRead(path))
+            using (var reader = new StreamReader(archive.GetEntry("diagnostics.json")!.Open()))
+            using (var json = JsonDocument.Parse(reader.ReadToEnd()))
+            {
+                Assert.True(json.RootElement.GetProperty("pathsAnonymized").GetBoolean());
+                Assert.Contains(json.RootElement.GetProperty("files").EnumerateArray(), f =>
+                    f.GetProperty("owner").GetString() == "Selected ACF" && f.GetProperty("actualSha256").GetString()?.Length == 64);
+                Assert.DoesNotContain(fixture.Xp, json.RootElement.GetRawText());
+            }
+            var dialog = Assert.Single(window.OwnedWindows);
+            Press(dialog, Button(dialog, "Close"));
+            await Until(() => fixture.Vm.CanExportDiagnostics);
+            Assert.Equal(before, File.ReadAllBytes(acf));
+        }
+        finally { Close(window); }
+    });
+
+    [Fact]
     public Task MovedAircraft_IsOfferedOnTheStartScreenAfterScanningNewFolder() => Run(async () =>
     {
         using var fixture = new Fixture(enabled: false);

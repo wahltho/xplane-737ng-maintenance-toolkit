@@ -906,6 +906,19 @@
                         </Grid>
 
                         <Border Classes="card">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Support diagnostics" FontSize="16" FontWeight="SemiBold"/>
+                                <TextBlock Text="{Binding DiagnosticsExportStatus}" TextWrapping="Wrap"/>
+                                <CheckBox Content="Anonymize local paths" IsChecked="{Binding AnonymizeDiagnosticPaths}"/>
+                                <WrapPanel Orientation="Horizontal">
+                                    <Button Content="Export diagnostic package" Command="{Binding ExportDiagnosticsCommand}" Margin="0,0,8,0"/>
+                                    <Button Content="Cancel export" Command="{Binding ExportDiagnosticsCancelCommand}"/>
+                                </WrapPanel>
+                                <TextBlock Text="Review the ZIP before sharing it. It is saved in your configured diagnostics folder." TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Classes="card">
                             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
                                 <StackPanel Spacing="7">
                                     <TextBlock Text="Optional Patches" FontSize="16" FontWeight="SemiBold"/>
