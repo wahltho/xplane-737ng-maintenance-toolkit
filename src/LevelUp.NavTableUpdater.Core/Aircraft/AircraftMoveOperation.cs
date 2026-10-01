@@ -319,8 +319,21 @@ public sealed class AircraftMoveOperation
         if (e.Directory) Directory.SetLastWriteTimeUtc(target, e.LastWriteUtc);
         else File.SetLastWriteTimeUtc(target, e.LastWriteUtc);
         if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(target, (UnixFileMode)e.UnixMode!.Value);
-        else if (e.Directory) new DirectoryInfo(target).SetAccessControl(new DirectoryInfo(source).GetAccessControl(AccessControlSections.Access));
-        else new FileInfo(target).SetAccessControl(new FileInfo(source).GetAccessControl(AccessControlSections.Access));
+        else if (e.Directory)
+        {
+            var access = new DirectorySecurity();
+            // SetAccessControl persists modified sections only; a freshly read ACL is not marked modified.
+            access.SetSecurityDescriptorBinaryForm(new DirectoryInfo(source).GetAccessControl(AccessControlSections.Access)
+                .GetSecurityDescriptorBinaryForm(), AccessControlSections.Access);
+            new DirectoryInfo(target).SetAccessControl(access);
+        }
+        else
+        {
+            var access = new FileSecurity();
+            access.SetSecurityDescriptorBinaryForm(new FileInfo(source).GetAccessControl(AccessControlSections.Access)
+                .GetSecurityDescriptorBinaryForm(), AccessControlSections.Access);
+            new FileInfo(target).SetAccessControl(access);
+        }
         File.SetAttributes(target, e.Attributes);
     }
     private static string Marker(AircraftMoveJournal j) => ".mtk-move-owner-" + j.Id;

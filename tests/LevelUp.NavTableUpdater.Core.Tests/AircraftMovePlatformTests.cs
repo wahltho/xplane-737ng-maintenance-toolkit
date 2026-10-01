@@ -134,17 +134,29 @@ public sealed class AircraftMovePlatformTests(ITestOutputHelper output)
         var expectedFile = new FileInfo(runtime).GetAccessControl(AccessControlSections.Access)
             .GetSecurityDescriptorSddlForm(AccessControlSections.Access);
         var operation = new AircraftMoveOperation(fixture.Store, fixture.Settings, () => false);
-        Assert.False(operation.Execute(operation.Prepare(fixture.Source, fixture.Destination)).CleanupPending);
+        var plan = operation.Prepare(fixture.Source, fixture.Destination);
+        var expectedAccess = plan.Entries.ToDictionary(e => e.RelativePath,
+            e => ReadAccess(Path.Combine(fixture.Source, e.RelativePath), e.Directory));
+        Assert.False(operation.Execute(plan).CleanupPending);
         Assert.False(operation.HasPendingMove); Assert.False(Directory.Exists(fixture.Source));
         var target = Path.Combine(fixture.Destination, "plugins/runtime.xpl");
         var targetDirectory = new DirectoryInfo(fixture.Destination).GetAccessControl(AccessControlSections.Access);
         var targetFile = new FileInfo(target).GetAccessControl(AccessControlSections.Access);
-        Assert.True(targetDirectory.AreAccessRulesProtected); Assert.True(targetFile.AreAccessRulesProtected);
+        Assert.True(targetDirectory.AreAccessRulesProtected, "Aircraft directory ACL protection was lost.");
+        Assert.True(targetFile.AreAccessRulesProtected, "Runtime file ACL protection was lost.");
         Assert.Equal(expectedDirectory, targetDirectory.GetSecurityDescriptorSddlForm(AccessControlSections.Access));
         Assert.Equal(expectedFile, targetFile.GetSecurityDescriptorSddlForm(AccessControlSections.Access));
+        foreach (var entry in plan.Entries)
+            Assert.Equal(expectedAccess[entry.RelativePath],
+                ReadAccess(Path.Combine(fixture.Destination, entry.RelativePath), entry.Directory));
         Assert.True(File.GetAttributes(target).HasFlag(FileAttributes.ReadOnly));
         Assert.Equal("test runtime", File.ReadAllText(target));
         File.SetAttributes(target, File.GetAttributes(target) & ~FileAttributes.ReadOnly);
+
+        static string ReadAccess(string path, bool directory) => (directory
+            ? (FileSystemSecurity)new DirectoryInfo(path).GetAccessControl(AccessControlSections.Access)
+            : new FileInfo(path).GetAccessControl(AccessControlSections.Access))
+            .GetSecurityDescriptorSddlForm(AccessControlSections.Access);
     }
 
     private static string Device(string path)

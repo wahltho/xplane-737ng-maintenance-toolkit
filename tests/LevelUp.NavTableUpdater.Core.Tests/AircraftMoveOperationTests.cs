@@ -70,11 +70,11 @@ public sealed class AircraftMoveOperationTests : IDisposable
         Assert.Equal(Path.Combine(Destination, "inside-backup.txt"), history.BackupPath);
         Assert.Equal(Path.Combine(Destination, "b738_prefs.txt"), history.AircraftContentGeneration!.ProductComponents["patch"].Files.Single().TargetPath);
         var tool = Store.TryGetToolInstallation(Destination, "xlua")!;
-        Assert.Equal(Path.Combine(Destination, "plugins/xlua"), tool.TargetPath);
+        Assert.Equal(Path.Combine(Destination, "plugins", "xlua"), tool.TargetPath);
         Assert.Equal(Destination, tool.Dependencies.Single().InstallationRoot);
         Assert.Equal(Destination, tool.Backups.Single().PreviousDependencies.Single().InstallationRoot);
         Assert.NotNull(Store.TryGetLiveryInstallation(Destination, "my-livery"));
-        Assert.Equal(Path.Combine(Destination, "liveries/private"), state.ResourceInstallations["resource"].TargetPath);
+        Assert.Equal(Path.Combine(Destination, "liveries", "private"), state.ResourceInstallations["resource"].TargetPath);
         Assert.Equal(Destination, state.ToolInstallations["global"].Dependencies.Single().InstallationRoot);
         Assert.DoesNotContain(Source, JsonSerializer.Serialize(state));
 
