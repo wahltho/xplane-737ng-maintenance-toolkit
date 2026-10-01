@@ -44,6 +44,8 @@ public sealed class ToolkitSettingsStore
 
     public void Save(ToolkitSettingsDocument document)
     {
+        if (File.Exists(Path.Combine(RootPath, "aircraft-move.json")))
+            throw new IOException("An aircraft move is active or needs recovery. Settings cannot be changed.");
         var normalized = Normalize(document);
         Directory.CreateDirectory(RootPath);
         var tempPath = SettingsPath + $".tmp-{Guid.NewGuid():N}";

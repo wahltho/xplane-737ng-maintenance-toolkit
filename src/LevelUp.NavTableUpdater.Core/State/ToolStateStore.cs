@@ -55,6 +55,8 @@ public sealed class ToolStateStore
 
     public void Save(ToolStateDocument document)
     {
+        if (File.Exists(Path.Combine(RootPath, "aircraft-move.json")))
+            throw new IOException("An aircraft move is active or needs recovery. Installation state cannot be changed.");
         Directory.CreateDirectory(RootPath);
         var tempPath = StatePath + $".tmp-{Guid.NewGuid():N}";
         File.WriteAllText(tempPath, JsonSerializer.Serialize(document, JsonOptions), new UTF8Encoding(false));
@@ -334,10 +336,10 @@ public sealed class ToolStateStore
         return Convert.ToHexString(bytes).ToLowerInvariant();
     }
 
-    private static string ToolKey(string xPlaneRoot, string packageId) =>
+    internal static string ToolKey(string xPlaneRoot, string packageId) =>
         $"{ToolPathKey(xPlaneRoot)}:{packageId}";
 
-    private static string LiveryKey(string aircraftRoot, string packageId) =>
+    internal static string LiveryKey(string aircraftRoot, string packageId) =>
         $"{ToolPathKey(aircraftRoot)}:{packageId}";
 
     private static string ToolPathKey(string path)

@@ -48,6 +48,14 @@ public partial class MainWindow : Window
         viewModel.SetAircraftPathFromBrowse(folders[0].Path.LocalPath);
     }
 
+    private async void BrowseAircraftMoveDestination_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        { Title = "Select aircraft move destination parent folder", AllowMultiple = false });
+        if (folders.Count > 0 && DataContext is MainWindowViewModel vm)
+            vm.SetAircraftMoveParentFromBrowse(folders[0].Path.LocalPath);
+    }
+
     private async void ImportAircraftUpdatePackage_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions

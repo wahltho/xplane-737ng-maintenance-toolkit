@@ -127,6 +127,44 @@ The status areas on the `Start` tab show:
 - installed and available VNAV package versions
 - aircraft package update state where an update source is available
 
+### Moving or renaming an aircraft
+
+Close X-Plane, select the aircraft on **Start**, and open **Move or rename
+aircraft** below the folder selector. Choose an existing destination parent
+folder and enter an unused folder name. Review the source, destination and copy
+size, then confirm **Move aircraft**.
+
+The Toolkit copies the complete aircraft folder and checks every file before
+activating the new location. Liveries, scripts, preferences and empty folders
+stay with the aircraft. Recorded patch versions, file hashes and restore
+history follow the new path. Moving a folder does not repair modified files or
+make an unmanaged patch a managed installation. Backups outside the aircraft
+folder remain in their existing backup location.
+
+Enough free space for a second complete copy is required, even when renaming
+on the same disk. The old copy is removed only after the new folder and Toolkit
+history have been saved. The new folder is then selected automatically. Do not
+edit either copy or run another Toolkit operation during the move.
+
+Use **Cancel aircraft move** to stop before completion. If the Toolkit closes
+or the move fails, it keeps a recovery journal and the retained files. On the
+next launch it rolls back an incomplete move or finishes cleanup of a completed
+one. If recovery is blocked, normal actions remain disabled. Close X-Plane and
+use **Retry move recovery**. If that still fails, use **Export move support log**
+and ask for help through the support links above. Do not delete the journal or
+folders whose names begin with `.mtk-aircraft-move-`.
+
+Existing destinations, nested source/destination folders, symbolic links,
+junctions and case-only renames are rejected. On Unix, the aircraft root folder
+must grant its owner write permission so that cleanup can complete.
+Moving to another X-Plane
+installation is blocked when an installed component has a dependency outside
+the aircraft folder, or another installed tool depends on that aircraft.
+Windows file access permissions and Unix permission bits are copied; Unix
+extended ACLs and extended attributes are not part of this move contract.
+External updater settings and paths stored inside third-party configuration
+files are not rewritten.
+
 ## Main Tabs
 
 ### Start

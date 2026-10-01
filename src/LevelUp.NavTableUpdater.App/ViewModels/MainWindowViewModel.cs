@@ -177,6 +177,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private bool detectedTargetsVisible;
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(MoveAircraftCommand))]
     private bool canAutoDetect = true;
 
     [ObservableProperty]
@@ -213,6 +214,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private string installLog = "";
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(MoveAircraftCommand))]
     private bool actionsEnabled = true;
 
     [ObservableProperty]
@@ -228,6 +230,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private bool operationPanelVisible;
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(MoveAircraftCommand))]
     private bool isOperationRunning;
 
     [ObservableProperty]
@@ -321,6 +324,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private string upstreamLastChecked = "Not checked";
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(MoveAircraftCommand))]
     private bool isUpstreamCheckRunning;
 
     [ObservableProperty]
@@ -426,6 +430,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private string contentPackageCatalogStatus = "Select a supported product to view its managed content and optional patches.";
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(MoveAircraftCommand))]
     private bool isContentPackageCatalogCheckRunning;
 
     [ObservableProperty]
@@ -486,6 +491,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private bool canRestoreToolPackage;
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(MoveAircraftCommand))]
     private bool isToolPackageOperationRunning;
 
     [ObservableProperty]
@@ -540,6 +546,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private bool canRemoveResourcePackage;
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(MoveAircraftCommand))]
     private bool isResourcePackageOperationRunning;
 
     [ObservableProperty]
@@ -594,6 +601,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private bool canRemoveLivery;
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(MoveAircraftCommand))]
     private bool isLiveryPackageOperationRunning;
 
     public ObservableCollection<AircraftCandidate> DetectedTargets { get; } = [];
@@ -740,7 +748,14 @@ public partial class MainWindowViewModel : ViewModelBase
         AppendLog($"Settings loaded. Backup folder: {_stateStore.BackupRootPath}");
         AppendLog($"Settings loaded. Downloaded package cache: {_aircraftUpdatePackageCache.RootPath}");
         AppendLog($"Loaded content package catalog {_contentPackageCatalog.CatalogVersion} with {_contentPackageCatalog.Packages.Count} package(s).");
-        if (!string.IsNullOrWhiteSpace(SelectedAircraftPath))
+        AircraftMoveRecoveryRequired = AircraftMover().HasPendingMove;
+        if (AircraftMoveRecoveryRequired)
+        {
+            IsOperationRunning = true;
+            ActionsEnabled = false;
+            AircraftMoveStatus = "An interrupted aircraft move needs recovery before other actions.";
+        }
+        else if (!string.IsNullOrWhiteSpace(SelectedAircraftPath))
         {
             AppendLog($"Settings loaded. Selected aircraft folder: {SelectedAircraftPath}");
             Scan();
@@ -749,6 +764,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public void SetAircraftPathFromBrowse(string path)
     {
+        if (AircraftMoveControlsLocked) return;
         SelectedAircraftPath = path;
         SaveSelectedAircraftPathSetting();
         Scan();
@@ -762,6 +778,11 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         _isInitialized = true;
+        if (AircraftMoveRecoveryRequired)
+        {
+            await RecoverAircraftMove();
+            if (AircraftMoveRecoveryRequired) return;
+        }
         var contentCatalogRefresh = RefreshRemoteContentPackageCatalogAsync();
         await Task.WhenAll(AutoDetect(), contentCatalogRefresh);
         var startupPath = SelectedAircraftPath;
@@ -1240,6 +1261,7 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private async Task AutoDetect()
     {
+        if (AircraftMoveControlsLocked) return;
         if (!CanAutoDetect)
         {
             return;
@@ -1303,6 +1325,7 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     private void Scan()
     {
+        if (AircraftMoveControlsLocked) return;
         SaveSelectedAircraftPathSetting();
         var viewResult = _viewAnalyzer.Analyze(SelectedAircraftPath);
         ApplyViewAnalysis(viewResult);
@@ -1310,6 +1333,7 @@ public partial class MainWindowViewModel : ViewModelBase
         var result = _analyzer.Analyze(CurrentProductAircraftFolderPath(), _manifest);
         ApplyAnalysis(result);
         RefreshMovedAircraftCandidate();
+        MoveAircraftCommand.NotifyCanExecuteChanged();
         AppendLog($"Scan complete using {_manifest.PackageId}: {result.StateLabel}.");
         AppendLog($"View utility scan complete: {viewResult.StateLabel}.");
     }

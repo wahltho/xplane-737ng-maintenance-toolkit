@@ -28,6 +28,89 @@ public sealed class UiTestAppBuilder
 
 public sealed class MainWindowUiTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public Task AircraftMove_RequiresConfirmationAndSelectsNewProduct(bool confirm) => Run(async () =>
+    {
+        using var fixture = new Fixture(enabled: false);
+        var window = fixture.Open();
+        try
+        {
+            await Until(() => fixture.Vm.CanMoveAircraft);
+            var source = fixture.Vm.SelectedProduct!.AircraftFolderPath;
+            var prefs = Path.Combine(source, "my_prefs.txt"); File.WriteAllText(prefs, "custom prefs");
+            var originalAcf = File.ReadAllBytes(fixture.Vm.SelectedViewVariant!.AcfPath);
+            var destination = AircraftMoveStateRebaser.FullPath(Path.Combine(fixture.Xp, "Aircraft", "moved LU"));
+            var expander = window.GetVisualDescendants().OfType<Expander>()
+                .Single(e => Equals(e.Header, "Move or rename aircraft"));
+            expander.IsExpanded = true;
+            fixture.Vm.SetAircraftMoveParentFromBrowse(Path.GetDirectoryName(destination)!);
+            fixture.Vm.AircraftMoveFolderName = Path.GetFileName(destination);
+            Dispatcher.UIThread.RunJobs();
+            var move = Button(window, "Move aircraft");
+            Assert.True(move.IsEffectivelyVisible); Press(window, move);
+            await Until(() => window.OwnedWindows.Any(w => w.Title == "Move or rename aircraft?"));
+            Assert.False(window.GetVisualDescendants().OfType<TabControl>().Single().IsEffectivelyEnabled);
+            Assert.True(Button(window, "Cancel aircraft move").IsEffectivelyEnabled);
+            var confirmation = window.OwnedWindows.Single(w => w.Title == "Move or rename aircraft?");
+            Press(confirmation, Button(confirmation, confirm ? "Move aircraft" : "Cancel"));
+            if (confirm)
+            {
+                await Until(() => window.OwnedWindows.Any(w => w.Title == "Aircraft move"));
+                Assert.False(Directory.Exists(source)); Assert.True(Directory.Exists(destination));
+                Assert.Equal(destination, fixture.Vm.SelectedProduct!.AircraftFolderPath);
+                Assert.Equal(destination, fixture.Store.Load().SelectedAircraftPath);
+                Assert.Equal("custom prefs", File.ReadAllText(Path.Combine(destination, "my_prefs.txt")));
+                Assert.Equal(originalAcf, File.ReadAllBytes(fixture.Vm.SelectedViewVariant!.AcfPath));
+                Assert.Contains(fixture.Vm.DetectedTargets, c => c.Path == destination);
+                var done = window.OwnedWindows.Single(w => w.Title == "Aircraft move");
+                Press(done, Button(done, "Close"));
+            }
+            await Until(() => fixture.Vm.CanMoveAircraft && !fixture.Vm.AircraftMoveControlsLocked);
+            if (!confirm) { Assert.True(Directory.Exists(source)); Assert.False(Directory.Exists(destination)); }
+            Assert.True(window.GetVisualDescendants().OfType<TabControl>().Single().IsEffectivelyEnabled);
+        }
+        finally { Close(window); }
+    });
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public Task AircraftMove_StartupRecoversOrKeepsActionsLocked(bool modified) => Run(async () =>
+    {
+        using var fixture = new Fixture(enabled: false);
+        var source = fixture.Store.Load().SelectedAircraftPath;
+        var destination = AircraftMoveStateRebaser.FullPath(Path.Combine(fixture.Xp, "Aircraft", "interrupted LU"));
+        var state = new ToolStateStore(fixture.Store.RootPath, fixture.Store.Load().BackupRootPath);
+        var operation = new AircraftMoveOperation(state, fixture.Store, () => false, _ => long.MaxValue,
+            phase => { if (phase == "Activated") throw new AircraftMoveSimulatedCrashException(); });
+        Assert.Throws<AircraftMoveSimulatedCrashException>(() => operation.Execute(operation.Prepare(source, destination)));
+        if (modified) File.WriteAllText(Path.Combine(destination, "version.txt"), "custom after crash");
+        var window = fixture.Open();
+        try
+        {
+            if (modified)
+            {
+                await Until(() => window.OwnedWindows.Any(w => w.Title == "Move recovery required"));
+                Assert.True(fixture.Vm.AircraftMoveRecoveryRequired);
+                Assert.False(fixture.Vm.ActionsEnabled); Assert.False(fixture.Vm.MoveAircraftCommand.CanExecute(null));
+                Assert.False(window.GetVisualDescendants().OfType<TabControl>().Single().IsEffectivelyEnabled);
+                Assert.True(Button(window, "Retry move recovery").IsEffectivelyVisible);
+                Assert.True(Button(window, "Export move support log").IsEffectivelyVisible);
+                Assert.Equal("custom after crash", File.ReadAllText(Path.Combine(destination, "version.txt")));
+            }
+            else
+            {
+                await Until(() => fixture.Vm.CanMoveAircraft);
+                Assert.False(fixture.Vm.AircraftMoveRecoveryRequired); Assert.True(fixture.Vm.ActionsEnabled);
+                Assert.True(Directory.Exists(source)); Assert.False(Directory.Exists(destination));
+                Assert.False(operation.HasPendingMove);
+            }
+        }
+        finally { Close(window); }
+    });
+
     [Fact]
     public Task Diagnostics_AdvancedControlsExportAnAnonymizedPackageWithoutChangingAircraft() => Run(async () =>
     {

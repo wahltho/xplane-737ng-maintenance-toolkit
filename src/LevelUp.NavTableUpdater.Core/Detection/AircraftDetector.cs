@@ -154,6 +154,7 @@ public sealed class AircraftDetector
         while (pending.Count > 0)
         {
             var (path, depth) = pending.Dequeue();
+            if (Path.GetFileName(path).StartsWith(".mtk-aircraft-move-", StringComparison.OrdinalIgnoreCase)) continue;
             yield return path;
 
             if (depth >= maxDepth)
@@ -177,6 +178,7 @@ public sealed class AircraftDetector
 
             foreach (var child in children)
             {
+                if (Path.GetFileName(child).StartsWith(".mtk-aircraft-move-", StringComparison.OrdinalIgnoreCase)) continue;
                 pending.Enqueue((child, depth + 1));
             }
         }

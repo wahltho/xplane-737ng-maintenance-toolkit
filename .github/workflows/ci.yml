@@ -39,3 +39,9 @@ jobs:
 
       - name: Test
         run: dotnet test tests/LevelUp.NavTableUpdater.Core.Tests/LevelUp.NavTableUpdater.Core.Tests.csproj --configuration Release --no-build --verbosity normal
+
+      - name: Test aircraft move across APFS volumes
+        if: runner.os == 'macOS'
+        env:
+          MTK_TEST_CONFIGURATION: Release
+        run: bash tools/test_aircraft_move_cross_volume.sh

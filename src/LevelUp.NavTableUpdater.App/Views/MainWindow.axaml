@@ -145,6 +145,17 @@
                                 BorderBrush="#E55C65" BorderThickness="1"
                                 Padding="6,2" Click="OpenDiscordSupport_Click"/>
                     </StackPanel>
+                    <StackPanel IsVisible="{Binding AircraftMoveControlsLocked}" Spacing="4">
+                        <TextBlock Text="{Binding AircraftMoveStatus}" Foreground="#FF8B93" TextWrapping="Wrap"/>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="Cancel aircraft move" Command="{Binding MoveAircraftCancelCommand}"
+                                    IsVisible="{Binding AircraftMoveBusy}"/>
+                            <Button Content="Retry move recovery" Command="{Binding RecoverAircraftMoveCommand}"
+                                    IsVisible="{Binding AircraftMoveRecoveryRequired}" IsEnabled="{Binding !AircraftMoveBusy}"/>
+                            <Button Content="Export move support log" Command="{Binding ExportLogCommand}"
+                                    IsVisible="{Binding AircraftMoveRecoveryRequired}"/>
+                        </StackPanel>
+                    </StackPanel>
                 </StackPanel>
                 <Border Grid.Column="1"
                         Background="{DynamicResource AppLogoBackgroundBrush}"
@@ -199,7 +210,7 @@
             </Grid>
         </Border>
 
-        <TabControl Grid.Row="2" Margin="16">
+        <TabControl Grid.Row="2" Margin="16" IsEnabled="{Binding !AircraftMoveControlsLocked}">
             <TabItem Header="Start">
                 <Grid ColumnDefinitions="340,*" ColumnSpacing="16">
                     <ScrollViewer x:Name="InstallationPaneScroll" Grid.Column="0"
@@ -259,6 +270,17 @@
                                                     Command="{Binding ScanCommand}"
                                                     HorizontalAlignment="Stretch"/>
                                         </Grid>
+                                        <Expander Header="Move or rename aircraft">
+                                            <StackPanel Spacing="6">
+                                                <TextBlock Text="Destination parent folder" Classes="label"/>
+                                                <TextBox Text="{Binding AircraftMoveParentPath}"/>
+                                                <Button Content="Choose move destination" Click="BrowseAircraftMoveDestination_Click"/>
+                                                <TextBlock Text="Aircraft folder name" Classes="label"/>
+                                                <TextBox Text="{Binding AircraftMoveFolderName}"/>
+                                                <Button Content="Move aircraft" Command="{Binding MoveAircraftCommand}"/>
+                                                <TextBlock Text="{Binding AircraftMoveStatus}" TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                        </Expander>
                                         <StackPanel Spacing="6" IsVisible="{Binding CanReconnectMovedAircraft}">
                                             <TextBlock Text="{Binding MovedAircraftNotice}" TextWrapping="Wrap"
                                                        Foreground="{DynamicResource AppTextSecondaryBrush}"/>
