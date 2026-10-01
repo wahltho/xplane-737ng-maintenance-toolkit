@@ -29,6 +29,43 @@ public sealed class UiTestAppBuilder
 public sealed class MainWindowUiTests
 {
     [Theory]
+    [InlineData("zibo-737ng")]
+    [InlineData("levelup-737ng")]
+    public Task FreshInstall_NestedDestinationEnablesInstallAndUnsafeOrOccupiedDestinationsDisableIt(string productId) => Run(async () =>
+    {
+        using var fixture = new Fixture(enabled: false);
+        var parent = Path.Combine(fixture.Xp, "Aircraft", "Boeing");
+        Directory.CreateDirectory(parent);
+        var window = await fixture.OpenInitializedAsync();
+        try
+        {
+            fixture.Vm.SelectedFreshInstallProduct = AircraftFreshInstallProduct.All.Single(p => p.ProductId == productId);
+            fixture.Vm.FreshInstallTargetPath = Path.Combine(parent, "new aircraft");
+            Dispatcher.UIThread.RunJobs();
+            var install = window.GetVisualDescendants().OfType<Button>()
+                .Single(b => ReferenceEquals(b.Command, fixture.Vm.InstallFreshAircraftCommand));
+            Assert.True(fixture.Vm.CanInstallFreshAircraft);
+            Assert.True(install.IsEffectivelyEnabled);
+            Assert.False(Directory.Exists(fixture.Vm.FreshInstallTargetPath));
+
+            foreach (var target in new[] { parent, Path.Combine(fixture.Xp, "Resources", "plane"),
+                         Path.Combine(parent, "missing", "plane") })
+            {
+                fixture.Vm.FreshInstallTargetPath = target;
+                Dispatcher.UIThread.RunJobs();
+                Assert.False(fixture.Vm.CanInstallFreshAircraft);
+                Assert.False(install.IsEffectivelyEnabled);
+                Assert.Equal(AircraftFreshInstallDestination.GetValidationError(fixture.Xp, target), fixture.Vm.FreshInstallStatus);
+            }
+
+            fixture.Vm.FreshInstallTargetPath = Path.Combine(parent, "new aircraft");
+            Dispatcher.UIThread.RunJobs();
+            Assert.True(install.IsEffectivelyEnabled);
+        }
+        finally { Close(window); }
+    });
+
+    [Theory]
     [InlineData("2.S1.51B")]
     [InlineData("unknown")]
     public Task LevelUpCatchUp_ReviewsFullReplacementAndOrderedPackagesBeforeAnyWrites(string version) => Run(async () =>

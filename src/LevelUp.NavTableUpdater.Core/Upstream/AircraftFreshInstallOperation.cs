@@ -1,7 +1,6 @@
 using System.Text.Json;
 using LevelUp.NavTableUpdater.Core.Aircraft;
 using LevelUp.NavTableUpdater.Core.Platform;
-using LevelUp.NavTableUpdater.Core.Tools;
 
 namespace LevelUp.NavTableUpdater.Core.Upstream;
 
@@ -58,10 +57,11 @@ public sealed class AircraftFreshInstallOperation
                 log);
         }
 
-        var fullTarget = Path.GetFullPath(targetFolder);
-        var aircraftRoot = Path.GetFullPath(Path.Combine(xPlaneRoot, "Aircraft"));
+        var fullTarget = AircraftUpdatePath.ResolvePhysicalPath(targetFolder);
+        var targetParent = Path.GetDirectoryName(fullTarget)!;
+        var aircraftRoot = AircraftUpdatePath.ResolvePhysicalPath(Path.Combine(xPlaneRoot, "Aircraft"));
         var stagePath = Path.Combine(
-            aircraftRoot,
+            targetParent,
             $".{Path.GetFileName(fullTarget)}.toolkit-install-{Guid.NewGuid():N}");
         var targetCreated = false;
 
@@ -82,12 +82,9 @@ public sealed class AircraftFreshInstallOperation
             WriteToolkitMetadata(stagePath, product, installPlan);
             cancellationToken.ThrowIfCancellationRequested();
 
-            if (Directory.Exists(fullTarget) || File.Exists(fullTarget))
-            {
-                throw new IOException("The aircraft destination was created or changed during staging.");
-            }
-
+            ValidateActivationDestination();
             writePhaseStarting?.Invoke();
+            ValidateActivationDestination();
             Directory.Move(stagePath, fullTarget);
             targetCreated = true;
             ValidateStagedAircraft(fullTarget, product);
@@ -104,7 +101,7 @@ public sealed class AircraftFreshInstallOperation
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or InvalidDataException)
         {
-            if (targetCreated && Directory.Exists(fullTarget))
+            if (targetCreated && HasOriginalParent() && Directory.Exists(fullTarget))
             {
                 Directory.Delete(fullTarget, recursive: true);
                 log.Add("[ROLLBACK] Removed the incomplete fresh-install target.");
@@ -117,10 +114,45 @@ public sealed class AircraftFreshInstallOperation
         }
         finally
         {
-            if (Directory.Exists(stagePath))
+            try
             {
-                Directory.Delete(stagePath, recursive: true);
+                // Never follow a grouping folder replaced by a link while staging.
+                if (!HasOriginalParent())
+                    log.Add($"[CLEANUP] Staging retained because its parent changed: {stagePath}");
+                else if (Directory.Exists(stagePath))
+                    Directory.Delete(stagePath, recursive: true);
             }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+            {
+                log.Add($"[CLEANUP] Could not safely remove staging at {stagePath}: {ex.Message}");
+            }
+        }
+
+        bool HasOriginalParent()
+        {
+            try
+            {
+                return AircraftFreshInstallDestination.PathsEqual(aircraftRoot, AircraftUpdatePath.ResolvePhysicalPath(aircraftRoot))
+                    && AircraftFreshInstallDestination.PathsEqual(targetParent, AircraftUpdatePath.ResolvePhysicalPath(targetParent))
+                    && AircraftFreshInstallDestination.GetParentValidationError(aircraftRoot, targetParent) is null;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+            {
+                return false;
+            }
+        }
+
+        void ValidateActivationDestination()
+        {
+            var error = AircraftFreshInstallDestination.GetValidationError(xPlaneRoot, targetFolder);
+            if (error is not null) throw new IOException(error);
+            if (!AircraftFreshInstallDestination.PathsEqual(aircraftRoot,
+                    AircraftUpdatePath.ResolvePhysicalPath(Path.Combine(xPlaneRoot, "Aircraft")))
+                || !AircraftFreshInstallDestination.PathsEqual(fullTarget,
+                    AircraftUpdatePath.ResolvePhysicalPath(targetFolder)))
+                throw new IOException("The aircraft destination changed during staging.");
+            if (_isXPlaneRunning())
+                throw new InvalidOperationException("X-Plane is running. Close X-Plane before installing an aircraft.");
         }
     }
 
@@ -131,31 +163,14 @@ public sealed class AircraftFreshInstallOperation
         AircraftUpstreamUpdateCheckResult installPlan,
         IReadOnlyList<AircraftUpdatePackageCacheEntry> cachedPackages)
     {
-        var fullXPlaneRoot = Path.GetFullPath(xPlaneRoot);
-        if (!XPlaneInstallationLocator.LooksLikeXPlaneRoot(fullXPlaneRoot))
-        {
-            return "The selected path is not a structurally valid X-Plane installation.";
-        }
+        var destinationError = AircraftFreshInstallDestination.GetValidationError(xPlaneRoot, targetFolder);
+        if (destinationError is not null) return destinationError;
 
         var plannedProductId = AircraftProductIds.Normalize(installPlan.Family);
         if (!AircraftProductIds.IsSupported(product.ProductId)
             || !string.Equals(product.ProductId, plannedProductId, StringComparison.Ordinal))
         {
             return "The selected product does not match the release package plan.";
-        }
-
-        var fullTarget = Path.GetFullPath(targetFolder);
-        var aircraftRoot = Path.GetFullPath(Path.Combine(fullXPlaneRoot, "Aircraft"));
-        var targetParent = Path.GetDirectoryName(fullTarget);
-        if (string.IsNullOrWhiteSpace(targetParent)
-            || !PathsEqual(AircraftUpdatePath.ResolvePhysicalPath(targetParent), AircraftUpdatePath.ResolvePhysicalPath(aircraftRoot)))
-        {
-            return "A fresh aircraft must be installed into a direct child folder of X-Plane 12/Aircraft.";
-        }
-
-        if (Directory.Exists(fullTarget) || File.Exists(fullTarget))
-        {
-            return "The destination already exists. Select and update that aircraft instead, or choose a new folder name.";
         }
 
         if (installPlan.RequiredPackages.Count == 0
@@ -240,11 +255,4 @@ public sealed class AircraftFreshInstallOperation
             JsonSerializer.Serialize(metadata, MetadataJsonOptions));
     }
 
-    private static bool PathsEqual(string left, string right) =>
-        string.Equals(
-            Path.GetFullPath(left),
-            Path.GetFullPath(right),
-            OperatingSystem.IsWindows() || OperatingSystem.IsMacOS()
-                ? StringComparison.OrdinalIgnoreCase
-                : StringComparison.Ordinal);
 }

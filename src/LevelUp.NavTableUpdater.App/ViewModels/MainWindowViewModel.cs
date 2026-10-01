@@ -5755,33 +5755,14 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
-        var targetExists = false;
-        var targetIsDirectAircraftChild = false;
-        try
-        {
-            var fullTarget = Path.GetFullPath(FreshInstallTargetPath);
-            targetExists = Directory.Exists(fullTarget) || File.Exists(fullTarget);
-            var targetParent = Path.GetDirectoryName(fullTarget);
-            targetIsDirectAircraftChild = !string.IsNullOrWhiteSpace(targetParent)
-                && PathsEqual(targetParent, Path.Combine(xPlaneRoot!, "Aircraft"));
-        }
-        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
-        {
-            targetExists = true;
-        }
-
+        var destinationError = AircraftFreshInstallDestination.GetValidationError(xPlaneRoot!, FreshInstallTargetPath);
         CanInstallFreshAircraft = ActionsEnabled
             && !IsOperationRunning
-            && !targetExists
-            && targetIsDirectAircraftChild;
+            && destinationError is null;
         CanImportFreshInstallPackage = ActionsEnabled && !IsOperationRunning;
-        if (!IsOperationRunning && !targetIsDirectAircraftChild)
+        if (!IsOperationRunning && destinationError is not null)
         {
-            FreshInstallStatus = "The new destination must be a direct child folder of X-Plane 12/Aircraft.";
-        }
-        else if (!IsOperationRunning && targetExists)
-        {
-            FreshInstallStatus = "The destination already exists. Select that aircraft for updates or enter a new folder name.";
+            FreshInstallStatus = destinationError;
         }
         else if (!IsOperationRunning && _lastFreshInstallCheck is null)
         {

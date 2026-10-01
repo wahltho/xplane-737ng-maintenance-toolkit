@@ -207,7 +207,10 @@ LevelUp 737NG Series installation without requiring an existing aircraft copy.
 1. Select or auto-detect the intended X-Plane 12 installation.
 2. Choose `Zibo Boeing 737-800X` or `LevelUp 737NG Series`.
 3. Keep the proposed destination under `X-Plane 12/Aircraft`, or enter another
-   unused direct child folder there.
+   unused folder below it, for example `X-Plane 12/Aircraft/Boeing/737NG Series`.
+   Create grouping folders such as `Boeing` first; MTK creates the final aircraft
+   folder. Grouping folders cannot be symlinks or junctions, and the new aircraft
+   cannot be placed inside another aircraft's folder.
 4. Use `Check package` to resolve the latest complete release plan.
 5. Use `Import package` for any required archive that cannot be downloaded
    directly.

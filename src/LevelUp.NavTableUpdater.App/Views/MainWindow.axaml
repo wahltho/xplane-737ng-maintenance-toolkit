@@ -369,7 +369,7 @@
                                         <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="12">
                                             <StackPanel Spacing="4">
                                                 <TextBlock Text="Install New Aircraft" FontSize="18" FontWeight="SemiBold"/>
-                                                <TextBlock Text="Installs a complete Zibo or LevelUp aircraft into an unused folder under the selected X-Plane 12 installation. Packages are staged and structurally validated before activation."
+                                                <TextBlock Text="Installs a complete Zibo or LevelUp aircraft into an unused folder under Aircraft, including subfolders such as Aircraft/Boeing. Create grouping folders first. Packages are staged and structurally validated before activation."
                                                            Foreground="{DynamicResource AppTextSecondaryBrush}"
                                                            TextWrapping="Wrap"/>
                                             </StackPanel>
