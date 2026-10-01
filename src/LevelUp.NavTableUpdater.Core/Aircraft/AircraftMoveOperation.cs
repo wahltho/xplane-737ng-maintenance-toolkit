@@ -316,7 +316,8 @@ public sealed class AircraftMoveOperation
     }
     private static void ApplyMetadata(string source, string target, AircraftMoveEntry e)
     {
-        File.SetLastWriteTimeUtc(target, e.LastWriteUtc);
+        if (e.Directory) Directory.SetLastWriteTimeUtc(target, e.LastWriteUtc);
+        else File.SetLastWriteTimeUtc(target, e.LastWriteUtc);
         if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(target, (UnixFileMode)e.UnixMode!.Value);
         else if (e.Directory) new DirectoryInfo(target).SetAccessControl(new DirectoryInfo(source).GetAccessControl(AccessControlSections.Access));
         else new FileInfo(target).SetAccessControl(new FileInfo(source).GetAccessControl(AccessControlSections.Access));
