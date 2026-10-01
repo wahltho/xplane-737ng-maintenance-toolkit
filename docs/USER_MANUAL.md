@@ -253,8 +253,12 @@ import the exact required aircraft package manually and retry.
 Zibo uses its public feed and the baseline/cumulative package model described
 below. LevelUp uses the authorized public `737NG-Updates` GitHub Release index.
 For LevelUp, an installation matching the declared baseline receives only the
-cumulative patch; an unknown or different baseline requires the exact full
-package. The release index, package manifests, archive sizes and SHA-256 hashes
+cumulative patch. For an older, different baseline, the Toolkit can stage the
+published full baseline followed by the latest cumulative patch, then replace
+the aircraft after confirmation. Preferences and local liveries are preserved,
+and Restore retains the complete previous aircraft. An unknown local version
+requires explicit confirmation of the full replacement; a newer local release
+is not downgraded automatically. The release index, package manifests, archive sizes and SHA-256 hashes
 must all agree before download or review is enabled. The app also enforces the
 release's declared minimum toolkit version.
 

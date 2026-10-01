@@ -131,7 +131,7 @@ public sealed class AircraftUpdateOperation
         {
             try
             {
-                return new AircraftFullBaselineReplacement(_stateStore).Apply(
+                return new AircraftFullBaselineReplacement(_stateStore, isXPlaneRunning: _isXPlaneRunning).Apply(
                     variant,
                     updateCheck,
                     orderedCacheEntries,

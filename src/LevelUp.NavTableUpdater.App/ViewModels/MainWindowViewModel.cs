@@ -3068,6 +3068,11 @@ public partial class MainWindowViewModel : ViewModelBase
                 [
                     AircraftProductIdentity.FromVariant(selectedVariant).DisplayName,
                     $"Version: {UpstreamLocalVersion} -> {UpstreamAvailableVersion}",
+                    $"Packages in order: {string.Join(" -> ", _lastUpstreamUpdateCheck.RequiredPackages.Select(package => package.VersionDisplay))}",
+                    isCleanBaselineReplacement && !LevelUpReleaseUpdateChecker.TryCompareReleaseVersions(selectedVariant.LocalVersion, UpstreamAvailableVersion, out _)
+                        && AircraftProductIds.Normalize(selectedVariant.Family) == AircraftProductIds.LevelUp737Ng
+                        ? "The installed LevelUp version cannot be compared reliably. This replaces the aircraft from published packages; review the target version before confirming."
+                        : "",
                     $"Target: {CurrentProductAircraftFolderPath()}",
                     $"Changes: {dryRun.AddCount} add, {dryRun.ReplaceCount} replace, {dryRun.DeleteCount} delete",
                     $"Protected local entries: {dryRun.ProtectedCount + dryRun.LocalLiveryPreservedCount}",

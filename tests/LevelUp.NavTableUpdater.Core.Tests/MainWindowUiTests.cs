@@ -29,6 +29,40 @@ public sealed class UiTestAppBuilder
 public sealed class MainWindowUiTests
 {
     [Theory]
+    [InlineData("2.S1.51B")]
+    [InlineData("unknown")]
+    public Task LevelUpCatchUp_ReviewsFullReplacementAndOrderedPackagesBeforeAnyWrites(string version) => Run(async () =>
+    {
+        using var fixture = new Fixture(enabled: false);
+        using var release = new LevelUpCatchUpFixture(version);
+        fixture.Handler.SetResponses(release.Responses);
+        var aircraft = fixture.Store.Load().SelectedAircraftPath;
+        File.WriteAllText(Path.Combine(aircraft, "version.txt"), version);
+        var before = Directory.EnumerateFiles(aircraft, "*", SearchOption.AllDirectories)
+            .ToDictionary(path => path, File.ReadAllBytes);
+        var window = fixture.Open();
+        try
+        {
+            await Until(() => fixture.Vm.SelectedViewVariant is not null && fixture.Vm.ActionsEnabled);
+            var update = fixture.Vm.UpdateAircraftPackagesCommand.ExecuteAsync(null);
+            await Until(() => window.OwnedWindows.Any(w => w.Title == "Apply aircraft update?"));
+            var dialog = window.OwnedWindows.Single(w => w.Title == "Apply aircraft update?");
+            var text = string.Join("\n", dialog.GetVisualDescendants().OfType<TextBlock>().Select(t => t.Text));
+            Assert.Contains("Packages in order: v2.S1.50C -> v2.S1.51C", text, StringComparison.Ordinal);
+            Assert.Contains("complete current aircraft directory", text, StringComparison.Ordinal);
+            if (version == "unknown") Assert.Contains("cannot be compared reliably", text, StringComparison.Ordinal);
+            foreach (var file in before) Assert.Equal(file.Value, File.ReadAllBytes(file.Key));
+            Assert.Equal(before.Count, Directory.EnumerateFiles(aircraft, "*", SearchOption.AllDirectories).Count());
+            Press(dialog, Button(dialog, "Cancel"));
+            await update;
+            foreach (var file in before) Assert.Equal(file.Value, File.ReadAllBytes(file.Key));
+            Assert.DoesNotContain(Directory.EnumerateDirectories(Path.GetDirectoryName(aircraft)!),
+                path => Path.GetFileName(path).Contains("toolkit-", StringComparison.Ordinal));
+        }
+        finally { Close(window); }
+    });
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public Task AircraftMove_RequiresConfirmationAndSelectsNewProduct(bool confirm) => Run(async () =>
@@ -688,6 +722,10 @@ public sealed class MainWindowUiTests
     {
         public List<string> Requests { get; } = [];
         private readonly Dictionary<string, byte[]> _responses = new(StringComparer.Ordinal);
+        public void SetResponses(IReadOnlyDictionary<string, byte[]> responses)
+        {
+            foreach (var response in responses) _responses[response.Key] = response.Value;
+        }
         public Releases()
         {
             const string prefix = "https://github.com/petrolpram/737NG-Updates/releases/download/v2.S1.51C/";

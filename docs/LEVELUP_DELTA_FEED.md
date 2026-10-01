@@ -10,6 +10,14 @@ The Toolkit verifies both indexes and manifests, requires the full version to
 match the delta baseline and its sequence to precede the new release, and rejects
 nested references. Existing installs on the matching baseline download only the
 delta. Fresh installs stage full then delta, including deletions, before activation.
+An existing aircraft on a different baseline can use the same verified full-plus-delta
+combination. This is a full replacement, not a delta applied to an unsupported
+version: preferences and local liveries are migrated, and the complete previous
+aircraft is retained for Restore. The confirmation lists the packages in order.
+Newer local releases are not downgraded automatically. An unknown local version
+requires an explicit full-replacement confirmation. Standalone-patch conflicts
+remain blocked, and the local version and distribution are checked again before
+the aircraft directories are swapped. No intermediate update archives are needed.
 Required maintenance patches follow the successful LevelUp fresh installation.
 
 Publish the new Toolkit first. Upload the checked release index and updated

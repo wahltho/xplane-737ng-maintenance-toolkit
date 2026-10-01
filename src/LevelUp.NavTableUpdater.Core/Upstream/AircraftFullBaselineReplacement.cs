@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using LevelUp.NavTableUpdater.Core.Aircraft;
 using LevelUp.NavTableUpdater.Core.Content;
+using LevelUp.NavTableUpdater.Core.Platform;
 using LevelUp.NavTableUpdater.Core.State;
 
 namespace LevelUp.NavTableUpdater.Core.Upstream;
@@ -12,11 +13,14 @@ internal sealed class AircraftFullBaselineReplacement
 
     private readonly ToolStateStore _stateStore;
     private readonly Action? _afterTargetMoved;
+    private readonly Func<bool> _isXPlaneRunning;
 
-    public AircraftFullBaselineReplacement(ToolStateStore stateStore, Action? afterTargetMoved = null)
+    public AircraftFullBaselineReplacement(ToolStateStore stateStore, Action? afterTargetMoved = null,
+        Func<bool>? isXPlaneRunning = null)
     {
         _stateStore = stateStore;
         _afterTargetMoved = afterTargetMoved;
+        _isXPlaneRunning = isXPlaneRunning ?? XPlaneProcessDetector.IsXPlaneRunning;
     }
 
     public MaintenanceOperationResult Apply(
@@ -37,6 +41,12 @@ internal sealed class AircraftFullBaselineReplacement
         }
 
         var selectedFolder = Path.GetFullPath(Path.GetDirectoryName(variant.AcfPath) ?? "");
+        var conflict = CatchUpTargetConflict(selectedFolder, variant, updateCheck, null, out var sourceVersion);
+        if (conflict is not null)
+        {
+            log.Add($"[BLOCKED] {conflict}");
+            return MaintenanceOperationResult.Blocked(conflict, log.ToArray());
+        }
         var targetFolder = AircraftUpdatePath.ResolvePhysicalPath(selectedFolder);
         var targetParent = Path.GetDirectoryName(targetFolder)
             ?? throw new InvalidOperationException("Aircraft folder has no parent directory.");
@@ -67,7 +77,19 @@ internal sealed class AircraftFullBaselineReplacement
             ValidateStagedAircraft(stagePath, variant);
             cancellationToken.ThrowIfCancellationRequested();
 
+            conflict = CatchUpTargetConflict(selectedFolder, variant, updateCheck, sourceVersion, out _);
+            if (conflict is not null)
+            {
+                log.Add($"[BLOCKED] {conflict}");
+                return MaintenanceOperationResult.Blocked(conflict, log.ToArray());
+            }
             writePhaseStarting?.Invoke();
+            conflict = CatchUpTargetConflict(selectedFolder, variant, updateCheck, sourceVersion, out _);
+            if (conflict is not null)
+            {
+                log.Add($"[BLOCKED] {conflict}");
+                return MaintenanceOperationResult.Blocked(conflict, log.ToArray());
+            }
             var standaloneConflict = StandalonePatchOwnershipGuard.FindAircraftUpdateConflict(
                 selectedFolder, _stateStore.TryGetContentInstallation(selectedFolder)?.ContentComponents);
             if (standaloneConflict is not null)
@@ -110,7 +132,9 @@ internal sealed class AircraftFullBaselineReplacement
         {
             if (stageMoved && Directory.Exists(targetFolder))
             {
-                Directory.Delete(targetFolder, recursive: true);
+                // Restore the original before cleanup. Local read-only files in
+                // the failed image must not prevent the backup from coming back.
+                Directory.Move(targetFolder, stagePath);
             }
 
             if (targetMoved && Directory.Exists(backupPath))
@@ -125,9 +149,54 @@ internal sealed class AircraftFullBaselineReplacement
         {
             if (Directory.Exists(stagePath))
             {
-                Directory.Delete(stagePath, recursive: true);
+                DeleteStage(stagePath);
             }
         }
+    }
+
+    private sealed record LevelUpSourceVersion(string? RawVersion, string? MetadataVersion);
+
+    private string? CatchUpTargetConflict(string aircraftFolder, AircraftVariantViewAnalysis variant,
+        AircraftUpstreamUpdateCheckResult updateCheck, LevelUpSourceVersion? expectedSourceVersion,
+        out LevelUpSourceVersion? sourceVersion)
+    {
+        sourceVersion = null;
+        // The new catch-up route reconstructs the image rather than patching the
+        // local baseline. Recheck its source after downloads and staging as well.
+        if (!string.Equals(updateCheck.Family, LevelUpAircraftUpdatePackageLoader.Family, StringComparison.OrdinalIgnoreCase)
+            || updateCheck.RequiredPackages.Count < 2) return null;
+        if (_isXPlaneRunning()) return "X-Plane is running. Close X-Plane and check for updates again.";
+        if (!File.Exists(variant.AcfPath)) return "The selected LevelUp aircraft has changed. Rescan and check for updates again.";
+        var metadata = AircraftFileParser.ReadMaintenanceMetadata(aircraftFolder, out var error);
+        if (error is not null) return error + " Rescan and check for updates again.";
+        if (!string.IsNullOrWhiteSpace(metadata?.Distribution))
+            return "Custom distribution detected. Official LevelUp packages are review-only for this target.";
+        if (!string.IsNullOrWhiteSpace(metadata?.AircraftFamily)
+            && !string.Equals(metadata.AircraftFamily, LevelUpAircraftUpdatePackageLoader.Family, StringComparison.OrdinalIgnoreCase))
+            return "The selected aircraft product has changed. Rescan and check for updates again.";
+        var rawVersion = AircraftFileParser.ReadLevelUpVersion(aircraftFolder);
+        sourceVersion = new(rawVersion, metadata?.DistributionVersion);
+        // Match AircraftViewAnalyzer's version precedence. Toolkit-generated
+        // metadata can be newer than the upstream runtime's release marker.
+        var currentVersion = !string.IsNullOrWhiteSpace(metadata?.DistributionVersion)
+            ? metadata.DistributionVersion : rawVersion;
+        if (!string.Equals(currentVersion?.Trim().TrimStart('v', 'V'), variant.LocalVersion?.Trim().TrimStart('v', 'V'), StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(updateCheck.LocalVersionDisplay, variant.LocalVersion ?? "-", StringComparison.Ordinal)
+            || expectedSourceVersion is not null && expectedSourceVersion != sourceVersion
+            || LevelUpReleaseUpdateChecker.TryCompareReleaseVersions(rawVersion, updateCheck.AvailableVersionDisplay, out var comparison) && comparison > 0)
+            return "The installed LevelUp version changed after the update check. Rescan and check for updates again.";
+        return null;
+    }
+
+    private static void DeleteStage(string stagePath)
+    {
+        foreach (var path in Directory.EnumerateFileSystemEntries(stagePath, "*", SearchOption.AllDirectories))
+        {
+            var attributes = File.GetAttributes(path);
+            if (attributes.HasFlag(FileAttributes.ReadOnly))
+                File.SetAttributes(path, attributes & ~FileAttributes.ReadOnly);
+        }
+        Directory.Delete(stagePath, recursive: true);
     }
 
     public MaintenanceOperationResult Restore(

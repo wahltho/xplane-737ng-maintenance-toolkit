@@ -131,7 +131,98 @@ public sealed class LevelUpGitHubReleaseUpdateTests
         var current = await checker.CheckAsync(BuildVariant("2.S1.51C"));
         Assert.Equal(AircraftUpdatePlanAction.UpToDate, current.Action);
         var mismatch = await checker.CheckAsync(BuildVariant("unknown"));
-        Assert.Equal(AircraftUpdatePlanAction.BaselineMismatch, mismatch.Action);
+        Assert.Equal(AircraftUpdateMode.Full, mismatch.UpdateMode);
+        Assert.Equal(2, mismatch.RequiredPackages.Count);
+        Assert.Contains(mismatch.Findings, finding => finding.Contains("cannot be compared reliably", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("V2.S1")]
+    [InlineData("2.S1.0")]
+    [InlineData("v2.S1.50")]
+    [InlineData("2.S1.51A")]
+    [InlineData("V2.S1.51B")]
+    [InlineData(null)]
+    public async Task DeltaFeed_UnmatchedExistingVersionSelectsVerifiedFullThenLatestDelta(string? version)
+    {
+        var checker = CreateChecker(CreateDeltaOnlyFixture());
+        var result = await checker.CheckAsync(BuildVariant(version));
+        Assert.Equal(AircraftUpdatePlanAction.InstallBaselineAndCumulativePatch, result.Action);
+        Assert.Equal(AircraftUpdateMode.Full, result.UpdateMode);
+        Assert.Collection(result.RequiredPackages,
+            full => { Assert.Equal(AircraftUpdatePackageKind.FullBaseline, full.Kind); Assert.Equal("v2.S1.50C", full.ReleaseVersion); },
+            patch => { Assert.Equal(AircraftUpdatePackageKind.CumulativePatch, patch.Kind); Assert.Equal("v2.S1.51C", patch.ReleaseVersion); });
+    }
+
+    [Theory]
+    [InlineData("2.S1.51D", true)]
+    [InlineData("2.S1.52", true)]
+    [InlineData("2.S2", true)]
+    [InlineData("3.S1", true)]
+    [InlineData("2.S1.51D", false)]
+    public async Task Checker_NewerLocalReleaseCannotBeDowngraded(string version, bool deltaOnly)
+    {
+        var checker = CreateChecker(deltaOnly ? CreateDeltaOnlyFixture() : CreateReleaseFixture());
+        var result = await checker.CheckAsync(BuildVariant(version));
+        Assert.Equal(AircraftUpdatePlanAction.LocalNewerThanIndex, result.Action);
+        Assert.False(result.HasUpdate);
+        Assert.Empty(result.RequiredPackages);
+    }
+
+    [Theory]
+    [InlineData("v2.S1", "2.S1.0", 0)]
+    [InlineData("V2.S1.51b", "2.S1.51C", -1)]
+    [InlineData("2.S1.51", "2.S1.51A", -1)]
+    [InlineData("2.S2", "2.S1.999", 1)]
+    [InlineData("3.S1", "2.S9.999", 1)]
+    public void LevelUpReleaseComparison_PreservesSeriesAndLetterSuffix(string left, string right, int expected)
+    {
+        Assert.True(LevelUpReleaseUpdateChecker.TryCompareReleaseVersions(left, right, out var comparison));
+        Assert.Equal(expected, Math.Sign(comparison));
+    }
+
+    [Theory]
+    [InlineData("main-abcdef")]
+    [InlineData("2.S1.51C-local")]
+    [InlineData("2.S1.51CC")]
+    [InlineData("2.S1.999999999999999")]
+    public void LevelUpReleaseComparison_DoesNotGuessUnknownVersionFormats(string version)
+    {
+        Assert.False(LevelUpReleaseUpdateChecker.TryCompareReleaseVersions(version, "2.S1.51C", out _));
+        Assert.False(LevelUpReleaseUpdateChecker.TryCompareReleaseVersions("2.S1.51C", version, out _));
+    }
+
+    [Fact]
+    public async Task Checker_NewerBaselineAliasCannotBypassDowngradeGuard()
+    {
+        var fixture = CreateReleaseFixture();
+        // The fixture's baseline alias is 2.S1; make the declared target older.
+        var index = await new LevelUpGitHubReleaseIndexSource(fixture.CreateClient(), ToolkitVersion, fixture.IndexUrl).LoadAsync();
+        var packages = index.Packages.Select(p => p with { ReleaseVersion = "v1.S1" }).ToArray();
+        var aliasChecker = new LevelUpReleaseUpdateChecker(new FixedIndex(index with { Packages = packages }));
+        var result = await aliasChecker.CheckAsync(BuildVariant("2.S1"));
+        Assert.Equal(AircraftUpdatePlanAction.LocalNewerThanIndex, result.Action);
+        Assert.Empty(result.RequiredPackages);
+    }
+
+    private sealed class FixedIndex(AircraftUpdateIndex index) : IAircraftUpdateIndexSource
+    {
+        public Task<AircraftUpdateIndex> LoadAsync(CancellationToken cancellationToken = default) => Task.FromResult(index);
+    }
+
+    [Fact]
+    public async Task DeltaFeed_WithoutVerifiedFullBaselineStillBlocksUnmatchedInstallation()
+    {
+        var fixture = CreateDeltaOnlyFixture();
+        using var client = fixture.CreateClient();
+        var index = await new LevelUpGitHubReleaseIndexSource(client, ToolkitVersion, fixture.IndexUrl).LoadAsync();
+        var checker = new LevelUpReleaseUpdateChecker(new FixedIndex(index with
+        {
+            Packages = index.Packages.Where(p => p.Kind == AircraftUpdatePackageKind.CumulativePatch).ToArray()
+        }));
+        var result = await checker.CheckAsync(BuildVariant("2.S1.0"));
+        Assert.Equal(AircraftUpdatePlanAction.BaselineMismatch, result.Action);
+        Assert.Empty(result.RequiredPackages);
     }
 
     [Theory]

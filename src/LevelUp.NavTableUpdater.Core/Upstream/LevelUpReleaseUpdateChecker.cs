@@ -1,9 +1,13 @@
 using LevelUp.NavTableUpdater.Core.Aircraft;
+using System.Text.RegularExpressions;
 
 namespace LevelUp.NavTableUpdater.Core.Upstream;
 
 public sealed class LevelUpReleaseUpdateChecker
 {
+    private static readonly Regex ReleaseVersionPattern = new(
+        @"\A[vV]?(\d+)\.[sS](\d+)(?:\.(\d+)([a-zA-Z]?))?\z",
+        RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
     private readonly IAircraftUpdateIndexSource _indexSource;
 
     public LevelUpReleaseUpdateChecker(IAircraftUpdateIndexSource indexSource)
@@ -103,6 +107,17 @@ public sealed class LevelUpReleaseUpdateChecker
                 findings);
         }
 
+        if (TryCompareReleaseVersions(localVersion, availableVersion, out var comparison) && comparison > 0)
+        {
+            findings.Add("The installed LevelUp release is newer than the public release; automatic downgrade is blocked.");
+            return BuildResult(
+                "Local version is newer",
+                $"Installed LevelUp {localVersion} is newer than published {availableVersion}. No downgrade will be applied.",
+                index, localVersion, availableVersion,
+                AircraftUpdatePlanAction.LocalNewerThanIndex,
+                "No automatic downgrade", false, [], findings);
+        }
+
         if (patch is not null && MatchesBaseline(localVersion, patch.Manifest))
         {
             findings.Add(
@@ -120,22 +135,31 @@ public sealed class LevelUpReleaseUpdateChecker
                 findings);
         }
 
-        if (full is not null)
+        var baseline = FindPublishedBaseline(packages, full, patch, latestSequence);
+        if (full is not null || baseline is not null && patch is not null)
         {
             findings.Add(
                 string.IsNullOrWhiteSpace(localVersion)
                     ? "Installed LevelUp version is unknown; the exact full package is required."
                     : "Installed LevelUp version does not match the cumulative baseline; the exact full package is required.");
+            if (!TryCompareReleaseVersions(localVersion, availableVersion, out _))
+            {
+                findings.Add("The installed version cannot be compared reliably. Review and explicitly confirm the full replacement; the cumulative patch will not be applied to the existing files.");
+            }
+            var requiredPackages = full is not null
+                ? new[] { full }
+                : new[] { baseline!, patch! };
+            findings.Add("Stage the published full package and any cumulative update before replacing the aircraft. Retain the complete previous aircraft as a restore backup.");
             return BuildResult(
                 "Full update required",
-                $"Apply full LevelUp package {full.FileName} to reach {availableVersion}.",
+                $"Rebuild LevelUp {availableVersion} from verified release packages. Preserve preferences and local liveries; back up the complete existing aircraft.",
                 index,
                 localVersion,
                 availableVersion,
                 AircraftUpdatePlanAction.InstallBaselineAndCumulativePatch,
-                "Full: apply exact release package",
+                full is not null ? "Full: apply exact release package" : "Full: install published baseline and latest cumulative update",
                 false,
-                [full],
+                requiredPackages,
                 findings);
         }
 
@@ -176,11 +200,7 @@ public sealed class LevelUpReleaseUpdateChecker
         var patch = packages.SingleOrDefault(package =>
             package.Kind == AircraftUpdatePackageKind.CumulativePatch
             && package.Version.Patch == latestSequence);
-        var baseline = full is null && patch is not null
-            ? packages.SingleOrDefault(package => package.Kind == AircraftUpdatePackageKind.FullBaseline
-                && VersionsEqual(package.ReleaseVersion, patch.BaselineVersion)
-                && package.Version.Patch < latestSequence)
-            : null;
+        var baseline = FindPublishedBaseline(packages, full, patch, latestSequence);
         if (baseline is not null && patch is not null)
         {
             findings.Add("Install the verified published full baseline followed by the latest cumulative patch in staging.");
@@ -254,6 +274,37 @@ public sealed class LevelUpReleaseUpdateChecker
         manifest is not null
         && (VersionsEqual(localVersion, manifest.BaselineVersion)
             || manifest.BaselineAliases.Any(alias => VersionsEqual(localVersion, alias)));
+
+    private static AircraftUpdatePackage? FindPublishedBaseline(
+        IReadOnlyList<AircraftUpdatePackage> packages,
+        AircraftUpdatePackage? full,
+        AircraftUpdatePackage? patch,
+        int latestSequence) =>
+        full is null && patch is not null
+            ? packages.SingleOrDefault(package => package.Kind == AircraftUpdatePackageKind.FullBaseline
+                && VersionsEqual(package.ReleaseVersion, patch.BaselineVersion)
+                && package.Version.Patch < latestSequence)
+            : null;
+
+    // LevelUp release labels are not SemVer: S1.51C must compare after S1.51B,
+    // and S2 must compare after S1 regardless of the patch number.
+    public static bool TryCompareReleaseVersions(string? left, string? right, out int comparison)
+    {
+        comparison = 0;
+        var leftMatch = ReleaseVersionPattern.Match(left?.Trim() ?? "");
+        var rightMatch = ReleaseVersionPattern.Match(right?.Trim() ?? "");
+        if (!leftMatch.Success || !rightMatch.Success) return false;
+        for (var group = 1; group <= 3; group++)
+        {
+            var leftPart = leftMatch.Groups[group].Success ? leftMatch.Groups[group].Value : "0";
+            var rightPart = rightMatch.Groups[group].Success ? rightMatch.Groups[group].Value : "0";
+            if (!int.TryParse(leftPart, out var leftNumber) || !int.TryParse(rightPart, out var rightNumber)) return false;
+            if (comparison == 0) comparison = leftNumber.CompareTo(rightNumber);
+        }
+        if (comparison == 0)
+            comparison = string.Compare(leftMatch.Groups[4].Value, rightMatch.Groups[4].Value, StringComparison.OrdinalIgnoreCase);
+        return true;
+    }
 
     private static bool VersionsEqual(string? left, string? right) =>
         !string.IsNullOrWhiteSpace(left)
