@@ -40,7 +40,7 @@ public sealed class MainWindowUiTests
         File.WriteAllText(Path.Combine(aircraft, "version.txt"), version);
         var before = Directory.EnumerateFiles(aircraft, "*", SearchOption.AllDirectories)
             .ToDictionary(path => path, File.ReadAllBytes);
-        var window = fixture.Open();
+        var window = await fixture.OpenInitializedAsync();
         try
         {
             await Until(() => fixture.Vm.SelectedViewVariant is not null && fixture.Vm.ActionsEnabled);
@@ -704,10 +704,24 @@ public sealed class MainWindowUiTests
         }
         public MainWindow Open(int width = 1500, int height = 1000)
         {
+            var window = CreateWindow(width, height);
+            window.Show();
+            return window;
+        }
+        public async Task<MainWindow> OpenInitializedAsync()
+        {
+            var window = CreateWindow(1500, 1000);
+            // The constructor scan can already satisfy readiness checks while
+            // asynchronous startup detection is still about to rescan the target.
+            await Vm.InitializeAsync();
+            window.Show();
+            return window;
+        }
+        private MainWindow CreateWindow(int width, int height)
+        {
             var window = new MainWindow { Width = width, Height = height };
             Vm = new MainWindowViewModel(new MainWindowUserInteractionService(window), new NoAppUpdate(), Store, _client, new AircraftDetector(_root));
             window.DataContext = Vm;
-            window.Show();
             return window;
         }
         public void Dispose() { _client.Dispose(); Directory.Delete(_root, true); }
