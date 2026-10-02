@@ -21,13 +21,19 @@ Catalog 1.14.0 adds LevelUp GSE as an optional LevelUp group module from its
 regular 0.2.0 release. Its schema-4 managed scopes require Toolkit 0.19.0 or
 newer; the existing catalog minimum remains 0.21.1. Equipment positions still
 need simulator feedback across all five variants.
+Catalog 1.15.0 adds VREF tables (Beta) as an optional, initially unselected
+module for Zibo and LevelUp, before Intentional Fixes. It requires Toolkit
+0.21.2 for the schema-3 loader migration used by VREF 0.1.0-beta.1. The source
+uses a regular GitHub release for discovery through `releases/latest`; its
+version, display name and description identify it as Beta. Simulator
+validation remains open.
 Catalog 1.12.0 offers the Tablet Performance Calculator to
 compatible Zibo installations as well as LevelUp, using package v0.1.7.
 Catalog 1.11.0 enables the same-path XLua 2 opt4 prerelease on
 the Optimized XLua beta channel while Stable continues to resolve XLua
 1.3.7r5. Its schema-3 replacement contract requires Toolkit 0.18.0. The LevelUp group
 keeps VNAV, FANS CDU and Weight & Balance required; Calculator, AUTO JETWAY,
-CPDLC FANS PAGES, Intentional Fixes and LevelUp GSE are optional. See
+CPDLC FANS PAGES, VREF tables (Beta), Intentional Fixes and LevelUp GSE are optional. See
 `../docs/CATALOG_GROUPS.md`.
 
 Optional livery entries use category `livery` and distribution kind

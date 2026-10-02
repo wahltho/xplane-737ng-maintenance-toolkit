@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "catalogVersion": "1.14.0",
-  "minimumToolkitVersion": "0.21.1",
+  "catalogVersion": "1.15.0",
+  "minimumToolkitVersion": "0.21.2",
   "packages": [
     {
       "packageId": "x-plane-zibo-vnav-descent-tables",
@@ -331,6 +331,24 @@
       }
     },
     {
+      "packageId": "wahltho.levelup-737ng.vref",
+      "displayName": "VREF tables (Beta)",
+      "description": "Beta: FCOM landing-reference speeds for Zibo and LevelUp 737NG, including separate 900ER data. Optional; simulator validation remains open.",
+      "category": "compatibilityPackage",
+      "activation": "managed",
+      "supportedProducts": [
+        "zibo-737ng",
+        "levelup-737ng"
+      ],
+      "repositoryUrl": "https://github.com/wahltho/X-Plane-LevelUp-737NG-VREF",
+      "restartRequired": true,
+      "distribution": {
+        "kind": "gitHubReleaseArchive",
+        "assetNamePattern": "X-Plane-LevelUp-737NG-VREF-v*.zip",
+        "manifestSchemaVersion": 3
+      }
+    },
+    {
       "packageId": "wahltho.zibo-40535.intentional-fixes",
       "displayName": "Intentional Fixes",
       "description": "Optional unofficial corrections to existing Zibo and LevelUp FMS behavior. Conditional corrections do not install CPDLC or Weight & Balance.",
@@ -368,7 +386,7 @@
     {
       "packageId": "wahltho.levelup-737ng.maintenance",
       "displayName": "LevelUp maintenance patches",
-      "description": "VNAV descent tables, FANS CDU and Weight & Balance are required. Calculator, AUTO JETWAY, CPDLC FANS PAGES, Intentional Fixes and LevelUp GSE are optional. Sources update directly from their own releases.",
+      "description": "VNAV descent tables, FANS CDU and Weight & Balance are required. Calculator, AUTO JETWAY, CPDLC FANS PAGES, VREF tables (Beta), Intentional Fixes and LevelUp GSE are optional. Sources update directly from their own releases.",
       "category": "compatibilityPackage",
       "activation": "managed",
       "supportedProducts": [
@@ -435,6 +453,15 @@
           "assetNamePattern": "X-Plane-Zibo-LevelUp-737NG-CPDLC-v*.zip"
         },
         {
+          "packageId": "wahltho.levelup-737ng.vref",
+          "moduleId": "vref",
+          "policy": "optional",
+          "installationOrder": 65,
+          "sourceFormat": "compatibility",
+          "manifestPath": "package-manifest.json",
+          "assetNamePattern": "X-Plane-LevelUp-737NG-VREF-v*.zip"
+        },
+        {
           "packageId": "wahltho.zibo-40535.intentional-fixes",
           "moduleId": "intentional-fixes-levelup",
           "policy": "optional",
@@ -457,7 +484,7 @@
     {
       "packageId": "wahltho.zibo-40535.maintenance",
       "displayName": "Zibo optional patches",
-      "description": "Optional VNAV descent tables, Tablet Performance Calculator, AUTO JETWAY, CPDLC FANS PAGES and Intentional Fixes. No patch is required or selected automatically.",
+      "description": "Optional VNAV descent tables, Tablet Performance Calculator, AUTO JETWAY, CPDLC FANS PAGES, VREF tables (Beta) and Intentional Fixes. No patch is required or selected automatically.",
       "category": "compatibilityPackage",
       "activation": "managed",
       "supportedProducts": [
@@ -504,6 +531,15 @@
           "sourceFormat": "compatibility",
           "manifestPath": "package-manifest.json",
           "assetNamePattern": "X-Plane-Zibo-LevelUp-737NG-CPDLC-v*.zip"
+        },
+        {
+          "packageId": "wahltho.levelup-737ng.vref",
+          "moduleId": "vref",
+          "policy": "optional",
+          "installationOrder": 65,
+          "sourceFormat": "compatibility",
+          "manifestPath": "package-manifest.json",
+          "assetNamePattern": "X-Plane-LevelUp-737NG-VREF-v*.zip"
         },
         {
           "packageId": "wahltho.zibo-40535.intentional-fixes",

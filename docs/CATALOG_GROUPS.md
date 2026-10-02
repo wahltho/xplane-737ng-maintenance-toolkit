@@ -9,14 +9,22 @@ repositories remain the only published sources. There is no additional bundle
 archive, bundle repository or bundle release to maintain.
 
 The LevelUp group requires VNAV descent tables, FANS CDU and Weight & Balance.
-Tablet Performance Calculator, AUTO JETWAY, CPDLC FANS PAGES, Intentional Fixes
+Tablet Performance Calculator, AUTO JETWAY, CPDLC FANS PAGES, VREF tables (Beta), Intentional Fixes
 and LevelUp GSE are optional. The Zibo group has no required patches: VNAV, Tablet Performance
-Calculator, AUTO JETWAY, CPDLC FANS PAGES and Intentional Fixes are all opt-in.
+Calculator, AUTO JETWAY, CPDLC FANS PAGES, VREF tables (Beta) and Intentional Fixes are all opt-in.
 Intentional Fixes follows the other existing FMS patches in each group and
 never selects CPDLC or Weight & Balance on the user's behalf.
 LevelUp GSE follows Intentional Fixes in the LevelUp group only. Its schema-4
 managed scopes remove known native GSE files with backups and block unknown
 content; simulator placement checks across all variants remain open.
+
+Catalog 1.15.0 adds VREF tables (Beta) to both groups as module `vref`, with
+installation order 65 before Intentional Fixes at 70. It is optional and
+initially unselected. The source manifest uses compatibility schema 3 and
+requires Toolkit 0.21.2 or newer for loader migration. GitHub marks the source
+release as regular so the existing `releases/latest` resolver can discover it;
+the package version and display name still identify it as Beta. Simulator
+validation remains open.
 
 ## Resolution and execution
 
