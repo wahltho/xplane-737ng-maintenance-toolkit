@@ -99,6 +99,9 @@ public partial class MainWindowViewModel
                 ["Active patch"] = $"{PackageId}: installed={LocalPackageVersion}; available={AvailablePackageVersion}; {LineEnding}",
                 ["X-Plane process"] = XPlaneProcessStatus,
                 ["Last operation"] = $"{OperationTitle}: {OperationStatus}; {OperationSubtitle}",
+                ["Result help"] = OperationHelp is { } help
+                    ? $"{help.Reason} Affected file or record: {help.AffectedPath ?? "not identified"}. Next step: {help.NextStep}"
+                    : "",
                 ["Moved aircraft"] = MovedAircraftNotice,
                 ["Selected tool"] = $"{SelectedToolPackage?.PackageId}: installed={ToolInstalledVersion}; available={ToolAvailableVersion}; channel={SelectedToolReleaseChannel}; {ToolPackageStatus}"
             },

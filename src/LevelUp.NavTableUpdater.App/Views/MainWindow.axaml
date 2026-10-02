@@ -342,11 +342,53 @@
                                 <TextBlock Text="{Binding OperationProgressText}" Foreground="#DDD6FE" FontSize="12"
                                            TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis"
                                            ToolTip.Tip="{Binding OperationProgressText}"/>
+                                <WrapPanel IsVisible="{Binding OperationHelpVisible}" ItemSpacing="8" LineSpacing="8">
+                                    <Button x:Name="ShowOperationHelpButton" Content="Show result help" Click="ShowOperationHelp_Click"
+                                            Background="#2563EB" Foreground="#FFFFFF"/>
+                                    <Button x:Name="BlockedDiagnosticsButton" Content="Export diagnostics"
+                                            Command="{Binding ExportDiagnosticsCommand}" Background="#334155" Foreground="#FFFFFF"/>
+                                </WrapPanel>
                             </StackPanel>
                         </Border>
                         <ScrollViewer x:Name="FunctionsPaneScroll" Grid.Row="1"
                                       HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
                             <StackPanel Spacing="16">
+                                <Border x:Name="AircraftOverviewCard" Classes="task-card" IsVisible="{Binding AircraftOverviewVisible}">
+                                    <StackPanel Spacing="7">
+                                        <TextBlock Text="Update status" FontSize="18" FontWeight="SemiBold"/>
+                                        <TextBlock Text="{Binding AircraftOverview.Status}" FontWeight="Bold" TextWrapping="Wrap"/>
+                                        <TextBlock Text="{Binding AircraftOverview.Aircraft}" TextWrapping="Wrap"/>
+                                        <TextBlock Text="{Binding AircraftOverview.RequiredPatches, StringFormat='Required patches: {0}'}" TextWrapping="Wrap"/>
+                                        <TextBlock Text="{Binding AircraftOverview.OptionalPatches, StringFormat='Optional patches installed: {0}'}" TextWrapping="Wrap"/>
+                                        <TextBlock Text="{Binding AircraftOverview.NextStep}" TextWrapping="Wrap"/>
+                                        <TextBlock Text="{Binding AircraftOverview.LastChecked}" TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource AppTextSecondaryBrush}" FontSize="12"/>
+                                        <TextBlock Text="Patch versions come from Toolkit install records. Manual file changes are checked when you review or apply a package."
+                                                   TextWrapping="Wrap" Foreground="{DynamicResource AppTextSecondaryBrush}" FontSize="12"/>
+                                    </StackPanel>
+                                </Border>
+                                <Border x:Name="OperationHelpCard" Classes="task-card" IsVisible="{Binding OperationHelpVisible}">
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Text="Help with this result" FontSize="18" FontWeight="SemiBold"/>
+                                        <TextBlock Text="{Binding OperationHelp.Reason}" TextWrapping="Wrap"/>
+                                        <StackPanel IsVisible="{Binding OperationHelp.HasAffectedPath}" Spacing="3">
+                                            <TextBlock Classes="label" Text="Affected file or record"/>
+                                            <TextBlock Classes="path" Text="{Binding OperationHelp.AffectedPath}"/>
+                                        </StackPanel>
+                                        <TextBlock Classes="label" Text="Next step"/>
+                                        <TextBlock Text="{Binding OperationHelp.NextStep}" TextWrapping="Wrap"/>
+                                        <TextBlock Text="Export diagnostics and attach the ZIP when asking for help. No aircraft files are included and nothing is uploaded."
+                                                   Foreground="{DynamicResource AppTextSecondaryBrush}" TextWrapping="Wrap"/>
+                                        <WrapPanel ItemSpacing="8" LineSpacing="8">
+                                            <Button Content="Export diagnostics" Command="{Binding ExportDiagnosticsCommand}"/>
+                                            <Button Content="Cancel diagnostics" Command="{Binding ExportDiagnosticsCancelCommand}"/>
+                                            <Button Content="Discord support" Click="OpenDiscordSupport_Click"/>
+                                        </WrapPanel>
+                                        <CheckBox Content="Anonymize paths in report" IsChecked="{Binding AnonymizeDiagnosticPaths}"/>
+                                        <TextBlock Text="{Binding DiagnosticsExportStatus}" TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource AppTextSecondaryBrush}"/>
+                                    </StackPanel>
+                                </Border>
                                 <Expander x:Name="OperationLogExpander" Header="Operation log" IsExpanded="False"
                                           HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
                                           IsVisible="{Binding OperationPanelVisible}">

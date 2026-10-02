@@ -12,6 +12,8 @@ using LevelUp.NavTableUpdater.App.ViewModels;
 using LevelUp.NavTableUpdater.App.Views;
 using LevelUp.NavTableUpdater.Core.Aircraft;
 using LevelUp.NavTableUpdater.Core.Detection;
+using LevelUp.NavTableUpdater.Core.Content;
+using LevelUp.NavTableUpdater.Core.Manifest;
 using LevelUp.NavTableUpdater.Core.State;
 using LevelUp.NavTableUpdater.Core.Upstream;
 
@@ -178,6 +180,177 @@ public sealed class MainWindowUiTests
                 Assert.True(Directory.Exists(source)); Assert.False(Directory.Exists(destination));
                 Assert.False(operation.HasPendingMove);
             }
+        }
+        finally { Close(window); }
+    });
+
+    [Fact]
+    public Task AircraftOverview_UsesInstallRecordsAndClearsWhenAircraftChanges() => Run(async () =>
+    {
+        using var fixture = new Fixture(enabled: true);
+        var window = await fixture.OpenInitializedAsync();
+        try
+        {
+            Assert.Equal("Required patches missing", fixture.Vm.AircraftOverview!.Status);
+            Assert.Contains("0 of 3", fixture.Vm.AircraftOverview.RequiredPatches);
+            Assert.Equal("None recorded by the Toolkit", fixture.Vm.AircraftOverview.OptionalPatches);
+            var card = window.FindControl<Border>("AircraftOverviewCard")!;
+            Assert.True(card.IsEffectivelyVisible);
+            fixture.Vm.CompatibilityModules.Single(m => m.ModuleId == "cpdlc").IsSelected = true;
+            Assert.Equal("None recorded by the Toolkit", fixture.Vm.AircraftOverview.OptionalPatches);
+
+            var catalog = ContentPackageCatalog.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Content/content-package-catalog.json")));
+            var group = catalog.ForProduct("levelup-737ng").Single(p => p.Distribution.Kind == ContentPackageDistributionKind.CatalogGroup);
+            var enabled = group.Members.Where(m => m.Policy == CompatibilityModulePolicy.Required || m.ModuleId == "cpdlc").ToArray();
+            var state = new ToolStateStore(fixture.Store.RootPath, fixture.Store.Load().BackupRootPath);
+            state.UpdateContentAndProduct(fixture.Vm.SelectedViewVariant!, (installation, _) =>
+                installation.ContentComponents[group.PackageId] = new()
+                {
+                    ComponentId = group.PackageId, PackageVersion = "recorded selection",
+                    EnabledModules = enabled.Select(m => m.ModuleId).ToList(),
+                    Sources = enabled.Select(m => new ResolvedCatalogSource
+                    { ModuleId = m.ModuleId, PackageId = m.PackageId, ReleaseTag = "v1.0.0" }).ToList()
+                });
+            var savedState = File.ReadAllBytes(state.StatePath);
+            fixture.Vm.ScanCommand.Execute(null);
+            await fixture.Vm.RefreshAircraftUpdateCheckCommand.ExecuteAsync(null);
+            await fixture.Vm.CheckContentPackageCatalogCommand.ExecuteAsync(null);
+            Assert.Equal("No updates found", fixture.Vm.AircraftOverview!.Status);
+            Assert.Contains("3 of 3 installed", fixture.Vm.AircraftOverview.RequiredPatches);
+            Assert.Contains("CPDLC", fixture.Vm.AircraftOverview.OptionalPatches);
+            Assert.DoesNotContain("AUTO JETWAY", fixture.Vm.AircraftOverview.OptionalPatches);
+            Assert.DoesNotContain("Not checked", fixture.Vm.AircraftOverview.LastChecked);
+            Assert.Equal(savedState, File.ReadAllBytes(state.StatePath));
+            card.BringIntoView();
+            Dispatcher.UIThread.RunJobs();
+            SaveFrame(window, "aircraft-overview-current.png");
+
+            fixture.Handler.Offline = true;
+            // Force a network attempt rather than the fixture's ten-minute metadata cache.
+            Directory.Delete(Path.Combine(fixture.Store.Load().AircraftUpdateCacheRootPath, "release-metadata"), recursive: true);
+            await fixture.Vm.CheckContentPackageCatalogCommand.ExecuteAsync(null);
+            Assert.Equal("Release check failed", fixture.Vm.AircraftOverview!.Status);
+            Assert.DoesNotContain("current", fixture.Vm.AircraftOverview.RequiredPatches);
+            Assert.Contains("CPDLC", fixture.Vm.AircraftOverview.OptionalPatches);
+            Assert.Equal(savedState, File.ReadAllBytes(state.StatePath));
+            fixture.Handler.Offline = false;
+
+            // Retained selections after baseline replacement are not installations.
+            state.UpdateContentAndProduct(fixture.Vm.SelectedViewVariant!, (installation, _) =>
+            {
+                installation.ContentComponents.Clear();
+                installation.PendingContentModules[group.PackageId] = enabled.Select(m => m.ModuleId).ToList();
+            });
+            fixture.Vm.ScanCommand.Execute(null);
+            Assert.Equal("Required patches missing", fixture.Vm.AircraftOverview!.Status);
+            Assert.Equal("None recorded by the Toolkit", fixture.Vm.AircraftOverview.OptionalPatches);
+            fixture.Vm.SetAircraftPathFromBrowse(Path.Combine(fixture.Xp, "Aircraft", "zibo-737ng"));
+            Assert.Contains("All patches are optional", fixture.Vm.AircraftOverview!.RequiredPatches);
+            Assert.Equal("None recorded by the Toolkit", fixture.Vm.AircraftOverview.OptionalPatches);
+            Assert.Contains("Aircraft releases: Not checked", fixture.Vm.AircraftOverview.LastChecked);
+            Assert.Contains("Patch releases: Not checked", fixture.Vm.AircraftOverview.LastChecked);
+            Assert.Equal("Not fully checked", fixture.Vm.AircraftOverview.Status);
+            fixture.Vm.SetAircraftPathFromBrowse(Path.Combine(fixture.Xp, "Aircraft", "missing"));
+            Assert.False(fixture.Vm.AircraftOverviewVisible);
+            Assert.Null(fixture.Vm.AircraftOverview);
+        }
+        finally { Close(window); }
+    });
+
+    [Fact]
+    public Task XPlaneRunning_BlocksAircraftMoveAndHardwareCopyWithoutChangingFiles() => Run(async () =>
+    {
+        using var fixture = new Fixture(enabled: false) { XPlaneRunning = true };
+        var window = await fixture.OpenInitializedAsync();
+        try
+        {
+            var source = fixture.Vm.SelectedProduct!.AircraftFolderPath;
+            var acf = fixture.Vm.SelectedViewVariant!.AcfPath;
+            var before = File.ReadAllBytes(acf);
+            var destination = Path.Combine(fixture.Xp, "Aircraft", "blocked move");
+            fixture.Vm.SetAircraftMoveParentFromBrowse(Path.GetDirectoryName(destination)!);
+            fixture.Vm.AircraftMoveFolderName = Path.GetFileName(destination);
+            var move = fixture.Vm.MoveAircraftCommand.ExecuteAsync(null);
+            await Until(() => window.OwnedWindows.Any(w => w.Title == "Aircraft move stopped"));
+            Assert.Contains("Close X-Plane", fixture.Vm.AircraftMoveStatus);
+            Assert.True(Directory.Exists(source));
+            Assert.False(Directory.Exists(destination));
+            Assert.Equal(before, File.ReadAllBytes(acf));
+            var dialog = Assert.Single(window.OwnedWindows);
+            Press(dialog, Button(dialog, "Close"));
+            await move;
+
+            await fixture.Vm.FindHardwareConfigsCommand.ExecuteAsync(null);
+            fixture.Vm.SelectedHardwareConfigSource = fixture.Vm.HardwareConfigSources.Single(s => s.Target.FileName == "b738x_hw.cfg");
+            fixture.Vm.HardwareConfigTargets.Single(t => t.Target.FileName == "737_80NG_hw.cfg").IsSelected = true;
+            var copy = fixture.Vm.CopyHardwareConfigsCommand.ExecuteAsync(null);
+            await Until(() => window.OwnedWindows.Any(w => w.Title == "Copy hardware configurations?"));
+            dialog = Assert.Single(window.OwnedWindows);
+            Press(dialog, Button(dialog, "Continue"));
+            await Until(() => window.OwnedWindows.Any(w => w.Title == "Hardware configurations: Blocked"));
+            Assert.Contains("Close X-Plane", fixture.Vm.HardwareConfigStatus);
+            Assert.Equal("original hardware", File.ReadAllText(fixture.Target));
+            Assert.False(File.Exists(fixture.NewTarget));
+            dialog = Assert.Single(window.OwnedWindows);
+            Press(dialog, Button(dialog, "Close"));
+            await copy;
+        }
+        finally { Close(window); }
+    });
+
+    [Fact]
+    public Task BlockedResult_StartHelpAndDirectExportPreserveAircraftAndAnonymizeReport() => Run(async () =>
+    {
+        using var fixture = new Fixture(enabled: false);
+        var window = await fixture.OpenInitializedAsync();
+        try
+        {
+            var acf = fixture.Vm.SelectedViewVariant!.AcfPath;
+            var before = File.ReadAllBytes(acf);
+            fixture.Vm.OperationPanelVisible = true;
+            fixture.Vm.OperationTitle = "Patch installation blocked";
+            fixture.Vm.OperationStatus = "Blocked";
+            fixture.Vm.OperationProgressText = "0% - Transaction did not start";
+            fixture.Vm.OperationSubtitle = "Managed target changed after installation: plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua.";
+            Dispatcher.UIThread.RunJobs();
+            var helpButton = window.FindControl<Button>("ShowOperationHelpButton")!;
+            var export = window.FindControl<Button>("BlockedDiagnosticsButton")!;
+            Assert.True(helpButton.IsEffectivelyVisible);
+            Assert.True(export.IsEffectivelyVisible && export.IsEffectivelyEnabled);
+            Button(window, "Find hardware configurations").BringIntoView();
+            Dispatcher.UIThread.RunJobs();
+            Assert.True(window.FindControl<ScrollViewer>("FunctionsPaneScroll")!.Offset.Y > 0);
+            Press(window, helpButton);
+            Dispatcher.UIThread.RunJobs();
+            var helpCard = window.FindControl<Border>("OperationHelpCard")!;
+            var position = helpCard.TranslatePoint(default, window)!.Value;
+            Assert.InRange(position.Y, 0, window.ClientSize.Height);
+            Assert.Contains(helpCard.GetVisualDescendants().OfType<TextBlock>(),
+                t => t.Text == "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua");
+            SaveFrame(window, "blocked-result-help.png");
+            fixture.Vm.IsOperationRunning = true;
+            Dispatcher.UIThread.RunJobs();
+            Assert.False(export.IsEffectivelyEnabled);
+            fixture.Vm.IsOperationRunning = false;
+            Dispatcher.UIThread.RunJobs();
+            Press(window, export);
+            await Until(() => window.OwnedWindows.Any(w => w.Title == "Diagnostics saved"));
+            var path = Assert.Single(Directory.GetFiles(fixture.Store.Load().DiagnosticsExportRootPath, "*.zip"));
+            using (var archive = System.IO.Compression.ZipFile.OpenRead(path))
+            using (var reader = new StreamReader(archive.GetEntry("diagnostics.json")!.Open()))
+            using (var json = JsonDocument.Parse(reader.ReadToEnd()))
+            {
+                Assert.Contains("differs from", json.RootElement.GetProperty("context").GetProperty("status").GetProperty("Result help").GetString());
+                Assert.DoesNotContain(fixture.Xp, json.RootElement.GetRawText());
+            }
+            var dialog = Assert.Single(window.OwnedWindows);
+            Press(dialog, Button(dialog, "Close"));
+            await Until(() => fixture.Vm.CanExportDiagnostics);
+            Assert.Equal(before, File.ReadAllBytes(acf));
+            fixture.Vm.OperationStatus = "Applied";
+            Dispatcher.UIThread.RunJobs();
+            Assert.False(helpButton.IsEffectivelyVisible);
+            Assert.False(export.IsEffectivelyVisible);
         }
         finally { Close(window); }
     });
@@ -716,6 +889,7 @@ public sealed class MainWindowUiTests
         public Releases Handler { get; } = new();
         private readonly HttpClient _client;
         public MainWindowViewModel Vm { get; private set; } = null!;
+        public bool XPlaneRunning { get; set; }
         public Fixture(bool enabled)
         {
             Directory.CreateDirectory(Path.Combine(Xp, "Resources"));
@@ -757,7 +931,10 @@ public sealed class MainWindowUiTests
         private MainWindow CreateWindow(int width, int height)
         {
             var window = new MainWindow { Width = width, Height = height };
-            Vm = new MainWindowViewModel(new MainWindowUserInteractionService(window), new NoAppUpdate(), Store, _client, new AircraftDetector(_root));
+            // These tests operate on isolated temporary aircraft, independent of
+            // any simulator the user is running on the development machine.
+            Vm = new MainWindowViewModel(new MainWindowUserInteractionService(window), new NoAppUpdate(), Store, _client,
+                new AircraftDetector(_root), isXPlaneRunning: () => XPlaneRunning);
             window.DataContext = Vm;
             return window;
         }
@@ -771,6 +948,7 @@ public sealed class MainWindowUiTests
     }
     public sealed class Releases : HttpMessageHandler
     {
+        public bool Offline { get; set; }
         public List<string> Requests { get; } = [];
         private readonly Dictionary<string, byte[]> _responses = new(StringComparer.Ordinal);
         public void SetResponses(IReadOnlyDictionary<string, byte[]> responses)
@@ -813,6 +991,7 @@ public sealed class MainWindowUiTests
         {
             var url = request.RequestUri!.AbsoluteUri;
             Requests.Add(url);
+            if (Offline) return Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
             return Task.FromResult(_responses.TryGetValue(url, out var bytes) ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(bytes) } : new HttpResponseMessage(HttpStatusCode.NotFound));
         }
     }

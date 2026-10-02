@@ -17,7 +17,7 @@ public partial class MainWindowViewModel
     public bool AircraftMoveControlsLocked => AircraftMoveBusy || AircraftMoveRecoveryRequired;
     public bool CanMoveAircraft => ActionsEnabled && CanAutoDetect && CanExportDiagnostics && !AircraftMoveControlsLocked
         && SelectedProduct?.IsDetected == true;
-    private AircraftMoveOperation AircraftMover() => new(_stateStore, _settingsStore);
+    private AircraftMoveOperation AircraftMover() => new(_stateStore, _settingsStore, _isXPlaneRunning);
 
     public void SetAircraftMoveParentFromBrowse(string path)
     {

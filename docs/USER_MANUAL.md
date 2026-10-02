@@ -730,6 +730,27 @@ distributions unless a dedicated update source is defined.
 
 ## Support And Diagnostics
 
+The **Update status** card at the top of **Start** shows the selected aircraft
+version, its required patches, optional patches recorded as installed, and the
+last aircraft and patch release checks. Zibo has no required patches. For
+LevelUp, missing required patches remain visible even when the aircraft version
+is current. Selected options are not shown as installed until installation is
+recorded. Failed or incomplete checks do not report that all versions are current.
+The summary compares version records; file validation still runs when you review
+or apply a package.
+
+After a blocked or failed operation, the result panel on **Start** offers
+**Show result help** and **Export diagnostics**. Result help explains
+recognized safety checks in plain language, identifies the affected file or
+patch record when the engine names it, and gives the next safe step. Unknown
+errors direct you to diagnostics rather than guessing the cause.
+
+Patch evidence without a verified Toolkit history does not prove that you ran
+a standalone installer. A file differing from Toolkit state does not identify
+which application or edit changed it. The help preserves these distinctions;
+it does not bypass validation, remove files or automatically repair or restore.
+Keep aircraft, state and backups intact when the next step is a support review.
+
 On the **Advanced** tab, use **Export diagnostic package** under **Support
 diagnostics**. The ZIP is saved in the configured diagnostics folder. Its path
 is shown when the export finishes. Attach that ZIP when reporting a problem;

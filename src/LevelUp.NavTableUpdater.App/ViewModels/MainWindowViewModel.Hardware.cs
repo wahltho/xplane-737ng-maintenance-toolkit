@@ -96,7 +96,7 @@ public partial class MainWindowViewModel
         {
             if (!await _userInteractionService.ConfirmAsync(new ConfirmationRequest(title, message, "Continue"))) return;
             // Root is captured with the confirmation; changing the selected aircraft cannot redirect the write.
-            var operation = new HardwareConfigTransferOperation(_stateStore.BackupRootPath);
+            var operation = new HardwareConfigTransferOperation(_stateStore.BackupRootPath, _isXPlaneRunning);
             var result = await Task.Run(() => action(operation));
             HardwareConfigStatus = result.Message;
             foreach (var line in result.Log) AppendLog(line);

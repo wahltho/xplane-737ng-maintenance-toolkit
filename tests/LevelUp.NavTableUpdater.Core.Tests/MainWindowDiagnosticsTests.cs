@@ -23,6 +23,11 @@ public sealed class MainWindowDiagnosticsTests : IDisposable
         var dialogs = new Messages();
         var vm = new MainWindowViewModel(dialogs, new NoUpdates(), settingsStore: store, releaseHttpClient: http,
             detector: new AircraftDetector(Path.Combine(_root, "home")));
+        vm.OperationPanelVisible = true;
+        vm.OperationStatus = "Blocked";
+        vm.OperationSubtitle = "Original backup is missing for plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua.";
+        Assert.True(vm.OperationHelpVisible);
+        var help = vm.OperationHelp;
         Assert.True(vm.AnonymizeDiagnosticPaths);
         Assert.True(vm.ExportDiagnosticsCommand.CanExecute(null));
 
@@ -40,8 +45,34 @@ public sealed class MainWindowDiagnosticsTests : IDisposable
         using var reader = new StreamReader(archive.GetEntry("diagnostics.json")!.Open());
         using var json = JsonDocument.Parse(reader.ReadToEnd());
         Assert.Equal(vm.ToolkitVersion, json.RootElement.GetProperty("context").GetProperty("toolkitVersion").GetString());
+        Assert.Contains("required original backup", json.RootElement.GetProperty("context").GetProperty("status").GetProperty("Result help").GetString());
+        Assert.Equal(help, vm.OperationHelp);
         Assert.True(json.RootElement.GetProperty("pathsAnonymized").GetBoolean());
         Assert.Equal(3, archive.Entries.Count);
+    }
+
+    [Fact]
+    public void ResultHelp_UpdatesWhenResultChangesAndClearsForSuccessfulOrRunningOperations()
+    {
+        using var http = new HttpClient(new NoNetwork());
+        var vm = new MainWindowViewModel(new Messages(), new NoUpdates(), settingsStore: Settings(), releaseHttpClient: http,
+            detector: new AircraftDetector(Path.Combine(_root, "home")));
+        vm.OperationPanelVisible = true;
+        vm.OperationSubtitle = "Managed target changed after installation: objects/cockpit.obj.";
+        vm.OperationStatus = "Blocked";
+        Assert.Equal("objects/cockpit.obj", vm.OperationHelp!.AffectedPath);
+        vm.OperationSubtitle = "X-Plane is running. Close X-Plane before changing aircraft files.";
+        Assert.False(vm.OperationHelp!.HasAffectedPath);
+        Assert.Contains("X-Plane", vm.OperationHelp.Reason);
+        vm.OperationPanelVisible = false;
+        Assert.False(vm.OperationHelpVisible);
+        vm.OperationPanelVisible = true;
+        Assert.True(vm.OperationHelpVisible);
+        vm.OperationStatus = "Transaction in progress";
+        Assert.Null(vm.OperationHelp);
+        Assert.False(vm.OperationHelpVisible);
+        vm.OperationStatus = "Applied";
+        Assert.False(vm.OperationHelpVisible);
     }
 
     [Fact]

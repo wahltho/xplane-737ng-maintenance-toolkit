@@ -23,6 +23,11 @@ public partial class MainWindow : Window
         Process.Start(new ProcessStartInfo(IndependentProjectNotice.DiscordSupportUrl) { UseShellExecute = true });
     }
 
+    private void ShowOperationHelp_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        this.FindControl<Border>("OperationHelpCard")?.BringIntoView();
+    }
+
     protected override async void OnOpened(EventArgs e)
     {
         base.OnOpened(e);

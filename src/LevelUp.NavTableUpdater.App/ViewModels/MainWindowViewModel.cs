@@ -23,6 +23,7 @@ public partial class MainWindowViewModel : ViewModelBase
     public string ToolkitVersion { get; } = FormatToolkitVersion();
 
     private readonly AircraftDetector _detector;
+    private readonly Func<bool> _isXPlaneRunning;
     private readonly AircraftInstallAnalyzer _analyzer = new();
     private readonly AircraftViewAnalyzer _viewAnalyzer = new();
     private readonly ToolkitSettingsStore _settingsStore;
@@ -227,6 +228,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private bool unifiedUpdateVisible;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(OperationHelpVisible))]
     private bool operationPanelVisible;
 
     [ObservableProperty]
@@ -665,11 +667,13 @@ public partial class MainWindowViewModel : ViewModelBase
         IApplicationUpdateService? applicationUpdateService = null,
         ToolkitSettingsStore? settingsStore = null,
         HttpClient? releaseHttpClient = null,
-        AircraftDetector? detector = null)
+        AircraftDetector? detector = null,
+        Func<bool>? isXPlaneRunning = null)
     {
         _settingsStore = settingsStore ?? ToolkitSettingsStore.CreateDefault();
         _aircraftUpdateHttpClient = releaseHttpClient ?? new HttpClient();
         _detector = detector ?? new AircraftDetector();
+        _isXPlaneRunning = isXPlaneRunning ?? XPlaneProcessDetector.IsXPlaneRunning;
         _userInteractionService = userInteractionService ?? throw new ArgumentNullException(nameof(userInteractionService));
         ApplicationUpdate = new ApplicationUpdateViewModel(
             applicationUpdateService ?? new VelopackApplicationUpdateService(),
@@ -808,6 +812,7 @@ public partial class MainWindowViewModel : ViewModelBase
         OnPropertyChanged(nameof(MaintenancePatchTitle));
         _contentPatchReleases.Clear();
         _contentPatchReleaseErrors.Clear();
+        _patchReleaseCheckTimes.Clear();
         _toolPackageReleases.Clear();
         _resourcePackageReleases.Clear();
         SynchronizeAvailableToolPackages();
@@ -1921,6 +1926,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
         finally
         {
+            _patchReleaseCheckTimes[productId] = DateTimeOffset.Now;
             IsContentPackageCatalogCheckRunning = false;
             ActionsEnabled = true;
             RefreshContentPackageOverview(preserveStatus: true);
@@ -2810,6 +2816,7 @@ public partial class MainWindowViewModel : ViewModelBase
             UpstreamPlanAction = "Not checked";
             UpstreamUpdateMode = "-";
             UpstreamLastChecked = DateTimeOffset.Now.ToString("HH:mm:ss");
+            _aircraftReleaseCheckTime = DateTimeOffset.Now;
             UpstreamRequiredPackages.Clear();
             UpstreamPackageCacheEntries.Clear();
             UpstreamDryRunEntries.Clear();
@@ -3876,7 +3883,7 @@ public partial class MainWindowViewModel : ViewModelBase
         var anyChanged = results.Any(result => result.Changed);
         var anyUnsuccessful = results.Any(result => !result.Succeeded);
         var blockedByXPlane = results.Any(result =>
-            result.Message.Contains("X-Plane is running", StringComparison.OrdinalIgnoreCase));
+            result.Message.StartsWith("X-Plane is running.", StringComparison.OrdinalIgnoreCase));
         var title = anyUnsuccessful
             ? anyChanged
                 ? "Update partially completed"
@@ -3932,7 +3939,15 @@ public partial class MainWindowViewModel : ViewModelBase
         }
         else if (anyUnsuccessful)
         {
-            message.Add("Review the Advanced tab and operation log for details before retrying.");
+            foreach (var help in results.Where(result => !result.Succeeded)
+                         .Select(result => BlockedOperationHelp.FromResult(result.Status, result.Message))
+                         .OfType<BlockedOperationHelp>().Distinct())
+            {
+                message.Add(help.Reason);
+                if (help.HasAffectedPath) message.Add($"Affected file or record: {help.AffectedPath}");
+                message.Add($"Next step: {help.NextStep}");
+            }
+            message.Add("On Start, use Show result help or Export diagnostics for this result.");
         }
         else if (anyChanged)
         {
@@ -3958,7 +3973,9 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             OperationTitle = title;
             OperationStatus = anyUnsuccessful ? "Update incomplete" : "Complete";
-            OperationSubtitle = vnavResult.Message;
+            OperationSubtitle = anyUnsuccessful
+                ? results.Last(result => !result.Succeeded).Message
+                : vnavResult.Message;
             UpstreamUpdateSummary = string.Join(Environment.NewLine, message);
         }
         await _userInteractionService.ShowMessageAsync(
@@ -4184,6 +4201,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private void RefreshContentPackageOverview(bool preserveStatus = false)
     {
+        RefreshAircraftOverview();
         RefreshMaintenancePatchSummary();
         AvailableContentPackages.Clear();
         var product = SelectedProduct;
@@ -6137,6 +6155,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private void ApplyUpstreamReadiness(AircraftVariantViewAnalysis? variant)
     {
+        _aircraftReleaseCheckTime = null;
         UpstreamSource = ZiboUpstreamFeedParser.DefaultFeedUrl;
         UpstreamAvailableVersion = "-";
         UpstreamPlanAction = "Not checked";
@@ -6184,6 +6203,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private void ApplyUpstreamUpdateCheck(AircraftUpstreamUpdateCheckResult result)
     {
+        _aircraftReleaseCheckTime = DateTimeOffset.Now;
         _lastUpstreamUpdateCheck = result;
         _lastAircraftUpdateDryRun = null;
         UpstreamUpdateStatus = result.StateLabel;
@@ -6369,6 +6389,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private void RefreshUpstreamActionAvailability(string? statusOverride = null)
     {
+        RefreshAircraftOverview();
         RefreshUnifiedUpdateVisibility();
         var selectedVariant = SelectedViewVariant;
         var aircraftUpdateSupported = selectedVariant is not null && IsAircraftUpdateFamily(selectedVariant.Family);
