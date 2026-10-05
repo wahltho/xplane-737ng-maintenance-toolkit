@@ -1,4 +1,5 @@
 # X-Plane 737NG Maintenance Toolkit
+[![GitHub Release](https://img.shields.io/github/v/release/wahltho/xplane-737ng-maintenance-toolkit)](https://github.com/wahltho/xplane-737ng-maintenance-toolkit/releases/latest)
 
 Cross-platform desktop app for Zibo and LevelUp 737NG maintenance tasks. It
 manages aircraft and VNAV packages, explicit optional patches, X-Plane-wide
@@ -6,8 +7,6 @@ tools, verified liveries and conservative view maintenance for supported aircraf
 
 This repository is the public development home for the app. The architecture
 keeps package content, aircraft patching, and application updates separate.
-
-Release version: **0.21.0**
 
 Includes [catalog-controlled maintenance groups](docs/CATALOG_GROUPS.md) and configurable startup update notifications.
 
