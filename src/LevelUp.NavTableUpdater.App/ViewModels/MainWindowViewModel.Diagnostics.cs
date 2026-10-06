@@ -17,12 +17,19 @@ public partial class MainWindowViewModel
         && !IsResourcePackageOperationRunning && !IsLiveryPackageOperationRunning
         && !IsContentPackageCatalogCheckRunning && !IsUpstreamCheckRunning;
 
-    partial void OnIsOperationRunningChanged(bool value) => ExportDiagnosticsCommand.NotifyCanExecuteChanged();
-    partial void OnIsToolPackageOperationRunningChanged(bool value) => ExportDiagnosticsCommand.NotifyCanExecuteChanged();
-    partial void OnIsResourcePackageOperationRunningChanged(bool value) => ExportDiagnosticsCommand.NotifyCanExecuteChanged();
-    partial void OnIsLiveryPackageOperationRunningChanged(bool value) => ExportDiagnosticsCommand.NotifyCanExecuteChanged();
-    partial void OnIsContentPackageCatalogCheckRunningChanged(bool value) => ExportDiagnosticsCommand.NotifyCanExecuteChanged();
-    partial void OnIsUpstreamCheckRunningChanged(bool value) => ExportDiagnosticsCommand.NotifyCanExecuteChanged();
+    private void RefreshDiagnosticCommands(bool clearCheck = false)
+    {
+        ExportDiagnosticsCommand.NotifyCanExecuteChanged();
+        CheckInstallationCommand.NotifyCanExecuteChanged();
+        if (clearCheck) ClearInstallationCheck();
+    }
+
+    partial void OnIsOperationRunningChanged(bool value) => RefreshDiagnosticCommands(value);
+    partial void OnIsToolPackageOperationRunningChanged(bool value) => RefreshDiagnosticCommands(value);
+    partial void OnIsResourcePackageOperationRunningChanged(bool value) => RefreshDiagnosticCommands(value);
+    partial void OnIsLiveryPackageOperationRunningChanged(bool value) => RefreshDiagnosticCommands(value);
+    partial void OnIsContentPackageCatalogCheckRunningChanged(bool value) => RefreshDiagnosticCommands();
+    partial void OnIsUpstreamCheckRunningChanged(bool value) => RefreshDiagnosticCommands();
 
     [RelayCommand(CanExecute = nameof(CanExportDiagnostics), IncludeCancelCommand = true)]
     private async Task ExportDiagnostics(CancellationToken cancellationToken)

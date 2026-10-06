@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:LevelUp.NavTableUpdater.App.ViewModels"
+        xmlns:services="using:LevelUp.NavTableUpdater.App.Services"
         xmlns:core="using:LevelUp.NavTableUpdater.Core"
         xmlns:analysis="using:LevelUp.NavTableUpdater.Core.Analysis"
         xmlns:aircraft="using:LevelUp.NavTableUpdater.Core.Aircraft"
@@ -363,8 +364,75 @@
                                         <TextBlock Text="{Binding AircraftOverview.NextStep}" TextWrapping="Wrap"/>
                                         <TextBlock Text="{Binding AircraftOverview.LastChecked}" TextWrapping="Wrap"
                                                    Foreground="{DynamicResource AppTextSecondaryBrush}" FontSize="12"/>
-                                        <TextBlock Text="Patch versions come from Toolkit install records. Manual file changes are checked when you review or apply a package."
+                                        <Expander x:Name="PatchModulesExpander" Header="Patch versions" HorizontalAlignment="Stretch">
+                                            <StackPanel Spacing="8">
+                                                <Grid ColumnDefinitions="2*,*,*,2*" ColumnSpacing="10">
+                                                    <TextBlock Text="Patch" Classes="label"/>
+                                                    <TextBlock Grid.Column="1" Text="Installed" Classes="label"/>
+                                                    <TextBlock Grid.Column="2" Text="Available" Classes="label"/>
+                                                    <TextBlock Grid.Column="3" Text="Version status" Classes="label"/>
+                                                </Grid>
+                                                <ItemsControl x:Name="PatchModulesList" ItemsSource="{Binding PatchModules}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate x:DataType="services:PatchModuleOverview">
+                                                            <Border BorderBrush="{DynamicResource AppBorderBrush}" BorderThickness="0,1,0,0" Padding="0,8">
+                                                                <Grid ColumnDefinitions="2*,*,*,2*" ColumnSpacing="10">
+                                                                    <StackPanel Spacing="2">
+                                                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                                                        <TextBlock Text="{Binding Policy}" Classes="label"/>
+                                                                        <TextBlock Text="Beta / preview" IsVisible="{Binding IsBeta}" Foreground="#D97706" FontWeight="Bold"/>
+                                                                    </StackPanel>
+                                                                    <TextBlock Grid.Column="1" Text="{Binding Installed}" TextWrapping="Wrap"/>
+                                                                    <TextBlock Grid.Column="2" Text="{Binding Available}" TextWrapping="Wrap"/>
+                                                                    <TextBlock Grid.Column="3" Text="{Binding Status}" TextWrapping="Wrap"/>
+                                                                </Grid>
+                                                            </Border>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                                <TextBlock Text="Choose optional patches under Advanced. Selecting a patch does not install it. Beta / preview patches still need simulator validation."
+                                                           TextWrapping="Wrap" Foreground="{DynamicResource AppTextSecondaryBrush}" FontSize="12"/>
+                                            </StackPanel>
+                                        </Expander>
+                                        <TextBlock Text="Versions come from Toolkit install records. Use Check installation to compare recorded files with the files on disk."
                                                    TextWrapping="Wrap" Foreground="{DynamicResource AppTextSecondaryBrush}" FontSize="12"/>
+                                        <WrapPanel ItemSpacing="8" LineSpacing="8">
+                                            <Button x:Name="CheckInstallationButton" Content="Check installation" Command="{Binding CheckInstallationCommand}"/>
+                                            <Button Content="Cancel check" Command="{Binding CheckInstallationCancelCommand}"/>
+                                        </WrapPanel>
+                                        <TextBlock Text="{Binding InstallationCheckStatus}" TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </Border>
+                                <Border x:Name="InstallationCheckCard" Classes="task-card" IsVisible="{Binding InstallationCheckVisible}">
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Text="Installation check" FontSize="18" FontWeight="SemiBold"/>
+                                        <TextBlock Text="{Binding InstallationCheck.Status}" FontWeight="Bold"/>
+                                        <TextBlock Text="{Binding InstallationCheck.Summary}" TextWrapping="Wrap"/>
+                                        <TextBlock Text="{Binding InstallationCheck.AircraftFolder}" Classes="path"/>
+                                        <TextBlock Text="{Binding InstallationCheck.CheckedAt, StringFormat='Checked: {0}'}" Classes="label"/>
+                                        <ItemsControl ItemsSource="{Binding InstallationCheck.Notes}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="x:String">
+                                                    <TextBlock Text="{Binding}" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,5"/>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <Expander Header="File and backup results" HorizontalAlignment="Stretch">
+                                            <ListBox x:Name="InstallationCheckFiles" ItemsSource="{Binding InstallationCheck.Files}" MaxHeight="320">
+                                                <ListBox.ItemTemplate>
+                                                    <DataTemplate x:DataType="services:InstallationFileCheckRow">
+                                                        <StackPanel Spacing="3" Margin="0,4">
+                                                            <TextBlock Text="{Binding Path}" TextWrapping="Wrap"/>
+                                                            <TextBlock Text="{Binding Status}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                                            <TextBlock Text="{Binding Kind}" Classes="label"/>
+                                                            <TextBlock Text="{Binding Owner}" Classes="label" TextWrapping="Wrap"/>
+                                                            <TextBlock Text="{Binding Detail}" TextWrapping="Wrap" FontSize="12"/>
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </ListBox.ItemTemplate>
+                                            </ListBox>
+                                        </Expander>
+                                        <Button Content="Export diagnostics for support" Command="{Binding ExportDiagnosticsCommand}" HorizontalAlignment="Left"/>
                                     </StackPanel>
                                 </Border>
                                 <Border x:Name="OperationHelpCard" Classes="task-card" IsVisible="{Binding OperationHelpVisible}">

@@ -13,11 +13,17 @@ public partial class MainWindowViewModel
     private AircraftOverviewSummary? aircraftOverview;
 
     public bool AircraftOverviewVisible => AircraftOverview is not null;
+    [ObservableProperty]
+    private IReadOnlyList<PatchModuleOverview> patchModules = [];
     private readonly Dictionary<string, DateTimeOffset> _patchReleaseCheckTimes = new(StringComparer.Ordinal);
     private DateTimeOffset? _aircraftReleaseCheckTime;
 
     private void RefreshAircraftOverview()
     {
+        CheckInstallationCommand.NotifyCanExecuteChanged();
+        if (InstallationCheck is { } check && check.AircraftFolder != SelectedProduct?.AircraftFolderPath)
+            ClearInstallationCheck();
+        PatchModules = [];
         if (SelectedProduct?.IsDetected != true || SelectedViewVariant is not { } variant
             || !PathsEqual(SelectedProduct.AircraftFolderPath, Path.GetDirectoryName(variant.AcfPath) ?? ""))
         {
@@ -30,6 +36,7 @@ public partial class MainWindowViewModel
         var groups = packages.Where(p => p.Distribution.Kind == ContentPackageDistributionKind.CatalogGroup).ToArray();
         var groupedIds = groups.SelectMany(g => g.Members).Select(m => m.PackageId).ToHashSet(StringComparer.Ordinal);
         var patches = new List<AircraftPatchVersion>();
+        var rows = new List<PatchModuleOverview>();
         var patchCheckFailed = false;
         foreach (var group in groups)
         {
@@ -49,7 +56,9 @@ public partial class MainWindowViewModel
                     installed = "version unknown";
                 var available = latest?.Sources.FirstOrDefault(s => s.Member.ModuleId == member.ModuleId).Release?.Tag;
                 var name = packages.FirstOrDefault(p => p.PackageId == member.PackageId)?.DisplayName ?? member.ModuleId;
-                patches.Add(new(name, member.Policy == CompatibilityModulePolicy.Required, installed, available));
+                var patch = new AircraftPatchVersion(name, member.Policy == CompatibilityModulePolicy.Required, installed, available);
+                patches.Add(patch);
+                rows.Add(PatchModuleOverview.Create(member.ModuleId, patch, failed, IsContentPackageCatalogCheckRunning));
             }
         }
         foreach (var package in packages.Where(p => !groupedIds.Contains(p.PackageId)
@@ -58,10 +67,13 @@ public partial class MainWindowViewModel
         {
             var failed = _contentPatchReleaseErrors.ContainsKey(package.PackageId);
             patchCheckFailed |= failed;
-            patches.Add(new(package.DisplayName, false,
+            var patch = new AircraftPatchVersion(package.DisplayName, false,
                 installation?.ContentComponents.GetValueOrDefault(package.PackageId)?.PackageVersion,
-                failed ? null : _contentPatchReleases.GetValueOrDefault(package.PackageId)?.Tag));
+                failed ? null : _contentPatchReleases.GetValueOrDefault(package.PackageId)?.Tag);
+            patches.Add(patch);
+            rows.Add(PatchModuleOverview.Create(package.PackageId, patch, failed, IsContentPackageCatalogCheckRunning));
         }
+        PatchModules = rows;
         var aircraftFailed = _lastUpstreamUpdateCheck is null && _aircraftReleaseCheckTime is not null;
         var aircraftCheckedAt = _aircraftReleaseCheckTime?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "Not checked";
         var checkedAt = _patchReleaseCheckTimes.TryGetValue(family, out var time)

@@ -1,6 +1,7 @@
 # X-Plane 737NG Maintenance Toolkit User Manual
 
-This manual describes version 0.21.1 of the X-Plane 737NG Maintenance Toolkit.
+This manual describes the X-Plane 737NG Maintenance Toolkit. Download the current
+release from the link below; the version is shown in the app.
 
 The toolkit is a desktop app for selected Zibo and LevelUp 737NG maintenance
 tasks:
@@ -31,7 +32,7 @@ Keep your own backups and use the tool at your own risk.
 
 ## Compatibility And Installation
 
-Version 0.21.1 supports:
+Supported platforms and aircraft:
 
 - X-Plane 12. X-Plane 11 is not supported.
 - Zibo 737-800X 2K and 4K variants.
@@ -281,9 +282,10 @@ products. `Check releases` queries its latest stable GitHub Release. `Review`
 downloads and validates the selected release into the configured package cache,
 then calculates its file plan without changing the aircraft. `Install`,
 `Update` or `Repair` prepares the same verified package and still asks for an
-explicit confirmation before writing files. Version 0.13.0 offers the LevelUp
-FANS CDU package as an optional LevelUp-only patch. It remains separate from
-aircraft and VNAV updates and is never installed automatically.
+explicit confirmation before writing files. The LevelUp group includes three
+required patches; its other patches are optional. All Zibo patches are optional.
+The individual versions are listed under **Patch versions** on Start. Optional
+module selection remains under Advanced.
 
 At startup, the Toolkit checks immutable `catalog-v*` releases in the Toolkit
 repository for updated package discovery metadata. A downloaded catalog becomes
@@ -374,8 +376,8 @@ after the Toolkit operation, then restores the exact previous state of each
 owned file.
 
 The `Resources` card manages large optional product assets independently from
-aircraft, VNAV and tool transactions. Version 0.12.4 offers the official
-LevelUp 737NG Paintkit 1.1.0 for detected LevelUp installations. Choose the
+aircraft, VNAV and tool transactions. The official
+LevelUp 737NG Paintkit is offered for detected LevelUp installations. Choose the
 parent extraction directory, click `Check release`, then use `Download` after
 reviewing the destination and required disk space. The Toolkit verifies the
 GitHub asset digest, manifest, archive size and SHA-256, safely extracts into a
@@ -736,8 +738,36 @@ last aircraft and patch release checks. Zibo has no required patches. For
 LevelUp, missing required patches remain visible even when the aircraft version
 is current. Selected options are not shown as installed until installation is
 recorded. Failed or incomplete checks do not report that all versions are current.
-The summary compares version records; file validation still runs when you review
-or apply a package.
+Expand **Patch versions** to see one row per patch with its installed version,
+available version, required/optional label and version status. An optional patch
+you selected is not shown as installed until the Toolkit records installation.
+“No Toolkit install record” does not rule out a manual installation. A failed
+release check keeps the installed version visible but does not claim it is current.
+Beta and preview patches are labelled even if GitHub publishes them as regular
+releases. Version matching is separate from file validation.
+
+### Check installation without making changes
+
+On Start, click **Check installation** in the Update status card. The Toolkit
+reads its installation records, compares recorded file sizes and SHA-256 hashes,
+checks expected absent files and checks referenced backups. It uses the same
+collector as the diagnostic export. It does not download packages, check online
+releases, write an export or change aircraft, settings or backup files.
+
+The result appears on Start with a timestamp and the checked aircraft folder.
+Expand **File and backup results** to see which file or backup needs attention.
+“Recorded file checks passed” applies only to the recorded checks. Missing or
+unreadable state, skipped hashes and directory checks without content verification
+leave the result incomplete. Another patch may have changed a file since an older
+snapshot; a difference does not identify who changed it or authorize repair.
+
+This is not a complete aircraft check, a verified restore chain or a simulator
+test. Close X-Plane for a consistent snapshot. **Cancel check** stops without
+changing files. A new file operation or aircraft selection clears the previous
+result. For a support request, use **Export diagnostics for support** and review
+the ZIP before sharing it. Review/Install/Repair still perform their normal checks.
+
+### Result help and diagnostic export
 
 After a blocked or failed operation, the result panel on **Start** offers
 **Show result help** and **Export diagnostics**. Result help explains
@@ -806,8 +836,8 @@ attempted and exported log. Do not upload complete copyrighted aircraft files.
 ## LevelUp maintenance group
 
 The catalog groups VNAV Descent Tables, Weight & Balance and FANS CDU as required
-modules. Tablet Performance Calculator, AUTO JETWAY, CPDLC FANS PAGES and
-Intentional Fixes are optional. Review the
+modules. Tablet Performance Calculator, AUTO JETWAY, CPDLC FANS PAGES, GSE,
+VREF (Beta) and Intentional Fixes are optional. Review the
 group to choose optional modules, then apply the common installation plan.
 Each source continues updating from its own GitHub releases. Existing installed
 modules are adopted only with verifiable backup state; an unsafe migration is
@@ -815,7 +845,7 @@ blocked without changing aircraft files. The group owns subsequent updates and
 restores for its member patches. See [Catalog groups](CATALOG_GROUPS.md).
 
 The Zibo group offers VNAV Descent Tables, Tablet Performance Calculator,
-AUTO JETWAY, CPDLC FANS PAGES and Intentional Fixes as optional modules. No
+AUTO JETWAY, CPDLC FANS PAGES, VREF (Beta) and Intentional Fixes as optional modules. No
 module is selected by default. Intentional Fixes is applied after the selected
 functional modules.
 

@@ -194,10 +194,15 @@ public sealed class MainWindowUiTests
             Assert.Equal("Required patches missing", fixture.Vm.AircraftOverview!.Status);
             Assert.Contains("0 of 3", fixture.Vm.AircraftOverview.RequiredPatches);
             Assert.Equal("None recorded by the Toolkit", fixture.Vm.AircraftOverview.OptionalPatches);
+            Assert.Equal(9, fixture.Vm.PatchModules.Count);
+            Assert.Equal(3, fixture.Vm.PatchModules.Count(m => m.Policy == "Required"));
+            Assert.True(fixture.Vm.PatchModules.Single(m => m.ModuleId == "vref").IsBeta);
+            Assert.All(fixture.Vm.PatchModules, m => Assert.Equal("—", m.Installed));
             var card = window.FindControl<Border>("AircraftOverviewCard")!;
             Assert.True(card.IsEffectivelyVisible);
             fixture.Vm.CompatibilityModules.Single(m => m.ModuleId == "cpdlc").IsSelected = true;
             Assert.Equal("None recorded by the Toolkit", fixture.Vm.AircraftOverview.OptionalPatches);
+            Assert.Equal("—", fixture.Vm.PatchModules.Single(m => m.ModuleId == "cpdlc").Installed);
 
             var catalog = ContentPackageCatalog.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Content/content-package-catalog.json")));
             var group = catalog.ForProduct("levelup-737ng").Single(p => p.Distribution.Kind == ContentPackageDistributionKind.CatalogGroup);
@@ -218,6 +223,12 @@ public sealed class MainWindowUiTests
             Assert.Equal("No updates found", fixture.Vm.AircraftOverview!.Status);
             Assert.Contains("3 of 3 installed", fixture.Vm.AircraftOverview.RequiredPatches);
             Assert.Contains("CPDLC", fixture.Vm.AircraftOverview.OptionalPatches);
+            Assert.Equal("v1.0.0", fixture.Vm.PatchModules.Single(m => m.ModuleId == "cpdlc").Installed);
+            Assert.Equal("Versions match; files not checked", fixture.Vm.PatchModules.Single(m => m.ModuleId == "cpdlc").Status);
+            var expander = window.FindControl<Expander>("PatchModulesExpander")!;
+            expander.IsExpanded = true;
+            Dispatcher.UIThread.RunJobs();
+            Assert.True(window.FindControl<ItemsControl>("PatchModulesList")!.IsEffectivelyVisible);
             Assert.DoesNotContain("AUTO JETWAY", fixture.Vm.AircraftOverview.OptionalPatches);
             Assert.DoesNotContain("Not checked", fixture.Vm.AircraftOverview.LastChecked);
             Assert.Equal(savedState, File.ReadAllBytes(state.StatePath));
@@ -230,6 +241,7 @@ public sealed class MainWindowUiTests
             Directory.Delete(Path.Combine(fixture.Store.Load().AircraftUpdateCacheRootPath, "release-metadata"), recursive: true);
             await fixture.Vm.CheckContentPackageCatalogCommand.ExecuteAsync(null);
             Assert.Equal("Release check failed", fixture.Vm.AircraftOverview!.Status);
+            Assert.All(fixture.Vm.PatchModules, m => Assert.Equal("Release check failed", m.Status));
             Assert.DoesNotContain("current", fixture.Vm.AircraftOverview.RequiredPatches);
             Assert.Contains("CPDLC", fixture.Vm.AircraftOverview.OptionalPatches);
             Assert.Equal(savedState, File.ReadAllBytes(state.StatePath));
@@ -246,6 +258,8 @@ public sealed class MainWindowUiTests
             Assert.Equal("None recorded by the Toolkit", fixture.Vm.AircraftOverview.OptionalPatches);
             fixture.Vm.SetAircraftPathFromBrowse(Path.Combine(fixture.Xp, "Aircraft", "zibo-737ng"));
             Assert.Contains("All patches are optional", fixture.Vm.AircraftOverview!.RequiredPatches);
+            Assert.Equal(6, fixture.Vm.PatchModules.Count);
+            Assert.All(fixture.Vm.PatchModules, m => Assert.Equal("Optional", m.Policy));
             Assert.Equal("None recorded by the Toolkit", fixture.Vm.AircraftOverview.OptionalPatches);
             Assert.Contains("Aircraft releases: Not checked", fixture.Vm.AircraftOverview.LastChecked);
             Assert.Contains("Patch releases: Not checked", fixture.Vm.AircraftOverview.LastChecked);
@@ -253,6 +267,62 @@ public sealed class MainWindowUiTests
             fixture.Vm.SetAircraftPathFromBrowse(Path.Combine(fixture.Xp, "Aircraft", "missing"));
             Assert.False(fixture.Vm.AircraftOverviewVisible);
             Assert.Null(fixture.Vm.AircraftOverview);
+            Assert.Empty(fixture.Vm.PatchModules);
+        }
+        finally { Close(window); }
+    });
+
+    [Theory]
+    [InlineData(980)]
+    [InlineData(1500)]
+    public Task InstallationCheck_StartButtonShowsOfflineResultsWithoutWritingFiles(int width) => Run(async () =>
+    {
+        using var fixture = new Fixture(enabled: false);
+        var window = await fixture.OpenInitializedAsync();
+        window.Width = width;
+        try
+        {
+            var aircraft = fixture.Vm.SelectedProduct!.AircraftFolderPath;
+            foreach (var script in new[] { "B738.a_fms", "B738.tablet" })
+            {
+                var path = Path.Combine(aircraft, "plugins", "xlua", "scripts", script, script + ".lua");
+                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                File.WriteAllText(path, "script");
+            }
+            var managed = Path.Combine(aircraft, "check.lua");
+            File.WriteAllText(managed, "owned");
+            var state = new ToolStateStore(fixture.Store.RootPath, fixture.Store.Load().BackupRootPath);
+            state.UpdateContentAndProduct(fixture.Vm.SelectedViewVariant!, (installation, _) =>
+                installation.ContentComponents["test.patch"] = new()
+                {
+                    ComponentId = "test.patch", PackageVersion = "1.0.0",
+                    Files = [new() { RelativePath = "check.lua", InstalledSizeBytes = 5,
+                        InstalledSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(managed))).ToLowerInvariant() }]
+                });
+            var beforeState = File.ReadAllBytes(state.StatePath);
+            var beforeSettings = File.ReadAllBytes(fixture.Store.SettingsPath);
+            var requests = fixture.Handler.Requests.Count;
+            var button = window.FindControl<Button>("CheckInstallationButton")!;
+            button.BringIntoView();
+            Dispatcher.UIThread.RunJobs();
+            Press(window, button);
+            await Until(() => fixture.Vm.InstallationCheckVisible);
+            Assert.Equal("Recorded file checks passed", fixture.Vm.InstallationCheck!.Status);
+            Assert.Equal(requests, fixture.Handler.Requests.Count);
+            Assert.Equal(beforeState, File.ReadAllBytes(state.StatePath));
+            Assert.Equal(beforeSettings, File.ReadAllBytes(fixture.Store.SettingsPath));
+            Assert.Equal("owned", File.ReadAllText(managed));
+            var card = window.FindControl<Border>("InstallationCheckCard")!;
+            Assert.True(card.IsEffectivelyVisible);
+            card.GetVisualDescendants().OfType<Expander>().Single().IsExpanded = true;
+            card.BringIntoView();
+            Dispatcher.UIThread.RunJobs();
+            Assert.True(window.FindControl<ListBox>("InstallationCheckFiles")!.IsEffectivelyVisible);
+            SaveFrame(window, $"installation-check-{width}.png");
+            fixture.Vm.SetAircraftPathFromBrowse(Path.Combine(fixture.Xp, "Aircraft", "zibo-737ng"));
+            Dispatcher.UIThread.RunJobs();
+            Assert.False(card.IsVisible);
+            Assert.Null(fixture.Vm.InstallationCheck);
         }
         finally { Close(window); }
     });
