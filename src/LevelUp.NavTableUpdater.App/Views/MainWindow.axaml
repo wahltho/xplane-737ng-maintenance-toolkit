@@ -354,6 +354,28 @@
                         <ScrollViewer x:Name="FunctionsPaneScroll" Grid.Row="1"
                                       HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
                             <StackPanel Spacing="16">
+                                <Border Classes="task-card">
+                                    <Expander x:Name="QuickStartGuideExpander" Header="Quick guide" HorizontalAlignment="Stretch">
+                                        <StackPanel Spacing="10">
+                                            <TextBlock Text="Close X-Plane before changing files. Restart it afterwards to load the changes." FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                            <ItemsControl x:Name="QuickStartTopicsList" ItemsSource="{Binding QuickStartTopics}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="services:QuickStartTopic">
+                                                        <StackPanel Spacing="3" Margin="0,0,0,10">
+                                                            <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                                            <TextBlock Text="{Binding Text}" TextWrapping="Wrap"/>
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                            <WrapPanel ItemSpacing="8" LineSpacing="8">
+                                                <Button x:Name="OpenUserManualButton" Content="Full manual" Click="OpenUserManual_Click"/>
+                                                <Button Content="Discord support" Click="OpenDiscordSupport_Click"/>
+                                                <Button Content="Toolkit download page" Click="OpenToolkitProject_Click"/>
+                                            </WrapPanel>
+                                        </StackPanel>
+                                    </Expander>
+                                </Border>
                                 <Border x:Name="AircraftOverviewCard" Classes="task-card" IsVisible="{Binding AircraftOverviewVisible}">
                                     <StackPanel Spacing="7">
                                         <TextBlock Text="Update status" FontSize="18" FontWeight="SemiBold"/>
@@ -401,6 +423,53 @@
                                             <Button Content="Cancel check" Command="{Binding CheckInstallationCancelCommand}"/>
                                         </WrapPanel>
                                         <TextBlock Text="{Binding InstallationCheckStatus}" TextWrapping="Wrap"/>
+                                        <Expander x:Name="InstallationHistoryExpander" Header="Installation history &amp; backups"
+                                                  IsExpanded="{Binding InstallationHistoryExpanded, Mode=TwoWay}" HorizontalAlignment="Stretch">
+                                            <StackPanel Spacing="8">
+                                                <WrapPanel ItemSpacing="8" LineSpacing="8">
+                                                    <Button x:Name="RefreshInstallationHistoryButton" Content="Refresh history" Command="{Binding RefreshInstallationHistoryCommand}"/>
+                                                    <Button Content="Cancel refresh" Command="{Binding RefreshInstallationHistoryCancelCommand}"/>
+                                                </WrapPanel>
+                                                <TextBlock Text="{Binding InstallationHistoryStatus}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                                <TextBlock Text="{Binding InstallationHistory.AircraftFolder}" Classes="path"/>
+                                                <TextBlock Text="{Binding InstallationHistory.ReadAt, StringFormat='Updated: {0} (local time)'}" Classes="label"/>
+                                                <ItemsControl ItemsSource="{Binding InstallationHistory.Notes}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate x:DataType="x:String">
+                                                            <TextBlock Text="{Binding}" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,4"/>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                                <ListBox x:Name="InstallationHistoryList" ItemsSource="{Binding InstallationHistory.Entries}" MaxHeight="340">
+                                                    <ListBox.ItemTemplate>
+                                                        <DataTemplate x:DataType="services:InstallationHistoryEntry">
+                                                            <StackPanel Spacing="3" Margin="0,5">
+                                                                <TextBlock Text="{Binding When}" Classes="label"/>
+                                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                                                <TextBlock Text="{Binding Action}" TextWrapping="Wrap"/>
+                                                                <TextBlock Text="{Binding Version}" TextWrapping="Wrap"/>
+                                                                <TextBlock Text="{Binding Scope}" Classes="label" TextWrapping="Wrap"/>
+                                                                <TextBlock Text="{Binding TargetPath}" Classes="path"/>
+                                                                <TextBlock Text="{Binding BackupStatus}" FontSize="12" TextWrapping="Wrap"/>
+                                                                <Expander Header="Backup locations" IsVisible="{Binding HasBackups}" HorizontalAlignment="Stretch">
+                                                                    <ListBox ItemsSource="{Binding Backups}" MaxHeight="200">
+                                                                        <ListBox.ItemTemplate>
+                                                                            <DataTemplate x:DataType="services:HistoryBackupLocation">
+                                                                                <StackPanel Spacing="2" Margin="0,3">
+                                                                                    <TextBlock Text="{Binding OriginalPath, StringFormat='Original: {0}'}" IsVisible="{Binding HasOriginalPath}" TextWrapping="Wrap" FontSize="12"/>
+                                                                                    <TextBlock Text="{Binding Path}" TextWrapping="Wrap"/>
+                                                                                    <TextBlock Text="{Binding Status}" TextWrapping="Wrap" FontSize="12"/>
+                                                                                </StackPanel>
+                                                                            </DataTemplate>
+                                                                        </ListBox.ItemTemplate>
+                                                                    </ListBox>
+                                                                </Expander>
+                                                            </StackPanel>
+                                                        </DataTemplate>
+                                                    </ListBox.ItemTemplate>
+                                                </ListBox>
+                                            </StackPanel>
+                                        </Expander>
                                     </StackPanel>
                                 </Border>
                                 <Border x:Name="InstallationCheckCard" Classes="task-card" IsVisible="{Binding InstallationCheckVisible}">

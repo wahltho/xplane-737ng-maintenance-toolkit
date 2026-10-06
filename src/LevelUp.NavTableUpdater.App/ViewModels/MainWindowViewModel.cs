@@ -180,6 +180,7 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(MoveAircraftCommand))]
     [NotifyCanExecuteChangedFor(nameof(CheckInstallationCommand))]
+    [NotifyCanExecuteChangedFor(nameof(RefreshInstallationHistoryCommand))]
     private bool canAutoDetect = true;
 
     [ObservableProperty]
@@ -218,6 +219,7 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(MoveAircraftCommand))]
     [NotifyCanExecuteChangedFor(nameof(CheckInstallationCommand))]
+    [NotifyCanExecuteChangedFor(nameof(RefreshInstallationHistoryCommand))]
     private bool actionsEnabled = true;
 
     [ObservableProperty]
@@ -1216,6 +1218,7 @@ public partial class MainWindowViewModel : ViewModelBase
     partial void OnSelectedAircraftPathChanged(string value)
     {
         ClearInstallationCheck();
+        ClearInstallationHistory(collapse: true);
         ClearHardwareConfigSelection();
         RefreshFreshInstallContext();
     }

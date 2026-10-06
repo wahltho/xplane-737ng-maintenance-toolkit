@@ -327,6 +327,70 @@ public sealed class MainWindowUiTests
         finally { Close(window); }
     });
 
+    [Theory]
+    [InlineData(980)]
+    [InlineData(1500)]
+    public Task HistoryAndQuickGuide_StartViewsAreUsableAndReadOffline(int width) => Run(async () =>
+    {
+        using var fixture = new Fixture(enabled: false);
+        var window = await fixture.OpenInitializedAsync();
+        window.Width = width;
+        try
+        {
+            var aircraft = fixture.Vm.SelectedProduct!.AircraftFolderPath;
+            var state = new ToolStateStore(fixture.Store.RootPath, fixture.Store.Load().BackupRootPath);
+            var backup = Path.Combine(state.BackupRootPath, "original.lua");
+            Directory.CreateDirectory(state.BackupRootPath);
+            File.WriteAllText(backup, "original");
+            state.UpdateContentAndProduct(fixture.Vm.SelectedViewVariant!, (installation, _) =>
+                installation.ContentComponents["test.patch"] = new()
+                {
+                    ComponentId = "test.patch", PackageVersion = "1.0", LastOperation = "ContentPatchInstall",
+                    LastOperationUtc = DateTimeOffset.UtcNow,
+                    Files = [new() { RelativePath = "fms.lua", OriginalExisted = true, BackupPath = backup }]
+                });
+            var beforeState = File.ReadAllBytes(state.StatePath);
+            var beforeSettings = File.ReadAllBytes(fixture.Store.SettingsPath);
+            var requests = fixture.Handler.Requests.Count;
+            var history = window.FindControl<Expander>("InstallationHistoryExpander")!;
+            history.IsExpanded = true;
+            await Until(() => fixture.Vm.InstallationHistory is not null && !fixture.Vm.IsInstallationHistoryLoading);
+            history.BringIntoView();
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal("History loaded", fixture.Vm.InstallationHistory!.Status);
+            Assert.Equal(backup, Assert.Single(Assert.Single(fixture.Vm.InstallationHistory.Entries).Backups).Path);
+            var list = window.FindControl<ListBox>("InstallationHistoryList")!;
+            Assert.True(list.IsEffectivelyVisible);
+            list.GetVisualDescendants().OfType<Expander>().Single().IsExpanded = true;
+            Dispatcher.UIThread.RunJobs();
+            Assert.Contains(list.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == backup && t.IsEffectivelyVisible);
+            SaveFrame(window, $"installation-history-{width}.png");
+            Assert.Equal(beforeState, File.ReadAllBytes(state.StatePath));
+            Assert.Equal(beforeSettings, File.ReadAllBytes(fixture.Store.SettingsPath));
+            Assert.Equal("original", File.ReadAllText(backup));
+            Assert.Equal(requests, fixture.Handler.Requests.Count);
+
+            var guide = window.FindControl<Expander>("QuickStartGuideExpander")!;
+            guide.IsExpanded = true;
+            guide.BringIntoView();
+            Dispatcher.UIThread.RunJobs();
+            Assert.Contains(fixture.Vm.QuickStartTopics, t => t.Text.Contains("LevelUp requires VNAV"));
+            Assert.True(window.FindControl<Button>("OpenUserManualButton")!.IsEffectivelyVisible);
+            SaveFrame(window, $"quick-guide-{width}.png");
+            fixture.Vm.SetAircraftPathFromBrowse(Path.Combine(fixture.Xp, "Aircraft", "zibo-737ng"));
+            Dispatcher.UIThread.RunJobs();
+            Assert.Null(fixture.Vm.InstallationHistory);
+            Assert.False(history.IsExpanded);
+            Assert.Contains(fixture.Vm.QuickStartTopics, t => t.Text.Contains("All Zibo patches are optional"));
+            fixture.Vm.SetAircraftPathFromBrowse(Path.Combine(fixture.Xp, "Aircraft", "missing"));
+            Dispatcher.UIThread.RunJobs();
+            Assert.True(guide.IsEffectivelyVisible);
+            Assert.False(window.FindControl<Border>("AircraftOverviewCard")!.IsVisible);
+            Assert.Contains(fixture.Vm.QuickStartTopics, t => t.Text.Contains("three required patches"));
+        }
+        finally { Close(window); }
+    });
+
     [Fact]
     public Task XPlaneRunning_BlocksAircraftMoveAndHardwareCopyWithoutChangingFiles() => Run(async () =>
     {

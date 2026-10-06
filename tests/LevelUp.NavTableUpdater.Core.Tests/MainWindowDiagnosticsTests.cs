@@ -107,6 +107,101 @@ public sealed class MainWindowDiagnosticsTests : IDisposable
     private static string Hash(string text) => Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(text))).ToLowerInvariant();
 
     [Fact]
+    public async Task History_ReadsOffline_PreservesFileCheck_AndClearsOnSelectionOrOperation()
+    {
+        var settings = Settings();
+        using var http = new HttpClient(new NoNetwork());
+        var dialogs = new Messages();
+        var vm = new MainWindowViewModel(dialogs, new NoUpdates(), settingsStore: settings, releaseHttpClient: http,
+            detector: new AircraftDetector(Path.Combine(_root, "home")), isXPlaneRunning: () => false);
+        var aircraft = Path.Combine(_root, "Aircraft", "LevelUp");
+        Directory.CreateDirectory(aircraft);
+        var reference = AircraftReferenceCatalog.All.Single(r => r.AircraftId == "levelup-737-800");
+        File.WriteAllText(Path.Combine(aircraft, reference.AcfFileName), $"1200 Version\nP acf/_name {reference.ExpectedName}\nP acf/_descrip {reference.ExpectedDescription}\nP acf/_studio {reference.ExpectedStudioContains}\nP acf/_cgY 0\nP acf/_cgZ 0\n");
+        File.WriteAllText(Path.Combine(aircraft, "managed.lua"), "patched");
+        vm.SetAircraftPathFromBrowse(aircraft);
+        var store = new ToolStateStore(settings.RootPath, settings.Load().BackupRootPath);
+        store.UpdateContentAndProduct(vm.SelectedViewVariant!, (installation, _) =>
+            installation.ContentComponents["test.patch"] = new()
+            {
+                ComponentId = "test.patch", PackageVersion = "1.0", LastOperation = "ContentPatchInstall",
+                LastOperationUtc = DateTimeOffset.UtcNow,
+                Files = [new() { RelativePath = "managed.lua", InstalledSizeBytes = 7, InstalledSha256 = Hash("patched") }]
+            });
+        await vm.CheckInstallationCommand.ExecuteAsync(null);
+        var check = vm.InstallationCheck;
+        Assert.NotNull(check);
+        var before = Snapshot();
+        Assert.True(vm.RefreshInstallationHistoryCommand.CanExecute(null));
+        await vm.RefreshInstallationHistoryCommand.ExecuteAsync(null);
+        Assert.Same(check, vm.InstallationCheck);
+        Assert.Single(vm.InstallationHistory!.Entries);
+        Assert.Equal(aircraft, vm.InstallationHistory.AircraftFolder);
+        Assert.Equal(before, Snapshot());
+        Assert.Empty(dialogs.Shown);
+        Assert.False(vm.IsOperationRunning);
+        Assert.False(vm.IsInstallationHistoryLoading);
+        Assert.True(vm.ActionsEnabled);
+        Assert.True(vm.CanAutoDetect);
+
+        vm.IsContentPackageCatalogCheckRunning = true;
+        Assert.False(vm.RefreshInstallationHistoryCommand.CanExecute(null));
+        vm.IsContentPackageCatalogCheckRunning = false;
+        vm.CanAutoDetect = false;
+        Assert.False(vm.RefreshInstallationHistoryCommand.CanExecute(null));
+        vm.CanAutoDetect = true;
+        // A file-changing operation invalidates both snapshots.
+        vm.IsToolPackageOperationRunning = true;
+        Assert.Null(vm.InstallationHistory);
+        Assert.Null(vm.InstallationCheck);
+        Assert.False(vm.RefreshInstallationHistoryCommand.CanExecute(null));
+        vm.IsToolPackageOperationRunning = false;
+        vm.InstallationHistoryExpanded = true; // First expansion reads records automatically.
+        await vm.RefreshInstallationHistoryCommand.ExecutionTask!;
+        Assert.NotNull(vm.InstallationHistory);
+        vm.SetAircraftPathFromBrowse(Path.Combine(_root, "missing"));
+        Assert.Null(vm.InstallationHistory);
+        Assert.False(vm.InstallationHistoryExpanded);
+        Assert.False(vm.RefreshInstallationHistoryCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task History_CancelAtStart_RestoresControlsWithoutWriting()
+    {
+        var settings = Settings();
+        using var http = new HttpClient(new NoNetwork());
+        var vm = new MainWindowViewModel(new Messages(), new NoUpdates(), settingsStore: settings, releaseHttpClient: http,
+            detector: new AircraftDetector(Path.Combine(_root, "home")));
+        var aircraft = Path.Combine(_root, "Aircraft", "LevelUp");
+        Directory.CreateDirectory(aircraft);
+        var reference = AircraftReferenceCatalog.All.Single(r => r.AircraftId == "levelup-737-800");
+        File.WriteAllText(Path.Combine(aircraft, reference.AcfFileName), $"1200 Version\nP acf/_name {reference.ExpectedName}\nP acf/_descrip {reference.ExpectedDescription}\nP acf/_studio {reference.ExpectedStudioContains}\nP acf/_cgY 0\nP acf/_cgZ 0\n");
+        vm.SetAircraftPathFromBrowse(aircraft);
+        var before = Snapshot();
+        System.ComponentModel.PropertyChangedEventHandler cancelAtStart = (_, e) =>
+        {
+            if (e.PropertyName == nameof(vm.InstallationHistoryStatus)
+                && vm.InstallationHistoryStatus == "Loading history…")
+            {
+                Assert.False(vm.ActionsEnabled);
+                Assert.False(vm.CanAutoDetect);
+                Assert.False(vm.CheckInstallationCommand.CanExecute(null));
+                vm.RefreshInstallationHistoryCommand.Cancel();
+            }
+        };
+        vm.PropertyChanged += cancelAtStart;
+        try { await vm.RefreshInstallationHistoryCommand.ExecuteAsync(null); }
+        finally { vm.PropertyChanged -= cancelAtStart; }
+        Assert.Null(vm.InstallationHistory);
+        Assert.Contains("canceled", vm.InstallationHistoryStatus);
+        Assert.False(vm.IsOperationRunning);
+        Assert.False(vm.IsInstallationHistoryLoading);
+        Assert.True(vm.ActionsEnabled);
+        Assert.True(vm.CanAutoDetect);
+        Assert.Equal(before, Snapshot());
+    }
+
+    [Fact]
     public async Task ExportCommand_WorksOfflineWithoutAircraft_AndKeepsSettingsAndStateUnchanged()
     {
         var store = Settings();

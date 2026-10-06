@@ -746,6 +746,40 @@ release check keeps the installed version visible but does not claim it is curre
 Beta and preview patches are labelled even if GitHub publishes them as regular
 releases. Version matching is separate from file validation.
 
+### Quick guide
+
+Open **Quick guide** on Start for help with installation, updates, optional
+patches, file checks and restore. The instructions match the selected aircraft:
+LevelUp requires VNAV, FANS CDU and Weight & Balance; all Zibo patches are optional.
+You can also open the guide before selecting an aircraft. **Full manual** opens
+this document. The two support buttons take you to Discord or the Toolkit download
+page. Close X-Plane before changing files and restart it afterwards.
+
+### Installation history and backup overview
+
+Open **Installation history & backups** in Update status to see the history MTK
+has saved for your aircraft. The latest entries appear first, with local dates
+and times. Entries with no saved date say so. Shared X-Plane tools are labelled
+separately. This is not a complete log: manual changes and some older actions may
+not appear. **Refresh history** loads the list again. It does not change files,
+download packages or create an export.
+
+**Backup locations** shows where each backup was saved and whether it is still
+there. Older backups may still point to a previous backup folder. If a file did
+not exist before the change, no backup was needed. If MTK took over an existing
+installation without an original backup, that installation cannot be restored
+from its MTK record. A missing entry does not mean a patch was never installed
+manually. Hardware configuration copies and downloaded resources have their own
+sections and are not included here.
+
+Finding a backup does not mean it can be restored. This view does not open backups
+or check their hashes. Use **Check installation** to check files and backups
+against MTK's records. To restore a package, use its **Restore** button; MTK will
+check whether the backup can be used. The history list has no restore or delete
+buttons. Keep MTK's state files and backups while investigating a problem.
+Selecting another aircraft or starting a file operation clears the list. Refresh
+it after making changes.
+
 ### Check installation without making changes
 
 On Start, click **Check installation** in the Update status card. The Toolkit

@@ -17,14 +17,19 @@ public partial class MainWindowViewModel
         && !IsResourcePackageOperationRunning && !IsLiveryPackageOperationRunning
         && !IsContentPackageCatalogCheckRunning && !IsUpstreamCheckRunning;
 
-    private void RefreshDiagnosticCommands(bool clearCheck = false)
+    private void RefreshDiagnosticCommands(bool clearCheck = false, bool readOnly = false)
     {
         ExportDiagnosticsCommand.NotifyCanExecuteChanged();
         CheckInstallationCommand.NotifyCanExecuteChanged();
-        if (clearCheck) ClearInstallationCheck();
+        RefreshInstallationHistoryCommand.NotifyCanExecuteChanged();
+        if (clearCheck && !readOnly)
+        {
+            ClearInstallationCheck();
+            ClearInstallationHistory();
+        }
     }
 
-    partial void OnIsOperationRunningChanged(bool value) => RefreshDiagnosticCommands(value);
+    partial void OnIsOperationRunningChanged(bool value) => RefreshDiagnosticCommands(value, IsInstallationHistoryLoading);
     partial void OnIsToolPackageOperationRunningChanged(bool value) => RefreshDiagnosticCommands(value);
     partial void OnIsResourcePackageOperationRunningChanged(bool value) => RefreshDiagnosticCommands(value);
     partial void OnIsLiveryPackageOperationRunningChanged(bool value) => RefreshDiagnosticCommands(value);

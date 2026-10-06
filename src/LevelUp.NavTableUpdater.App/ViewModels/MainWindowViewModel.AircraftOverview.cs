@@ -21,8 +21,12 @@ public partial class MainWindowViewModel
     private void RefreshAircraftOverview()
     {
         CheckInstallationCommand.NotifyCanExecuteChanged();
+        RefreshInstallationHistoryCommand.NotifyCanExecuteChanged();
+        QuickStartTopics = QuickStartGuide.ForProduct(SelectedProduct?.Family);
         if (InstallationCheck is { } check && check.AircraftFolder != SelectedProduct?.AircraftFolderPath)
             ClearInstallationCheck();
+        if (InstallationHistory is { } history && history.AircraftFolder != SelectedProduct?.AircraftFolderPath)
+            ClearInstallationHistory(collapse: true);
         PatchModules = [];
         if (SelectedProduct?.IsDetected != true || SelectedViewVariant is not { } variant
             || !PathsEqual(SelectedProduct.AircraftFolderPath, Path.GetDirectoryName(variant.AcfPath) ?? ""))
