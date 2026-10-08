@@ -90,7 +90,7 @@ def marker_fingerprints(data, policy, relative):
     rules = [r for r in policy["markerNamespaces"] if r["relativePath"] == relative]
     if data is None or not rules:
         return fingerprints
-    text = data.decode("utf-8-sig").replace("\r\n", "\n")
+    text = data.decode("utf-8-sig", errors="surrogateescape").replace("\r\n", "\n")
     if "\r" in text or (b"\r\n" in data and data.count(b"\r\n") != data.count(b"\n")):
         raise OwnershipError("Mixed or unsupported line endings: " + relative)
     lines = text.splitlines()
@@ -115,7 +115,7 @@ def marker_fingerprints(data, policy, relative):
                 if opened is None or pairs[opened[0]] != stripped:
                     raise OwnershipError("Unmatched patch marker: " + relative)
                 key, start = opened
-                fingerprints[key] = digest("\n".join(lines[start:index + 1]).encode("utf-8"))
+                fingerprints[key] = digest("\n".join(lines[start:index + 1]).encode("utf-8", errors="surrogateescape"))
                 opened = None
             else:
                 raise OwnershipError("Unknown patch marker: " + relative + ": " + stripped)

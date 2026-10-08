@@ -67,6 +67,20 @@ class OwnershipTests(unittest.TestCase):
         with self.assertRaisesRegex(g.OwnershipError, "duplicate"):
             g.verify_text_manifest(self.package, PID)
 
+    def test_opaque_foreign_bytes_preserved_while_reserved_markers_stay_strict(self):
+        foreign = b"-- unrelated author: \xff\n"
+        self.assertEqual(g.marker_fingerprints(INSTALLED, self.policy, SCRIPT),
+                         g.marker_fingerprints(INSTALLED + foreign, self.policy, SCRIPT))
+        self.put(SCRIPT, ORIGINAL + foreign)
+        with self.guard() as guard:
+            guard.apply({SCRIPT: INSTALLED + foreign, PAYLOAD: b"runtime"}, version="1.0")
+        self.assertEqual(INSTALLED + foreign, (self.root / SCRIPT).read_bytes())
+        with self.guard() as guard:
+            guard.apply({SCRIPT: ORIGINAL + foreign, PAYLOAD: guard.original_payload(PAYLOAD)}, uninstall=True)
+        self.assertEqual(ORIGINAL + foreign, (self.root / SCRIPT).read_bytes())
+        with self.assertRaises(g.OwnershipError):
+            g.marker_fingerprints(INSTALLED + foreign + b"-- begin demo_patch UNKNOWN\n", self.policy, SCRIPT)
+
     def put(self, relative, data):
         path = self.root / relative
         path.parent.mkdir(parents=True, exist_ok=True)
