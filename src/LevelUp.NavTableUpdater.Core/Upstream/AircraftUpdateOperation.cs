@@ -25,7 +25,7 @@ public sealed class AircraftUpdateOperation
         Func<bool>? isXPlaneRunning = null, Func<ContentPackageCatalog>? catalogProvider = null)
     {
         _stateStore = stateStore;
-        _catalogProvider = catalogProvider ?? ContentPackageCatalog.LoadBundled;
+        _catalogProvider = catalogProvider ?? (() => ContentPackageCatalog.Unavailable);
         _dryRunAnalyzer = dryRunAnalyzer ?? new AircraftUpdateDryRunAnalyzer();
         _isXPlaneRunning = isXPlaneRunning ?? XPlaneProcessDetector.IsXPlaneRunning;
     }

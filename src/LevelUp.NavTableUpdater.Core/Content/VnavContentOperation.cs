@@ -30,7 +30,7 @@ public sealed class VnavContentOperation
         Func<bool>? isXPlaneRunning = null, Func<ContentPackageCatalog>? catalogProvider = null)
     {
         _stateStore = stateStore;
-        _catalogProvider = catalogProvider ?? ContentPackageCatalog.LoadBundled;
+        _catalogProvider = catalogProvider ?? (() => ContentPackageCatalog.Unavailable);
         _planBuilder = new VnavContentPlanBuilder(stateStore, _catalogProvider);
         _payloadSource = payloadSource;
         _isXPlaneRunning = isXPlaneRunning ?? XPlaneProcessDetector.IsXPlaneRunning;

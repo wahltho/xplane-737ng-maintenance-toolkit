@@ -20,7 +20,7 @@ public sealed class VnavContentPlanBuilder : IContentPatchPlanBuilder<VnavConten
     public VnavContentPlanBuilder(ToolStateStore? stateStore = null, Func<ContentPackageCatalog>? catalogProvider = null)
     {
         _stateStore = stateStore ?? ToolStateStore.CreateDefault();
-        _catalogProvider = catalogProvider ?? ContentPackageCatalog.LoadBundled;
+        _catalogProvider = catalogProvider ?? (() => ContentPackageCatalog.Unavailable);
     }
 
     public Task<ContentPatchPlan> BuildAsync(ContentPatchAction action, AircraftVariantViewAnalysis variant,

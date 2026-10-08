@@ -641,7 +641,7 @@ public sealed class ZiboUpstreamUpdateTests
         var cachedFull = cache.ImportZip(fullZip, fullPackage);
         var cachedPatch = cache.ImportZip(patchZip, patchPackage);
         var store = TestToolStateStore.Create(fixture.Path);
-        var operation = new AircraftUpdateOperation(store, isXPlaneRunning: () => false);
+        var operation = new AircraftUpdateOperation(store, isXPlaneRunning: () => false, catalogProvider: () => OwnershipTestCatalog.Published);
         var check = BuildUpdateCheck(
             AircraftUpdatePlanAction.InstallBaselineAndCumulativePatch,
             "Install full baseline plus latest cumulative patch",
@@ -699,7 +699,7 @@ public sealed class ZiboUpstreamUpdateTests
         var cache = new AircraftUpdatePackageCache(Path.Combine(fixture.Path, "cache"));
         var cachedPatch = cache.ImportZip(zipPath, package);
         var store = TestToolStateStore.Create(fixture.Path);
-        var operation = new AircraftUpdateOperation(store, isXPlaneRunning: () => false);
+        var operation = new AircraftUpdateOperation(store, isXPlaneRunning: () => false, catalogProvider: () => OwnershipTestCatalog.Published);
         var check = BuildUpdateCheck(
             AircraftUpdatePlanAction.ApplyCumulativePatch,
             "Apply latest cumulative patch",
@@ -730,7 +730,7 @@ public sealed class ZiboUpstreamUpdateTests
         var cache = new AircraftUpdatePackageCache(Path.Combine(fixture.Path, "cache"));
         var cachedPatch = cache.ImportZip(patchZip, patchPackage);
         var store = TestToolStateStore.Create(fixture.Path);
-        var operation = new AircraftUpdateOperation(store, isXPlaneRunning: () => false);
+        var operation = new AircraftUpdateOperation(store, isXPlaneRunning: () => false, catalogProvider: () => OwnershipTestCatalog.Published);
         var variant = BuildVariant("zibo-737ng", "4.05.34", fixture.AcfPath);
         var check = BuildUpdateCheck(
             AircraftUpdatePlanAction.ApplyCumulativePatch,
@@ -771,7 +771,7 @@ public sealed class ZiboUpstreamUpdateTests
         var cache = new AircraftUpdatePackageCache(Path.Combine(fixture.Path, "cache"));
         var cachedPatch = cache.ImportZip(patchZip, patchPackage);
         var store = TestToolStateStore.Create(fixture.Path);
-        var operation = new AircraftUpdateOperation(store, isXPlaneRunning: () => false);
+        var operation = new AircraftUpdateOperation(store, isXPlaneRunning: () => false, catalogProvider: () => OwnershipTestCatalog.Published);
         var firstVariant = BuildVariant("levelup-737ng", "2.S1", fixture.AcfPath);
         var secondAcfPath = Path.Combine(fixture.AircraftPath, "737_70NG.acf");
         File.WriteAllText(secondAcfPath, "");
@@ -807,7 +807,7 @@ public sealed class ZiboUpstreamUpdateTests
         var cache = new AircraftUpdatePackageCache(Path.Combine(fixture.Path, "cache"));
         var cachedPatch = cache.ImportZip(patchZip, patchPackage);
         File.AppendAllText(cachedPatch.CachePath, "tamper");
-        var operation = new AircraftUpdateOperation(TestToolStateStore.Create(fixture.Path), isXPlaneRunning: () => false);
+        var operation = new AircraftUpdateOperation(TestToolStateStore.Create(fixture.Path), isXPlaneRunning: () => false, catalogProvider: () => OwnershipTestCatalog.Published);
         var check = BuildUpdateCheck(
             AircraftUpdatePlanAction.ApplyCumulativePatch,
             "Apply latest cumulative patch",
@@ -842,7 +842,7 @@ public sealed class ZiboUpstreamUpdateTests
         var cache = new AircraftUpdatePackageCache(Path.Combine(fixture.Path, "cache"));
         var cachedFull = cache.ImportZip(fullZip, fullPackage);
         var cachedPatch = cache.ImportZip(patchZip, patchPackage);
-        var operation = new AircraftUpdateOperation(TestToolStateStore.Create(fixture.Path), isXPlaneRunning: () => false);
+        var operation = new AircraftUpdateOperation(TestToolStateStore.Create(fixture.Path), isXPlaneRunning: () => false, catalogProvider: () => OwnershipTestCatalog.Published);
         var check = BuildUpdateCheck(
             AircraftUpdatePlanAction.InstallBaselineAndCumulativePatch,
             "Install full baseline plus latest cumulative patch",
@@ -878,7 +878,7 @@ public sealed class ZiboUpstreamUpdateTests
             [fullPackage]);
         var operation = new AircraftFullBaselineReplacement(
             TestToolStateStore.Create(fixture.Path),
-            afterTargetMoved: () => throw new IOException("Injected activation failure."));
+            afterTargetMoved: () => throw new IOException("Injected activation failure."), catalogProvider: () => OwnershipTestCatalog.Published);
 
         Assert.Throws<IOException>(() => operation.Apply(
             BuildVariant("zibo-737ng", "4.03.8", fixture.AcfPath),
@@ -913,7 +913,7 @@ public sealed class ZiboUpstreamUpdateTests
         var check = BuildUpdateCheck(AircraftUpdatePlanAction.InstallBaselineAndCumulativePatch,
             "Install full baseline", [fullPackage]);
         var store = TestToolStateStore.Create(fixture.Path);
-        var operation = new AircraftFullBaselineReplacement(store);
+        var operation = new AircraftFullBaselineReplacement(store, catalogProvider: () => OwnershipTestCatalog.Published);
 
         var result = operation.Apply(BuildVariant("zibo-737ng", "4.03.8", fixture.AcfPath), check,
             [cachedFull], CancellationToken.None,

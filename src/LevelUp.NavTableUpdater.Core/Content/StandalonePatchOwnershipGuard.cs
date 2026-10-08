@@ -6,9 +6,8 @@ namespace LevelUp.NavTableUpdater.Core.Content;
 internal static class StandalonePatchOwnershipGuard
 {
     public static string? FindAircraftUpdateConflict(string aircraftRoot,
-        IReadOnlyDictionary<string, ContentComponentState>? toolkitComponents)
+        IReadOnlyDictionary<string, ContentComponentState>? toolkitComponents, ContentPackageCatalog catalog)
     {
-        var catalog = ContentPackageCatalog.LoadBundled();
         return FindConflict(aircraftRoot, catalog.OwnershipPolicies.SelectMany(policy => policy.TargetPaths),
             toolkitComponents, catalog);
     }
@@ -18,7 +17,7 @@ internal static class StandalonePatchOwnershipGuard
         ContentPackageCatalog? catalog = null, IReadOnlyList<BackupRecord>? journal = null,
         string? product = null, KnownAircraftBaselines? baselines = null) =>
         ContentPatchOwnershipVerifier.FindConflict(aircraftRoot, targetPaths, toolkitComponents,
-            catalog ?? ContentPackageCatalog.LoadBundled(), journal, product, baselines);
+            catalog ?? ContentPackageCatalog.Unavailable, journal, product, baselines);
 
     public static string? FindAircraftUpdateConflict(string aircraftRoot,
         ContentInstallationToolState? installation, ContentPackageCatalog catalog, string? product = null)

@@ -290,8 +290,11 @@ module selection remains under Advanced.
 At startup, the Toolkit checks immutable `catalog-v*` releases in the Toolkit
 repository for updated package discovery metadata. A downloaded catalog becomes
 active only after schema, version, repository URL and minimum Toolkit version
-validation. If the check fails, the app uses its last valid cached catalog and
-then its bundled catalog. Existing installs and package state remain valid. A
+validation. If the check fails, the app uses its last valid saved online catalog.
+There is no catalog built into the app. Without a valid online or saved catalog,
+aircraft updates and patch actions are blocked; detection and diagnostics still
+work. Use `Check releases` to retry after connecting. Existing installs and
+package state remain valid. A
 new package repository is not enough to expose a package; the package must be
 added explicitly to a reviewed catalog release.
 

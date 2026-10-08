@@ -28,7 +28,7 @@ public sealed class ContentPackageCatalogLoaderTests
             RepositoryUrl,
             ApiUrl);
 
-        var result = await loader.LoadAsync(BuildCatalog("1.3.0", "", "bundled.package"));
+        var result = await loader.LoadAsync();
 
         Assert.Equal(ContentPackageCatalogOrigin.RemoteRelease, result.Origin);
         Assert.Equal("1.4.0", result.Catalog.CatalogVersion);
@@ -51,7 +51,7 @@ public sealed class ContentPackageCatalogLoaderTests
             RepositoryUrl,
             ApiUrl);
 
-        var result = await loader.LoadAsync(BuildCatalog("1.3.0", "", "bundled.package"));
+        var result = await loader.LoadAsync();
 
         Assert.Equal(ContentPackageCatalogOrigin.LastKnownGoodCache, result.Origin);
         Assert.Equal("cached.package", Assert.Single(result.Catalog.Packages).PackageId);
@@ -74,7 +74,7 @@ public sealed class ContentPackageCatalogLoaderTests
             RepositoryUrl,
             ApiUrl);
 
-        var result = await loader.LoadAsync(BuildCatalog("1.3.0", "", "bundled.package"));
+        var result = await loader.LoadAsync();
 
         Assert.Equal(ContentPackageCatalogOrigin.LastKnownGoodCache, result.Origin);
         Assert.Equal("cached.package", Assert.Single(result.Catalog.Packages).PackageId);
@@ -82,7 +82,7 @@ public sealed class ContentPackageCatalogLoaderTests
     }
 
     [Fact]
-    public async Task LoadAsync_WhenRemoteAndCacheAreInvalid_UsesBundledCatalog()
+    public async Task LoadAsync_WhenRemoteAndCacheAreInvalid_ReturnsUnavailableCatalog()
     {
         using var directory = new TemporaryDirectory();
         File.WriteAllText(
@@ -96,15 +96,16 @@ public sealed class ContentPackageCatalogLoaderTests
             RepositoryUrl,
             ApiUrl);
 
-        var result = await loader.LoadAsync(BuildCatalog("1.3.0", "", "bundled.package"));
+        var result = await loader.LoadAsync();
 
-        Assert.Equal(ContentPackageCatalogOrigin.BundledFallback, result.Origin);
-        Assert.Equal("bundled.package", Assert.Single(result.Catalog.Packages).PackageId);
+        Assert.Equal(ContentPackageCatalogOrigin.Unavailable, result.Origin);
+        Assert.False(result.Catalog.IsAvailable);
+        Assert.Empty(result.Catalog.Packages);
         Assert.Contains("cached catalog rejected", result.Detail, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task LoadAsync_WhenRemoteOmitsMinimumToolkitVersion_UsesBundledCatalog()
+    public async Task LoadAsync_WhenRemoteOmitsMinimumToolkitVersion_ReturnsUnavailableCatalog()
     {
         using var directory = new TemporaryDirectory();
         var remoteJson = BuildCatalog("1.4.0", "", "remote.package");
@@ -116,10 +117,11 @@ public sealed class ContentPackageCatalogLoaderTests
             RepositoryUrl,
             ApiUrl);
 
-        var result = await loader.LoadAsync(BuildCatalog("1.3.0", "", "bundled.package"));
+        var result = await loader.LoadAsync();
 
-        Assert.Equal(ContentPackageCatalogOrigin.BundledFallback, result.Origin);
-        Assert.Equal("bundled.package", Assert.Single(result.Catalog.Packages).PackageId);
+        Assert.Equal(ContentPackageCatalogOrigin.Unavailable, result.Origin);
+        Assert.False(result.Catalog.IsAvailable);
+        Assert.Empty(result.Catalog.Packages);
         Assert.Contains("has no minimumToolkitVersion", result.Detail, StringComparison.Ordinal);
         Assert.False(File.Exists(loader.CachePath));
     }
@@ -168,7 +170,7 @@ public sealed class ContentPackageCatalogLoaderTests
         using var client = offline ? new HttpClient(new StubHandler(new Dictionary<string, HttpResponseMessage>()))
             : CreateClient(BuildReleaseResponse(Release("catalog-v" + version, json)));
         var loader = new ContentPackageCatalogLoader(client, directory.Path, new Version(0, 28, 0), RepositoryUrl, ApiUrl);
-        var result = await loader.LoadAsync(json);
+        var result = await loader.LoadAsync();
         Assert.Equal(offline ? ContentPackageCatalogOrigin.LastKnownGoodCache : ContentPackageCatalogOrigin.RemoteRelease, result.Origin);
         Assert.Equal(2, result.Catalog.SchemaVersion);
         Assert.Equal(JsonSerializer.Serialize(ContentPackageCatalog.Parse(json).OwnershipPolicies),
@@ -180,15 +182,84 @@ public sealed class ContentPackageCatalogLoaderTests
     public async Task OwnershipCatalog_RejectsRemoteAndCachedSchema1InsteadOfDowngrading()
     {
         using var directory = new TemporaryDirectory();
-        var old = BuildCatalog("99.0.0", "0.21.2", "old.package");
+        var oldDocument = System.Text.Json.Nodes.JsonNode.Parse(BuildCatalog("99.0.0", "0.21.2", "old.package"))!.AsObject();
+        oldDocument["schemaVersion"] = 1;
+        oldDocument.Remove("ownershipPolicies");
+        var old = oldDocument.ToJsonString();
         File.WriteAllText(Path.Combine(directory.Path, ContentPackageCatalogLoader.CatalogAssetName), old);
         using var client = CreateClient(BuildReleaseResponse(Release("catalog-v99.0.0", old)));
-        var bundled = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Content", "content-package-catalog.json"));
         var loader = new ContentPackageCatalogLoader(client, directory.Path, new Version(0, 28, 0), RepositoryUrl, ApiUrl);
-        var result = await loader.LoadAsync(bundled);
-        Assert.Equal(ContentPackageCatalogOrigin.BundledFallback, result.Origin);
-        Assert.Equal(2, result.Catalog.SchemaVersion);
-        Assert.Equal(11, result.Catalog.OwnershipPolicies.Count);
+        var result = await loader.LoadAsync();
+        Assert.Equal(ContentPackageCatalogOrigin.Unavailable, result.Origin);
+        Assert.False(result.Catalog.IsAvailable);
+        Assert.Empty(result.Catalog.OwnershipPolicies);
+    }
+
+    [Fact]
+    public async Task LoadAsync_OfflineWithoutCache_ReturnsUnavailableInsteadOfACompiledCatalog()
+    {
+        using var directory = new TemporaryDirectory();
+        using var client = new HttpClient(new StubHandler(new Dictionary<string, HttpResponseMessage>()));
+        var loader = new ContentPackageCatalogLoader(client, directory.Path, new Version(0, 28, 0), RepositoryUrl, ApiUrl);
+        var result = await loader.LoadAsync();
+        Assert.Equal(ContentPackageCatalogOrigin.Unavailable, result.Origin);
+        Assert.False(result.Catalog.IsAvailable);
+        Assert.Empty(result.Catalog.Packages);
+        Assert.Empty(result.Catalog.OwnershipPolicies);
+        Assert.False(File.Exists(loader.CachePath));
+        Assert.DoesNotContain(typeof(ContentPackageCatalog).Assembly.GetManifestResourceNames(),
+            name => name.EndsWith("content-package-catalog.json", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task LoadAsync_AnOlderRemoteResponseCannotDowngradeTheSavedCatalog()
+    {
+        using var directory = new TemporaryDirectory();
+        var saved = BuildCatalog("1.9.0", "0.28.0", "saved.package");
+        var path = Path.Combine(directory.Path, ContentPackageCatalogLoader.CatalogAssetName);
+        File.WriteAllText(path, saved);
+        var remote = BuildCatalog("1.8.0", "0.28.0", "old.package");
+        using var client = CreateClient(BuildReleaseResponse(Release("catalog-v1.8.0", remote)));
+        var result = await new ContentPackageCatalogLoader(client, directory.Path, new Version(0, 28, 0), RepositoryUrl, ApiUrl).LoadAsync();
+        Assert.Equal(ContentPackageCatalogOrigin.LastKnownGoodCache, result.Origin);
+        Assert.Equal("1.9.0", result.Catalog.CatalogVersion);
+        Assert.Equal(saved, File.ReadAllText(path));
+    }
+
+    [Fact]
+    public async Task LoadAsync_WhenSavingTheCacheFails_StillUsesTheValidatedOnlineCatalog()
+    {
+        using var directory = new TemporaryDirectory();
+        var blockedDirectory = Path.Combine(directory.Path, "not-a-directory");
+        File.WriteAllText(blockedDirectory, "file");
+        var remote = BuildCatalog("1.9.0", "0.28.0", "online.package");
+        using var client = CreateClient(BuildReleaseResponse(Release("catalog-v1.9.0", remote)));
+        var loader = new ContentPackageCatalogLoader(client, blockedDirectory, new Version(0, 28, 0), RepositoryUrl, ApiUrl);
+        var result = await loader.LoadAsync();
+        Assert.Equal(ContentPackageCatalogOrigin.RemoteRelease, result.Origin);
+        Assert.Equal("online.package", Assert.Single(result.Catalog.Packages).PackageId);
+        Assert.Contains("Could not save", result.Detail, StringComparison.Ordinal);
+        Assert.False(File.Exists(loader.CachePath));
+    }
+
+    [Fact]
+    public async Task LoadAsync_UpdatedOnlineRulesReplaceTheCacheWithoutChangingTheApplication()
+    {
+        using var directory = new TemporaryDirectory();
+        var saved = BuildCatalog("1.8.0", "0.28.0", "test.package");
+        File.WriteAllText(Path.Combine(directory.Path, ContentPackageCatalogLoader.CatalogAssetName), saved);
+        var remote = BuildCatalog("1.9.0", "0.28.0", "test.package")
+            .Replace(".standalone/state.json", ".standalone.lock", StringComparison.Ordinal);
+        using (var client = CreateClient(BuildReleaseResponse(Release("catalog-v1.9.0", remote))))
+        {
+            var online = await new ContentPackageCatalogLoader(client, directory.Path, new Version(0, 28, 0), RepositoryUrl, ApiUrl).LoadAsync();
+            Assert.Equal(ContentPackageCatalogOrigin.RemoteRelease, online.Origin);
+            Assert.Equal([".standalone.lock"], Assert.Single(online.Catalog.OwnershipPolicies).StandaloneEvidencePaths);
+        }
+        using var offlineClient = new HttpClient(new StubHandler(new Dictionary<string, HttpResponseMessage>()));
+        var offline = await new ContentPackageCatalogLoader(offlineClient, directory.Path, new Version(0, 28, 0), RepositoryUrl, ApiUrl).LoadAsync();
+        Assert.Equal(ContentPackageCatalogOrigin.LastKnownGoodCache, offline.Origin);
+        Assert.Equal([".standalone.lock"], Assert.Single(offline.Catalog.OwnershipPolicies).StandaloneEvidencePaths);
     }
 
     private static ReleaseFixture Release(string tag, string json, bool prerelease = false)
@@ -221,9 +292,20 @@ public sealed class ContentPackageCatalogLoaderTests
             : $"\"minimumToolkitVersion\": \"{minimumToolkitVersion}\",";
         return $$"""
             {
-              "schemaVersion": 1,
+              "schemaVersion": 2,
               "catalogVersion": "{{version}}",
               {{minimumProperty}}
+              "ownershipPolicies": [
+                {
+                  "packageId": "{{packageId}}",
+                  "displayName": "Test package",
+                  "repositoryUrl": "https://github.com/example/package",
+                  "supportedProducts": ["zibo-737ng"],
+                  "targetPaths": ["script.lua"],
+                  "standaloneEvidencePaths": [".standalone/state.json"],
+                  "recoveryInstruction": "Restore the test package with its installer."
+                }
+              ],
               "packages": [
                 {
                   "packageId": "{{packageId}}",

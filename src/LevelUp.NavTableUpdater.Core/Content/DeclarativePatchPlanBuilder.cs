@@ -17,7 +17,7 @@ public sealed class DeclarativePatchPlanBuilder : IContentPatchPlanBuilder<Decla
         ContentPatchHandlerRegistry? handlers = null, Func<ContentPackageCatalog>? catalogProvider = null)
     {
         _stateStore = stateStore;
-        _catalogProvider = catalogProvider ?? ContentPackageCatalog.LoadBundled;
+        _catalogProvider = catalogProvider ?? (() => ContentPackageCatalog.Unavailable);
         _handlers = handlers ?? ContentPatchHandlerRegistry.CreateBuiltIn();
     }
 
@@ -25,7 +25,7 @@ public sealed class DeclarativePatchPlanBuilder : IContentPatchPlanBuilder<Decla
         AircraftVariantViewAnalysis variant, DeclarativePatchPackage package,
         CancellationToken cancellationToken = default)
     {
-        return ContentPatchOwnershipVerifier.BuildPlanAsync(action, variant, DescriptorFor(package.Manifest),
+        return ContentPatchOwnershipVerifier.BuildPlanAsync(action, variant, DescriptorFor(package.Manifest, _catalogProvider()),
             package.Manifest.PackageVersion, _stateStore, _catalogProvider,
             package.Manifest.Targets.Select(target => target.RelativePath),
             () => BuildCoreAsync(action, variant, package, cancellationToken));
@@ -40,7 +40,7 @@ public sealed class DeclarativePatchPlanBuilder : IContentPatchPlanBuilder<Decla
         cancellationToken.ThrowIfCancellationRequested();
         DeclarativePatchManifestParser.Validate(package.Manifest);
         var manifest = package.Manifest;
-        var descriptor = DescriptorFor(manifest);
+        var descriptor = DescriptorFor(manifest, _catalogProvider());
         var aircraftRoot = Path.GetDirectoryName(variant.AcfPath) ?? "";
         var log = new List<string>
         {
@@ -350,9 +350,9 @@ public sealed class DeclarativePatchPlanBuilder : IContentPatchPlanBuilder<Decla
             $"{descriptor.DisplayName} was uninstalled and original files were restored.");
     }
 
-    internal static ContentPatchDescriptor DescriptorFor(DeclarativePatchManifest manifest)
+    internal static ContentPatchDescriptor DescriptorFor(DeclarativePatchManifest manifest, ContentPackageCatalog? catalog = null)
     {
-        var entry = ContentPackageCatalog.LoadBundled().Packages.SingleOrDefault(package => package.PackageId == manifest.PackageId);
+        var entry = (catalog ?? ContentPackageCatalog.Unavailable).Packages.SingleOrDefault(package => package.PackageId == manifest.PackageId);
         if (entry?.Category == ContentPackageCategory.OptionalPatch)
             return ContentPatchCatalog.OptionalPatch(entry) with
             { RepositoryUrl = manifest.RepositoryUrl, RestartRequired = manifest.RestartRequired };

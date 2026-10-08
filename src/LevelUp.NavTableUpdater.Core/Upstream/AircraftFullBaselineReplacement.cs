@@ -20,7 +20,7 @@ internal sealed class AircraftFullBaselineReplacement
         Func<bool>? isXPlaneRunning = null, Func<ContentPackageCatalog>? catalogProvider = null)
     {
         _stateStore = stateStore;
-        _catalogProvider = catalogProvider ?? ContentPackageCatalog.LoadBundled;
+        _catalogProvider = catalogProvider ?? (() => ContentPackageCatalog.Unavailable);
         _afterTargetMoved = afterTargetMoved;
         _isXPlaneRunning = isXPlaneRunning ?? XPlaneProcessDetector.IsXPlaneRunning;
     }

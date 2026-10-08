@@ -19,11 +19,11 @@ public sealed class StandalonePatchOwnershipGuardTests
         using var directory = new DeclarativePatchManifestTests.TemporaryDirectory();
         Write(directory.Path, statePath, "{}");
 
-        var conflict = StandalonePatchOwnershipGuard.FindConflict(directory.Path, [target], null);
+        var conflict = StandalonePatchOwnershipGuard.FindConflict(directory.Path, [target], null, catalog: OwnershipTestCatalog.Published);
 
         Assert.Contains("standalone", conflict!, StringComparison.OrdinalIgnoreCase);
-        Assert.NotNull(StandalonePatchOwnershipGuard.FindAircraftUpdateConflict(directory.Path, null));
-        Assert.Null(StandalonePatchOwnershipGuard.FindConflict(directory.Path, ["unrelated.txt"], null));
+        Assert.NotNull(StandalonePatchOwnershipGuard.FindAircraftUpdateConflict(directory.Path, toolkitComponents: null, catalog: OwnershipTestCatalog.Published));
+        Assert.Null(StandalonePatchOwnershipGuard.FindConflict(directory.Path, ["unrelated.txt"], null, catalog: OwnershipTestCatalog.Published));
     }
 
     [Theory]
@@ -39,11 +39,11 @@ public sealed class StandalonePatchOwnershipGuardTests
         Write(directory.Path, target, "stock");
         Write(directory.Path, backup, "original");
 
-        Assert.Null(StandalonePatchOwnershipGuard.FindConflict(directory.Path, [target], null));
-        Assert.Null(StandalonePatchOwnershipGuard.FindAircraftUpdateConflict(directory.Path, null));
+        Assert.Null(StandalonePatchOwnershipGuard.FindConflict(directory.Path, [target], null, catalog: OwnershipTestCatalog.Published));
+        Assert.Null(StandalonePatchOwnershipGuard.FindAircraftUpdateConflict(directory.Path, toolkitComponents: null, catalog: OwnershipTestCatalog.Published));
 
         Write(directory.Path, target, $"stock\n{signature}\n");
-        Assert.NotNull(StandalonePatchOwnershipGuard.FindConflict(directory.Path, [target], null));
+        Assert.NotNull(StandalonePatchOwnershipGuard.FindConflict(directory.Path, [target], null, catalog: OwnershipTestCatalog.Published));
     }
 
     [Fact]
@@ -52,7 +52,7 @@ public sealed class StandalonePatchOwnershipGuardTests
         using var directory = new DeclarativePatchManifestTests.TemporaryDirectory();
         Write(directory.Path, Tablet, "-- BEGIN UPSTREAM_TABLET_PERF_CALC DOFILE\n");
 
-        var conflict = StandalonePatchOwnershipGuard.FindConflict(directory.Path, [Tablet], null);
+        var conflict = StandalonePatchOwnershipGuard.FindConflict(directory.Path, [Tablet], null, catalog: OwnershipTestCatalog.Published);
 
         Assert.NotNull(conflict);
     }
@@ -73,9 +73,9 @@ public sealed class StandalonePatchOwnershipGuardTests
         };
 
         Assert.Null(StandalonePatchOwnershipGuard.FindConflict(directory.Path, [Tablet],
-            new Dictionary<string, ContentComponentState> { [owned.ComponentId] = owned }));
+            new Dictionary<string, ContentComponentState> { [owned.ComponentId] = owned }, catalog: OwnershipTestCatalog.Published));
         Assert.Null(StandalonePatchOwnershipGuard.FindAircraftUpdateConflict(directory.Path,
-            new Dictionary<string, ContentComponentState> { [owned.ComponentId] = owned }));
+            new Dictionary<string, ContentComponentState> { [owned.ComponentId] = owned }, catalog: OwnershipTestCatalog.Published));
     }
 
     [Theory]
@@ -95,7 +95,7 @@ public sealed class StandalonePatchOwnershipGuardTests
         };
 
         Assert.Null(StandalonePatchOwnershipGuard.FindConflict(directory.Path, [Fms],
-            new Dictionary<string, ContentComponentState> { [owned.ComponentId] = owned }));
+            new Dictionary<string, ContentComponentState> { [owned.ComponentId] = owned }, catalog: OwnershipTestCatalog.Published));
     }
 
     private static ContentComponentFileState OwnedFile(string root, string relative)

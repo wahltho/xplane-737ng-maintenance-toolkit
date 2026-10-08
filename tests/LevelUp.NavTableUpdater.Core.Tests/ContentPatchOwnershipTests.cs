@@ -11,7 +11,7 @@ namespace LevelUp.NavTableUpdater.Core.Tests;
 
 public sealed class ContentPatchOwnershipTests
 {
-    public static IEnumerable<object[]> CatalogPolicies() => ContentPackageCatalog.LoadBundled().OwnershipPolicies
+    public static IEnumerable<object[]> CatalogPolicies() => OwnershipTestCatalog.Published.OwnershipPolicies
         .Select(policy => new object[] { policy.PackageId });
 
     [Theory]
@@ -19,7 +19,7 @@ public sealed class ContentPatchOwnershipTests
     public void CatalogPolicy_UnmanagedPatchEvidenceBlocksEvenWhenFilesMatch(string packageId)
     {
         using var directory = new DeclarativePatchManifestTests.TemporaryDirectory();
-        var catalog = ContentPackageCatalog.LoadBundled();
+        var catalog = OwnershipTestCatalog.Published;
         var policy = catalog.OwnershipPolicies.Single(p => p.PackageId == packageId);
         var marker = policy.MarkerNamespaces.FirstOrDefault(m => m.Blocks.Count > 0);
         string target;
@@ -49,7 +49,7 @@ public sealed class ContentPatchOwnershipTests
             catalog, product: policy.SupportedProducts[0]));
     }
 
-    public static IEnumerable<object[]> MarkerPolicies() => ContentPackageCatalog.LoadBundled().OwnershipPolicies
+    public static IEnumerable<object[]> MarkerPolicies() => OwnershipTestCatalog.Published.OwnershipPolicies
         .SelectMany(policy => policy.MarkerNamespaces.Where(marker => marker.Blocks.Count > 0)
             .Select(marker => new object[] { policy.PackageId, marker.RelativePath, marker.Namespace }));
 
@@ -57,7 +57,7 @@ public sealed class ContentPatchOwnershipTests
     [MemberData(nameof(MarkerPolicies))]
     public void CatalogPolicy_UnknownBrokenAndDuplicateBlocksBlockManagedOwners(string id, string target, string name)
     {
-        var catalog = ContentPackageCatalog.LoadBundled();
+        var catalog = OwnershipTestCatalog.Published;
         var policy = catalog.OwnershipPolicies.Single(p => p.PackageId == id);
         var pair = policy.MarkerNamespaces.Single(m => m.RelativePath == target && m.Namespace == name).Blocks[0];
         var valid = pair.BeginMarker + "\nbody\n" + pair.EndMarker + "\n";
@@ -196,7 +196,7 @@ public sealed class ContentPatchOwnershipTests
     public async Task Group_UnselectedStandaloneScopeIsPreserved_ButSelectingItBlocks()
     {
         using var fixture = new Fixture();
-        var bundled = ContentPackageCatalog.LoadBundled();
+        var bundled = OwnershipTestCatalog.Published;
         var document = new ContentPackageCatalogDocument { SchemaVersion = 2,
             CatalogVersion = bundled.CatalogVersion, MinimumToolkitVersion = bundled.MinimumToolkitVersion,
             Packages = bundled.Packages.ToList(), OwnershipPolicies = bundled.OwnershipPolicies.ToList() };
@@ -258,6 +258,40 @@ public sealed class ContentPatchOwnershipTests
         Assert.False(File.Exists(Path.Combine(fixture.Root, "fixture-files/active.lua")));
         Assert.Equal("standalone", File.ReadAllText(Path.Combine(fixture.Root, "fixture-files/inactive.lua")));
         Assert.Equal("{}", File.ReadAllText(Path.Combine(fixture.Root, ".fixture-inactive/state.json")));
+    }
+
+    [Fact]
+    public void CatalogUnavailable_BlocksPlanningAndExecutionWithoutCreatingBackups()
+    {
+        using var fixture = new Fixture();
+        Write(fixture.Root, "script.lua", "stock\n");
+        var prepared = fixture.Plan("1.0.0", Fixture.Block("code"));
+        fixture.Catalog = ContentPackageCatalog.Unavailable;
+        var blocked = fixture.Plan("1.0.0", Fixture.Block("code"));
+        Assert.False(blocked.IsSafe);
+        var result = fixture.Engine.Execute(prepared, fixture.Variant);
+        Assert.False(result.Succeeded);
+        Assert.False(result.Changed);
+        Assert.Equal("stock\n", File.ReadAllText(Path.Combine(fixture.Root, "script.lua")));
+        Assert.False(File.Exists(Path.Combine(fixture.Root, "payload.lua")));
+        Assert.Empty(fixture.Store.Load().ContentInstallations);
+    }
+
+    [Fact]
+    public void CatalogUnavailable_BlocksRestoreAndPreservesTheCompleteRecordedState()
+    {
+        using var fixture = new Fixture();
+        Write(fixture.Root, "script.lua", "stock\n");
+        Assert.True(fixture.Engine.Execute(fixture.Plan("1.0.0", Fixture.Block("code")), fixture.Variant).Succeeded);
+        var script = File.ReadAllBytes(Path.Combine(fixture.Root, "script.lua"));
+        var state = File.ReadAllBytes(fixture.Store.StatePath);
+        fixture.Catalog = ContentPackageCatalog.Unavailable;
+        var result = fixture.Engine.Restore(fixture.Descriptor, fixture.Variant);
+        Assert.False(result.Succeeded);
+        Assert.False(result.Changed);
+        Assert.Equal(script, File.ReadAllBytes(Path.Combine(fixture.Root, "script.lua")));
+        Assert.Equal(state, File.ReadAllBytes(fixture.Store.StatePath));
+        Assert.True(File.Exists(Path.Combine(fixture.Root, "payload.lua")));
     }
 
     private static void Write(string root, string path, string content)

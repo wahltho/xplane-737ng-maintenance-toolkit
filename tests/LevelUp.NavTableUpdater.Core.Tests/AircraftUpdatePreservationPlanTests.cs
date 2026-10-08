@@ -92,7 +92,7 @@ public sealed class AircraftUpdatePreservationPlanTests
             [cacheEntry.Package],
             []);
 
-        var result = new AircraftUpdateOperation(fixture.StateStore, isXPlaneRunning: () => false).Apply(
+        var result = new AircraftUpdateOperation(fixture.StateStore, isXPlaneRunning: () => false, catalogProvider: () => OwnershipTestCatalog.Published).Apply(
             fixture.Variant,
             check,
             [cacheEntry],

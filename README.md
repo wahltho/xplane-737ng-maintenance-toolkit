@@ -132,14 +132,15 @@ Current capabilities:
 - It supports explicit optional schema-v2 patch packages through the same
   transaction engine. Optional packages are never folded into the automatic
   aircraft/VNAV update flow and require a separate user confirmation.
-- The bundled catalog offers the LevelUp FANS CDU package as an explicit,
-  optional LevelUp-only patch. Its manifest, payload hashes and supported
-  source structures are validated before any aircraft file is changed.
-- It ships a versioned trusted package catalog and checks immutable
-  `catalog-v*` GitHub Releases for newer package metadata. A remote catalog is
-  used only after schema and minimum Toolkit version validation; the last valid
-  cache and bundled catalog remain fallbacks. The Start page filters managed
-  content and optional patches by the selected Zibo or LevelUp product. Trusted
+- The online catalog lists LevelUp maintenance modules and optional
+  Zibo/LevelUp patches. Their manifests, payload hashes and supported source
+  structures are validated before any aircraft file is changed.
+- It loads its versioned package catalog from immutable `catalog-v*` GitHub
+  Releases. A catalog is used only after schema, ownership-policy and minimum
+  Toolkit version validation. Its last valid saved online copy remains available
+  if the connection fails. No catalog is built into the application. Without a
+  valid online or saved catalog, aircraft updates and patch writes stay blocked.
+  The Start page filters managed content and optional patches by the selected Zibo or LevelUp product. Trusted
   optional entries can resolve their latest stable GitHub Release directly;
   manual package-folder selection remains an Advanced fallback.
 - It offers optional aircraft components and X-Plane-wide tools for compatible

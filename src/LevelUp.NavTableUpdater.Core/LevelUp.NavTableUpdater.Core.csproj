@@ -13,7 +13,6 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Content/KnownAircraftBaselines.json" />
-    <EmbeddedResource Include="../../catalog/content-package-catalog.json" LogicalName="LevelUp.NavTableUpdater.Core.Content.content-package-catalog.json" />
     <InternalsVisibleTo Include="LevelUp.NavTableUpdater.Core.Tests" />
   </ItemGroup>
 

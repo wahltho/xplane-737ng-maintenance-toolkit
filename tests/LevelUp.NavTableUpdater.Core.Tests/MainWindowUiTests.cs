@@ -1074,8 +1074,9 @@ public sealed class MainWindowUiTests
             var window = new MainWindow { Width = width, Height = height };
             // These tests operate on isolated temporary aircraft, independent of
             // any simulator the user is running on the development machine.
+            OwnershipTestCatalog.SaveOnlineCache(Store);
             Vm = new MainWindowViewModel(new MainWindowUserInteractionService(window), new NoAppUpdate(), Store, _client,
-                new AircraftDetector(_root), isXPlaneRunning: () => XPlaneRunning);
+                new AircraftDetector(_root), isXPlaneRunning: () => XPlaneRunning, initialCatalog: OwnershipTestCatalog.Published);
             window.DataContext = Vm;
             return window;
         }

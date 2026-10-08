@@ -84,7 +84,12 @@ Catalog releases use `--latest=false`; the VeloPack application release remains
 the repository's `latest` release. The app loads the newest stable
 `catalog-v*` release, validates its schema and `minimumToolkitVersion`, and
 caches it only after successful validation. Network, schema or compatibility
-errors fall back to the previous valid cache and then to the bundled catalog.
+errors fall back to the previous valid saved online catalog. A stale remote
+response cannot replace a newer saved catalog. The application does not contain
+a catalog or a compiled patch registry. With neither a valid online catalog nor
+a valid cache, aircraft updates and patch writes remain blocked. Publishing a
+catalog change needs no application build unless it introduces unsupported
+features or raises the minimum Toolkit version.
 
 ## VeloPack Tooling
 

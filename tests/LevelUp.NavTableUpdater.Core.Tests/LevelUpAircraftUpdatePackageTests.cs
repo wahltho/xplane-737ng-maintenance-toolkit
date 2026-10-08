@@ -246,7 +246,7 @@ public sealed class LevelUpAircraftUpdatePackageTests : IDisposable
         var cache = new AircraftUpdatePackageCache(Path.Combine(_root, "cache"));
         var imported = cache.ImportPackage(fixture.ArchivePath, package);
         var store = TestToolStateStore.Create(_root);
-        var operation = new AircraftUpdateOperation(store, isXPlaneRunning: () => false);
+        var operation = new AircraftUpdateOperation(store, isXPlaneRunning: () => false, catalogProvider: () => OwnershipTestCatalog.Published);
 
         var applied = operation.Apply(variant, selection.UpdateCheck, [imported]);
 
@@ -279,7 +279,7 @@ public sealed class LevelUpAircraftUpdatePackageTests : IDisposable
         var imported = new AircraftUpdatePackageCache(Path.Combine(_root, "cache"))
             .ImportPackage(fixture.ArchivePath, selection.Package!);
         var store = TestToolStateStore.Create(_root);
-        var operation = new AircraftUpdateOperation(store, isXPlaneRunning: () => false);
+        var operation = new AircraftUpdateOperation(store, isXPlaneRunning: () => false, catalogProvider: () => OwnershipTestCatalog.Published);
         void AddStandaloneState()
         {
             var stateFolder = Path.Combine(fixture.AircraftPath, ".levelup-fans-cdu-patch");
@@ -321,7 +321,7 @@ public sealed class LevelUpAircraftUpdatePackageTests : IDisposable
             installation.ContentComponents["patch"] = component;
             product.ContentComponents["patch"] = component;
         });
-        var operation = new AircraftUpdateOperation(store, isXPlaneRunning: () => false);
+        var operation = new AircraftUpdateOperation(store, isXPlaneRunning: () => false, catalogProvider: () => OwnershipTestCatalog.Published);
         var applied = operation.Apply(variant, selection.UpdateCheck, [imported]);
         Assert.True(applied.Succeeded, applied.Message);
         var after = store.TryGetContentInstallation(fixture.AircraftPath)!;
@@ -398,7 +398,7 @@ public sealed class LevelUpAircraftUpdatePackageTests : IDisposable
         Assert.True(review.Succeeded);
         Assert.Contains(review.Entries, e => e.RelativePath == "737_80NG_vrconfig.txt"
             && e.Action == AircraftUpdateDryRunEntryAction.Replace);
-        var operation = new AircraftUpdateOperation(TestToolStateStore.Create(_root), isXPlaneRunning: () => false);
+        var operation = new AircraftUpdateOperation(TestToolStateStore.Create(_root), isXPlaneRunning: () => false, catalogProvider: () => OwnershipTestCatalog.Published);
         var result = operation.Apply(variant, selection.UpdateCheck, [imported]);
         Assert.True(result.Succeeded, result.Message);
         Assert.Equal(payloads["737_80NG_vrconfig.txt"], File.ReadAllText(vr));
@@ -424,7 +424,7 @@ public sealed class LevelUpAircraftUpdatePackageTests : IDisposable
         var cache = new AircraftUpdatePackageCache(Path.Combine(_root, "cache"));
         var imported = cache.ImportPackage(fixture.ArchivePath, package);
         var store = TestToolStateStore.Create(_root);
-        var operation = new AircraftUpdateOperation(store, isXPlaneRunning: () => false);
+        var operation = new AircraftUpdateOperation(store, isXPlaneRunning: () => false, catalogProvider: () => OwnershipTestCatalog.Published);
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
 
@@ -450,7 +450,7 @@ public sealed class LevelUpAircraftUpdatePackageTests : IDisposable
         var package = Assert.IsType<AircraftUpdatePackage>(selection.Package);
         var cache = new AircraftUpdatePackageCache(Path.Combine(_root, "cache"));
         var imported = cache.ImportPackage(fixture.ArchivePath, package);
-        var operation = new AircraftUpdateOperation(TestToolStateStore.Create(_root), isXPlaneRunning: () => false);
+        var operation = new AircraftUpdateOperation(TestToolStateStore.Create(_root), isXPlaneRunning: () => false, catalogProvider: () => OwnershipTestCatalog.Published);
         using var cancellation = new CancellationTokenSource();
 
         var result = operation.Apply(

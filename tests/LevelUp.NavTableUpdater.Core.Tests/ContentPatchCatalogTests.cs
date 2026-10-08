@@ -11,9 +11,9 @@ public sealed class ContentPatchCatalogTests
     [InlineData("win-arm64", false)]
     [InlineData("osx-x64", false)]
     [InlineData("osx-arm64", false)]
-    public void BundledCatalog_OffersXLinSpeakOnlyOnSupportedPlatform(string platform, bool available)
+    public void PublishedCatalog_OffersXLinSpeakOnlyOnSupportedPlatform(string platform, bool available)
     {
-        var catalog = ContentPackageCatalog.Parse(File.ReadAllText(BundledCatalogPath()), new Version(0, 28, 0));
+        var catalog = ContentPackageCatalog.Parse(File.ReadAllText(PublishedCatalogPath()), new Version(0, 28, 0));
         foreach (var product in new[] { "zibo-737ng", "levelup-737ng" })
         {
             var entries = catalog.ForProduct(product, platform);
@@ -27,19 +27,19 @@ public sealed class ContentPatchCatalogTests
     }
 
     [Fact]
-    public void BundledCatalog_PlatformSupportRequiresNewToolkit()
+    public void PublishedCatalog_PlatformSupportRequiresNewToolkit()
     {
         Assert.Throws<InvalidDataException>(() => ContentPackageCatalog.Parse(
-            File.ReadAllText(BundledCatalogPath()), new Version(0, 21, 0)));
+            File.ReadAllText(PublishedCatalogPath()), new Version(0, 21, 0)));
     }
 
     [Theory]
     [InlineData("win-x64", true)]
     [InlineData("linux-x64", false)]
     [InlineData("osx-arm64", false)]
-    public void BundledCatalog_AutoUnicomHelperMatchesReleaseContract(string platform, bool available)
+    public void PublishedCatalog_AutoUnicomHelperMatchesReleaseContract(string platform, bool available)
     {
-        var catalog = ContentPackageCatalog.Parse(File.ReadAllText(BundledCatalogPath()), new Version(0, 28, 0));
+        var catalog = ContentPackageCatalog.Parse(File.ReadAllText(PublishedCatalogPath()), new Version(0, 28, 0));
         const string id = "wahltho.yal-autounicomhelper";
 
         foreach (var product in new[] { "zibo-737ng", "levelup-737ng" })
@@ -55,9 +55,9 @@ public sealed class ContentPatchCatalogTests
     }
 
     [Fact]
-    public void BundledCatalog_LufthansaLiveryMatchesReleaseContract()
+    public void PublishedCatalog_LufthansaLiveryMatchesReleaseContract()
     {
-        var catalog = ContentPackageCatalog.Parse(File.ReadAllText(BundledCatalogPath()), new Version(0, 28, 0));
+        var catalog = ContentPackageCatalog.Parse(File.ReadAllText(PublishedCatalogPath()), new Version(0, 28, 0));
         const string id = "wahltho.levelup-737ng.livery.lufthansa";
 
         Assert.DoesNotContain(catalog.ForProduct("zibo-737ng"), package => package.PackageId == id);
@@ -76,14 +76,14 @@ public sealed class ContentPatchCatalogTests
     [InlineData("linux-x64\", \"linux-x64")]
     public void Catalog_InvalidPlatformsAreRejected(string platforms)
     {
-        var json = File.ReadAllText(BundledCatalogPath()).Replace("\"linux-x64\"", "\"" + platforms + "\"");
+        var json = File.ReadAllText(PublishedCatalogPath()).Replace("\"linux-x64\"", "\"" + platforms + "\"");
         Assert.Throws<InvalidDataException>(() => ContentPackageCatalog.Parse(json));
     }
 
     [Fact]
-    public void BundledCatalog_CpdlcIsAvailableForBothProductsAndOptionalInLevelUpGroup()
+    public void PublishedCatalog_CpdlcIsAvailableForBothProductsAndOptionalInLevelUpGroup()
     {
-        var catalog = ContentPackageCatalog.Parse(File.ReadAllText(BundledCatalogPath()));
+        var catalog = ContentPackageCatalog.Parse(File.ReadAllText(PublishedCatalogPath()));
         const string id = "wahltho.zibo-40535.cpdlc";
         var cpdlc = Assert.Single(catalog.ForProduct("zibo-737ng"), p => p.PackageId == id);
         Assert.Contains(cpdlc, catalog.ForProduct("levelup-737ng"));
@@ -213,9 +213,9 @@ public sealed class ContentPatchCatalogTests
     }
 
     [Fact]
-    public void BundledCatalog_AdvertisesVerifiedFansCduReleaseContract()
+    public void PublishedCatalog_AdvertisesVerifiedFansCduReleaseContract()
     {
-        var catalog = ContentPackageCatalog.Parse(File.ReadAllText(BundledCatalogPath()));
+        var catalog = ContentPackageCatalog.Parse(File.ReadAllText(PublishedCatalogPath()));
 
         var fans = Assert.Single(
             catalog.ForProduct("levelup-737ng"),
@@ -233,9 +233,9 @@ public sealed class ContentPatchCatalogTests
     }
 
     [Fact]
-    public void BundledCatalog_DeclaresRequiredLevelUpGroupAndOptionalSources()
+    public void PublishedCatalog_DeclaresRequiredLevelUpGroupAndOptionalSources()
     {
-        var catalog = ContentPackageCatalog.Parse(File.ReadAllText(BundledCatalogPath()));
+        var catalog = ContentPackageCatalog.Parse(File.ReadAllText(PublishedCatalogPath()));
 
         var performance = Assert.Single(
             catalog.ForProduct("levelup-737ng"),
@@ -298,9 +298,9 @@ public sealed class ContentPatchCatalogTests
     }
 
     [Fact]
-    public void BundledCatalog_VrefBetaIsOptionalForBothProductsAndRequiresLoaderMigrationSupport()
+    public void PublishedCatalog_VrefBetaIsOptionalForBothProductsAndRequiresLoaderMigrationSupport()
     {
-        var json = File.ReadAllText(BundledCatalogPath());
+        var json = File.ReadAllText(PublishedCatalogPath());
         Assert.Throws<InvalidDataException>(() => ContentPackageCatalog.Parse(json, new Version(0, 21, 1)));
         var catalog = ContentPackageCatalog.Parse(json, new Version(0, 28, 0));
         const string id = "wahltho.levelup-737ng.vref";
@@ -333,9 +333,9 @@ public sealed class ContentPatchCatalogTests
     }
 
     [Fact]
-    public void BundledCatalog_AdvertisesVerifiedLevelUpPaintkitReleaseContract()
+    public void PublishedCatalog_AdvertisesVerifiedLevelUpPaintkitReleaseContract()
     {
-        var catalog = ContentPackageCatalog.Parse(File.ReadAllText(BundledCatalogPath()));
+        var catalog = ContentPackageCatalog.Parse(File.ReadAllText(PublishedCatalogPath()));
 
         var paintkit = Assert.Single(
             catalog.ForProduct("levelup-737ng"),
@@ -357,9 +357,9 @@ public sealed class ContentPatchCatalogTests
     }
 
     [Fact]
-    public void BundledCatalog_AdvertisesAircraftScopedOptimizedXluaContract()
+    public void PublishedCatalog_AdvertisesAircraftScopedOptimizedXluaContract()
     {
-        var catalog = ContentPackageCatalog.Parse(File.ReadAllText(BundledCatalogPath()));
+        var catalog = ContentPackageCatalog.Parse(File.ReadAllText(PublishedCatalogPath()));
 
         var xlua = Assert.Single(
             catalog.ForProduct("zibo-737ng"),
@@ -378,9 +378,9 @@ public sealed class ContentPatchCatalogTests
     }
 
     [Fact]
-    public void BundledCatalog_AdvertisesRealbenchLoggerAsProductNeutralXPlaneOverlay()
+    public void PublishedCatalog_AdvertisesRealbenchLoggerAsProductNeutralXPlaneOverlay()
     {
-        var catalog = ContentPackageCatalog.Parse(File.ReadAllText(BundledCatalogPath()));
+        var catalog = ContentPackageCatalog.Parse(File.ReadAllText(PublishedCatalogPath()));
 
         var logger = Assert.Single(
             catalog.ForProduct("zibo-737ng"),
@@ -399,9 +399,9 @@ public sealed class ContentPatchCatalogTests
     }
 
     [Fact]
-    public void BundledCatalog_AdvertisesYanshAsProductNeutralXPlaneTool()
+    public void PublishedCatalog_AdvertisesYanshAsProductNeutralXPlaneTool()
     {
-        var catalog = ContentPackageCatalog.Parse(File.ReadAllText(BundledCatalogPath()));
+        var catalog = ContentPackageCatalog.Parse(File.ReadAllText(PublishedCatalogPath()));
 
         var yansh = Assert.Single(
             catalog.ForProduct("zibo-737ng"),
@@ -469,7 +469,7 @@ public sealed class ContentPatchCatalogTests
         }
         """;
 
-    private static string BundledCatalogPath() =>
+    private static string PublishedCatalogPath() =>
         Path.Combine(AppContext.BaseDirectory, "Content", "content-package-catalog.json");
 
     private static string BuildCatalog() =>

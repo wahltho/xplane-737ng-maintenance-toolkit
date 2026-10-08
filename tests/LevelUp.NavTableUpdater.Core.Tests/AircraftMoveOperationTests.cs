@@ -376,7 +376,7 @@ public sealed class AircraftMoveOperationTests : IDisposable
         Write(Path.Combine(package, "package-manifest.json"), DeclarativePatchManifestTests.BuildManifest(
             "patches/change.json", payload, relative, DeclarativePatchManifestTests.Sha256(original),
             DeclarativePatchManifestTests.Sha256(System.Text.Encoding.UTF8.GetBytes("after\r\n"))));
-        var patches = new DeclarativeContentPatchOperation(Store, () => false);
+        var patches = new DeclarativeContentPatchOperation(Store, () => false, catalogProvider: () => OwnershipTestCatalog.Published);
         var installed = await patches.RunAsync(ContentPatchAction.Install, variant, package);
         Assert.True(installed.Succeeded, installed.Message);
         var op = Operation(); op.Execute(op.Prepare(Source, Destination));

@@ -35,7 +35,7 @@ public sealed class LevelUpCatchUpUpdateTests
         var cache = fixture.Import(plan);
         var preserved = new AircraftUpdatePreservationPlan("test-runtime", "2.0",
             [new("plugins/xlua/mac_x64/xlua.xpl", [0, 255, 42], FileAttributes.Normal, null)]);
-        var operation = new AircraftUpdateOperation(fixture.Store, isXPlaneRunning: () => false);
+        var operation = new AircraftUpdateOperation(fixture.Store, isXPlaneRunning: () => false, catalogProvider: () => OwnershipTestCatalog.Published);
 
         var applied = operation.Apply(fixture.Variant, plan, cache, preservationPlans: [preserved]);
 
@@ -103,7 +103,7 @@ public sealed class LevelUpCatchUpUpdateTests
             changedFiles = fixture.Snapshot();
         }
         if (!atSwap) ChangeSource();
-        var operation = new AircraftUpdateOperation(fixture.Store, isXPlaneRunning: () => running);
+        var operation = new AircraftUpdateOperation(fixture.Store, isXPlaneRunning: () => running, catalogProvider: () => OwnershipTestCatalog.Published);
 
         var result = operation.Apply(fixture.Variant, plan, cache, writePhaseStarting: atSwap ? ChangeSource : null);
 
@@ -125,7 +125,7 @@ public sealed class LevelUpCatchUpUpdateTests
         Assert.Equal("2.S1.51B", variant.LocalVersion);
         var plan = await fixture.CheckAsync(variant);
         var before = fixture.Snapshot();
-        var operation = new AircraftUpdateOperation(fixture.Store, isXPlaneRunning: () => false);
+        var operation = new AircraftUpdateOperation(fixture.Store, isXPlaneRunning: () => false, catalogProvider: () => OwnershipTestCatalog.Published);
         var result = operation.Apply(variant, plan, fixture.Import(plan));
         Assert.True(result.Succeeded, result.Message);
         Assert.True(operation.RestoreLatest(variant).Succeeded);
@@ -142,7 +142,7 @@ public sealed class LevelUpCatchUpUpdateTests
         var before = fixture.Snapshot();
         var stateBefore = File.ReadAllBytes(fixture.Store.StatePath);
         var plan = await fixture.CheckAsync();
-        var operation = new AircraftUpdateOperation(fixture.Store, isXPlaneRunning: () => false);
+        var operation = new AircraftUpdateOperation(fixture.Store, isXPlaneRunning: () => false, catalogProvider: () => OwnershipTestCatalog.Published);
         var result = operation.Apply(fixture.Variant, plan, fixture.Import(plan), writePhaseStarting: () =>
             File.WriteAllText(Path.Combine(fixture.Store.RootPath, "aircraft-move.json"), "state writes now blocked"));
 
@@ -167,7 +167,7 @@ public sealed class LevelUpCatchUpUpdateTests
         {
             if (++runningChecks == 2) cancellation.Cancel();
             return false;
-        });
+        }, catalogProvider: () => OwnershipTestCatalog.Published);
         Assert.Throws<OperationCanceledException>(() => operation.Apply(fixture.Variant, plan, cache, cancellation.Token));
         Assert.Equal(before, fixture.Snapshot());
         Assert.False(File.Exists(fixture.Store.StatePath));
@@ -184,7 +184,7 @@ public sealed class LevelUpCatchUpUpdateTests
         var plan = await fixture.CheckAsync();
         var cache = fixture.Import(plan);
         var operation = new AircraftFullBaselineReplacement(fixture.Store,
-            afterTargetMoved: () => throw new IOException("Injected activation failure"), isXPlaneRunning: () => false);
+            afterTargetMoved: () => throw new IOException("Injected activation failure"), isXPlaneRunning: () => false, catalogProvider: () => OwnershipTestCatalog.Published);
 
         Assert.Throws<IOException>(() => operation.Apply(fixture.Variant, plan, cache, CancellationToken.None,
             null, [], new List<string>()));

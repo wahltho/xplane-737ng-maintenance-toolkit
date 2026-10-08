@@ -22,7 +22,7 @@ public sealed class CompatibilityPackagePlanBuilder
         ContentPatchHandlerRegistry? handlers, KnownAircraftBaselines baselines, Func<ContentPackageCatalog>? catalogProvider = null)
     {
         _stateStore = stateStore;
-        _catalogProvider = catalogProvider ?? ContentPackageCatalog.LoadBundled;
+        _catalogProvider = catalogProvider ?? (() => ContentPackageCatalog.Unavailable);
         _baselines = baselines;
         _handlers = handlers ?? ContentPatchHandlerRegistry.CreateBuiltIn();
     }

@@ -11,7 +11,7 @@ public sealed class DeclarativeContentPatchOperationTests
     public async Task PlanAsync_WhenPackageIsValid_ProducesDryRunWithoutChangingTarget()
     {
         using var fixture = Fixture.Create();
-        var operation = new DeclarativeContentPatchOperation(fixture.Store, isXPlaneRunning: () => false);
+        var operation = new DeclarativeContentPatchOperation(fixture.Store, isXPlaneRunning: () => false, catalogProvider: () => OwnershipTestCatalog.Published);
 
         var plan = await operation.PlanAsync(ContentPatchAction.Update, fixture.Variant, fixture.PackageDirectory);
 
@@ -25,7 +25,7 @@ public sealed class DeclarativeContentPatchOperationTests
     public async Task PlanAsync_WhenLevelUpPackageTargetsZiboVariant_BlocksIt()
     {
         using var fixture = Fixture.Create();
-        var operation = new DeclarativeContentPatchOperation(fixture.Store, isXPlaneRunning: () => false);
+        var operation = new DeclarativeContentPatchOperation(fixture.Store, isXPlaneRunning: () => false, catalogProvider: () => OwnershipTestCatalog.Published);
 
         var plan = await operation.PlanAsync(
             ContentPatchAction.Update,
@@ -43,7 +43,7 @@ public sealed class DeclarativeContentPatchOperationTests
         using var fixture = Fixture.Create(includeSourceHash: false);
         var original = Encoding.UTF8.GetBytes("unrelated header\r\nbefore\r\nunrelated footer\r\n");
         File.WriteAllBytes(fixture.TargetPath, original);
-        var operation = new DeclarativeContentPatchOperation(fixture.Store, isXPlaneRunning: () => false);
+        var operation = new DeclarativeContentPatchOperation(fixture.Store, isXPlaneRunning: () => false, catalogProvider: () => OwnershipTestCatalog.Published);
 
         var installed = await operation.RunAsync(ContentPatchAction.Install, fixture.Variant, fixture.PackageDirectory);
 
@@ -63,7 +63,7 @@ public sealed class DeclarativeContentPatchOperationTests
     {
         using var fixture = Fixture.Create(includeSourceHash: false);
         File.WriteAllText(fixture.TargetPath, "installed\r\nafter\r\n");
-        var operation = new DeclarativeContentPatchOperation(fixture.Store, isXPlaneRunning: () => false);
+        var operation = new DeclarativeContentPatchOperation(fixture.Store, isXPlaneRunning: () => false, catalogProvider: () => OwnershipTestCatalog.Published);
 
         var plan = await operation.PlanAsync(ContentPatchAction.Update, fixture.Variant, fixture.PackageDirectory);
 
@@ -103,7 +103,7 @@ public sealed class DeclarativeContentPatchOperationTests
         File.WriteAllText(acfPath, "1200 Version\n");
         var variant = Fixture.CreateVariant(acfPath);
         var store = TestToolStateStore.Create(Path.Combine(directory.Path, "state"));
-        var operation = new DeclarativeContentPatchOperation(store, isXPlaneRunning: () => false);
+        var operation = new DeclarativeContentPatchOperation(store, isXPlaneRunning: () => false, catalogProvider: () => OwnershipTestCatalog.Published);
 
         var result = await operation.RunAsync(ContentPatchAction.Install, variant, packageRoot);
 
@@ -120,7 +120,7 @@ public sealed class DeclarativeContentPatchOperationTests
     {
         using var fixture = Fixture.Create(includeSourceHash: false);
         File.WriteAllText(fixture.TargetPath, content);
-        var operation = new DeclarativeContentPatchOperation(fixture.Store, isXPlaneRunning: () => false);
+        var operation = new DeclarativeContentPatchOperation(fixture.Store, isXPlaneRunning: () => false, catalogProvider: () => OwnershipTestCatalog.Published);
 
         var plan = await operation.PlanAsync(ContentPatchAction.Update, fixture.Variant, fixture.PackageDirectory);
 
@@ -135,7 +135,7 @@ public sealed class DeclarativeContentPatchOperationTests
         using var fixture = Fixture.Create(
             includeSourceHash: false,
             operation: "sparse-bytes-v1");
-        var operation = new DeclarativeContentPatchOperation(fixture.Store, isXPlaneRunning: () => false);
+        var operation = new DeclarativeContentPatchOperation(fixture.Store, isXPlaneRunning: () => false, catalogProvider: () => OwnershipTestCatalog.Published);
 
         var plan = await operation.PlanAsync(ContentPatchAction.Update, fixture.Variant, fixture.PackageDirectory);
 
@@ -148,7 +148,7 @@ public sealed class DeclarativeContentPatchOperationTests
     public async Task InstallAndUninstall_OptionalExactTextPatch_RoundTripsOriginalAndState()
     {
         using var fixture = Fixture.Create();
-        var operation = new DeclarativeContentPatchOperation(fixture.Store, isXPlaneRunning: () => false);
+        var operation = new DeclarativeContentPatchOperation(fixture.Store, isXPlaneRunning: () => false, catalogProvider: () => OwnershipTestCatalog.Published);
 
         var installed = await operation.RunAsync(ContentPatchAction.Install, fixture.Variant, fixture.PackageDirectory);
 
@@ -175,7 +175,7 @@ public sealed class DeclarativeContentPatchOperationTests
     {
         using var fixture = Fixture.Create();
         var original = File.ReadAllBytes(fixture.TargetPath);
-        var operation = new DeclarativeContentPatchOperation(fixture.Store, isXPlaneRunning: () => false);
+        var operation = new DeclarativeContentPatchOperation(fixture.Store, isXPlaneRunning: () => false, catalogProvider: () => OwnershipTestCatalog.Published);
         var installed = await operation.RunAsync(ContentPatchAction.Install, fixture.Variant, fixture.PackageDirectory);
 
         var restored = operation.Restore(fixture.Variant, fixture.PackageDirectory);
@@ -191,7 +191,7 @@ public sealed class DeclarativeContentPatchOperationTests
     public async Task Uninstall_WhenInstalledTargetWasChanged_BlocksWithoutOverwritingUserChange()
     {
         using var fixture = Fixture.Create();
-        var operation = new DeclarativeContentPatchOperation(fixture.Store, isXPlaneRunning: () => false);
+        var operation = new DeclarativeContentPatchOperation(fixture.Store, isXPlaneRunning: () => false, catalogProvider: () => OwnershipTestCatalog.Published);
         await operation.RunAsync(ContentPatchAction.Install, fixture.Variant, fixture.PackageDirectory);
         File.WriteAllText(fixture.TargetPath, "user change\n");
 

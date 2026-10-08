@@ -10,7 +10,7 @@ public enum ContentPackageCatalogOrigin
 {
     RemoteRelease,
     LastKnownGoodCache,
-    BundledFallback
+    Unavailable
 }
 
 public sealed record ContentPackageCatalogLoadResult(
@@ -56,11 +56,8 @@ public sealed class ContentPackageCatalogLoader
     public string CachePath => _cachePath;
 
     public async Task<ContentPackageCatalogLoadResult> LoadAsync(
-        string bundledCatalogJson,
         CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(bundledCatalogJson);
-        var bundled = ContentPackageCatalog.Parse(bundledCatalogJson, _toolkitVersion);
         string remoteFailure;
 
         try
@@ -68,12 +65,30 @@ public sealed class ContentPackageCatalogLoader
             using var remoteCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             remoteCancellation.CancelAfter(RemoteRequestTimeout);
             var remote = await DownloadLatestAsync(remoteCancellation.Token).ConfigureAwait(false);
-            RequireOwnershipSchema(remote.Catalog, bundled);
-            WriteCache(remote.Json);
+            // A stale GitHub response must not replace a newer catalog already
+            // obtained from the same online source.
+            ContentPackageCatalog? cached = null;
+            try
+            {
+                if (File.Exists(_cachePath))
+                {
+                    cached = ContentPackageCatalog.Parse(File.ReadAllText(_cachePath, Encoding.UTF8), _toolkitVersion);
+                    ValidatePublishedCatalog(cached, "cached catalog");
+                }
+            }
+            catch (Exception ex) when (IsRecoverable(ex)) { cached = null; }
+            if (cached is not null && Version.Parse(remote.Catalog.CatalogVersion) < Version.Parse(cached.CatalogVersion))
+                throw new InvalidDataException($"Remote catalog {remote.Catalog.CatalogVersion} is older than saved catalog {cached.CatalogVersion}.");
+            var cacheDetail = "";
+            try { WriteCache(remote.Json); }
+            catch (Exception ex) when (IsRecoverable(ex))
+            {
+                cacheDetail = $" Could not save the online catalog for offline use ({ex.Message}).";
+            }
             return new ContentPackageCatalogLoadResult(
                 remote.Catalog,
                 ContentPackageCatalogOrigin.RemoteRelease,
-                $"Loaded catalog {remote.Catalog.CatalogVersion} from {remote.Tag}.",
+                $"Loaded catalog {remote.Catalog.CatalogVersion} from {remote.Tag}." + cacheDetail,
                 remote.Tag);
         }
         catch (Exception ex) when (!cancellationToken.IsCancellationRequested && IsRecoverable(ex))
@@ -88,7 +103,6 @@ public sealed class ContentPackageCatalogLoader
                 var cachedJson = File.ReadAllText(_cachePath, Encoding.UTF8);
                 var cached = ContentPackageCatalog.Parse(cachedJson, _toolkitVersion);
                 ValidatePublishedCatalog(cached, "cached catalog");
-                RequireOwnershipSchema(cached, bundled);
                 return new ContentPackageCatalogLoadResult(
                     cached,
                     ContentPackageCatalogOrigin.LastKnownGoodCache,
@@ -98,16 +112,17 @@ public sealed class ContentPackageCatalogLoader
         catch (Exception ex) when (IsRecoverable(ex))
         {
             return new ContentPackageCatalogLoadResult(
-                bundled,
-                ContentPackageCatalogOrigin.BundledFallback,
+                ContentPackageCatalog.Unavailable,
+                ContentPackageCatalogOrigin.Unavailable,
                 $"Remote catalog unavailable ({remoteFailure}); cached catalog rejected ({ex.Message}); "
-                + $"using bundled catalog {bundled.CatalogVersion}.");
+                + "connect to the internet and refresh the catalog before changing aircraft files.");
         }
 
         return new ContentPackageCatalogLoadResult(
-            bundled,
-            ContentPackageCatalogOrigin.BundledFallback,
-            $"Remote catalog unavailable ({remoteFailure}); using bundled catalog {bundled.CatalogVersion}.");
+            ContentPackageCatalog.Unavailable,
+            ContentPackageCatalogOrigin.Unavailable,
+            $"Remote catalog unavailable ({remoteFailure}); no saved online catalog is available. "
+            + "Connect to the internet and refresh the catalog before changing aircraft files.");
     }
 
     private async Task<RemoteCatalog> DownloadLatestAsync(CancellationToken cancellationToken)
@@ -236,12 +251,8 @@ public sealed class ContentPackageCatalogLoader
         {
             throw new InvalidDataException($"The {source} has no minimumToolkitVersion.");
         }
-    }
-
-    private static void RequireOwnershipSchema(ContentPackageCatalog candidate, ContentPackageCatalog bundled)
-    {
-        if (bundled.SchemaVersion >= 2 && candidate.SchemaVersion < 2)
-            throw new InvalidDataException("This catalog has no patch ownership policies; retaining the protected bundled catalog.");
+        if (catalog.SchemaVersion != 2)
+            throw new InvalidDataException($"The {source} has no patch ownership contract. Refresh the catalog before changing aircraft files.");
     }
 
     private static string NormalizeRepositoryUrl(string repositoryUrl)

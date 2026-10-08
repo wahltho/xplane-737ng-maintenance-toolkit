@@ -20,7 +20,7 @@ public sealed class MainWindowDiagnosticsTests : IDisposable
         using var http = new HttpClient(new NoNetwork());
         var dialogs = new Messages();
         var vm = new MainWindowViewModel(dialogs, new NoUpdates(), settingsStore: settings, releaseHttpClient: http,
-            detector: new AircraftDetector(Path.Combine(_root, "home")), isXPlaneRunning: () => false);
+            detector: new AircraftDetector(Path.Combine(_root, "home")), isXPlaneRunning: () => false, initialCatalog: OwnershipTestCatalog.Published);
         var aircraft = Path.Combine(_root, "Aircraft", "LevelUp");
         Directory.CreateDirectory(aircraft);
         var reference = AircraftReferenceCatalog.All.Single(r => r.AircraftId == "levelup-737-800");
@@ -113,7 +113,7 @@ public sealed class MainWindowDiagnosticsTests : IDisposable
         using var http = new HttpClient(new NoNetwork());
         var dialogs = new Messages();
         var vm = new MainWindowViewModel(dialogs, new NoUpdates(), settingsStore: settings, releaseHttpClient: http,
-            detector: new AircraftDetector(Path.Combine(_root, "home")), isXPlaneRunning: () => false);
+            detector: new AircraftDetector(Path.Combine(_root, "home")), isXPlaneRunning: () => false, initialCatalog: OwnershipTestCatalog.Published);
         var aircraft = Path.Combine(_root, "Aircraft", "LevelUp");
         Directory.CreateDirectory(aircraft);
         var reference = AircraftReferenceCatalog.All.Single(r => r.AircraftId == "levelup-737-800");
@@ -171,7 +171,7 @@ public sealed class MainWindowDiagnosticsTests : IDisposable
         var settings = Settings();
         using var http = new HttpClient(new NoNetwork());
         var vm = new MainWindowViewModel(new Messages(), new NoUpdates(), settingsStore: settings, releaseHttpClient: http,
-            detector: new AircraftDetector(Path.Combine(_root, "home")));
+            detector: new AircraftDetector(Path.Combine(_root, "home")), initialCatalog: OwnershipTestCatalog.Published);
         var aircraft = Path.Combine(_root, "Aircraft", "LevelUp");
         Directory.CreateDirectory(aircraft);
         var reference = AircraftReferenceCatalog.All.Single(r => r.AircraftId == "levelup-737-800");
@@ -212,7 +212,7 @@ public sealed class MainWindowDiagnosticsTests : IDisposable
         using var http = new HttpClient(new NoNetwork());
         var dialogs = new Messages();
         var vm = new MainWindowViewModel(dialogs, new NoUpdates(), settingsStore: store, releaseHttpClient: http,
-            detector: new AircraftDetector(Path.Combine(_root, "home")));
+            detector: new AircraftDetector(Path.Combine(_root, "home")), initialCatalog: OwnershipTestCatalog.Published);
         vm.OperationPanelVisible = true;
         vm.OperationStatus = "Blocked";
         vm.OperationSubtitle = "Original backup is missing for plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua.";
@@ -246,7 +246,7 @@ public sealed class MainWindowDiagnosticsTests : IDisposable
     {
         using var http = new HttpClient(new NoNetwork());
         var vm = new MainWindowViewModel(new Messages(), new NoUpdates(), settingsStore: Settings(), releaseHttpClient: http,
-            detector: new AircraftDetector(Path.Combine(_root, "home")));
+            detector: new AircraftDetector(Path.Combine(_root, "home")), initialCatalog: OwnershipTestCatalog.Published);
         vm.OperationPanelVisible = true;
         vm.OperationSubtitle = "Managed target changed after installation: objects/cockpit.obj.";
         vm.OperationStatus = "Blocked";
@@ -272,7 +272,7 @@ public sealed class MainWindowDiagnosticsTests : IDisposable
         using var http = new HttpClient(new NoNetwork());
         var dialogs = new Messages();
         var vm = new MainWindowViewModel(dialogs, new NoUpdates(), settingsStore: settings, releaseHttpClient: http,
-            detector: new AircraftDetector(Path.Combine(_root, "home"))) { AnonymizeDiagnosticPaths = false };
+            detector: new AircraftDetector(Path.Combine(_root, "home")), initialCatalog: OwnershipTestCatalog.Published) { AnonymizeDiagnosticPaths = false };
         await vm.ExportDiagnosticsCommand.ExecuteAsync(null);
         var path = Assert.Single(Directory.GetFiles(Path.Combine(_root, "reports"), "*.zip"));
         using (var archive = ZipFile.OpenRead(path))
@@ -296,7 +296,7 @@ public sealed class MainWindowDiagnosticsTests : IDisposable
         using var http = new HttpClient(new NoNetwork());
         var dialogs = new Messages();
         var vm = new MainWindowViewModel(dialogs, new NoUpdates(), settingsStore: Settings(), releaseHttpClient: http,
-            detector: new AircraftDetector(Path.Combine(_root, "home")));
+            detector: new AircraftDetector(Path.Combine(_root, "home")), initialCatalog: OwnershipTestCatalog.Published);
         vm.IsOperationRunning = true;
         Assert.False(vm.ExportDiagnosticsCommand.CanExecute(null));
         await vm.ExportDiagnosticsCommand.ExecuteAsync(null);

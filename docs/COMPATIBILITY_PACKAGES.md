@@ -152,9 +152,11 @@ identifies their reserved markers, payload paths and independent installer
 state. It applies to imports as well as packages downloaded through the catalog.
 A new package or target outside that policy is blocked before writing.
 
-The Core CLI uses the bundled catalog unless `--catalog <path>` names a validated
-local catalog. This allows package development without publishing a catalog
-entry. It does not disable ownership checks. Package release manifests retain
+The Core CLI requires `--catalog <path>` naming a downloaded online catalog or
+a reviewed development catalog. There is no bundled catalog. Core API callers
+must pass a catalog provider; omitting it blocks writes. This allows package
+development without publishing a catalog entry and does not disable ownership
+checks. Package release manifests retain
 their existing schema; catalog schema 2 is a separate contract.
 
 Catalog rules are checked before planning, before the first aircraft write and
@@ -182,8 +184,8 @@ are required or recommended remains a LevelUp package-owner decision and is
 declared in the release manifest, not hardcoded in the Toolkit.
 
 The existing VNAV and FANS package workflows remain available during
-migration. No incomplete compatibility package is advertised in the bundled
-online catalog until an authorized release exists.
+migration. No incomplete compatibility package is advertised in the online
+catalog until an authorized release exists.
 
 ## Schema 4 managed scopes
 

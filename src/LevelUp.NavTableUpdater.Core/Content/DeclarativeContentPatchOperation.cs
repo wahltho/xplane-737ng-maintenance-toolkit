@@ -9,12 +9,14 @@ public sealed class DeclarativeContentPatchOperation
     private readonly DeclarativePatchPlanBuilder _planBuilder;
     private readonly ContentPatchEngine _engine;
     private readonly Func<bool> _isXPlaneRunning;
+    private readonly Func<ContentPackageCatalog> _catalogProvider;
 
     public DeclarativeContentPatchOperation(
         ToolStateStore stateStore,
         Func<bool>? isXPlaneRunning = null, Func<ContentPackageCatalog>? catalogProvider = null)
     {
         _isXPlaneRunning = isXPlaneRunning ?? XPlaneProcessDetector.IsXPlaneRunning;
+        _catalogProvider = catalogProvider ?? (() => ContentPackageCatalog.Unavailable);
         _planBuilder = new DeclarativePatchPlanBuilder(stateStore, catalogProvider: catalogProvider);
         _engine = new ContentPatchEngine(stateStore, _isXPlaneRunning, catalogProvider);
     }
@@ -51,7 +53,7 @@ public sealed class DeclarativeContentPatchOperation
         string packageDirectory)
     {
         var package = DeclarativePatchPackageLoader.LoadDirectory(packageDirectory);
-        return _engine.Restore(DeclarativePatchPlanBuilder.DescriptorFor(package.Manifest), variant);
+        return _engine.Restore(DeclarativePatchPlanBuilder.DescriptorFor(package.Manifest, _catalogProvider()), variant);
     }
 
     public MaintenanceOperationResult Restore(

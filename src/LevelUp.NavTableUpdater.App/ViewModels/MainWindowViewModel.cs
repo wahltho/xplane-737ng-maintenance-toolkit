@@ -51,7 +51,6 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly HttpClient _aircraftUpdateHttpClient;
     private readonly IPackageManifestSource _packageManifestSource = new GitHubReleasePackageManifestSource();
     private readonly IReadOnlyList<PackageManifest> _manifests;
-    private readonly string _bundledContentPackageCatalogJson;
     private readonly ContentPackageCatalogLoader _contentPackageCatalogLoader;
     private ContentPackageCatalog _contentPackageCatalog;
     private GitHubContentPatchReleaseSource _contentPatchReleaseSource;
@@ -672,7 +671,8 @@ public partial class MainWindowViewModel : ViewModelBase
         ToolkitSettingsStore? settingsStore = null,
         HttpClient? releaseHttpClient = null,
         AircraftDetector? detector = null,
-        Func<bool>? isXPlaneRunning = null)
+        Func<bool>? isXPlaneRunning = null,
+        ContentPackageCatalog? initialCatalog = null)
     {
         _settingsStore = settingsStore ?? ToolkitSettingsStore.CreateDefault();
         _aircraftUpdateHttpClient = releaseHttpClient ?? new HttpClient();
@@ -709,10 +709,7 @@ public partial class MainWindowViewModel : ViewModelBase
         _manifests = LoadManifests();
         var toolkitVersion = typeof(MainWindowViewModel).Assembly.GetName().Version
             ?? throw new InvalidOperationException("Toolkit assembly version is unavailable.");
-        _bundledContentPackageCatalogJson = LoadBundledContentPackageCatalogJson();
-        _contentPackageCatalog = ContentPackageCatalog.Parse(
-            _bundledContentPackageCatalogJson,
-            toolkitVersion);
+        _contentPackageCatalog = initialCatalog ?? ContentPackageCatalog.Unavailable;
         _contentPackageCatalogLoader = new ContentPackageCatalogLoader(
             _aircraftUpdateHttpClient,
             settingsStore is null ? ToolkitPaths.DefaultContentCatalogCacheRootPath : Path.Combine(_settingsStore.RootPath, "content-catalog"),
@@ -755,7 +752,9 @@ public partial class MainWindowViewModel : ViewModelBase
         AppendLog($"Loaded {_manifests.Count} bundled manifest(s). Active: {_manifest.PackageId} {_manifest.PackageVersion}.");
         AppendLog($"Settings loaded. Backup folder: {_stateStore.BackupRootPath}");
         AppendLog($"Settings loaded. Downloaded package cache: {_aircraftUpdatePackageCache.RootPath}");
-        AppendLog($"Loaded content package catalog {_contentPackageCatalog.CatalogVersion} with {_contentPackageCatalog.Packages.Count} package(s).");
+        AppendLog(_contentPackageCatalog.IsAvailable
+            ? $"Loaded content package catalog {_contentPackageCatalog.CatalogVersion} with {_contentPackageCatalog.Packages.Count} package(s)."
+            : "Loading the online package catalog. Aircraft updates and patch actions need a valid catalog.");
         AircraftMoveRecoveryRequired = AircraftMover().HasPendingMove;
         if (AircraftMoveRecoveryRequired)
         {
@@ -796,7 +795,7 @@ public partial class MainWindowViewModel : ViewModelBase
         var startupPath = SelectedAircraftPath;
         var startupProduct = SelectedProduct?.Family;
         await StartupReleaseChecks.RunAsync(
-            () => CheckAircraftAndPatchUpdatesOnStartup && ActionsEnabled && !IsOperationRunning
+            () => CheckAircraftAndPatchUpdatesOnStartup && _contentPackageCatalog.IsAvailable && ActionsEnabled && !IsOperationRunning
                 && SelectedProduct?.IsDetected == true && SelectedProduct.Family == startupProduct
                 && SelectedAircraftPath == startupPath,
             RefreshAircraftUpdateCheck, CheckContentPackageCatalog);
@@ -811,7 +810,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private async Task RefreshRemoteContentPackageCatalogAsync()
     {
-        var result = await _contentPackageCatalogLoader.LoadAsync(_bundledContentPackageCatalogJson);
+        var result = await _contentPackageCatalogLoader.LoadAsync();
         _contentPackageCatalog = result.Catalog;
         OnPropertyChanged(nameof(MaintenancePatchTitle));
         _contentPatchReleases.Clear();
@@ -827,6 +826,9 @@ public partial class MainWindowViewModel : ViewModelBase
         RefreshResourcePackageOverview();
         RefreshLiveryPackageOverview();
         RefreshOptionalPatchStatus();
+        RefreshSelectedProductSummary(SelectedProduct);
+        RefreshUpstreamActionAvailability();
+        if (!_contentPackageCatalog.IsAvailable) ContentPackageCatalogStatus = result.Detail;
         AppendLog($"Content package catalog: {result.Detail}");
     }
 
@@ -1884,6 +1886,19 @@ public partial class MainWindowViewModel : ViewModelBase
         if (!ActionsEnabled || IsOperationRunning || IsContentPackageCatalogCheckRunning || string.IsNullOrWhiteSpace(productId))
         {
             return;
+        }
+
+        if (!_contentPackageCatalog.IsAvailable)
+        {
+            IsContentPackageCatalogCheckRunning = true;
+            ActionsEnabled = false;
+            try { await RefreshRemoteContentPackageCatalogAsync(); }
+            finally
+            {
+                IsContentPackageCatalogCheckRunning = false;
+                ActionsEnabled = true;
+            }
+            if (!_contentPackageCatalog.IsAvailable) return;
         }
 
         var groupedSources = _contentPackageCatalog.ForProduct(productId)
@@ -4099,7 +4114,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 : state.RestoreAvailable
                     ? $"Installed {state.PackageVersion}; selected package {package.Manifest.PackageVersion}."
                     : $"Installed {state.PackageVersion}; adopted existing files have no original restore backup.";
-            CanRunOptionalPatch = ActionsEnabled && !IsOperationRunning;
+            CanRunOptionalPatch = _contentPackageCatalog.IsAvailable && ActionsEnabled && !IsOperationRunning;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
@@ -4142,7 +4157,7 @@ public partial class MainWindowViewModel : ViewModelBase
         CompatibilityModulesVisible = true;
         OptionalPatchName = group.DisplayName;
         OptionalPatchStatus = "Available modules from the catalog. Required modules are always selected. Packages are downloaded and validated when you choose an action.";
-        CanRunOptionalPatch = ActionsEnabled && !IsOperationRunning && !IsContentPackageCatalogCheckRunning;
+        CanRunOptionalPatch = _contentPackageCatalog.IsAvailable && ActionsEnabled && !IsOperationRunning && !IsContentPackageCatalogCheckRunning;
         return true;
     }
 
@@ -4202,7 +4217,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 ? $"Package {package.Manifest.PackageVersion} is ready to reinstall. Previous module selections are retained after the aircraft baseline replacement."
                 : $"Package {package.Manifest.PackageVersion} is validated. Required and recommended modules are preselected; optional modules require explicit opt-in."
             : $"Installed {state.PackageVersion} with {state.EnabledModules.Count} module(s); selected package {package.Manifest.PackageVersion}.";
-        CanRunOptionalPatch = ActionsEnabled && !IsOperationRunning;
+        CanRunOptionalPatch = _contentPackageCatalog.IsAvailable && ActionsEnabled && !IsOperationRunning;
     }
 
     private void RefreshContentPackageOverview(bool preserveStatus = false)
@@ -4220,6 +4235,14 @@ public partial class MainWindowViewModel : ViewModelBase
                 ContentPackageCatalogStatus = "Select a supported product to view its managed content and optional patches.";
             }
 
+            return;
+        }
+
+        if (!_contentPackageCatalog.IsAvailable)
+        {
+            ContentPackageOverviewVisible = true;
+            CanCheckContentPackageCatalog = ActionsEnabled && !IsOperationRunning && !IsContentPackageCatalogCheckRunning;
+            if (!preserveStatus) ContentPackageCatalogStatus = "Package catalog unavailable. Connect to the internet and choose Check releases.";
             return;
         }
 
@@ -6046,7 +6069,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         ProductActionsEnabled = ActionsEnabled && product is not null && product.IsDetected;
-        AircraftProductUpdateEnabled = ProductActionsEnabled && IsAircraftUpdateFamily(product?.Family);
+        AircraftProductUpdateEnabled = _contentPackageCatalog.IsAvailable && ProductActionsEnabled && IsAircraftUpdateFamily(product?.Family);
     }
 
     private void RefreshSelectedProductSummary(ProductTargetStatus? product)
@@ -6070,7 +6093,7 @@ public partial class MainWindowViewModel : ViewModelBase
         ProductFolderVisible = product.IsDetected
             && !string.IsNullOrWhiteSpace(product.AircraftFolderPath);
         ProductActionsEnabled = ActionsEnabled && product.IsDetected;
-        AircraftProductUpdateEnabled = ProductActionsEnabled && IsAircraftUpdateFamily(product.Family);
+        AircraftProductUpdateEnabled = _contentPackageCatalog.IsAvailable && ProductActionsEnabled && IsAircraftUpdateFamily(product.Family);
     }
 
     private string CurrentProductAircraftFolderPath()
@@ -6412,14 +6435,14 @@ public partial class MainWindowViewModel : ViewModelBase
         CanImportAircraftUpdatePackage = ActionsEnabled && aircraftUpdateSupported && !isCustomDistribution && (isLevelUp || hasRequiredPackages);
         CanDownloadAircraftUpdatePackage = ActionsEnabled && aircraftUpdateSupported && hasRequiredPackages && !isCustomDistribution && !allRequiredPackagesCached;
         CanDryRunAircraftUpdatePackage = ActionsEnabled && aircraftUpdateSupported && hasRequiredPackages && !isCustomDistribution && allRequiredPackagesCached;
-        CanApplyAircraftUpdatePackage = ActionsEnabled
+        CanApplyAircraftUpdatePackage = _contentPackageCatalog.IsAvailable && ActionsEnabled
             && aircraftUpdateSupported
             && hasRequiredPackages
             && !isCustomDistribution
             && allRequiredPackagesCached
             && _lastAircraftUpdateDryRun?.Succeeded == true
             && !dryRunHasBlockingEntries;
-        CanRestoreAircraftUpdate = ActionsEnabled && aircraftUpdateSupported;
+        CanRestoreAircraftUpdate = _contentPackageCatalog.IsAvailable && ActionsEnabled && aircraftUpdateSupported;
 
         if (!string.IsNullOrWhiteSpace(statusOverride))
         {
@@ -6470,7 +6493,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         UpstreamActionStatus = "All required packages are cached. Review changes or apply with backup and rollback.";
-        AircraftProductUpdateEnabled = ActionsEnabled && aircraftUpdateSupported;
+        AircraftProductUpdateEnabled = _contentPackageCatalog.IsAvailable && ActionsEnabled && aircraftUpdateSupported;
     }
 
     private static bool IsAircraftUpdateFamily(string? family) =>
@@ -6883,23 +6906,6 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         return manifests;
-    }
-
-    private static string LoadBundledContentPackageCatalogJson()
-    {
-        var contentDir = Path.Combine(AppContext.BaseDirectory, "Content");
-        if (!Directory.Exists(contentDir))
-        {
-            contentDir = Path.Combine(Environment.CurrentDirectory, "src", "LevelUp.NavTableUpdater.App", "Content");
-        }
-
-        var catalogPath = Path.Combine(contentDir, "content-package-catalog.json");
-        if (!File.Exists(catalogPath))
-        {
-            throw new FileNotFoundException("Bundled content package catalog is missing.", catalogPath);
-        }
-
-        return File.ReadAllText(catalogPath);
     }
 
     private IPackagePayloadSource CreatePayloadSource() =>

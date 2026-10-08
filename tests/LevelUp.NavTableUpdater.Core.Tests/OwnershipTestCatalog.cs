@@ -10,6 +10,17 @@ namespace LevelUp.NavTableUpdater.Core.Tests;
 
 internal static class OwnershipTestCatalog
 {
+    public static ContentPackageCatalog Published => ContentPackageCatalog.Parse(
+        File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Content", "content-package-catalog.json")));
+
+    public static void SaveOnlineCache(ToolkitSettingsStore store)
+    {
+        var directory = Path.Combine(store.RootPath, "content-catalog");
+        Directory.CreateDirectory(directory);
+        File.Copy(Path.Combine(AppContext.BaseDirectory, "Content", "content-package-catalog.json"),
+            Path.Combine(directory, ContentPackageCatalogLoader.CatalogAssetName), overwrite: true);
+    }
+
     public static string Hash(string text) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(text)));
 
     public static PatchOwnershipPolicy Policy(string id, string repository, string[] targets, string[]? modules = null) => new()
@@ -21,13 +32,13 @@ internal static class OwnershipTestCatalog
 
     public static ContentPackageCatalog Create(params PatchOwnershipPolicy[] policies)
     {
-        var bundled = ContentPackageCatalog.LoadBundled();
+        var published = Published;
         var document = new ContentPackageCatalogDocument
         {
-            SchemaVersion = 2, CatalogVersion = bundled.CatalogVersion,
-            MinimumToolkitVersion = bundled.MinimumToolkitVersion,
-            Packages = bundled.Packages.ToList(),
-            OwnershipPolicies = bundled.OwnershipPolicies.Where(rule => !policies.Any(p => p.PackageId == rule.PackageId))
+            SchemaVersion = 2, CatalogVersion = published.CatalogVersion,
+            MinimumToolkitVersion = published.MinimumToolkitVersion,
+            Packages = published.Packages.ToList(),
+            OwnershipPolicies = published.OwnershipPolicies.Where(rule => !policies.Any(p => p.PackageId == rule.PackageId))
                 .Concat(policies).ToList()
         };
         return Parse(document);

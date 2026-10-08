@@ -31,7 +31,7 @@ internal static class Program
             var selectedModules = ResolveModules(options, stateStore, aircraftRoot, package);
             var catalog = options.Optional("catalog") is { } catalogPath
                 ? ContentPackageCatalog.Parse(File.ReadAllText(Path.GetFullPath(catalogPath)))
-                : ContentPackageCatalog.LoadBundled();
+                : throw new InvalidOperationException("Supply --catalog <path> with a downloaded online catalog. The CLI does not contain a package catalog.");
             var operation = new CompatibilityPackageOperation(stateStore, catalogProvider: () => catalog);
 
             return options.Command.ToLowerInvariant() switch

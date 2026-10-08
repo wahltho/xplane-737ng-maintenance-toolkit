@@ -141,16 +141,11 @@ public sealed class ContentPackageCatalog
 
     public IReadOnlyList<PatchOwnershipPolicy> OwnershipPolicies { get; }
 
-    private static readonly Lazy<ContentPackageCatalog> Bundled = new(() =>
-    {
-        using var stream = typeof(ContentPackageCatalog).Assembly.GetManifestResourceStream(
-            "LevelUp.NavTableUpdater.Core.Content.content-package-catalog.json")
-            ?? throw new InvalidDataException("Bundled ownership catalog is unavailable.");
-        using var reader = new StreamReader(stream);
-        return Parse(reader.ReadToEnd());
-    });
+    // No package or ownership rules are shipped in the application. This empty
+    // state is deliberately not a valid catalog schema, so writes fail closed.
+    public static ContentPackageCatalog Unavailable { get; } = new(0, "", "", [], []);
 
-    public static ContentPackageCatalog LoadBundled() => Bundled.Value;
+    public bool IsAvailable => SchemaVersion != 0;
 
     public static ContentPackageCatalog Parse(string json, Version? toolkitVersion = null)
     {

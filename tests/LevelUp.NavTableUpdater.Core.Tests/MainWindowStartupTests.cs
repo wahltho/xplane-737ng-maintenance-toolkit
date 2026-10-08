@@ -33,6 +33,7 @@ public sealed class MainWindowStartupTests : IDisposable
             OfflinePackageRootPath = Path.Combine(_root, "offline"),
             DiagnosticsExportRootPath = Path.Combine(_root, "logs")
         });
+        OwnershipTestCatalog.SaveOnlineCache(store);
         var handler = new OfflineHandler(timeout);
         using var client = new HttpClient(handler);
         var vm = new MainWindowViewModel(new NoDialogs(), new NoApplicationUpdate(), settingsStore: store,
@@ -86,6 +87,47 @@ public sealed class MainWindowStartupTests : IDisposable
         Assert.Same(candidate, vm.SelectedCandidate);
         Assert.Equal(Path.GetFullPath(folder), vm.SelectedAircraftPath);
         Assert.Equal("LevelUp", vm.SelectedProductName);
+    }
+
+    [Fact]
+    public async Task Startup_WithoutOnlineCatalogOrCache_KeepsDetectionAndBlocksAircraftWrites()
+    {
+        var folder = Path.Combine(_root, "Aircraft", "LevelUp");
+        Directory.CreateDirectory(folder);
+        var reference = AircraftReferenceCatalog.All.Single(r => r.AircraftId == "levelup-737-800");
+        var acf = Path.Combine(folder, reference.AcfFileName);
+        File.WriteAllText(acf, $"1200 Version\nP acf/_name {reference.ExpectedName}\nP acf/_descrip {reference.ExpectedDescription}\nP acf/_studio {reference.ExpectedStudioContains}\nP acf/_cgY 0\nP acf/_cgZ 0\n");
+        var bytes = File.ReadAllBytes(acf);
+        var store = new ToolkitSettingsStore(Path.Combine(_root, "state"));
+        store.Save(new ToolkitSettingsDocument
+        {
+            SelectedAircraftPath = folder, CheckToolkitUpdatesOnStartup = false,
+            CheckAircraftAndPatchUpdatesOnStartup = false,
+            BackupRootPath = Path.Combine(_root, "backups"),
+            AircraftUpdateCacheRootPath = Path.Combine(_root, "packages")
+        });
+        using var client = new HttpClient(new OfflineHandler(false));
+        var vm = new MainWindowViewModel(new NoDialogs(), new NoApplicationUpdate(), settingsStore: store,
+            releaseHttpClient: client, detector: new AircraftDetector(_root));
+        Assert.False(vm.AircraftProductUpdateEnabled);
+        await vm.InitializeAsync();
+        Assert.True(vm.ActionsEnabled);
+        Assert.Equal("LevelUp", vm.SelectedProductName);
+        Assert.False(vm.AircraftProductUpdateEnabled);
+        Assert.False(vm.CanApplyAircraftUpdatePackage);
+        Assert.False(vm.CanRestoreAircraftUpdate);
+        Assert.False(vm.CanRunOptionalPatch);
+        Assert.Empty(vm.AvailableContentPackages);
+        Assert.True(vm.CanCheckContentPackageCatalog);
+        Assert.Contains("catalog", vm.ContentPackageCatalogStatus, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(bytes, File.ReadAllBytes(acf));
+
+        // A subsequently saved online catalog can be picked up without restarting.
+        OwnershipTestCatalog.SaveOnlineCache(store);
+        await vm.CheckContentPackageCatalogCommand.ExecuteAsync(null);
+        Assert.True(vm.AircraftProductUpdateEnabled);
+        Assert.NotEmpty(vm.AvailableContentPackages);
+        Assert.Equal(bytes, File.ReadAllBytes(acf));
     }
 
     private sealed class OfflineHandler(bool timeout) : HttpMessageHandler

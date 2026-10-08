@@ -72,7 +72,7 @@ Available packages are filtered for the selected aircraft and, where applicable,
 
 Supported components and tools have install, update, repair and restore actions. Stable and beta channels are offered where the package supports them.
 
-The online catalog can add or change available packages without rebuilding the application when the existing Toolkit supports their requirements. Some additions require a Toolkit update. Older Toolkits retain a compatible cached or bundled catalog when a newer catalog cannot be used.
+The online catalog can add or change available packages without rebuilding the application when the existing Toolkit supports their requirements. Some additions require a Toolkit update. If the online catalog cannot be used, the Toolkit retains its last compatible saved online catalog. Without one, it asks you to connect or update the Toolkit before changing aircraft files.
 
 ## Views and hardware settings
 
