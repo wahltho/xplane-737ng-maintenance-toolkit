@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "catalogVersion": "1.17.0",
+  "catalogVersion": "1.18.0",
   "minimumToolkitVersion": "0.28.0",
   "packages": [
     {
@@ -356,6 +356,24 @@
       }
     },
     {
+      "packageId": "wahltho.zibo-levelup-737ng.27k-sfp",
+      "displayName": "737-800WSFP2 27K / SFP (Beta)",
+      "description": "Beta: 27K / 26K / 24K SFP calculations for the passenger 737-800WSFP2 profile in Zibo and LevelUp. Requires the original .35 Lua baseline, with other verified MTK patches supported. Other variants and SFP-off retain existing behavior. Simulator validation and certified dispatch performance remain open.",
+      "category": "compatibilityPackage",
+      "activation": "managed",
+      "supportedProducts": [
+        "zibo-737ng",
+        "levelup-737ng"
+      ],
+      "repositoryUrl": "https://github.com/wahltho/X-Plane-Zibo-LevelUp-737NG-27K-SFP",
+      "restartRequired": true,
+      "distribution": {
+        "kind": "gitHubReleaseArchive",
+        "assetNamePattern": "X-Plane-Zibo-LevelUp-737NG-27K-SFP-v*.zip",
+        "manifestSchemaVersion": 3
+      }
+    },
+    {
       "packageId": "wahltho.zibo-40535.intentional-fixes",
       "displayName": "Intentional Fixes",
       "description": "Optional unofficial corrections to existing Zibo and LevelUp FMS behavior. Conditional corrections do not install CPDLC or Weight & Balance.",
@@ -393,7 +411,7 @@
     {
       "packageId": "wahltho.levelup-737ng.maintenance",
       "displayName": "LevelUp maintenance patches",
-      "description": "VNAV descent tables, FANS CDU and Weight & Balance are required. Calculator, AUTO JETWAY, CPDLC FANS PAGES, VREF tables (Beta), Intentional Fixes and LevelUp GSE are optional. Sources update directly from their own releases.",
+      "description": "VNAV descent tables, FANS CDU and Weight & Balance are required. Calculator, AUTO JETWAY, CPDLC FANS PAGES, VREF tables (Beta), 737-800WSFP2 27K / SFP (Beta), Intentional Fixes and LevelUp GSE are optional. Sources update directly from their own releases.",
       "category": "compatibilityPackage",
       "activation": "managed",
       "supportedProducts": [
@@ -469,6 +487,15 @@
           "assetNamePattern": "X-Plane-LevelUp-737NG-VREF-v*.zip"
         },
         {
+          "packageId": "wahltho.zibo-levelup-737ng.27k-sfp",
+          "moduleId": "27k-sfp",
+          "policy": "optional",
+          "installationOrder": 68,
+          "sourceFormat": "compatibility",
+          "manifestPath": "package-manifest.json",
+          "assetNamePattern": "X-Plane-Zibo-LevelUp-737NG-27K-SFP-v*.zip"
+        },
+        {
           "packageId": "wahltho.zibo-40535.intentional-fixes",
           "moduleId": "intentional-fixes-levelup",
           "policy": "optional",
@@ -491,7 +518,7 @@
     {
       "packageId": "wahltho.zibo-40535.maintenance",
       "displayName": "Zibo optional patches",
-      "description": "Optional VNAV descent tables, Tablet Performance Calculator, AUTO JETWAY, CPDLC FANS PAGES, VREF tables (Beta) and Intentional Fixes. No patch is required or selected automatically.",
+      "description": "Optional VNAV descent tables, Tablet Performance Calculator, AUTO JETWAY, CPDLC FANS PAGES, VREF tables (Beta), 737-800WSFP2 27K / SFP (Beta) and Intentional Fixes. No patch is required or selected automatically.",
       "category": "compatibilityPackage",
       "activation": "managed",
       "supportedProducts": [
@@ -547,6 +574,15 @@
           "sourceFormat": "compatibility",
           "manifestPath": "package-manifest.json",
           "assetNamePattern": "X-Plane-LevelUp-737NG-VREF-v*.zip"
+        },
+        {
+          "packageId": "wahltho.zibo-levelup-737ng.27k-sfp",
+          "moduleId": "27k-sfp",
+          "policy": "optional",
+          "installationOrder": 68,
+          "sourceFormat": "compatibility",
+          "manifestPath": "package-manifest.json",
+          "assetNamePattern": "X-Plane-Zibo-LevelUp-737NG-27K-SFP-v*.zip"
         },
         {
           "packageId": "wahltho.zibo-40535.intentional-fixes",
