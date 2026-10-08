@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "catalogVersion": "1.16.0",
+  "catalogVersion": "1.17.0",
   "minimumToolkitVersion": "0.28.0",
   "packages": [
     {
@@ -578,7 +578,11 @@
         "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
         "plugins/xlua/scripts/B738.a_fms/B738.a_fms_zibo_tables.lua"
       ],
-      "standaloneEvidencePaths": [],
+      "standaloneEvidencePaths": [
+        ".patch-ownership/x-plane-zibo-vnav-descent-tables/receipt.json",
+        ".patch-ownership/x-plane-zibo-vnav-descent-tables.lock",
+        ".patch-ownership/x-plane-zibo-vnav-descent-tables/transaction"
+      ],
       "payloadPaths": [
         "plugins/xlua/scripts/B738.a_fms/Add_dofile.txt",
         "plugins/xlua/scripts/B738.a_fms/Add_to_take_alt_dist.txt",
@@ -633,7 +637,11 @@
         "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
         "plugins/xlua/scripts/B738.a_fms/B738.a_fms_levelup_tables.lua"
       ],
-      "standaloneEvidencePaths": [],
+      "standaloneEvidencePaths": [
+        ".patch-ownership/x-plane-levelup-737ng-vnav-descent-tables/receipt.json",
+        ".patch-ownership/x-plane-levelup-737ng-vnav-descent-tables.lock",
+        ".patch-ownership/x-plane-levelup-737ng-vnav-descent-tables/transaction"
+      ],
       "payloadPaths": [
         "plugins/xlua/scripts/B738.a_fms/Add_dofile.txt",
         "plugins/xlua/scripts/B738.a_fms/Add_to_take_alt_dist.txt",
@@ -689,7 +697,10 @@
         "plugins/xlua/scripts/B738.tablet/B738.tablet.lua"
       ],
       "standaloneEvidencePaths": [
-        ".levelup-fans-cdu-patch/state.json"
+        ".levelup-fans-cdu-patch/state.json",
+        ".patch-ownership/wahltho.levelup-737ng.fans-cdu-3d/receipt.json",
+        ".patch-ownership/wahltho.levelup-737ng.fans-cdu-3d.lock",
+        ".patch-ownership/wahltho.levelup-737ng.fans-cdu-3d/transaction"
       ],
       "payloadPaths": [],
       "markerNamespaces": [
@@ -768,7 +779,11 @@
         "plugins/xlua/scripts/B738.tablet/B738.tablet_perf_core.lua",
         "plugins/xlua/scripts/B738.tablet/B738.tablet_perf_data.lua"
       ],
-      "standaloneEvidencePaths": [],
+      "standaloneEvidencePaths": [
+        ".patch-ownership/x-plane-zibo-40535-tablet-performance-calculator/receipt.json",
+        ".patch-ownership/x-plane-zibo-40535-tablet-performance-calculator.lock",
+        ".patch-ownership/x-plane-zibo-40535-tablet-performance-calculator/transaction"
+      ],
       "payloadPaths": [
         "plugins/xlua/scripts/B738.tablet/B738.tablet_perf_*",
         "plugins/xlua/scripts/B738.tablet/B738.tablet_perf_adapter.lua",
@@ -814,15 +829,21 @@
         "plugins/xlua/scripts/B738.tablet/B738.tablet_levelup_ng_wb_*",
         "plugins/xlua/scripts/B738.tablet/B738.tablet_levelup_ng_wb_adapter.lua",
         "plugins/xlua/scripts/B738.tablet/B738.tablet_levelup_ng_wb_core.lua",
-        "plugins/xlua/scripts/B738.tablet/B738.tablet_levelup_ng_wb_data.lua"
+        "plugins/xlua/scripts/B738.tablet/B738.tablet_levelup_ng_wb_data.lua",
+        "plugins/xlua/scripts/B738.tablet/B738.tablet_levelup700_wb_*"
       ],
-      "standaloneEvidencePaths": [],
+      "standaloneEvidencePaths": [
+        ".patch-ownership/wahltho.levelup-737ng.weight-and-balance/receipt.json",
+        ".patch-ownership/wahltho.levelup-737ng.weight-and-balance.lock",
+        ".patch-ownership/wahltho.levelup-737ng.weight-and-balance/transaction"
+      ],
       "payloadPaths": [
         "plugins/xlua/scripts/B738.tablet/B738.tablet_levelup_700_wb_*",
         "plugins/xlua/scripts/B738.tablet/B738.tablet_levelup_ng_wb_*",
         "plugins/xlua/scripts/B738.tablet/B738.tablet_levelup_ng_wb_adapter.lua",
         "plugins/xlua/scripts/B738.tablet/B738.tablet_levelup_ng_wb_core.lua",
-        "plugins/xlua/scripts/B738.tablet/B738.tablet_levelup_ng_wb_data.lua"
+        "plugins/xlua/scripts/B738.tablet/B738.tablet_levelup_ng_wb_data.lua",
+        "plugins/xlua/scripts/B738.tablet/B738.tablet_levelup700_wb_*"
       ],
       "markerNamespaces": [
         {
@@ -870,6 +891,33 @@
             }
           ],
           "allowedCommentLines": []
+        },
+        {
+          "relativePath": "plugins/xlua/scripts/B738.tablet/B738.tablet.lua",
+          "namespace": "LEVELUP_700_WB",
+          "blocks": [
+            {
+              "beginMarker": "-- BEGIN LEVELUP_700_WB DOFILE",
+              "endMarker": "-- END LEVELUP_700_WB DOFILE"
+            },
+            {
+              "beginMarker": "-- BEGIN LEVELUP_700_WB INSTALL",
+              "endMarker": "-- END LEVELUP_700_WB INSTALL"
+            },
+            {
+              "beginMarker": "-- BEGIN LEVELUP_700_WB EXTERNAL_PAYLOAD_GATE",
+              "endMarker": "-- END LEVELUP_700_WB EXTERNAL_PAYLOAD_GATE"
+            },
+            {
+              "beginMarker": "-- BEGIN LEVELUP_700_WB INTERNAL_PAYLOAD_GATE",
+              "endMarker": "-- END LEVELUP_700_WB INTERNAL_PAYLOAD_GATE"
+            },
+            {
+              "beginMarker": "-- BEGIN LEVELUP_700_WB TOTAL_PAYLOAD_SCALAR_GATE",
+              "endMarker": "-- END LEVELUP_700_WB TOTAL_PAYLOAD_SCALAR_GATE"
+            }
+          ],
+          "allowedCommentLines": []
         }
       ],
       "signatures": [],
@@ -893,7 +941,10 @@
         "plugins/xlua/scripts/B738.tablet/B738.tablet.lua"
       ],
       "standaloneEvidencePaths": [
-        ".zibo-auto-jetway-patch/state.json"
+        ".zibo-auto-jetway-patch/state.json",
+        ".patch-ownership/wahltho.zibo-40535.auto-jetway/receipt.json",
+        ".patch-ownership/wahltho.zibo-40535.auto-jetway.lock",
+        ".patch-ownership/wahltho.zibo-40535.auto-jetway/transaction"
       ],
       "payloadPaths": [],
       "markerNamespaces": [],
@@ -926,7 +977,10 @@
         "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua"
       ],
       "standaloneEvidencePaths": [
-        ".zibo-cpdlc-patch/state.json"
+        ".zibo-cpdlc-patch/state.json",
+        ".patch-ownership/wahltho.zibo-40535.cpdlc/receipt.json",
+        ".patch-ownership/wahltho.zibo-40535.cpdlc.lock",
+        ".patch-ownership/wahltho.zibo-40535.cpdlc/transaction"
       ],
       "payloadPaths": [],
       "markerNamespaces": [
@@ -1030,7 +1084,11 @@
         "plugins/xlua/scripts/B738.calc/B738.levelup_vref*",
         "plugins/xlua/scripts/B738.calc/B738.levelup_vref.lua"
       ],
-      "standaloneEvidencePaths": [],
+      "standaloneEvidencePaths": [
+        ".patch-ownership/wahltho.levelup-737ng.vref/receipt.json",
+        ".patch-ownership/wahltho.levelup-737ng.vref.lock",
+        ".patch-ownership/wahltho.levelup-737ng.vref/transaction"
+      ],
       "payloadPaths": [
         "plugins/xlua/scripts/B738.a_fms/B738.levelup_vref*",
         "plugins/xlua/scripts/B738.a_fms/B738.levelup_vref.lua",
@@ -1094,7 +1152,10 @@
         "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua"
       ],
       "standaloneEvidencePaths": [
-        ".zibo-intentional-fixes-clean35/state.json"
+        ".zibo-intentional-fixes-clean35/state.json",
+        ".patch-ownership/wahltho.zibo-40535.intentional-fixes/receipt.json",
+        ".patch-ownership/wahltho.zibo-40535.intentional-fixes.lock",
+        ".patch-ownership/wahltho.zibo-40535.intentional-fixes/transaction"
       ],
       "payloadPaths": [],
       "markerNamespaces": [
@@ -1330,7 +1391,9 @@
         "plugins/xlua/scripts/B738.tablet/B738.tablet.lua"
       ],
       "standaloneEvidencePaths": [
-        ".sfp27-standalone/receipt.json"
+        ".sfp27-standalone/receipt.json",
+        ".sfp27-standalone",
+        ".sfp27-standalone.lock"
       ],
       "payloadPaths": [
         "plugins/xlua/scripts/B738.a_fms/B738.sfp27_*",
@@ -1527,7 +1590,13 @@
       ],
       "standaloneEvidencePaths": [
         ".levelup-gse-patch/state.json",
-        "plugins/xlua/scripts/LU_737NG.GSE/.standalone-owner"
+        "plugins/xlua/scripts/LU_737NG.GSE/.standalone-owner",
+        ".patch-ownership/jt8d17.levelup-737ng.gse/receipt.json",
+        ".patch-ownership/jt8d17.levelup-737ng.gse.lock",
+        ".patch-ownership/jt8d17.levelup-737ng.gse/transaction",
+        ".levelup-gse-patch",
+        ".levelup-gse-install.lock",
+        ".levelup-gse-patch.completed"
       ],
       "payloadPaths": [
         "objects/GSE/README_LU_GSE.txt",
