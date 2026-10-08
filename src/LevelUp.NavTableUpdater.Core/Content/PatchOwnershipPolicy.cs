@@ -50,6 +50,7 @@ public sealed class PatchOwnershipPolicy
             DeclarativePatchManifestParser.ValidateRelativePath(marker.RelativePath, "Marker namespace target");
             if (string.IsNullOrWhiteSpace(marker.Namespace) || marker.Namespace.Contains('\n')
                 || marker.Namespace.Contains('\r') || marker.Blocks is null || marker.AllowedCommentLines is null
+                || marker.InformationalCommentLines is null
                 || marker.Blocks.Any(block => block is null || string.IsNullOrWhiteSpace(block.BeginMarker)
                     || string.IsNullOrWhiteSpace(block.EndMarker) || block.BeginMarker == block.EndMarker
                     || !block.BeginMarker.Contains(marker.Namespace, StringComparison.Ordinal)
@@ -64,6 +65,15 @@ public sealed class PatchOwnershipPolicy
                     || !line.Contains(marker.Namespace, StringComparison.Ordinal)
                     || !line.StartsWith("--", StringComparison.Ordinal)
                     || line.Contains('\n') || line.Contains('\r')
+                    || marker.Blocks.Any(block => block.BeginMarker == line || block.EndMarker == line))
+                || marker.InformationalCommentLines.Any(line => string.IsNullOrWhiteSpace(line)
+                    || line != line.Trim()
+                    || !line.Contains(marker.Namespace, StringComparison.OrdinalIgnoreCase)
+                    || !line.StartsWith("--", StringComparison.Ordinal)
+                    || line.Contains('\n') || line.Contains('\r')
+                    || line.StartsWith("-- BEGIN ", StringComparison.OrdinalIgnoreCase)
+                    || line.StartsWith("-- END ", StringComparison.OrdinalIgnoreCase)
+                    || marker.AllowedCommentLines.Contains(line, StringComparer.Ordinal)
                     || marker.Blocks.Any(block => block.BeginMarker == line || block.EndMarker == line)))
                 throw new InvalidDataException($"Invalid marker namespace for {PackageId}.");
         }
@@ -128,6 +138,8 @@ public sealed class PatchMarkerNamespace
     public string Namespace { get; set; } = "";
     public List<PatchMarkerPair> Blocks { get; set; } = [];
     public List<string> AllowedCommentLines { get; set; } = [];
+    // Exact prose-only lines which mention this namespace but are not patch evidence.
+    public List<string> InformationalCommentLines { get; set; } = [];
 }
 
 public sealed class PatchMarkerPair

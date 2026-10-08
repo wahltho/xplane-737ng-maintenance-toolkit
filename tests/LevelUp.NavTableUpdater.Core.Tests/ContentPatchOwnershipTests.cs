@@ -104,6 +104,138 @@ public sealed class ContentPatchOwnershipTests
         Assert.Empty(fixture.Store.TryGetContentInstallation(fixture.Root)!.ContentComponents);
     }
 
+    [Fact]
+    public void InformationalComment_IsNotUnownedEvidence_AndOriginalBackupCanContainIt()
+    {
+        using var fixture = new Fixture();
+        const string comment = "-- fixture_patch: explanation written by another package";
+        fixture.Policy.MarkerNamespaces[0].InformationalCommentLines = [comment];
+        fixture.Catalog = OwnershipTestCatalog.Create(fixture.Policy);
+        var original = "stock\r\n\t" + comment + "\r\n";
+        Write(fixture.Root, "script.lua", original);
+        var plan = fixture.Plan("1", original + Fixture.Block("owned"));
+        Assert.True(plan.IsSafe, plan.StatusMessage);
+        Assert.True(fixture.Engine.Execute(plan, fixture.Variant).Succeeded);
+        Assert.True(fixture.Plan("1", original + Fixture.Block("owned")).IsSafe);
+        var restore = fixture.Engine.Restore(fixture.Descriptor, fixture.Variant);
+        Assert.True(restore.Succeeded, restore.Message);
+        Assert.Equal(original, File.ReadAllText(Path.Combine(fixture.Root, "script.lua")));
+    }
+
+    [Theory]
+    [InlineData("-- fixture_patch: explanation written by another package changed")]
+    [InlineData("-- FIXTURE_PATCH: explanation written by another package")]
+    [InlineData("return true -- fixture_patch: explanation written by another package")]
+    [InlineData("-- BEGIN FIXTURE_PATCH UNKNOWN")]
+    public void InformationalComment_OnlyExactFullCommentIsExcluded(string content)
+    {
+        using var fixture = new Fixture();
+        fixture.Policy.MarkerNamespaces[0].InformationalCommentLines =
+            ["-- fixture_patch: explanation written by another package"];
+        fixture.Catalog = OwnershipTestCatalog.Create(fixture.Policy);
+        Write(fixture.Root, "script.lua", content + "\n");
+        Assert.False(fixture.Plan("1", Fixture.Block("owned")).IsSafe);
+        Assert.Equal(content + "\n", File.ReadAllText(Path.Combine(fixture.Root, "script.lua")));
+        Assert.False(File.Exists(fixture.Store.StatePath));
+    }
+
+    [Fact]
+    public void NewCatalogCommentException_MergesWithSavedPolicy_WithoutDiscardingOtherChecks()
+    {
+        using var fixture = new Fixture();
+        const string comment = "-- fixture_patch: explanation written by another package";
+        Write(fixture.Root, "script.lua", "stock\n");
+        Assert.True(fixture.Engine.Execute(fixture.Plan("1", Fixture.Block("one")), fixture.Variant).Succeeded);
+        fixture.Policy.MarkerNamespaces[0].InformationalCommentLines = [comment];
+        fixture.Catalog = OwnershipTestCatalog.Create(fixture.Policy);
+        var update = fixture.Plan("2", Fixture.Block(comment));
+        Assert.True(update.IsSafe, update.StatusMessage);
+        Assert.True(fixture.Engine.Execute(update, fixture.Variant).Succeeded);
+        var saved = fixture.Store.TryGetContentInstallation(fixture.Root)!.ContentComponents["fixture.patch"];
+        Assert.Contains(comment, saved.OwnershipSnapshot!.Policies.Single().MarkerNamespaces.Single().InformationalCommentLines);
+        // A saved exception survives a later catalog which no longer lists it.
+        fixture.Policy.MarkerNamespaces[0].InformationalCommentLines = [];
+        fixture.Catalog = OwnershipTestCatalog.Create(fixture.Policy);
+        var later = fixture.Plan("3", Fixture.Block(comment + "\nlater update"));
+        Assert.True(later.IsSafe, later.StatusMessage);
+        Assert.True(fixture.Engine.Execute(later, fixture.Variant).Succeeded);
+        var restore = fixture.Engine.Restore(fixture.Descriptor, fixture.Variant);
+        Assert.True(restore.Succeeded, restore.Message);
+        Assert.Equal("stock\n", File.ReadAllText(Path.Combine(fixture.Root, "script.lua")));
+    }
+
+    [Fact]
+    public void InformationalComment_CannotEraseSavedOwnedCommentRule()
+    {
+        using var fixture = new Fixture();
+        const string comment = "-- FIXTURE_PATCH: owned";
+        fixture.Policy.MarkerNamespaces[0].AllowedCommentLines = [comment];
+        fixture.Catalog = OwnershipTestCatalog.Create(fixture.Policy);
+        Write(fixture.Root, "script.lua", "stock\n");
+        Assert.True(fixture.Engine.Execute(fixture.Plan("1", Fixture.Block(comment)), fixture.Variant).Succeeded);
+        fixture.Policy.MarkerNamespaces[0].AllowedCommentLines = [];
+        fixture.Policy.MarkerNamespaces[0].InformationalCommentLines = [comment];
+        fixture.Catalog = OwnershipTestCatalog.Create(fixture.Policy);
+        Assert.False(fixture.Plan("2", Fixture.Block("changed")).IsSafe);
+        Assert.False(fixture.Engine.Restore(fixture.Descriptor, fixture.Variant).Succeeded);
+        Assert.Contains(comment, File.ReadAllText(Path.Combine(fixture.Root, "script.lua")));
+    }
+
+    [Fact]
+    public void SinglePackageSnapshot_RetainsAnotherNamespaceExceptionWithoutClaimingItsPatch()
+    {
+        using var fixture = new Fixture();
+        const string comment = "-- other_patch: explanation from the installed package";
+        var other = OwnershipTestCatalog.Policy("other.patch", "https://github.com/example/other", ["script.lua"]);
+        other.MarkerNamespaces = [new() { RelativePath = "script.lua", Namespace = "OTHER_PATCH",
+            Blocks = [new() { BeginMarker = "-- BEGIN OTHER_PATCH", EndMarker = "-- END OTHER_PATCH" }],
+            InformationalCommentLines = [comment] }];
+        fixture.Catalog = OwnershipTestCatalog.Create(fixture.Policy, other);
+        Write(fixture.Root, "script.lua", "stock\n");
+        Assert.True(fixture.Engine.Execute(fixture.Plan("1", Fixture.Block(comment)), fixture.Variant).Succeeded);
+        var component = fixture.Store.TryGetContentInstallation(fixture.Root)!.ContentComponents["fixture.patch"];
+        Assert.Contains(component.OwnershipSnapshot!.Policies, policy => policy.PackageId == "other.patch");
+        other.MarkerNamespaces[0].InformationalCommentLines = [];
+        fixture.Catalog = OwnershipTestCatalog.Create(fixture.Policy, other);
+        Assert.True(fixture.Plan("2", Fixture.Block(comment)).IsSafe);
+        var restore = fixture.Engine.Restore(fixture.Descriptor, fixture.Variant);
+        Assert.True(restore.Succeeded, restore.Message);
+        Assert.Equal("stock\n", File.ReadAllText(Path.Combine(fixture.Root, "script.lua")));
+        // The saved rule is context, not an ownership grant for another patch.
+        Write(fixture.Root, "script.lua", "-- BEGIN OTHER_PATCH\nbody\n-- END OTHER_PATCH\n");
+        Assert.False(fixture.Plan("2", Fixture.Block(comment)).IsSafe);
+    }
+
+    [Theory]
+    [InlineData("-- BEGIN FIXTURE_PATCH UNKNOWN")]
+    [InlineData("-- END FIXTURE_PATCH UNKNOWN")]
+    [InlineData("-- fixture_patch: prose\nreturn true")]
+    [InlineData("-- unrelated prose")]
+    [InlineData(" -- FIXTURE_PATCH: prose")]
+    [InlineData("-- FIXTURE_PATCH: owned")]
+    public void InformationalCommentContract_CannotExemptMarkersCodeOrOwnedComments(string comment)
+    {
+        using var fixture = new Fixture();
+        fixture.Policy.MarkerNamespaces[0].AllowedCommentLines = ["-- FIXTURE_PATCH: owned"];
+        fixture.Policy.MarkerNamespaces[0].InformationalCommentLines = [comment];
+        Assert.Throws<InvalidDataException>(() => fixture.Policy.Validate());
+    }
+
+    [Fact]
+    public void CatalogCpdlcComment_DoesNotClaimIntentionalFixes_ButCpdlcStillRequiresOwner()
+    {
+        const string target = "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua";
+        const string comment = "-- intentional fix: the stock LOAD compares an undefined global here and never";
+        var catalog = OwnershipTestCatalog.Published;
+        using var directory = new DeclarativePatchManifestTests.TemporaryDirectory();
+        Write(directory.Path, target, "\t" + comment + "\n");
+        Assert.Null(StandalonePatchOwnershipGuard.FindConflict(directory.Path, [target], null, catalog, product: "zibo-737ng"));
+        Write(directory.Path, target, "-- BEGIN CPDLC PATCH MODULE\n\t" + comment + "\n-- END CPDLC PATCH MODULE\n");
+        var conflict = StandalonePatchOwnershipGuard.FindConflict(directory.Path, [target], null, catalog, product: "zibo-737ng");
+        Assert.NotNull(conflict);
+        Assert.Contains("CPDLC", conflict, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Theory]
     [InlineData("payload")]
     [InlineData("receipt")]
@@ -178,10 +310,11 @@ public sealed class ContentPatchOwnershipTests
     public void CatalogContract_RoundTripsAndRequiresNewSchemaAndClientVersion()
     {
         var json = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Content", "content-package-catalog.json"));
-        var catalog = ContentPackageCatalog.Parse(json, new Version(0, 28, 0));
+        var catalog = ContentPackageCatalog.Parse(json, new Version(0, 28, 2));
         Assert.Equal(2, catalog.SchemaVersion);
         Assert.Equal(11, catalog.OwnershipPolicies.Count);
         Assert.Throws<InvalidDataException>(() => ContentPackageCatalog.Parse(json, new Version(0, 27, 0)));
+        Assert.Throws<InvalidDataException>(() => ContentPackageCatalog.Parse(json, new Version(0, 28, 1)));
         Assert.Throws<InvalidDataException>(() => ContentPackageCatalog.Parse(json.Replace("\"schemaVersion\": 2", "\"schemaVersion\": 1")));
         var document = new ContentPackageCatalogDocument { SchemaVersion = 2, CatalogVersion = catalog.CatalogVersion,
             MinimumToolkitVersion = catalog.MinimumToolkitVersion, Packages = catalog.Packages.ToList(),

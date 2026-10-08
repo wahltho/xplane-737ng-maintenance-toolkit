@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
-  "catalogVersion": "1.18.0",
-  "minimumToolkitVersion": "0.28.0",
+  "catalogVersion": "1.19.0",
+  "minimumToolkitVersion": "0.28.2",
   "packages": [
     {
       "packageId": "x-plane-zibo-vnav-descent-tables",
@@ -1199,6 +1199,9 @@
           "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
           "namespace": "INTENTIONAL FIX",
           "blocks": [],
+          "informationalCommentLines": [
+            "-- intentional fix: the stock LOAD compares an undefined global here and never"
+          ],
           "allowedCommentLines": [
             "-- FIX: INTENTIONAL FIX I05 - Ref-ICAO parsing must use the selected Ref-ICAO APP row.",
             "-- FIX: INTENTIONAL FIX I06 - PREDEP concatenation must have a route ICAO context.",

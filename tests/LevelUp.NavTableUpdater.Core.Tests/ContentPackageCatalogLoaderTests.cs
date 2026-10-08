@@ -169,7 +169,7 @@ public sealed class ContentPackageCatalogLoaderTests
         if (offline) File.WriteAllText(Path.Combine(directory.Path, ContentPackageCatalogLoader.CatalogAssetName), json);
         using var client = offline ? new HttpClient(new StubHandler(new Dictionary<string, HttpResponseMessage>()))
             : CreateClient(BuildReleaseResponse(Release("catalog-v" + version, json)));
-        var loader = new ContentPackageCatalogLoader(client, directory.Path, new Version(0, 28, 0), RepositoryUrl, ApiUrl);
+        var loader = new ContentPackageCatalogLoader(client, directory.Path, new Version(0, 28, 2), RepositoryUrl, ApiUrl);
         var result = await loader.LoadAsync();
         Assert.Equal(offline ? ContentPackageCatalogOrigin.LastKnownGoodCache : ContentPackageCatalogOrigin.RemoteRelease, result.Origin);
         Assert.Equal(2, result.Catalog.SchemaVersion);

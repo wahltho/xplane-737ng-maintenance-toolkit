@@ -345,6 +345,15 @@
             "type": "string",
             "minLength": 1
           }
+        },
+        "informationalCommentLines": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^--[^\\r\\n]*$"
+          }
         }
       }
     },

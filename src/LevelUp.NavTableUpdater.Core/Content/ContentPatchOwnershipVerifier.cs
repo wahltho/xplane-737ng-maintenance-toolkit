@@ -100,7 +100,13 @@ internal static class ContentPatchOwnershipVerifier
                 OwnershipSnapshot = new ContentPatchOwnershipSnapshot
                 {
                     CatalogVersion = catalog.CatalogVersion,
-                    Policies = ownPolicies.Select(PatchOwnershipPolicy.Copy).ToList()
+                    // Retain cross-namespace prose exceptions used for these targets,
+                    // including direct single-package imports. Saving a rule does not
+                    // claim that package: Owns still requires its ID/source/module.
+                    Policies = ownPolicies.Select(policy => policies.FirstOrDefault(saved => saved.PackageId == policy.PackageId) ?? policy)
+                        .Concat(policies.Where(policy => policy.MarkerNamespaces
+                            .Any(marker => marker.InformationalCommentLines.Count > 0)))
+                        .DistinctBy(policy => policy.PackageId).Select(PatchOwnershipPolicy.Copy).ToList()
                 },
                 ExpectedSourceHashes = evidence
             };
@@ -281,8 +287,11 @@ internal static class ContentPatchOwnershipVerifier
                     Blocks = markers.SelectMany(marker => marker.Blocks)
                         .DistinctBy(block => (block.BeginMarker, block.EndMarker)).ToList(),
                     AllowedCommentLines = markers.SelectMany(marker => marker.AllowedCommentLines)
+                        .Distinct(StringComparer.Ordinal).ToList(),
+                    InformationalCommentLines = markers.SelectMany(marker => marker.InformationalCommentLines)
                         .Distinct(StringComparer.Ordinal).ToList()
                 }).ToList();
+            merged.Validate();
             return merged;
         }).ToArray();
     }
@@ -301,8 +310,8 @@ internal static class ContentPatchOwnershipVerifier
             }
             var markedTargets = policy.MarkerNamespaces.Where(marker => File.Exists(
                     ContentPatchPathSafety.ResolveTarget(root, marker.RelativePath, "Marker target"))
-                    && File.ReadAllText(ContentPatchPathSafety.ResolveTarget(root, marker.RelativePath, "Marker target"))
-                        .Contains(marker.Namespace, StringComparison.OrdinalIgnoreCase)).Select(marker => marker.RelativePath);
+                    && ContainsNamespaceEvidence(File.ReadAllText(ContentPatchPathSafety.ResolveTarget(root, marker.RelativePath, "Marker target")),
+                        marker)).Select(marker => marker.RelativePath);
             var signatureTargets = policy.Signatures.Where(signature => File.Exists(
                     ContentPatchPathSafety.ResolveTarget(root, signature.RelativePath, "Signature target"))
                     && ContainsSignature(File.ReadAllText(ContentPatchPathSafety.ResolveTarget(root, signature.RelativePath, "Signature target")),
@@ -390,7 +399,7 @@ internal static class ContentPatchOwnershipVerifier
                     _ = HashFile(originalPath);
                     var original = File.ReadAllText(originalPath);
                     if (policy.MarkerNamespaces.Any(marker => marker.RelativePath == relative
-                            && original.Contains(marker.Namespace, StringComparison.OrdinalIgnoreCase))
+                            && ContainsNamespaceEvidence(original, marker))
                         || policy.Signatures.Any(signature => signature.RelativePath == relative
                             && ContainsSignature(original, signature.Text)))
                         throw Unowned(policy, relative);
@@ -437,6 +446,7 @@ internal static class ContentPatchOwnershipVerifier
             var counts = new HashSet<string>(StringComparer.Ordinal);
             foreach (var raw in File.ReadLines(path))
             {
+                if (marker.InformationalCommentLines.Contains(raw.Trim(), StringComparer.Ordinal)) continue;
                 var comment = raw.IndexOf("--", StringComparison.Ordinal);
                 if (comment < 0) continue;
                 var line = raw[comment..].Trim();
@@ -461,6 +471,15 @@ internal static class ContentPatchOwnershipVerifier
 
     private static bool Touches(PatchOwnershipPolicy policy, IEnumerable<string> targets) =>
         targets.Any(path => policy.TargetPaths.Any(pattern => PatchOwnershipPolicy.PatternCovers(pattern, path)));
+
+    private static bool ContainsNamespaceEvidence(string text, PatchMarkerNamespace marker)
+    {
+        using var reader = new StringReader(text);
+        while (reader.ReadLine() is { } line)
+            if (!marker.InformationalCommentLines.Contains(line.Trim(), StringComparer.Ordinal)
+                && line.Contains(marker.Namespace, StringComparison.OrdinalIgnoreCase)) return true;
+        return false;
+    }
 
     private static bool ContainsSignature(string text, string signature) =>
         text.Replace("\r\n", "\n", StringComparison.Ordinal)
@@ -563,6 +582,6 @@ internal static class ContentPatchOwnershipVerifier
     private static InvalidOperationException Unowned(PatchOwnershipPolicy policy, string evidence) =>
         new($"{policy.DisplayName} has patch files or standalone state at {evidence}, but no verified MTK ownership and complete restore chain. "
             + $"{policy.RecoveryInstruction} Standalone remains supported. Do not delete state or backups by hand.");
-    internal static bool IsVerificationFailure(Exception exception) => exception is IOException
+    internal static bool IsVerificationFailure(Exception exception) => exception is IOException or InvalidDataException
         or UnauthorizedAccessException or InvalidOperationException or ArgumentException or JsonException;
 }
