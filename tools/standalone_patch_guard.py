@@ -147,7 +147,7 @@ def verify_text_manifest(package, package_id):
             identity = fields[2]
         elif fields[:2] == ["package", "version"]:
             version = fields[2]
-        elif fields[0] == "payload":
+        elif fields[0] in ("payload", "standalone"):
             if len(fields) != 7 or fields[3] != "size" or fields[5] != "sha256" or fields[2] in records:
                 raise OwnershipError("Invalid or duplicate package input record")
             records[fields[2]] = int(fields[4]), fields[6]

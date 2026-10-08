@@ -10,6 +10,40 @@ public sealed class CatalogSourceAdapterTests : IDisposable
     private readonly string _root = Path.Combine(Path.GetTempPath(), "catalog-source-" + Guid.NewGuid().ToString("N"));
 
     [Fact]
+    public void VnavStandaloneInventory_IsNeverMaterializedAsAircraftPayload()
+    {
+        var payload = "table payload"u8.ToArray();
+        var hash = Convert.ToHexString(SHA256.HashData(payload)).ToLowerInvariant();
+        var manifest = $"schema|package-manifest|1\npackage|id|fixture\npackage|version|1.0.0\n"
+            + "repository|url|https://github.com/example/fixture\n"
+            + "target|relative_path|plugins/xlua/scripts/shared.lua\n"
+            + $"payload|table|table.lua|size|{payload.Length}|sha256|{hash}\n"
+            + "standalone|ownership_guard|standalone_guard.py|size|1|sha256|unused\n"
+            + "standalone|ownership_policy|standalone-ownership.json|size|1|sha256|unused\n"
+            + "standalone|installer|z_Install.py|size|1|sha256|unused\n"
+            + "standalone|readme|README.md|size|1|sha256|unused\n";
+        var member = new CatalogGroupMember { ModuleId = "vnav", SourceFormat = "vnav",
+            ManifestPath = "package-manifest.txt", Policy = CompatibilityModulePolicy.Optional };
+        var entry = new ContentPackageCatalogEntry { PackageId = "fixture", DisplayName = "Fixture",
+            Description = "Test source", RepositoryUrl = "https://github.com/example/fixture",
+            SupportedProducts = ["zibo-737ng"] };
+        var archive = new Dictionary<string, byte[]>
+        {
+            ["package-manifest.txt"] = System.Text.Encoding.UTF8.GetBytes(manifest),
+            ["table.lua"] = payload
+        };
+        var module = CatalogSourceAdapter.Convert(member, entry,
+            new ContentPatchRelease("v1.0.0", "", "fixture.zip", "", 0, ""), archive, _root);
+        Assert.Equal(2, module.Targets.Count);
+        Assert.Equal(["plugins/xlua/scripts/shared.lua", "plugins/xlua/scripts/table.lua"],
+            module.Targets.Select(target => target.RelativePath));
+        Assert.Equal(["table.lua", "vnav-operation.json"],
+            module.Payloads.Select(payload => payload.Path));
+        Assert.Equal(payload, File.ReadAllBytes(Path.Combine(_root, "table.lua")));
+        Assert.DoesNotContain(Directory.GetFiles(_root), path => path.EndsWith(".py", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void LegacySchemaTwo_UsesExistingFamilyCompatibilityAndStructuralContract()
     {
         var (member, entry, release, archive) = Fixture("declarative");

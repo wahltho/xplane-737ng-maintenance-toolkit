@@ -51,6 +51,22 @@ class OwnershipTests(unittest.TestCase):
     def save_contract(self):
         (self.package / "standalone-ownership.json").write_text(json.dumps(self.contract))
 
+    def test_standalone_inventory_checks_helpers_and_rejects_duplicate_inputs(self):
+        source = b"installer source"
+        (self.package / "installer.py").write_bytes(source)
+        record = f"standalone|installer|installer.py|size|{len(source)}|sha256|{g.digest(source)}"
+        manifest = self.package / "package-manifest.txt"
+        header = f"package|id|{PID}\npackage|version|1.0\n"
+        manifest.write_text(header + record + "\n")
+        self.assertEqual(g.verify_text_manifest(self.package, PID), "1.0")
+        (self.package / "installer.py").write_bytes(b"changed")
+        with self.assertRaisesRegex(g.OwnershipError, "missing or changed"):
+            g.verify_text_manifest(self.package, PID)
+        (self.package / "installer.py").write_bytes(source)
+        manifest.write_text(header + record + "\n" + record.replace("standalone|", "payload|", 1) + "\n")
+        with self.assertRaisesRegex(g.OwnershipError, "duplicate"):
+            g.verify_text_manifest(self.package, PID)
+
     def put(self, relative, data):
         path = self.root / relative
         path.parent.mkdir(parents=True, exist_ok=True)

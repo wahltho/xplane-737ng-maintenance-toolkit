@@ -15,8 +15,8 @@ patch version changes. The refreshed standalone ZIPs and checksums replace the
 existing release assets; their release tags stay unchanged. The 27K installer
 itself is handled separately by its project.
 
-Validation: the MTK suite passed with 825 tests and six skips. The shared Python
-installer checks passed 26 tests, plus both VNAV lifecycle tests. Release ZIPs
+Validation: the MTK suite passed with 826 tests and six skips. The shared Python
+installer checks passed 27 tests, plus both VNAV lifecycle tests. Release ZIPs
 were built and checked against the previous public packages for unchanged Lua,
 objects, textures and patch payloads. Installer recovery and ownership checks
 are documented in `docs/STANDALONE_INSTALLER_HARDENING.md`.

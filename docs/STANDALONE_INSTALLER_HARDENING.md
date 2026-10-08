@@ -74,7 +74,10 @@ python3 tools/sync_standalone_guard.py /path/to/patch-repository --package-id <c
 ```
 
 This copies source only. It keeps a destination's native-state adapter settings.
-Refresh package checksum metadata afterwards. The release builders include the
+Refresh package checksum metadata afterwards. In VNAV pipe manifests, use
+`standalone` rows for installer/helper inventories and reserve `payload` rows
+for aircraft files. MTK ignores the standalone rows; the Python installer
+verifies both inventories. The release builders include the
 helper and JSON contract; refreshing them is not a package build or release.
 
 ## Required tests before publication
@@ -99,11 +102,11 @@ are separately approved.
 
 ## Validation completed
 
-The existing MTK suite passed with 825 tests and six existing skips. The final
+The existing MTK suite passed with 826 tests and six existing skips. The final
 catalog, ownership, adapter and scope checks were also run separately. No C#
 production source was changed.
 
-The shared Python guard has 26 passing tests. They cover unowned or malformed
+The shared Python guard has 27 passing tests. They cover unowned or malformed
 patches, native and generic receipts, missing or changed originals, MTK single
 and group ownership, shared targets, concurrent changes, path and link safety,
 LF/CRLF, and rollback after injected failures. Windows, macOS and Linux state
