@@ -18,7 +18,7 @@ public sealed class VnavContentOperationTests
 
         var result = await operation.RunAsync(VnavContentAction.Install, fixture.SingleVariant(), fixture.Manifest);
 
-        Assert.True(result.Succeeded);
+        Assert.True(result.Succeeded, result.Message);
         Assert.True(result.Changed);
         Assert.Contains("-- BEGIN TEST_VNAV DOFILE\r\n", File.ReadAllText(fixture.TargetScriptPath));
         Assert.Contains("\r\n", File.ReadAllText(fixture.TargetScriptPath));
@@ -26,11 +26,11 @@ public sealed class VnavContentOperationTests
         Assert.Equal(InstallState.CorrectlyInstalled, fixture.Analyze().State);
 
         var target = Assert.Single(fixture.Store.Load().Aircraft.Values);
-        Assert.Equal("x-plane-test-vnav", target.InstalledContentPackageId);
+        Assert.Equal("x-plane-levelup-737ng-vnav-descent-tables", target.InstalledContentPackageId);
         Assert.Equal("v1.0.0", target.InstalledContentPackageVersion);
         Assert.Contains(target.Backups, backup => backup.Operation == "ContentPatchInstall");
         var component = Assert.Single(fixture.Store.Load().ContentInstallations.Values).ContentComponents.Values.Single();
-        Assert.Equal("x-plane-test-vnav", component.ComponentId);
+        Assert.Equal("x-plane-levelup-737ng-vnav-descent-tables", component.ComponentId);
         Assert.Equal("v1.0.0", component.PackageVersion);
     }
 
@@ -44,7 +44,7 @@ public sealed class VnavContentOperationTests
 
         var result = await operation.RunAsync(VnavContentAction.Repair, fixture.SingleVariant(), fixture.Manifest);
 
-        Assert.True(result.Succeeded);
+        Assert.True(result.Succeeded, result.Message);
         Assert.True(result.Changed);
         Assert.True(File.Exists(Path.Combine(fixture.ScriptFolder, "B738.a_fms_test_tables.lua")));
         var script = File.ReadAllText(fixture.TargetScriptPath);
@@ -61,7 +61,7 @@ public sealed class VnavContentOperationTests
 
         var result = await operation.RunAsync(VnavContentAction.Uninstall, fixture.SingleVariant(), fixture.Manifest);
 
-        Assert.True(result.Succeeded);
+        Assert.True(result.Succeeded, result.Message);
         Assert.True(result.Changed);
         var script = File.ReadAllText(fixture.TargetScriptPath);
         Assert.DoesNotContain("TEST_VNAV", script, StringComparison.Ordinal);
@@ -70,19 +70,17 @@ public sealed class VnavContentOperationTests
     }
 
     [Fact]
-    public async Task Install_WhenLegacyHooksExist_MigratesToMarkedHooks()
+    public async Task Install_WhenUnownedLegacyHooksExist_BlocksWithoutAdoption()
     {
         using var fixture = VnavFixture.Create(VnavFixture.LegacyLua, lineEnding: "\n");
         var operation = fixture.CreateOperation();
 
         var result = await operation.RunAsync(VnavContentAction.Install, fixture.SingleVariant(), fixture.Manifest);
 
-        Assert.True(result.Succeeded);
-        Assert.True(result.Changed);
-        Assert.Equal(InstallState.CorrectlyInstalled, fixture.Analyze().State);
-        var script = File.ReadAllText(fixture.TargetScriptPath);
-        Assert.Equal(1, Count(script, "-- BEGIN TEST_VNAV KIAS"));
-        Assert.Equal(1, Count(script, "pcall(B738_variant_test_take_alt_dist,"));
+        Assert.False(result.Succeeded);
+        Assert.False(result.Changed);
+        Assert.Equal(VnavFixture.LegacyLua, File.ReadAllText(fixture.TargetScriptPath));
+        Assert.Empty(fixture.Store.Load().ContentInstallations);
     }
 
     [Fact]
@@ -104,7 +102,7 @@ public sealed class VnavContentOperationTests
 
         var result = operation.RestoreLatest(restoreVariant, fixture.Manifest);
 
-        Assert.True(result.Succeeded);
+        Assert.True(result.Succeeded, result.Message);
         Assert.True(result.Changed);
         Assert.DoesNotContain("TEST_VNAV", File.ReadAllText(fixture.TargetScriptPath), StringComparison.Ordinal);
         Assert.All(fixture.Manifest.Payloads, payload => Assert.False(File.Exists(Path.Combine(fixture.ScriptFolder, payload.FileName))));
@@ -229,7 +227,20 @@ public sealed class VnavContentOperationTests
         }
 
         public VnavContentOperation CreateOperation() =>
-            new(Store, new MemoryPackagePayloadSource(Payloads), isXPlaneRunning: () => false);
+            new(Store, new MemoryPackagePayloadSource(Payloads), isXPlaneRunning: () => false, catalogProvider: () => Catalog());
+
+        private ContentPackageCatalog Catalog()
+        {
+            const string fms = "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua";
+            var policy = OwnershipTestCatalog.Policy("x-plane-levelup-737ng-vnav-descent-tables", "https://github.com/JT8D-17/X-Plane-LevelUp-737NG-Descent-Tables",
+                new[] { fms }.Concat(Manifest.Payloads.Select(p => "plugins/xlua/scripts/B738.a_fms/" + p.FileName)).ToArray(), ["vnav"]);
+            policy.PayloadPaths = ["plugins/xlua/scripts/B738.a_fms/B738.a_fms_test_tables.lua"];
+            policy.MarkerNamespaces = [new() { RelativePath = fms, Namespace = "TEST_VNAV",
+                Blocks = new[] { "DOFILE", "KIAS", "MACH" }.Select(name => new PatchMarkerPair
+                { BeginMarker = $"-- BEGIN TEST_VNAV {name}", EndMarker = $"-- END TEST_VNAV {name}" }).ToList() }];
+            policy.Signatures = [new() { RelativePath = fms, Text = "dofile(\"B738.a_fms_test_tables.lua\")" }];
+            return OwnershipTestCatalog.Create(policy);
+        }
 
         public AircraftAnalysisResult Analyze() =>
             new AircraftInstallAnalyzer().Analyze(Path, Manifest);
@@ -243,14 +254,14 @@ public sealed class VnavContentOperationTests
                 ["B738.a_fms_test_tables.lua"] = "test table payload\n",
                 ["Add_dofile.txt"] = """
                     -- BEGIN TEST_VNAV DOFILE
-                    -- package-id|x-plane-test-vnav
+                    -- package-id|x-plane-levelup-737ng-vnav-descent-tables
                     -- package-version|v1.0.0
                     dofile("B738.a_fms_test_tables.lua")
                     -- END TEST_VNAV DOFILE
                     """,
                 ["Add_to_take_alt_dist.txt"] = """
                         -- BEGIN TEST_VNAV KIAS
-                        -- package-id|x-plane-test-vnav
+                        -- package-id|x-plane-levelup-737ng-vnav-descent-tables
                         -- package-version|v1.0.0
                         local variant_test_ok, variant_test_dist = pcall(B738_variant_test_take_alt_dist, x_idx_alt, x_spd_alt, x_spd_wnd_alt, x_flap)
                         if variant_test_ok and variant_test_dist ~= nil then
@@ -260,7 +271,7 @@ public sealed class VnavContentOperationTests
                     """,
                 ["Add_to_take_alt_dist_mach.txt"] = """
                         -- BEGIN TEST_VNAV MACH
-                        -- package-id|x-plane-test-vnav
+                        -- package-id|x-plane-levelup-737ng-vnav-descent-tables
                         -- package-version|v1.0.0
                         local variant_test_ok, variant_test_dist = pcall(B738_variant_test_take_alt_dist_mach, x_idx_alt, x_spd_alt, x_spd_wnd_alt)
                         if variant_test_ok and variant_test_dist ~= nil then
@@ -274,11 +285,11 @@ public sealed class VnavContentOperationTests
         {
             var builder = new StringBuilder();
             builder.AppendLine("schema|package-manifest|1");
-            builder.AppendLine("package|id|x-plane-test-vnav");
+            builder.AppendLine("package|id|x-plane-levelup-737ng-vnav-descent-tables");
             builder.AppendLine("package|version|v1.0.0");
             builder.AppendLine("package|release_tag|v1.0.0");
             builder.AppendLine("aircraft|family|levelup_737ng");
-            builder.AppendLine("repository|url|https://github.com/example/x-plane-test-vnav");
+            builder.AppendLine("repository|url|https://github.com/JT8D-17/X-Plane-LevelUp-737NG-Descent-Tables");
             builder.AppendLine("target|relative_path|plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua");
             AppendPayload(builder, "table", "B738.a_fms_test_tables.lua", payloads);
             AppendPayload(builder, "dofile", "Add_dofile.txt", payloads);

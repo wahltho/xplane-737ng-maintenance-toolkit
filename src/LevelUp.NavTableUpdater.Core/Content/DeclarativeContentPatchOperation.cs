@@ -12,11 +12,11 @@ public sealed class DeclarativeContentPatchOperation
 
     public DeclarativeContentPatchOperation(
         ToolStateStore stateStore,
-        Func<bool>? isXPlaneRunning = null)
+        Func<bool>? isXPlaneRunning = null, Func<ContentPackageCatalog>? catalogProvider = null)
     {
         _isXPlaneRunning = isXPlaneRunning ?? XPlaneProcessDetector.IsXPlaneRunning;
-        _planBuilder = new DeclarativePatchPlanBuilder(stateStore);
-        _engine = new ContentPatchEngine(stateStore, _isXPlaneRunning);
+        _planBuilder = new DeclarativePatchPlanBuilder(stateStore, catalogProvider: catalogProvider);
+        _engine = new ContentPatchEngine(stateStore, _isXPlaneRunning, catalogProvider);
     }
 
     public async Task<MaintenanceOperationResult> RunAsync(

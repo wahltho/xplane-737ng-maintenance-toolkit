@@ -2,7 +2,7 @@ namespace LevelUp.NavTableUpdater.Core.State;
 
 public sealed class ToolStateDocument
 {
-    public int SchemaVersion { get; set; } = 9;
+    public int SchemaVersion { get; set; } = 10;
 
     public Dictionary<string, AircraftToolState> Aircraft { get; set; } = new(StringComparer.Ordinal);
 
@@ -203,6 +203,8 @@ public sealed class AircraftToolState
 
 public sealed class ContentComponentState
 {
+    public LevelUp.NavTableUpdater.Core.Content.ContentPatchOwnershipSnapshot? OwnershipSnapshot { get; set; }
+
     public string ComponentId { get; set; } = "";
 
     public string PackageVersion { get; set; } = "";

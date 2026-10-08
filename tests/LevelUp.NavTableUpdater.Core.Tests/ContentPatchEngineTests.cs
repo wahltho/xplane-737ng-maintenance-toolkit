@@ -20,8 +20,8 @@ public sealed class ContentPatchEngineTests
         Directory.CreateDirectory(Path.Combine(root, ".zibo-cpdlc-patch"));
         File.WriteAllText(Path.Combine(root, ".zibo-cpdlc-patch", "state.json"), "{}");
         var store = TestToolStateStore.Create(Path.Combine(directory.Path, "state"));
-        var engine = new ContentPatchEngine(store, () => false);
-        var plan = CreatePlan(CreateDescriptor(ContentPatchActivation.Managed), root,
+        var engine = new ContentPatchEngine(store, () => false, () => OwnershipTestCatalog.Engine);
+        var plan = CreatePlan(store, CreateDescriptor(ContentPatchActivation.Managed), root,
             ContentPatchMutation.Write(Fms, Encoding.UTF8.GetBytes("MTK patch"), "test"));
 
         var result = engine.Execute(plan, CreateVariant(Path.Combine(root, "737_70NG.acf")));
@@ -41,10 +41,10 @@ public sealed class ContentPatchEngineTests
         Directory.CreateDirectory(Path.GetDirectoryName(target)!);
         File.WriteAllText(target, "stock");
         var store = TestToolStateStore.Create(Path.Combine(directory.Path, "state"));
-        var engine = new ContentPatchEngine(store, () => false);
+        var engine = new ContentPatchEngine(store, () => false, () => OwnershipTestCatalog.Engine);
         var descriptor = CreateDescriptor(ContentPatchActivation.Managed);
         var variant = CreateVariant(Path.Combine(root, "737_70NG.acf"));
-        Assert.True(engine.Execute(CreatePlan(descriptor, root,
+        Assert.True(engine.Execute(CreatePlan(store, descriptor, root,
             ContentPatchMutation.Write(Fms, Encoding.UTF8.GetBytes("MTK patch"), "test")), variant).Succeeded);
         Directory.CreateDirectory(Path.Combine(root, ".zibo-cpdlc-patch"));
         File.WriteAllText(Path.Combine(root, ".zibo-cpdlc-patch", "state.json"), "{}");
@@ -68,9 +68,9 @@ public sealed class ContentPatchEngineTests
         File.WriteAllText(existingPath, "original");
         var variant = CreateVariant(Path.Combine(aircraftRoot, "737_70NG.acf"));
         var store = TestToolStateStore.Create(Path.Combine(directory.Path, "state"));
-        var engine = new ContentPatchEngine(store, isXPlaneRunning: () => false);
+        var engine = new ContentPatchEngine(store, () => false, () => OwnershipTestCatalog.Engine);
         var descriptor = CreateDescriptor(ContentPatchActivation.Managed);
-        var plan = CreatePlan(
+        var plan = CreatePlan(store,
             descriptor,
             aircraftRoot,
             ContentPatchMutation.Write("existing.txt", Encoding.UTF8.GetBytes("updated"), "update existing"),
@@ -78,7 +78,7 @@ public sealed class ContentPatchEngineTests
 
         var applied = engine.Execute(plan, variant);
 
-        Assert.True(applied.Succeeded);
+        Assert.True(applied.Succeeded, applied.Message);
         Assert.True(applied.Changed);
         Assert.Equal("updated", File.ReadAllText(existingPath));
         Assert.Equal("created", File.ReadAllText(createdPath));
@@ -87,7 +87,7 @@ public sealed class ContentPatchEngineTests
 
         var restored = engine.Restore(descriptor, variant);
 
-        Assert.True(restored.Succeeded);
+        Assert.True(restored.Succeeded, restored.Message);
         Assert.Equal("Restored", restored.Status);
         Assert.Equal("original", File.ReadAllText(existingPath));
         Assert.False(File.Exists(createdPath));
@@ -106,9 +106,9 @@ public sealed class ContentPatchEngineTests
         File.WriteAllText(existingPath, "original");
         var variant = CreateVariant(Path.Combine(aircraftRoot, "737_70NG.acf"));
         var store = TestToolStateStore.Create(Path.Combine(directory.Path, "state"));
-        var engine = new ContentPatchEngine(store, isXPlaneRunning: () => false);
+        var engine = new ContentPatchEngine(store, () => false, () => OwnershipTestCatalog.Engine);
         var descriptor = CreateDescriptor(ContentPatchActivation.ExplicitOptIn);
-        var plan = CreatePlan(
+        var plan = CreatePlan(store,
             descriptor,
             aircraftRoot,
             ContentPatchMutation.Write("existing.txt", Encoding.UTF8.GetBytes("updated"), "update existing"),
@@ -120,13 +120,13 @@ public sealed class ContentPatchEngineTests
 
         Assert.False(restored.Succeeded);
         Assert.Equal("Blocked", restored.Status);
-        Assert.Contains("later change", restored.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("backup chain", restored.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Equal("later user change", File.ReadAllText(existingPath));
         Assert.Equal("created", File.ReadAllText(createdPath));
     }
 
     [Fact]
-    public void Execute_WhenLaterMutationFails_RollsBackEarlierMutation()
+    public void Execute_WhenTargetIsDirectory_BlocksBeforeEarlierMutation()
     {
         using var directory = new DeclarativePatchManifestTests.TemporaryDirectory();
         var aircraftRoot = Path.Combine(directory.Path, "aircraft");
@@ -136,7 +136,7 @@ public sealed class ContentPatchEngineTests
         Directory.CreateDirectory(Path.Combine(aircraftRoot, "cannot-replace-directory"));
         var variant = CreateVariant(Path.Combine(aircraftRoot, "737_70NG.acf"));
         var store = TestToolStateStore.Create(Path.Combine(directory.Path, "state"));
-        var engine = new ContentPatchEngine(store, isXPlaneRunning: () => false);
+        var engine = new ContentPatchEngine(store, () => false, () => OwnershipTestCatalog.Engine);
         var descriptor = new ContentPatchDescriptor(
             "test.optional",
             "Test patch",
@@ -156,10 +156,10 @@ public sealed class ContentPatchEngineTests
             IsSafe: true,
             "test");
 
-        var exception = Record.Exception(() => engine.Execute(plan, variant));
-        Assert.True(
-            exception is IOException or UnauthorizedAccessException,
-            $"Expected a platform file-system exception, but received {exception?.GetType().FullName ?? "no exception"}.");
+        plan = OwnershipTestCatalog.Bind(plan, store, variant, OwnershipTestCatalog.Engine);
+        var result = engine.Execute(plan, variant);
+        Assert.False(result.Succeeded);
+        Assert.Equal("Blocked", result.Status);
 
         Assert.Equal("original", File.ReadAllText(firstPath));
         Assert.Empty(store.Load().Aircraft);
@@ -172,8 +172,8 @@ public sealed class ContentPatchEngineTests
         var targetPath = Path.Combine(directory.Path, "target.txt");
         File.WriteAllText(targetPath, "foreign edit");
         var store = TestToolStateStore.Create(Path.Combine(directory.Path, "state"));
-        var engine = new ContentPatchEngine(store, () => false);
-        var plan = CreatePlan(CreateDescriptor(ContentPatchActivation.Managed), directory.Path,
+        var engine = new ContentPatchEngine(store, () => false, () => OwnershipTestCatalog.Engine);
+        var plan = CreatePlan(store, CreateDescriptor(ContentPatchActivation.Managed), directory.Path,
             ContentPatchMutation.Write("target.txt", Encoding.UTF8.GetBytes("planned output"), "test")) with
         { ExpectedSourceHashes = new Dictionary<string, string?> { ["target.txt"] = new string('0', 64) } };
         var result = engine.Execute(plan, CreateVariant(Path.Combine(directory.Path, "737_70NG.acf")));
@@ -193,17 +193,17 @@ public sealed class ContentPatchEngineTests
         File.WriteAllText(path, "stock");
         var variant = CreateVariant(Path.Combine(root, "737_70NG.acf"));
         var store = TestToolStateStore.Create(Path.Combine(root, "state"));
-        var engine = new ContentPatchEngine(store, () => false);
+        var engine = new ContentPatchEngine(store, () => false, () => OwnershipTestCatalog.Engine);
         var first = CreateDescriptor(ContentPatchActivation.Managed) with { ComponentId = "first" };
         var second = first with { ComponentId = "second" };
         ContentPatchMutation Write(string text) => ContentPatchMutation.Write("shared.lua", Encoding.UTF8.GetBytes(text), "test");
-        Assert.True(engine.Execute(CreatePlan(first, root, Write("one")), variant).Succeeded);
+        Assert.True(engine.Execute(CreatePlan(store, first, root, Write("one")), variant).Succeeded);
         var firstState = store.TryGetContentInstallation(root)!.ContentComponents["first"];
         // A legacy per-variant entry must not resurrect this source after transfer.
         store.UpdateTarget(variant, target => target.ContentComponents["first"] = firstState);
-        Assert.True(engine.Execute(CreatePlan(second, root, Write("two")), variant).Succeeded);
-        var refresh = engine.Execute(CreatePlan(first, root, Write("two")), variant);
-        Assert.True(refresh.Succeeded);
+        Assert.True(engine.Execute(CreatePlan(store, second, root, Write("two")), variant).Succeeded);
+        var refresh = engine.Execute(CreatePlan(store, first, root, Write("two")), variant);
+        Assert.True(refresh.Succeeded, refresh.Message);
         Assert.False(refresh.Changed);
         var installation = store.TryGetContentInstallation(root)!;
         Assert.Equal(firstState.Files[0].InstalledSha256, installation.ContentComponents["first"].Files[0].InstalledSha256);
@@ -211,14 +211,14 @@ public sealed class ContentPatchEngineTests
             Sources = [new() { PackageId = "first" }, new() { PackageId = "second" }],
             Modules = [new() { Targets = [new() { RelativePath = "shared.lua" }] }] };
         var migration = CatalogGroupMigration.Prepare(root, manifest, installation.ContentComponents, installation.Backups)!;
-        var plan = CreatePlan(first with { ComponentId = "group" }, root, Write(failMigration ? "new" : "two")) with
+        var plan = CreatePlan(store, first with { ComponentId = "group" }, root, Write(failMigration ? "new" : "two")) with
             { MigratedState = migration, Sources = manifest.Sources };
         var stateBefore = File.ReadAllText(store.StatePath);
         if (failMigration)
         {
             Directory.CreateDirectory(Path.Combine(root, "write-failure"));
             plan = plan with { Mutations = [.. plan.Mutations, ContentPatchMutation.Write("write-failure", [1], "fail")] };
-            Assert.NotNull(Record.Exception(() => engine.Execute(plan, variant)));
+            Assert.False(engine.Execute(plan, variant).Succeeded);
             Assert.Equal(stateBefore, File.ReadAllText(store.StatePath));
             Assert.Equal("two", File.ReadAllText(path));
         }
@@ -227,7 +227,7 @@ public sealed class ContentPatchEngineTests
             Assert.True(engine.Execute(plan, variant).Succeeded);
             Assert.True(store.TryGetContentInstallation(root)!.HasAuthoritativeContentState);
             Assert.Equal("group", Assert.Single(store.TryGetContentInstallation(root)!.ContentComponents).Key);
-            Assert.True(engine.Execute(plan with { MigratedState = null }, variant).Succeeded);
+            Assert.True(engine.Execute(CreatePlan(store, plan.Descriptor, root, Write("two")), variant).Succeeded);
             Assert.True(engine.Restore(plan.Descriptor, variant).Succeeded);
             Assert.Empty(store.TryGetContentInstallation(root)!.ContentComponents);
             Assert.Equal("stock", File.ReadAllText(path));
@@ -243,10 +243,10 @@ public sealed class ContentPatchEngineTests
             RestartRequired: true);
 
     private static ContentPatchPlan CreatePlan(
-        ContentPatchDescriptor descriptor,
+        LevelUp.NavTableUpdater.Core.State.ToolStateStore store, ContentPatchDescriptor descriptor,
         string aircraftRoot,
         params ContentPatchMutation[] mutations) =>
-        new(
+        OwnershipTestCatalog.Bind(new(
             descriptor,
             "1.0.0",
             ContentPatchAction.Install,
@@ -254,7 +254,7 @@ public sealed class ContentPatchEngineTests
             mutations,
             [],
             IsSafe: true,
-            "test");
+            "test"), store, CreateVariant(Path.Combine(aircraftRoot, "737_70NG.acf")), OwnershipTestCatalog.Engine);
 
     private static AircraftVariantViewAnalysis CreateVariant(string acfPath) =>
         new(

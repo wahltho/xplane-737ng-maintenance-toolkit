@@ -173,7 +173,7 @@ public sealed class ToolStateStoreTests
 
         Assert.Equal("4.7", store.TryGetToolInstallation(firstXPlane, "wahltho.yal")?.InstalledVersion);
         Assert.Equal("4.8-beta.1", store.TryGetToolInstallation(secondXPlane, "wahltho.yal")?.InstalledVersion);
-        Assert.Equal(9, store.Load().SchemaVersion);
+        Assert.Equal(10, store.Load().SchemaVersion);
     }
 
     [Fact]
@@ -199,7 +199,7 @@ public sealed class ToolStateStoreTests
         var installation = Assert.Single(document.ToolInstallations.Values);
         var generation = Assert.Single(installation.Backups);
 
-        Assert.Equal(9, document.SchemaVersion);
+        Assert.Equal(10, document.SchemaVersion);
         Assert.Empty(installation.RetiredFiles);
         Assert.Empty(generation.PreviousRetiredFiles);
         Assert.Empty(generation.PreviousProtectedPaths);

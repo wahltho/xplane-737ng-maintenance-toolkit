@@ -1,7 +1,7 @@
 {
-  "schemaVersion": 1,
-  "catalogVersion": "1.15.0",
-  "minimumToolkitVersion": "0.21.2",
+  "schemaVersion": 2,
+  "catalogVersion": "1.16.0",
+  "minimumToolkitVersion": "0.28.0",
   "packages": [
     {
       "packageId": "x-plane-zibo-vnav-descent-tables",
@@ -170,13 +170,20 @@
       "description": "Optional Linux text-to-speech plugin, usable with YAL. Requires a separately installed Piper executable, voice model and audio output configuration; installing this plugin does not configure Piper.",
       "category": "tool",
       "activation": "explicitOptIn",
-      "supportedProducts": ["zibo-737ng", "levelup-737ng"],
-      "supportedPlatforms": ["linux-x64"],
+      "supportedProducts": [
+        "zibo-737ng",
+        "levelup-737ng"
+      ],
+      "supportedPlatforms": [
+        "linux-x64"
+      ],
       "repositoryUrl": "https://github.com/wahltho/XLinSpeak",
       "restartRequired": true,
       "installScope": "xPlaneInstallation",
       "targetPath": "Resources/plugins/XLinSpeak",
-      "supportedChannels": ["stable"],
+      "supportedChannels": [
+        "stable"
+      ],
       "distribution": {
         "kind": "gitHubToolRelease",
         "manifestAssetNamePattern": "XLinSpeak-*-manifest.json",
@@ -551,6 +558,1414 @@
           "assetNamePattern": "X-Plane-Zibo-LevelUp-737NG-Intentional-Fixes-MTK-v*.zip"
         }
       ]
+    }
+  ],
+  "ownershipPolicies": [
+    {
+      "packageId": "x-plane-zibo-vnav-descent-tables",
+      "displayName": "VNAV descent tables",
+      "repositoryUrl": "https://github.com/wahltho/X-Plane-ZIBO-Descent-Tables",
+      "supportedProducts": [
+        "zibo-737ng"
+      ],
+      "moduleIds": [
+        "vnav"
+      ],
+      "targetPaths": [
+        "plugins/xlua/scripts/B738.a_fms/Add_dofile.txt",
+        "plugins/xlua/scripts/B738.a_fms/Add_to_take_alt_dist.txt",
+        "plugins/xlua/scripts/B738.a_fms/Add_to_take_alt_dist_mach.txt",
+        "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+        "plugins/xlua/scripts/B738.a_fms/B738.a_fms_zibo_tables.lua"
+      ],
+      "standaloneEvidencePaths": [],
+      "payloadPaths": [
+        "plugins/xlua/scripts/B738.a_fms/Add_dofile.txt",
+        "plugins/xlua/scripts/B738.a_fms/Add_to_take_alt_dist.txt",
+        "plugins/xlua/scripts/B738.a_fms/Add_to_take_alt_dist_mach.txt",
+        "plugins/xlua/scripts/B738.a_fms/B738.a_fms_zibo_tables.lua"
+      ],
+      "markerNamespaces": [
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "namespace": "ZIBO_VNAV_DESCENT_TABLES",
+          "blocks": [
+            {
+              "beginMarker": "-- BEGIN ZIBO_VNAV_DESCENT_TABLES DOFILE",
+              "endMarker": "-- END ZIBO_VNAV_DESCENT_TABLES DOFILE"
+            },
+            {
+              "beginMarker": "-- BEGIN ZIBO_VNAV_DESCENT_TABLES KIAS",
+              "endMarker": "-- END ZIBO_VNAV_DESCENT_TABLES KIAS"
+            },
+            {
+              "beginMarker": "-- BEGIN ZIBO_VNAV_DESCENT_TABLES MACH",
+              "endMarker": "-- END ZIBO_VNAV_DESCENT_TABLES MACH"
+            }
+          ],
+          "allowedCommentLines": []
+        }
+      ],
+      "signatures": [
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "text": "dofile(\"B738.a_fms_zibo_tables.lua\")"
+        }
+      ],
+      "resultFiles": [],
+      "originalFiles": [],
+      "recoveryInstruction": "Before switching to MTK, use the restore or uninstall procedure documented by this patch, preserving other patches. Then rescan. Instructions: https://github.com/wahltho/X-Plane-ZIBO-Descent-Tables#readme."
+    },
+    {
+      "packageId": "x-plane-levelup-737ng-vnav-descent-tables",
+      "displayName": "VNAV descent tables",
+      "repositoryUrl": "https://github.com/JT8D-17/X-Plane-LevelUp-737NG-Descent-Tables",
+      "supportedProducts": [
+        "levelup-737ng"
+      ],
+      "moduleIds": [
+        "vnav"
+      ],
+      "targetPaths": [
+        "plugins/xlua/scripts/B738.a_fms/Add_dofile.txt",
+        "plugins/xlua/scripts/B738.a_fms/Add_to_take_alt_dist.txt",
+        "plugins/xlua/scripts/B738.a_fms/Add_to_take_alt_dist_mach.txt",
+        "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+        "plugins/xlua/scripts/B738.a_fms/B738.a_fms_levelup_tables.lua"
+      ],
+      "standaloneEvidencePaths": [],
+      "payloadPaths": [
+        "plugins/xlua/scripts/B738.a_fms/Add_dofile.txt",
+        "plugins/xlua/scripts/B738.a_fms/Add_to_take_alt_dist.txt",
+        "plugins/xlua/scripts/B738.a_fms/Add_to_take_alt_dist_mach.txt",
+        "plugins/xlua/scripts/B738.a_fms/B738.a_fms_levelup_tables.lua"
+      ],
+      "markerNamespaces": [
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "namespace": "LEVELUP_VNAV_DESCENT_TABLES",
+          "blocks": [
+            {
+              "beginMarker": "-- BEGIN LEVELUP_VNAV_DESCENT_TABLES DOFILE",
+              "endMarker": "-- END LEVELUP_VNAV_DESCENT_TABLES DOFILE"
+            },
+            {
+              "beginMarker": "-- BEGIN LEVELUP_VNAV_DESCENT_TABLES KIAS",
+              "endMarker": "-- END LEVELUP_VNAV_DESCENT_TABLES KIAS"
+            },
+            {
+              "beginMarker": "-- BEGIN LEVELUP_VNAV_DESCENT_TABLES MACH",
+              "endMarker": "-- END LEVELUP_VNAV_DESCENT_TABLES MACH"
+            }
+          ],
+          "allowedCommentLines": []
+        }
+      ],
+      "signatures": [
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "text": "dofile(\"B738.a_fms_levelup_tables.lua\")"
+        }
+      ],
+      "resultFiles": [],
+      "originalFiles": [],
+      "recoveryInstruction": "Before switching to MTK, use the restore or uninstall procedure documented by this patch, preserving other patches. Then rescan. Instructions: https://github.com/JT8D-17/X-Plane-LevelUp-737NG-Descent-Tables#readme."
+    },
+    {
+      "packageId": "wahltho.levelup-737ng.fans-cdu-3d",
+      "displayName": "LevelUp FANS CDU",
+      "repositoryUrl": "https://github.com/wahltho/X-Plane-LevelUp-737NG-FANS-CDU",
+      "supportedProducts": [
+        "levelup-737ng"
+      ],
+      "moduleIds": [
+        "fans-cdu"
+      ],
+      "targetPaths": [
+        "objects/737_cockpit_ovhd2.obj",
+        "objects/737cockpit_overhead2.dds",
+        "objects/737cockpit_overhead2_LIT.dds",
+        "objects/737cockpit_overhead2_NML.png",
+        "plugins/xlua/scripts/B738.tablet/B738.tablet.lua"
+      ],
+      "standaloneEvidencePaths": [
+        ".levelup-fans-cdu-patch/state.json"
+      ],
+      "payloadPaths": [],
+      "markerNamespaces": [
+        {
+          "relativePath": "plugins/xlua/scripts/B738.tablet/B738.tablet.lua",
+          "namespace": "LEVELUP_FANS_CDU",
+          "blocks": [
+            {
+              "beginMarker": "-- BEGIN LEVELUP_FANS_CDU_CPDLC_SELECTION",
+              "endMarker": "-- END LEVELUP_FANS_CDU_CPDLC_SELECTION"
+            },
+            {
+              "beginMarker": "-- BEGIN LEVELUP_FANS_CDU_SELECTOR",
+              "endMarker": "-- END LEVELUP_FANS_CDU_SELECTOR"
+            },
+            {
+              "beginMarker": "-- BEGIN LEVELUP_FANS_CDU_TYPE_SWITCH",
+              "endMarker": "-- END LEVELUP_FANS_CDU_TYPE_SWITCH"
+            }
+          ],
+          "allowedCommentLines": []
+        }
+      ],
+      "signatures": [
+        {
+          "relativePath": "objects/737_cockpit_ovhd2.obj",
+          "text": "ANIM_begin\nANIM_show 0.000000 0.500000 laminar/B738/fmc_type\nANIM_hide 0.500000 1.000000 laminar/B738/fmc_type\nTRIS 53109 192"
+        }
+      ],
+      "resultFiles": [],
+      "originalFiles": [
+        {
+          "relativePath": "objects/737_cockpit_ovhd2.obj",
+          "sha256": [
+            "6c57049286f4b83e8dcf144a8f03becea197aad0be96be66e2df99efab97dce3",
+            "a0b8681870c099fe4b770e22ecd659434cbcb3af71479e3f9d459d8810012d3d",
+            "d702eb4898871cbb079045915ede7579d3cc6b64710c66b828dbf354c515e5f7"
+          ]
+        },
+        {
+          "relativePath": "objects/737cockpit_overhead2.dds",
+          "sha256": [
+            "878e1b0976d9ba6d7aed746db25147c91232a7460b36dd9d730892c40de65979"
+          ]
+        },
+        {
+          "relativePath": "objects/737cockpit_overhead2_LIT.dds",
+          "sha256": [
+            "c4b9af91199649e50a2a5a9241021f1894f3dfa5a767ba8f6550e80a37b3e3ff"
+          ]
+        },
+        {
+          "relativePath": "objects/737cockpit_overhead2_NML.png",
+          "sha256": [
+            "00617d182c630439dcdb634afaa40bf60fc7873dfcacaa6aaeaf37b42ff49aad"
+          ]
+        }
+      ],
+      "recoveryInstruction": "Before switching to MTK, use the restore or uninstall procedure documented by this patch, preserving other patches. Then rescan. Instructions: https://github.com/wahltho/X-Plane-LevelUp-737NG-FANS-CDU#readme."
+    },
+    {
+      "packageId": "x-plane-zibo-40535-tablet-performance-calculator",
+      "displayName": "Tablet Performance Calculator",
+      "repositoryUrl": "https://github.com/wahltho/X-Plane-Zibo-LevelUp-737NG-Tablet-Performance-Calculator",
+      "supportedProducts": [
+        "zibo-737ng",
+        "levelup-737ng"
+      ],
+      "moduleIds": [
+        "tablet-performance-calculator"
+      ],
+      "targetPaths": [
+        "plugins/xlua/scripts/B738.tablet/B738.tablet.lua",
+        "plugins/xlua/scripts/B738.tablet/B738.tablet_perf_*",
+        "plugins/xlua/scripts/B738.tablet/B738.tablet_perf_adapter.lua",
+        "plugins/xlua/scripts/B738.tablet/B738.tablet_perf_core.lua",
+        "plugins/xlua/scripts/B738.tablet/B738.tablet_perf_data.lua"
+      ],
+      "standaloneEvidencePaths": [],
+      "payloadPaths": [
+        "plugins/xlua/scripts/B738.tablet/B738.tablet_perf_*",
+        "plugins/xlua/scripts/B738.tablet/B738.tablet_perf_adapter.lua",
+        "plugins/xlua/scripts/B738.tablet/B738.tablet_perf_core.lua",
+        "plugins/xlua/scripts/B738.tablet/B738.tablet_perf_data.lua"
+      ],
+      "markerNamespaces": [
+        {
+          "relativePath": "plugins/xlua/scripts/B738.tablet/B738.tablet.lua",
+          "namespace": "UPSTREAM_TABLET_PERF_CALC",
+          "blocks": [
+            {
+              "beginMarker": "-- BEGIN UPSTREAM_TABLET_PERF_CALC DOFILE",
+              "endMarker": "-- END UPSTREAM_TABLET_PERF_CALC DOFILE"
+            },
+            {
+              "beginMarker": "-- BEGIN UPSTREAM_TABLET_PERF_CALC HOOKS",
+              "endMarker": "-- END UPSTREAM_TABLET_PERF_CALC HOOKS"
+            }
+          ],
+          "allowedCommentLines": []
+        }
+      ],
+      "signatures": [],
+      "resultFiles": [],
+      "originalFiles": [],
+      "recoveryInstruction": "Before switching to MTK, use the restore or uninstall procedure documented by this patch, preserving other patches. Then rescan. Instructions: https://github.com/wahltho/X-Plane-Zibo-LevelUp-737NG-Tablet-Performance-Calculator#readme."
+    },
+    {
+      "packageId": "wahltho.levelup-737ng.weight-and-balance",
+      "displayName": "Weight & Balance",
+      "repositoryUrl": "https://github.com/wahltho/X-Plane-LevelUp-737NG-Weight-Balance",
+      "supportedProducts": [
+        "levelup-737ng"
+      ],
+      "moduleIds": [
+        "weight-and-balance"
+      ],
+      "targetPaths": [
+        "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+        "plugins/xlua/scripts/B738.tablet/B738.tablet.lua",
+        "plugins/xlua/scripts/B738.tablet/B738.tablet_levelup_700_wb_*",
+        "plugins/xlua/scripts/B738.tablet/B738.tablet_levelup_ng_wb_*",
+        "plugins/xlua/scripts/B738.tablet/B738.tablet_levelup_ng_wb_adapter.lua",
+        "plugins/xlua/scripts/B738.tablet/B738.tablet_levelup_ng_wb_core.lua",
+        "plugins/xlua/scripts/B738.tablet/B738.tablet_levelup_ng_wb_data.lua"
+      ],
+      "standaloneEvidencePaths": [],
+      "payloadPaths": [
+        "plugins/xlua/scripts/B738.tablet/B738.tablet_levelup_700_wb_*",
+        "plugins/xlua/scripts/B738.tablet/B738.tablet_levelup_ng_wb_*",
+        "plugins/xlua/scripts/B738.tablet/B738.tablet_levelup_ng_wb_adapter.lua",
+        "plugins/xlua/scripts/B738.tablet/B738.tablet_levelup_ng_wb_core.lua",
+        "plugins/xlua/scripts/B738.tablet/B738.tablet_levelup_ng_wb_data.lua"
+      ],
+      "markerNamespaces": [
+        {
+          "relativePath": "plugins/xlua/scripts/B738.tablet/B738.tablet.lua",
+          "namespace": "LEVELUP_NG_WB",
+          "blocks": [
+            {
+              "beginMarker": "-- BEGIN LEVELUP_NG_WB DOFILE",
+              "endMarker": "-- END LEVELUP_NG_WB DOFILE"
+            },
+            {
+              "beginMarker": "-- BEGIN LEVELUP_NG_WB EXTERNAL_PAYLOAD_GATE",
+              "endMarker": "-- END LEVELUP_NG_WB EXTERNAL_PAYLOAD_GATE"
+            },
+            {
+              "beginMarker": "-- BEGIN LEVELUP_NG_WB INSTALL",
+              "endMarker": "-- END LEVELUP_NG_WB INSTALL"
+            },
+            {
+              "beginMarker": "-- BEGIN LEVELUP_NG_WB INTERNAL_PAYLOAD_GATE",
+              "endMarker": "-- END LEVELUP_NG_WB INTERNAL_PAYLOAD_GATE"
+            },
+            {
+              "beginMarker": "-- BEGIN LEVELUP_NG_WB TOTAL_PAYLOAD_SCALAR_GATE",
+              "endMarker": "-- END LEVELUP_NG_WB TOTAL_PAYLOAD_SCALAR_GATE"
+            }
+          ],
+          "allowedCommentLines": []
+        },
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "namespace": "LEVELUP_NG_WB",
+          "blocks": [
+            {
+              "beginMarker": "-- BEGIN LEVELUP_NG_WB FMS_ACF_RESET",
+              "endMarker": "-- END LEVELUP_NG_WB FMS_ACF_RESET"
+            },
+            {
+              "beginMarker": "-- BEGIN LEVELUP_NG_WB FMS_EMPTY_WEIGHT",
+              "endMarker": "-- END LEVELUP_NG_WB FMS_EMPTY_WEIGHT"
+            },
+            {
+              "beginMarker": "-- BEGIN LEVELUP_NG_WB FMS_ZFW_OWNER",
+              "endMarker": "-- END LEVELUP_NG_WB FMS_ZFW_OWNER"
+            }
+          ],
+          "allowedCommentLines": []
+        }
+      ],
+      "signatures": [],
+      "resultFiles": [],
+      "originalFiles": [],
+      "recoveryInstruction": "Before switching to MTK, use the restore or uninstall procedure documented by this patch, preserving other patches. Then rescan. Instructions: https://github.com/wahltho/X-Plane-LevelUp-737NG-Weight-Balance#readme."
+    },
+    {
+      "packageId": "wahltho.zibo-40535.auto-jetway",
+      "displayName": "AUTO JETWAY",
+      "repositoryUrl": "https://github.com/wahltho/X-Plane-Zibo-Auto-Jetway",
+      "supportedProducts": [
+        "zibo-737ng",
+        "levelup-737ng"
+      ],
+      "moduleIds": [
+        "auto-jetway"
+      ],
+      "targetPaths": [
+        "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+        "plugins/xlua/scripts/B738.tablet/B738.tablet.lua"
+      ],
+      "standaloneEvidencePaths": [
+        ".zibo-auto-jetway-patch/state.json"
+      ],
+      "payloadPaths": [],
+      "markerNamespaces": [],
+      "signatures": [
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "text": "laminar/B738/tab/auto_jetway"
+        },
+        {
+          "relativePath": "plugins/xlua/scripts/B738.tablet/B738.tablet.lua",
+          "text": "laminar/B738/tab/auto_jetway"
+        }
+      ],
+      "resultFiles": [],
+      "originalFiles": [],
+      "recoveryInstruction": "Before switching to MTK, use the restore or uninstall procedure documented by this patch, preserving other patches. Then rescan. Instructions: https://github.com/wahltho/X-Plane-Zibo-Auto-Jetway#readme."
+    },
+    {
+      "packageId": "wahltho.zibo-40535.cpdlc",
+      "displayName": "CPDLC FANS PAGES",
+      "repositoryUrl": "https://github.com/wahltho/X-Plane-Zibo-LevelUp-737NG-CPDLC",
+      "supportedProducts": [
+        "zibo-737ng",
+        "levelup-737ng"
+      ],
+      "moduleIds": [
+        "cpdlc"
+      ],
+      "targetPaths": [
+        "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua"
+      ],
+      "standaloneEvidencePaths": [
+        ".zibo-cpdlc-patch/state.json"
+      ],
+      "payloadPaths": [],
+      "markerNamespaces": [
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "namespace": "CPDLC PATCH",
+          "blocks": [
+            {
+              "beginMarker": "-- BEGIN CPDLC PATCH AOC FREE TEXT MODULE",
+              "endMarker": "-- END CPDLC PATCH AOC FREE TEXT MODULE"
+            },
+            {
+              "beginMarker": "-- BEGIN CPDLC PATCH HOOK 1L",
+              "endMarker": "-- END CPDLC PATCH HOOK 1L"
+            },
+            {
+              "beginMarker": "-- BEGIN CPDLC PATCH HOOK 1R",
+              "endMarker": "-- END CPDLC PATCH HOOK 1R"
+            },
+            {
+              "beginMarker": "-- BEGIN CPDLC PATCH HOOK 2L",
+              "endMarker": "-- END CPDLC PATCH HOOK 2L"
+            },
+            {
+              "beginMarker": "-- BEGIN CPDLC PATCH HOOK 2R",
+              "endMarker": "-- END CPDLC PATCH HOOK 2R"
+            },
+            {
+              "beginMarker": "-- BEGIN CPDLC PATCH HOOK 3L",
+              "endMarker": "-- END CPDLC PATCH HOOK 3L"
+            },
+            {
+              "beginMarker": "-- BEGIN CPDLC PATCH HOOK 3R",
+              "endMarker": "-- END CPDLC PATCH HOOK 3R"
+            },
+            {
+              "beginMarker": "-- BEGIN CPDLC PATCH HOOK 4L",
+              "endMarker": "-- END CPDLC PATCH HOOK 4L"
+            },
+            {
+              "beginMarker": "-- BEGIN CPDLC PATCH HOOK 4R",
+              "endMarker": "-- END CPDLC PATCH HOOK 4R"
+            },
+            {
+              "beginMarker": "-- BEGIN CPDLC PATCH HOOK 5L",
+              "endMarker": "-- END CPDLC PATCH HOOK 5L"
+            },
+            {
+              "beginMarker": "-- BEGIN CPDLC PATCH HOOK 5R",
+              "endMarker": "-- END CPDLC PATCH HOOK 5R"
+            },
+            {
+              "beginMarker": "-- BEGIN CPDLC PATCH HOOK 6L",
+              "endMarker": "-- END CPDLC PATCH HOOK 6L"
+            },
+            {
+              "beginMarker": "-- BEGIN CPDLC PATCH HOOK 6R",
+              "endMarker": "-- END CPDLC PATCH HOOK 6R"
+            },
+            {
+              "beginMarker": "-- BEGIN CPDLC PATCH HOOK DLNK",
+              "endMarker": "-- END CPDLC PATCH HOOK DLNK"
+            },
+            {
+              "beginMarker": "-- BEGIN CPDLC PATCH MODULE",
+              "endMarker": "-- END CPDLC PATCH MODULE"
+            }
+          ],
+          "allowedCommentLines": [
+            "-- CPDLC PATCH",
+            "-- CPDLC PATCH: FANS has no automatic abort of an unanswered uplink;",
+            "-- CPDLC PATCH: STANDBY is an intermediate status until the final response",
+            "-- CPDLC PATCH: STANDBY stays available until it has been sent (status 3)",
+            "-- CPDLC PATCH: reach the ATC pages without an ATC key",
+            "-- CPDLC PATCH: the fix follows DIRECT TO",
+            "-- CPDLC PATCH: unknown or empty response attribute = no response required"
+          ]
+        }
+      ],
+      "signatures": [],
+      "resultFiles": [],
+      "originalFiles": [],
+      "recoveryInstruction": "Before switching to MTK, use the restore or uninstall procedure documented by this patch, preserving other patches. Then rescan. Instructions: https://github.com/wahltho/X-Plane-Zibo-LevelUp-737NG-CPDLC#readme."
+    },
+    {
+      "packageId": "wahltho.levelup-737ng.vref",
+      "displayName": "VREF tables (Beta)",
+      "repositoryUrl": "https://github.com/wahltho/X-Plane-LevelUp-737NG-VREF",
+      "supportedProducts": [
+        "zibo-737ng",
+        "levelup-737ng"
+      ],
+      "moduleIds": [
+        "vref"
+      ],
+      "targetPaths": [
+        "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+        "plugins/xlua/scripts/B738.a_fms/B738.levelup_vref*",
+        "plugins/xlua/scripts/B738.a_fms/B738.levelup_vref.lua",
+        "plugins/xlua/scripts/B738.calc/B738.calc.lua",
+        "plugins/xlua/scripts/B738.calc/B738.levelup_vref*",
+        "plugins/xlua/scripts/B738.calc/B738.levelup_vref.lua"
+      ],
+      "standaloneEvidencePaths": [],
+      "payloadPaths": [
+        "plugins/xlua/scripts/B738.a_fms/B738.levelup_vref*",
+        "plugins/xlua/scripts/B738.a_fms/B738.levelup_vref.lua",
+        "plugins/xlua/scripts/B738.calc/B738.levelup_vref*",
+        "plugins/xlua/scripts/B738.calc/B738.levelup_vref.lua"
+      ],
+      "markerNamespaces": [
+        {
+          "relativePath": "plugins/xlua/scripts/B738.calc/B738.calc.lua",
+          "namespace": "LEVELUP_VREF",
+          "blocks": [
+            {
+              "beginMarker": "-- BEGIN LEVELUP_VREF CALC_LOAD",
+              "endMarker": "-- END LEVELUP_VREF CALC_LOAD"
+            },
+            {
+              "beginMarker": "-- BEGIN LEVELUP_VREF CALC_LOOKUP",
+              "endMarker": "-- END LEVELUP_VREF CALC_LOOKUP"
+            },
+            {
+              "beginMarker": "-- BEGIN LEVELUP_VREF CALC_WEIGHT",
+              "endMarker": "-- END LEVELUP_VREF CALC_WEIGHT"
+            }
+          ],
+          "allowedCommentLines": []
+        },
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "namespace": "LEVELUP_VREF",
+          "blocks": [
+            {
+              "beginMarker": "-- BEGIN LEVELUP_VREF FMS_LANDING15",
+              "endMarker": "-- END LEVELUP_VREF FMS_LANDING15"
+            },
+            {
+              "beginMarker": "-- BEGIN LEVELUP_VREF FMS_LOAD",
+              "endMarker": "-- END LEVELUP_VREF FMS_LOAD"
+            }
+          ],
+          "allowedCommentLines": []
+        }
+      ],
+      "signatures": [],
+      "resultFiles": [],
+      "originalFiles": [],
+      "recoveryInstruction": "Before switching to MTK, use the restore or uninstall procedure documented by this patch, preserving other patches. Then rescan. Instructions: https://github.com/wahltho/X-Plane-LevelUp-737NG-VREF#readme."
+    },
+    {
+      "packageId": "wahltho.zibo-40535.intentional-fixes",
+      "displayName": "Intentional Fixes",
+      "repositoryUrl": "https://github.com/wahltho/X-Plane-Zibo-LevelUp-737NG-Intentional-Fixes",
+      "supportedProducts": [
+        "zibo-737ng",
+        "levelup-737ng"
+      ],
+      "moduleIds": [
+        "intentional-fixes-zibo",
+        "intentional-fixes-levelup"
+      ],
+      "targetPaths": [
+        "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua"
+      ],
+      "standaloneEvidencePaths": [
+        ".zibo-intentional-fixes-clean35/state.json"
+      ],
+      "payloadPaths": [],
+      "markerNamespaces": [
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "namespace": "INTENTIONAL FIX",
+          "blocks": [],
+          "allowedCommentLines": [
+            "-- FIX: INTENTIONAL FIX I05 - Ref-ICAO parsing must use the selected Ref-ICAO APP row.",
+            "-- FIX: INTENTIONAL FIX I06 - PREDEP concatenation must have a route ICAO context.",
+            "-- FIX: INTENTIONAL FIX I06 - answer the current uplink origin if the logon target was cleared.",
+            "-- FIX: INTENTIONAL FIX I07 - PAUSE AT T/D requires an active cruise/T/D context.",
+            "-- FIX: INTENTIONAL FIX I24 - manual N1 retires on an engaged-AP semantic vertical-mode change.",
+            "-- FIX: INTENTIONAL FIX I24 - no FMC N1 reference exists without entered OAT on a non-aspirated aircraft on ground.",
+            "-- FIX: INTENTIONAL FIX I24 - phase and VNAV-arm changes are not manual N1 retirement events.",
+            "-- FIX: INTENTIONAL FIX I24 - the original binary already publishes the normalized PFD vertical mode.",
+            "-- FIX: INTENTIONAL FIX I27 - observed same-arrival landing-flap retraction owns manual FMC go-around inference.",
+            "-- FIX: INTENTIONAL FIX I27 - static flap, thrust and AP state do not prove a go-around.",
+            "-- FIX: INTENTIONAL FIX I33 - a known LevelUp with an invalid contract must never fall back to legacy crew arithmetic.",
+            "-- FIX: INTENTIONAL FIX I33 - do not turn an invalid station contract into a plausible automatic ZFW.",
+            "-- FIX: INTENTIONAL FIX I33 - validate the complete live station contract before publishing automatic FMC ZFW.",
+            "-- FIX: INTENTIONAL FIX I34 - do not command an excessive clean-descent rejoin when speed is not high.",
+            "-- FIX: INTENTIONAL FIX I35 - T/D presence does not revoke go-around ownership.",
+            "-- FIX: INTENTIONAL FIX I35 - a missing T/D is unknown path state, not proof of descent.",
+            "-- FIX: INTENTIONAL FIX I35 - an elapsed T/D does not own phase zero or go-around.",
+            "-- FIX: INTENTIONAL FIX I35 - an upward V/S or LVL CHG target is not descent evidence.",
+            "-- FIX: INTENTIONAL FIX I35 - phase zero is not a valid descent owner."
+          ]
+        }
+      ],
+      "signatures": [
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "text": "-- FIX: GLS service-level display mapping (GLS/LPV/LP)"
+        },
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "text": "-- FIX: GLS service-level parse (Type 14 LP/LPV/GLS)"
+        },
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "text": "-- FIX: GLS approach id (gls_app_id) from words[8] for LPV/GLS best-match"
+        },
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "text": "-- FIX: GLS course/GS parse (earth_nav format variants)"
+        },
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "text": "-- FIX: GLS best-match selection (runway + course diff)"
+        },
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "text": "-- FIX: LP service level is lateral-only; keep MMR vertical deviation off-scale to prevent false LPV/GS behavior"
+        },
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "text": "-- FIX: track if CIFP provided a true-course value (suffix T)"
+        },
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "text": "-- FIX: parse course fields that may include TRUE suffix or 1/10 deg units"
+        },
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "text": "-- FIX: parse TRUE suffix and 1/10 deg units"
+        },
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "text": "-- FIX: only scale if CIFP provided 1/10 deg units"
+        },
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "text": "-- FIX: keep published true course for reference"
+        },
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "text": "-- FIX: convert true to magnetic"
+        },
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "text": "-- FIX: persist magnetic course"
+        },
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "text": "-- FIX: avoid indexing before first leg"
+        },
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "text": "-- FIX: skip stale/deleted duplicate preview legs before decoding CI/VI intercept geometry"
+        },
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "text": "-- FIX: parse TRUE suffix"
+        },
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "text": "-- FIX: convert true to magnetic for VOR declination logic"
+        },
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "text": "-- FIX: only scale if stored in 1/10 units"
+        },
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "text": "-- FIX: drive the leg with magnetic bearing so ND/FMC match the flown path"
+        },
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "text": "-- FIX: store magnetic course for downstream consumers"
+        },
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "text": "-- FIX: convert published true course to magnetic for ND/FMC"
+        },
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "text": "-- FIX: persist magnetic bearing so subsequent logic uses same reference"
+        },
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "text": "-- FIX: if CIFP holds omit length (common for PROC HOLD), default to 5 NM only when distance is empty/zero"
+        },
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "text": "-- FIX: explicit dual-zero check so ARINC \"at\" altitude restrictions are recognised"
+        },
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "text": "-- FIX: avoid forcing 0 NM holds when no distance/time is published"
+        },
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "text": "-- FIX: only scale if entry was in 1/10 deg"
+        },
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "text": "-- FIX: store entered MAG course directly (no extra magvar to avoid double conversion)"
+        },
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "text": "-- FIX: local magvar for true display"
+        },
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "text": "-- FIX: detect true-tagged course"
+        },
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "text": "-- FIX: stored as 1/10 deg; always scale down for display"
+        },
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "text": "-- FIX: show published TRUE course when flagged or at high magvar"
+        },
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "text": "-- FIX: mark TRUE course display"
+        },
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "text": "-- FIX: ARRIVALS page display normalization for approach IDs."
+        },
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "text": "-- FIX: preserve published IF legs during APP merge/cleanup so PI/common-final joins"
+        },
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "text": "-- FIX: APP REF ILS/LDA lookup hardening."
+        },
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "text": "-- FIX: preserve manual/procedure hold identity when stock route mutations temporarily"
+        },
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "text": "-- FIX: arm an active manual hold intercept without rewriting the new HA/HF/HM row to DF."
+        },
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "text": "-- FIX: activating a modified route in flight must not strip manual/procedure"
+        },
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "text": "-- FIX: preserve manual HOLD AT leg semantics on the active route."
+        },
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "text": "-- FIX: later LEGS pages need the same manual HOLD AT intercept arming as page 1."
+        },
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "text": "-- FIX: active-route offset sync must not splice over a hold-context leg. Preserve"
+        },
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "text": "-- FIX: bound climb-restriction scans to climb/neutral route roles and fail closed"
+        },
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "text": "-- FIX: ALT INTV releases exactly the next committed altitude constraint that"
+        }
+      ],
+      "resultFiles": [],
+      "originalFiles": [],
+      "recoveryInstruction": "Before switching to MTK, use the restore or uninstall procedure documented by this patch, preserving other patches. Then rescan. Instructions: https://github.com/wahltho/X-Plane-Zibo-LevelUp-737NG-Intentional-Fixes#readme."
+    },
+    {
+      "packageId": "wahltho.zibo-levelup-737ng.27k-sfp",
+      "displayName": "737-800WSFP2 27K / SFP",
+      "repositoryUrl": "https://github.com/wahltho/X-Plane-Zibo-LevelUp-737NG-27K-SFP",
+      "supportedProducts": [
+        "zibo-737ng",
+        "levelup-737ng"
+      ],
+      "moduleIds": [
+        "27k-sfp"
+      ],
+      "targetPaths": [
+        "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+        "plugins/xlua/scripts/B738.a_fms/B738.sfp27_*",
+        "plugins/xlua/scripts/B738.a_fms/B738.sfp27_core.lua",
+        "plugins/xlua/scripts/B738.a_fms/B738.sfp27_data.lua",
+        "plugins/xlua/scripts/B738.a_fms/B738.sfp27_fms.lua",
+        "plugins/xlua/scripts/B738.calc/B738.calc.lua",
+        "plugins/xlua/scripts/B738.calc/B738.sfp27_*",
+        "plugins/xlua/scripts/B738.calc/B738.sfp27_calc.lua",
+        "plugins/xlua/scripts/B738.calc/B738.sfp27_core.lua",
+        "plugins/xlua/scripts/B738.calc/B738.sfp27_data.lua",
+        "plugins/xlua/scripts/B738.tablet/B738.sfp27_*",
+        "plugins/xlua/scripts/B738.tablet/B738.sfp27_tablet.lua",
+        "plugins/xlua/scripts/B738.tablet/B738.tablet.lua"
+      ],
+      "standaloneEvidencePaths": [
+        ".sfp27-standalone/receipt.json"
+      ],
+      "payloadPaths": [
+        "plugins/xlua/scripts/B738.a_fms/B738.sfp27_*",
+        "plugins/xlua/scripts/B738.a_fms/B738.sfp27_core.lua",
+        "plugins/xlua/scripts/B738.a_fms/B738.sfp27_data.lua",
+        "plugins/xlua/scripts/B738.a_fms/B738.sfp27_fms.lua",
+        "plugins/xlua/scripts/B738.calc/B738.sfp27_*",
+        "plugins/xlua/scripts/B738.calc/B738.sfp27_calc.lua",
+        "plugins/xlua/scripts/B738.calc/B738.sfp27_core.lua",
+        "plugins/xlua/scripts/B738.calc/B738.sfp27_data.lua",
+        "plugins/xlua/scripts/B738.tablet/B738.sfp27_*",
+        "plugins/xlua/scripts/B738.tablet/B738.sfp27_tablet.lua"
+      ],
+      "markerNamespaces": [
+        {
+          "relativePath": "plugins/xlua/scripts/B738.a_fms/B738.a_fms.lua",
+          "namespace": "SFP27",
+          "blocks": [
+            {
+              "beginMarker": "-- BEGIN SFP27 FMS_AUTO_V1_CDU1",
+              "endMarker": "-- END SFP27 FMS_AUTO_V1_CDU1"
+            },
+            {
+              "beginMarker": "-- BEGIN SFP27 FMS_AUTO_V1_CDU2",
+              "endMarker": "-- END SFP27 FMS_AUTO_V1_CDU2"
+            },
+            {
+              "beginMarker": "-- BEGIN SFP27 FMS_AUTO_V2_CDU1",
+              "endMarker": "-- END SFP27 FMS_AUTO_V2_CDU1"
+            },
+            {
+              "beginMarker": "-- BEGIN SFP27 FMS_AUTO_V2_CDU2",
+              "endMarker": "-- END SFP27 FMS_AUTO_V2_CDU2"
+            },
+            {
+              "beginMarker": "-- BEGIN SFP27 FMS_AUTO_VR_CDU1",
+              "endMarker": "-- END SFP27 FMS_AUTO_VR_CDU1"
+            },
+            {
+              "beginMarker": "-- BEGIN SFP27 FMS_AUTO_VR_CDU2",
+              "endMarker": "-- END SFP27 FMS_AUTO_VR_CDU2"
+            },
+            {
+              "beginMarker": "-- BEGIN SFP27 FMS_CALC_SYNC",
+              "endMarker": "-- END SFP27 FMS_CALC_SYNC"
+            },
+            {
+              "beginMarker": "-- BEGIN SFP27 FMS_CONFIG_LABELS",
+              "endMarker": "-- END SFP27 FMS_CONFIG_LABELS"
+            },
+            {
+              "beginMarker": "-- BEGIN SFP27 FMS_DEFAULT_LABELS",
+              "endMarker": "-- END SFP27 FMS_DEFAULT_LABELS"
+            },
+            {
+              "beginMarker": "-- BEGIN SFP27 FMS_FLIGHT_RESET",
+              "endMarker": "-- END SFP27 FMS_FLIGHT_RESET"
+            },
+            {
+              "beginMarker": "-- BEGIN SFP27 FMS_LOAD",
+              "endMarker": "-- END SFP27 FMS_LOAD"
+            },
+            {
+              "beginMarker": "-- BEGIN SFP27 FMS_MANUAL_V1_CDU1",
+              "endMarker": "-- END SFP27 FMS_MANUAL_V1_CDU1"
+            },
+            {
+              "beginMarker": "-- BEGIN SFP27 FMS_MANUAL_V1_CDU2",
+              "endMarker": "-- END SFP27 FMS_MANUAL_V1_CDU2"
+            },
+            {
+              "beginMarker": "-- BEGIN SFP27 FMS_MANUAL_V2_CDU1",
+              "endMarker": "-- END SFP27 FMS_MANUAL_V2_CDU1"
+            },
+            {
+              "beginMarker": "-- BEGIN SFP27 FMS_MANUAL_V2_CDU2",
+              "endMarker": "-- END SFP27 FMS_MANUAL_V2_CDU2"
+            },
+            {
+              "beginMarker": "-- BEGIN SFP27 FMS_MANUAL_VR_CDU1",
+              "endMarker": "-- END SFP27 FMS_MANUAL_VR_CDU1"
+            },
+            {
+              "beginMarker": "-- BEGIN SFP27 FMS_MANUAL_VR_CDU2",
+              "endMarker": "-- END SFP27 FMS_MANUAL_VR_CDU2"
+            },
+            {
+              "beginMarker": "-- BEGIN SFP27 FMS_N1_PAGE",
+              "endMarker": "-- END SFP27 FMS_N1_PAGE"
+            },
+            {
+              "beginMarker": "-- BEGIN SFP27 FMS_N1_SYNC",
+              "endMarker": "-- END SFP27 FMS_N1_SYNC"
+            },
+            {
+              "beginMarker": "-- BEGIN SFP27 FMS_SFP_LABELS",
+              "endMarker": "-- END SFP27 FMS_SFP_LABELS"
+            },
+            {
+              "beginMarker": "-- BEGIN SFP27 FMS_TAKEOFF_PAGE",
+              "endMarker": "-- END SFP27 FMS_TAKEOFF_PAGE"
+            },
+            {
+              "beginMarker": "-- BEGIN SFP27 FMS_UPLINK_SPEEDS",
+              "endMarker": "-- END SFP27 FMS_UPLINK_SPEEDS"
+            },
+            {
+              "beginMarker": "-- BEGIN SFP27 UPSTREAM_RELEASE",
+              "endMarker": "-- END SFP27 UPSTREAM_RELEASE"
+            }
+          ],
+          "allowedCommentLines": []
+        },
+        {
+          "relativePath": "plugins/xlua/scripts/B738.calc/B738.calc.lua",
+          "namespace": "SFP27",
+          "blocks": [
+            {
+              "beginMarker": "-- BEGIN SFP27 CALC_FLIGHT_RESET",
+              "endMarker": "-- END SFP27 CALC_FLIGHT_RESET"
+            },
+            {
+              "beginMarker": "-- BEGIN SFP27 CALC_FULL_TAKEOFF",
+              "endMarker": "-- END SFP27 CALC_FULL_TAKEOFF"
+            },
+            {
+              "beginMarker": "-- BEGIN SFP27 CALC_GA_ALIAS",
+              "endMarker": "-- END SFP27 CALC_GA_ALIAS"
+            },
+            {
+              "beginMarker": "-- BEGIN SFP27 CALC_LOAD",
+              "endMarker": "-- END SFP27 CALC_LOAD"
+            },
+            {
+              "beginMarker": "-- BEGIN SFP27 CALC_N1",
+              "endMarker": "-- END SFP27 CALC_N1"
+            },
+            {
+              "beginMarker": "-- BEGIN SFP27 CALC_SPEEDS",
+              "endMarker": "-- END SFP27 CALC_SPEEDS"
+            },
+            {
+              "beginMarker": "-- BEGIN SFP27 CALC_TRIM",
+              "endMarker": "-- END SFP27 CALC_TRIM"
+            }
+          ],
+          "allowedCommentLines": []
+        },
+        {
+          "relativePath": "plugins/xlua/scripts/B738.tablet/B738.tablet.lua",
+          "namespace": "SFP27",
+          "blocks": [
+            {
+              "beginMarker": "-- BEGIN SFP27 TABLET_GUARD",
+              "endMarker": "-- END SFP27 TABLET_GUARD"
+            },
+            {
+              "beginMarker": "-- BEGIN SFP27 TABLET_LOAD",
+              "endMarker": "-- END SFP27 TABLET_LOAD"
+            }
+          ],
+          "allowedCommentLines": []
+        }
+      ],
+      "signatures": [],
+      "resultFiles": [],
+      "originalFiles": [],
+      "recoveryInstruction": "Before switching to MTK, use the restore or uninstall procedure documented by this patch, preserving other patches. Then rescan. Instructions: https://github.com/wahltho/X-Plane-Zibo-LevelUp-737NG-27K-SFP#readme."
+    },
+    {
+      "packageId": "jt8d17.levelup-737ng.gse",
+      "displayName": "LevelUp GSE",
+      "repositoryUrl": "https://github.com/wahltho/X-Plane-LevelUp-GSE",
+      "supportedProducts": [
+        "levelup-737ng"
+      ],
+      "moduleIds": [
+        "gse"
+      ],
+      "targetPaths": [
+        "objects/GSE/**",
+        "objects/GSE/README_LU_GSE.txt",
+        "objects/LU_GSE_stairs/**",
+        "objects/LU_GSE_stairs/LU_fallback_stairs.png",
+        "objects/LU_GSE_stairs/LU_fallback_stairs_265.obj",
+        "objects/LU_GSE_stairs/LU_fallback_stairs_285.obj",
+        "objects/LU_GSE_stairs/LU_fallback_stairs_305.obj",
+        "plugins/xlua/scripts/LU_737NG.GSE/**",
+        "plugins/xlua/scripts/LU_737NG.GSE/LU_737NG.GSE.lua",
+        "plugins/xlua/scripts/LU_737NG.GSE/geometry.lua",
+        "plugins/xlua/scripts/LU_737NG.GSE/profiles.lua",
+        "plugins/xlua/scripts/LU_737NG.GSE/sdk.lua",
+        "plugins/xlua/scripts/LU_737NG.GSE/sha256.lua"
+      ],
+      "standaloneEvidencePaths": [
+        ".levelup-gse-patch/state.json",
+        "plugins/xlua/scripts/LU_737NG.GSE/.standalone-owner"
+      ],
+      "payloadPaths": [
+        "objects/GSE/README_LU_GSE.txt",
+        "objects/LU_GSE_stairs/LU_fallback_stairs.png",
+        "objects/LU_GSE_stairs/LU_fallback_stairs_265.obj",
+        "objects/LU_GSE_stairs/LU_fallback_stairs_285.obj",
+        "objects/LU_GSE_stairs/LU_fallback_stairs_305.obj",
+        "plugins/xlua/scripts/LU_737NG.GSE/LU_737NG.GSE.lua",
+        "plugins/xlua/scripts/LU_737NG.GSE/geometry.lua",
+        "plugins/xlua/scripts/LU_737NG.GSE/profiles.lua",
+        "plugins/xlua/scripts/LU_737NG.GSE/sdk.lua",
+        "plugins/xlua/scripts/LU_737NG.GSE/sha256.lua"
+      ],
+      "markerNamespaces": [],
+      "signatures": [],
+      "resultFiles": [],
+      "originalFiles": [
+        {
+          "relativePath": "objects/GSE/737misc.dds",
+          "sha256": [
+            "ed72b7f5b6a770b3dacc2191063460b9d722624213bc7160e4c4af6489b2aae0"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/737misc2.dds",
+          "sha256": [
+            "cc587a6cffdb44ff5139bb6a5d3a40c92239aa7a6684be9d4b945177ae6d44e5",
+            "f1e3ad12073a67c553664f910e339d19559f6e55c8b705d2390a3b020e86da91"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/737misc2_LIT.dds",
+          "sha256": [
+            "3d493e2fa4ca1be07a42ac2dbc405f4354a2fe7c9841c4a5a04e0da24fba0a22",
+            "a5b8d63cc9fa5dd8834c2ee138f3c792b686f47e5a944e27997e3ab58e34e2b7"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/737misc2_NML.png",
+          "sha256": [
+            "896166fb0b2cfd4c56b8c01eacdb6a12accf8ab1abe671f9ca91d282cd797511",
+            "ba8c27642ec4532a3f8ee54ba22c633ebac167ce110f09b40b54079026d3f629"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/737misc_LIT.dds",
+          "sha256": [
+            "a5b8d63cc9fa5dd8834c2ee138f3c792b686f47e5a944e27997e3ab58e34e2b7"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/737misc_NML.png",
+          "sha256": [
+            "2b9ec45b73f54a6335da7e0bd35860504194a1d38be0a3ab69f52ce7edf06394"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/ASU.dds",
+          "sha256": [
+            "f606d72170e2e625da1ba7cd1d755e5d249f067b96a840dd76a8088cb0c6898e"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/ASU_NML.png",
+          "sha256": [
+            "9dcba94e68af04bbf450ff0a3d4801731848b287a8e1261850c926c6906bed70"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/Ecobus.dds",
+          "sha256": [
+            "c354e34a0143cf4fec520eb8cd7c00c0c6baf10b0dbc7fa5a53d10ee16f37068"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/Ecobus_NML.png",
+          "sha256": [
+            "93f987dc07ba84f6c4d9116d36d5877cc13effde3ce438c4dadf27acfea9dc3e"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/LU_asu.obj",
+          "sha256": [
+            "2706573053cedccbb554cdd23285b46fc3b19e0087bc2ac288806009d3d21ab1"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/LU_cones.obj",
+          "sha256": [
+            "ede6282d89f3f35502ef366228490cd72a3b03847484a377b657234231c903ac"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/LU_gpu.obj",
+          "sha256": [
+            "11542322f95762f84855b45f056cca5d483d34015391c08a636b0d0bc1301a96"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/Ramp_Vehicles.dds",
+          "sha256": [
+            "cec3628d5397d3c1aae0b5aab49a575e800626125ee4727038aef9020d5520b0"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/TUG2_660.obj",
+          "sha256": [
+            "f0d4ca44ae18ce4048ec6ace64a9a3da4de9909ccb56fda5240604d6e2ea77ef"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/TUG_660.obj",
+          "sha256": [
+            "087b38c0a6d6ea6d56983d1f010eac5a037d78046c39567fc291774fa18312f3"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/TUG_660__driver.dds",
+          "sha256": [
+            "181bad70d343e25cf055972980b44094055210589a4d51844735381ce6ed5437"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/TUG_660__driver.obj",
+          "sha256": [
+            "1ea94541a9bd6eecf9a0b1dd3bff85c92d184688d6056da7d4c6582ac3f861c5"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/XP12_Ramp_Vehicles.dds",
+          "sha256": [
+            "cec3628d5397d3c1aae0b5aab49a575e800626125ee4727038aef9020d5520b0"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/XP12_TUG_660.obj",
+          "sha256": [
+            "50273f3e6190724e85ab4510d18d44574beb8543b4f79c378f8976a55900ae1c"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/XP12_TUG_660_driver.dds",
+          "sha256": [
+            "181bad70d343e25cf055972980b44094055210589a4d51844735381ce6ed5437"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/XP12_TUG_660_driver.obj",
+          "sha256": [
+            "328b01870bb2b4baab9369d36a1a465ca912a742f9fab02a3b37c396019329ce"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/XP12_catering_truck.dds",
+          "sha256": [
+            "5bdbad8e180999745cb6eda1033d0efcd22b5fe83ef06d19aa6518d0745b70cf"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/XP12_catering_truck.obj",
+          "sha256": [
+            "69fadab39d959594b2b28fc491b1581276527e32a12ec09b2855ee7d40e5aabd"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/XP12_catering_truck_NML.png",
+          "sha256": [
+            "b3977e7f289e04625be4a7842e801a8d5d4b18bf2baaad75e3744274059db55f"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/XP12_catering_truck_driver.dds",
+          "sha256": [
+            "3f9a6c2001258a233ed0a668c0f5b5f50fd3e123e3d6871241c4f5b52c1d0bec"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/XP12_catering_truck_driver.obj",
+          "sha256": [
+            "0248e2aa704348febf95786c5651f88021b245eeb426f31c9b48497dc40f2131"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/Zibo_Ecobus.obj",
+          "sha256": [
+            "5e487e54b85d5ff718cfad3b8cd8ff06ed49f6f1ce3dcdd82a07665fea170de9"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/Zibo_Proterra.obj",
+          "sha256": [
+            "a7a643598fcc7121beebaef0821d2f39f8e02e1430890280bcc3f9f0e04a607d"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/Zibo_de_ice_truck.obj",
+          "sha256": [
+            "72d01fbc2d85961271d94833554a5efc9d10db666bb8463bbd79041d2bdca4ba"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/Zibo_fueltruck.obj",
+          "sha256": [
+            "34efca978ae7fc05d50884bf0e854c1a8f27afb9282f6ac54ead0128605c47a4"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/Zibo_fueltruck2.obj",
+          "sha256": [
+            "a34180f31cb7b8da34b5d1244b6a94758a81771b53254a00cc50c8bd0c07a794"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/Zibo_stairs_aft.obj",
+          "sha256": [
+            "ae201be46e8c52b5204759de96b15c6d776984ed932f7ab4334e59083e063ecf"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/Zibo_stairs_fwd.obj",
+          "sha256": [
+            "c5694bfc1614d2a8001fe8c5d480b38d217a99e01a9738ff5a0cd14f5c3bf7ef"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/aft_stairs.obj",
+          "sha256": [
+            "7829f83c7ebfbfb790cb4ebf8bef07812e8fc2d19bd671a59ba7b4374538ac48"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/airstairs.obj",
+          "sha256": [
+            "a43a524c30ea502e8f86010e43a753f1cf9f1e3d356b1c67b2c39ba6094f5446"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/airstairs.png",
+          "sha256": [
+            "13a47170916d197a22876876ae9b3c9aab197869e35e7fd65368059e1d63f722"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/airstairs_NML.png",
+          "sha256": [
+            "ab2afa8c2995a80c47cf52e0e8562f47fbfcb683ce09ee053dc3b99e0f8b599c"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/arrow_3d.obj",
+          "sha256": [
+            "14bc236bed6aafd76efea11067210718da0ae5a74d05b5a671f5f58516750276",
+            "849df9aff4ae6058ef21e7e2909813a4151123ef04d4897e41ff4b5e50c5ac04"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/arrow_3d_2.obj",
+          "sha256": [
+            "6baae705db9178f102ed500b6bf279fe1f0ff649ccd99b775b332552da2f5b53",
+            "dd69c0ce6959e7a8c179ddcdc3ecd0636ecc8022843aa797566c3a7b030b2195"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/asu.obj",
+          "sha256": [
+            "2706573053cedccbb554cdd23285b46fc3b19e0087bc2ac288806009d3d21ab1",
+            "ae793cbdd0d15be629b8c03a6317faedb67f5e2f528273c7fe60a91b435328f1"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/catering2_truck.obj",
+          "sha256": [
+            "54dc81c21b87adf2dee280d3ad4079578948f62ffa8662fa4d7ce0faecd0c84a"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/catering_truck.dds",
+          "sha256": [
+            "5bdbad8e180999745cb6eda1033d0efcd22b5fe83ef06d19aa6518d0745b70cf"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/catering_truck.obj",
+          "sha256": [
+            "a682d492f276a2bd5052c6af744b01250afe83ff81beb07c32ac17c62a8d653f"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/catering_truck_NML.png",
+          "sha256": [
+            "b3977e7f289e04625be4a7842e801a8d5d4b18bf2baaad75e3744274059db55f"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/catering_truck__driver.dds",
+          "sha256": [
+            "3f9a6c2001258a233ed0a668c0f5b5f50fd3e123e3d6871241c4f5b52c1d0bec"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/catering_truck__driver.obj",
+          "sha256": [
+            "a836ad91b3d81d0b295ee2e71696c2c976f63e459f1f7eacd99d468f9ead8390"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/cones.dds",
+          "sha256": [
+            "a5a099e62002b545aaddec233533def2c2e3775b3824ca7ef18fba4b97cc0bf1"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/cones.obj",
+          "sha256": [
+            "40cd56e926c32b93c988003df011f15872594ec5a77ca1768bb594bb7e6c4e44",
+            "ede6282d89f3f35502ef366228490cd72a3b03847484a377b657234231c903ac"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/cones_LIT.dds",
+          "sha256": [
+            "3edcdd01f6c25cdf5d87389fbd8e5e9fcc9298a875d85cc7902ac16365dd0c2c"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/de_ice_truck.obj",
+          "sha256": [
+            "72d01fbc2d85961271d94833554a5efc9d10db666bb8463bbd79041d2bdca4ba",
+            "8f6ba0ab7bbe8fa0cee4079e59bd6508c8c23f05667ff9505c96e7377d47aec8"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/deicetruck.dds",
+          "sha256": [
+            "1994dc32c0756ef1c625978f47be6dcd5452851599908dbcc13b16f23ef4f04e"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/deicetruck_NML.png",
+          "sha256": [
+            "efe8a6e53724766971f687f235ca03a671e238f0ae145077ebc2f6e36bc8d5fb"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/front_stairs.obj",
+          "sha256": [
+            "40939ca4790fb06b7c8a08372f2aa0b8e05c2265e7517d624fb828092686b660"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/fueltruck.dds",
+          "sha256": [
+            "edb7fa9fee561db367d27be08fe87463505a5b076b8f5d6ceaa2683cf8658063"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/fueltruck.obj",
+          "sha256": [
+            "2724d9b4502d0b773ca0465120de9271c0131349de0cb2da42f88144432449fc",
+            "34efca978ae7fc05d50884bf0e854c1a8f27afb9282f6ac54ead0128605c47a4"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/fueltruck2.obj",
+          "sha256": [
+            "a34180f31cb7b8da34b5d1244b6a94758a81771b53254a00cc50c8bd0c07a794",
+            "def6cb217a5db462054c9ab3f0c91d11b0370bb9043b6e61fbf7d104f5b96203"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/fueltruck_LIT.dds",
+          "sha256": [
+            "08f9e4f658611bcefc46c5003c4ca4cb6f4dc09b344477fd9a5f76509b02e245"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/fueltruck_nml.png",
+          "sha256": [
+            "42f260dfd3df671a4c8859f25beac33693d9a07ebe61a065a9d624af3063728f"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/gpu.dds",
+          "sha256": [
+            "5af6a1e754a82823966ef5c580c5c16ccf1cd866f2d61fa608f08929bd30f24e"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/gpu.obj",
+          "sha256": [
+            "11542322f95762f84855b45f056cca5d483d34015391c08a636b0d0bc1301a96",
+            "891564d116f8061c262ae261aa37084e5c1d1c62ceac95defd363ad76986af05"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/gpu_NML.png",
+          "sha256": [
+            "543ad73da65565b8ebe19a7e30f3b43e2311d33659344df31f3d1be86bce95ab"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/pax_bus_1.obj",
+          "sha256": [
+            "f8130115908f757c5c4e302d4a6876b8d2acc8c796ec50ee5829cbc13fcc90e8"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/pax_bus_2.obj",
+          "sha256": [
+            "c1e0f0626c9f50bd765766075864150363e123cf48078811bb66de1ecc61cb7a"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/proterra.dds",
+          "sha256": [
+            "3e22b0935a8298bd237958ff99a618815a7d5475ef4354439ff41feb5fd32ee1"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/proterra_NML.png",
+          "sha256": [
+            "d9112366224af500a58fc9003fe60a65bc920a46cf53176edf6add3b2603225a"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/stairs.png",
+          "sha256": [
+            "b597e499e8cd99e5d9e4bd8cc37a51138ab23655803202e8cb6f7c21a3f0e78e"
+          ]
+        },
+        {
+          "relativePath": "objects/GSE/stairs_nml.png",
+          "sha256": [
+            "d16afbb609410cfdf4a6d3d57a15d6dcdecc921d7dc53c569272d52e72ba3dd2"
+          ]
+        }
+      ],
+      "recoveryInstruction": "Before switching to MTK, use the restore or uninstall procedure documented by this patch, preserving other patches. Then rescan. Instructions: https://github.com/wahltho/X-Plane-LevelUp-GSE#readme."
     }
   ]
 }

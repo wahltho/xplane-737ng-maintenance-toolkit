@@ -92,6 +92,9 @@ public sealed record ContentPatchPlan(
     public IReadOnlyList<LevelUp.NavTableUpdater.Core.Manifest.ResolvedCatalogSource> Sources { get; init; } = [];
     public LevelUp.NavTableUpdater.Core.State.ContentComponentState? MigratedState { get; init; }
 
+    public ContentPatchOwnershipCheck? OwnershipCheck { get; init; }
+    public ContentPatchOwnershipSnapshot? OwnershipSnapshot { get; init; }
+
     public static ContentPatchPlan Blocked(
         ContentPatchDescriptor descriptor,
         string packageVersion,

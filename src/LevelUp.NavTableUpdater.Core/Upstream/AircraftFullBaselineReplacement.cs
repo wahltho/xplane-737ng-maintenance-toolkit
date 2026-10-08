@@ -14,11 +14,13 @@ internal sealed class AircraftFullBaselineReplacement
     private readonly ToolStateStore _stateStore;
     private readonly Action? _afterTargetMoved;
     private readonly Func<bool> _isXPlaneRunning;
+    private readonly Func<ContentPackageCatalog> _catalogProvider;
 
     public AircraftFullBaselineReplacement(ToolStateStore stateStore, Action? afterTargetMoved = null,
-        Func<bool>? isXPlaneRunning = null)
+        Func<bool>? isXPlaneRunning = null, Func<ContentPackageCatalog>? catalogProvider = null)
     {
         _stateStore = stateStore;
+        _catalogProvider = catalogProvider ?? ContentPackageCatalog.LoadBundled;
         _afterTargetMoved = afterTargetMoved;
         _isXPlaneRunning = isXPlaneRunning ?? XPlaneProcessDetector.IsXPlaneRunning;
     }
@@ -91,7 +93,8 @@ internal sealed class AircraftFullBaselineReplacement
                 return MaintenanceOperationResult.Blocked(conflict, log.ToArray());
             }
             var standaloneConflict = StandalonePatchOwnershipGuard.FindAircraftUpdateConflict(
-                selectedFolder, _stateStore.TryGetContentInstallation(selectedFolder)?.ContentComponents);
+                selectedFolder, _stateStore.TryGetContentInstallation(selectedFolder), _catalogProvider(),
+                AircraftProductIds.Normalize(variant.Family));
             if (standaloneConflict is not null)
             {
                 log.Add($"[BLOCKED] {standaloneConflict}");
@@ -230,6 +233,8 @@ internal sealed class AircraftFullBaselineReplacement
         var backupMoved = false;
         try
         {
+            ContentPatchOwnershipVerifier.CheckAircraft(targetFolder,
+                _stateStore.TryGetContentInstallation(targetFolder), _catalogProvider(), AircraftProductIds.Normalize(variant.Family));
             Directory.Move(targetFolder, preRestorePath);
             currentMoved = true;
             Directory.Move(backupFolder, targetFolder);

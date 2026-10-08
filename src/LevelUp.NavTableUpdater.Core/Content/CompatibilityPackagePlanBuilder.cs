@@ -11,21 +11,40 @@ public sealed class CompatibilityPackagePlanBuilder
     private readonly ToolStateStore _stateStore;
     private readonly ContentPatchHandlerRegistry _handlers;
     private readonly KnownAircraftBaselines _baselines;
+    private readonly Func<ContentPackageCatalog> _catalogProvider;
 
     public CompatibilityPackagePlanBuilder(
         ToolStateStore stateStore,
-        ContentPatchHandlerRegistry? handlers = null)
-        : this(stateStore, handlers, KnownAircraftBaselines.BuiltIn) { }
+        ContentPatchHandlerRegistry? handlers = null, Func<ContentPackageCatalog>? catalogProvider = null)
+        : this(stateStore, handlers, KnownAircraftBaselines.BuiltIn, catalogProvider) { }
 
     internal CompatibilityPackagePlanBuilder(ToolStateStore stateStore,
-        ContentPatchHandlerRegistry? handlers, KnownAircraftBaselines baselines)
+        ContentPatchHandlerRegistry? handlers, KnownAircraftBaselines baselines, Func<ContentPackageCatalog>? catalogProvider = null)
     {
         _stateStore = stateStore;
+        _catalogProvider = catalogProvider ?? ContentPackageCatalog.LoadBundled;
         _baselines = baselines;
         _handlers = handlers ?? ContentPatchHandlerRegistry.CreateBuiltIn();
     }
 
-    public Task<ContentPatchPlan> BuildAsync(
+    public Task<ContentPatchPlan> BuildAsync(ContentPatchAction action,
+        AircraftVariantViewAnalysis variant, CompatibilityPackage package,
+        IReadOnlyCollection<string> selectedModuleIds, CancellationToken cancellationToken = default)
+    {
+        var allTargets = package.Manifest.Modules.SelectMany(module => module.Targets.Select(target => target.RelativePath)
+            .Concat(module.RetiredFiles.Select(file => file.RelativePath))).ToArray();
+        _ = TryResolveSelection(package.Manifest, selectedModuleIds, out var selected, out _);
+        var selection = selected.Select(module => module.ModuleId).ToHashSet(StringComparer.Ordinal);
+        var touchedTargets = selected.SelectMany(module => module.Targets
+            .Where(target => target.WhenModulesSelected.All(selection.Contains)).Select(target => target.RelativePath)
+            .Concat(module.RetiredFiles.Select(file => file.RelativePath)));
+        return ContentPatchOwnershipVerifier.BuildPlanAsync(action, variant, DescriptorFor(package.Manifest),
+            package.Manifest.PackageVersion, _stateStore, _catalogProvider, touchedTargets,
+            () => BuildCoreAsync(action, variant, package, selectedModuleIds, cancellationToken),
+            package.Manifest.Modules.Select(module => module.ModuleId).ToArray(), package.Manifest.Sources, _baselines, allTargets);
+    }
+
+    private Task<ContentPatchPlan> BuildCoreAsync(
         ContentPatchAction action,
         AircraftVariantViewAnalysis variant,
         CompatibilityPackage package,
@@ -99,7 +118,8 @@ public sealed class CompatibilityPackagePlanBuilder
         var standaloneTargets = selectedOperations.Keys.Concat(selectedRetirements.Keys)
             .Concat(componentState?.Files.Select(file => file.RelativePath) ?? []);
         string? standaloneConflict;
-        try { standaloneConflict = StandalonePatchOwnershipGuard.FindConflict(aircraftRoot, standaloneTargets, installation?.ContentComponents); }
+        try { standaloneConflict = StandalonePatchOwnershipGuard.FindConflict(aircraftRoot, standaloneTargets, installation?.ContentComponents,
+            _catalogProvider(), installation?.Backups, selectedProduct, _baselines); }
         catch (InvalidOperationException ex) { standaloneConflict = ex.Message; }
         if (standaloneConflict is not null)
             return Task.FromResult(Blocked(descriptor, manifest, action, aircraftRoot, standaloneConflict, log));

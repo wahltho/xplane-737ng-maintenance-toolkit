@@ -19,19 +19,22 @@ public sealed class VnavContentOperation
     private readonly IPackagePayloadSource _payloadSource;
     private readonly ContentPatchEngine _engine;
     private readonly ToolStateStore _stateStore;
-    private readonly VnavContentPlanBuilder _planBuilder = new();
+    private readonly VnavContentPlanBuilder _planBuilder;
+    private readonly Func<ContentPackageCatalog> _catalogProvider;
     private readonly AircraftInstallAnalyzer _analyzer = new();
     private readonly Func<bool> _isXPlaneRunning;
 
     public VnavContentOperation(
         ToolStateStore stateStore,
         IPackagePayloadSource payloadSource,
-        Func<bool>? isXPlaneRunning = null)
+        Func<bool>? isXPlaneRunning = null, Func<ContentPackageCatalog>? catalogProvider = null)
     {
         _stateStore = stateStore;
+        _catalogProvider = catalogProvider ?? ContentPackageCatalog.LoadBundled;
+        _planBuilder = new VnavContentPlanBuilder(stateStore, _catalogProvider);
         _payloadSource = payloadSource;
         _isXPlaneRunning = isXPlaneRunning ?? XPlaneProcessDetector.IsXPlaneRunning;
-        _engine = new ContentPatchEngine(stateStore, _isXPlaneRunning);
+        _engine = new ContentPatchEngine(stateStore, _isXPlaneRunning, _catalogProvider);
     }
 
     public async Task<MaintenanceOperationResult> RunAsync(
@@ -65,7 +68,8 @@ public sealed class VnavContentOperation
         {
             standaloneConflict = StandalonePatchOwnershipGuard.FindConflict(selectedRoot,
                 [manifest.TargetRelativePath],
-                _stateStore.TryGetContentInstallation(selectedRoot)?.ContentComponents);
+                _stateStore.TryGetContentInstallation(selectedRoot)?.ContentComponents, _catalogProvider(),
+                _stateStore.TryGetContentInstallation(selectedRoot)?.Backups, AircraftProductIds.Normalize(variant.Family));
         }
         catch (InvalidOperationException ex) { standaloneConflict = ex.Message; }
         if (standaloneConflict is not null)

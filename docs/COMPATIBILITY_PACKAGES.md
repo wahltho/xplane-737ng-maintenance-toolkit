@@ -17,7 +17,9 @@ declarative patch operation.
 
 The same package can be applied by the Toolkit UI or by the standalone
 `XPlane737NGPatchCli`; both use this Core implementation and the same state and
-backup model. See [PATCH_INTEROPERABILITY.md](PATCH_INTEROPERABILITY.md) for the
+backup model. This CLI is distinct from the independent Python installers
+shipped by individual patch projects. Those keep their own state and backups.
+See [PATCH_INTEROPERABILITY.md](PATCH_INTEROPERABILITY.md) for the
 cross-package authoring rules and current shared-target matrix.
 
 Module policies are:
@@ -138,11 +140,28 @@ package rather than treating the migration as an ordinary insertion.
 A migration from a previously managed file that has changed independently
 since the Toolkit recorded its installed hash is blocked. The Toolkit cannot
 derive a reversible original from that historical backup without also losing
-the independent edits. Existing structural composition remains available for
-other operations, but disables full Restore and Uninstall when such independent
-changes are incorporated into a managed file.
+the independent edits. Other correctly recorded MTK patches can still share a
+target when the complete chain of installed hashes and original backups is
+verified. Unrecorded changes are not adopted as a new original, even when a
+structural handler recognizes the patch output.
 
 ## Transaction Rules
+
+Aircraft patches also need an ownership policy in catalog schema 2. The policy
+identifies their reserved markers, payload paths and independent installer
+state. It applies to imports as well as packages downloaded through the catalog.
+A new package or target outside that policy is blocked before writing.
+
+The Core CLI uses the bundled catalog unless `--catalog <path>` names a validated
+local catalog. This allows package development without publishing a catalog
+entry. It does not disable ownership checks. Package release manifests retain
+their existing schema; catalog schema 2 is a separate contract.
+
+Catalog rules are checked before planning, before the first aircraft write and
+after the file mutations. The installed state retains the policy used for that
+generation, so offline Restore can still check reserved paths and markers.
+Policies from saved generations supplement the current catalog; they cannot
+remove its checks. See [PATCH_INTEROPERABILITY.md](PATCH_INTEROPERABILITY.md).
 
 Before writing, the Toolkit validates package identity, supported product and
 aircraft release, module policy, dependencies, conflicts, payload hashes,

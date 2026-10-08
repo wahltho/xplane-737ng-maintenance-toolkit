@@ -736,9 +736,9 @@ public partial class MainWindowViewModel : ViewModelBase
         _levelUpFleetViewTransferOperation = new LevelUpFleetViewTransferOperation(_stateStore);
         _configBackupOperation = new ConfigBackupOperation(_stateStore);
         _restoreLatestBackupOperation = new RestoreLatestBackupOperation(_stateStore);
-        _vnavContentOperation = new VnavContentOperation(_stateStore, CreatePayloadSource());
-        _declarativeContentPatchOperation = new DeclarativeContentPatchOperation(_stateStore);
-        _compatibilityPackageOperation = new CompatibilityPackageOperation(_stateStore);
+        _vnavContentOperation = new VnavContentOperation(_stateStore, CreatePayloadSource(), catalogProvider: () => _contentPackageCatalog);
+        _declarativeContentPatchOperation = new DeclarativeContentPatchOperation(_stateStore, catalogProvider: () => _contentPackageCatalog);
+        _compatibilityPackageOperation = new CompatibilityPackageOperation(_stateStore, catalogProvider: () => _contentPackageCatalog);
         _toolPackageManager = new ToolPackageManager(_stateStore);
         _xPlaneOverlayPackageManager = new XPlaneOverlayPackageManager(_stateStore);
         _resourcePackageManager = new ResourcePackageManager(_stateStore);
@@ -746,7 +746,7 @@ public partial class MainWindowViewModel : ViewModelBase
             new ZiboFeedAircraftUpdateIndexSource(_aircraftUpdateHttpClient));
         _levelUpUpdateChecker = new LevelUpReleaseUpdateChecker(
             new LevelUpGitHubReleaseIndexSource(_aircraftUpdateHttpClient, toolkitVersion));
-        _aircraftUpdateOperation = new AircraftUpdateOperation(_stateStore, _aircraftUpdateDryRunAnalyzer);
+        _aircraftUpdateOperation = new AircraftUpdateOperation(_stateStore, _aircraftUpdateDryRunAnalyzer, catalogProvider: () => _contentPackageCatalog);
         _aircraftFreshInstallOperation = new AircraftFreshInstallOperation();
         ApplyManifest(_manifest);
         ApplyAnalysis(AircraftAnalysisResult.Empty(_manifest.PackageVersion));

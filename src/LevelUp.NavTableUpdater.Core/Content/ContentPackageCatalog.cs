@@ -40,6 +40,8 @@ public sealed class ContentPackageCatalogDocument
     public string MinimumToolkitVersion { get; set; } = "";
 
     public List<ContentPackageCatalogEntry> Packages { get; set; } = [];
+
+    public List<PatchOwnershipPolicy> OwnershipPolicies { get; set; } = [];
 }
 
 public sealed class ContentPackageCatalogEntry
@@ -116,20 +118,39 @@ public sealed class ContentPackageCatalog
     };
 
     private ContentPackageCatalog(
+        int schemaVersion,
         string catalogVersion,
         string minimumToolkitVersion,
-        IReadOnlyList<ContentPackageCatalogEntry> packages)
+        IReadOnlyList<ContentPackageCatalogEntry> packages,
+        IReadOnlyList<PatchOwnershipPolicy> ownershipPolicies)
     {
+        SchemaVersion = schemaVersion;
         CatalogVersion = catalogVersion;
         MinimumToolkitVersion = minimumToolkitVersion;
         Packages = packages;
+        OwnershipPolicies = ownershipPolicies;
     }
+
+    public int SchemaVersion { get; }
 
     public string CatalogVersion { get; }
 
     public string MinimumToolkitVersion { get; }
 
     public IReadOnlyList<ContentPackageCatalogEntry> Packages { get; }
+
+    public IReadOnlyList<PatchOwnershipPolicy> OwnershipPolicies { get; }
+
+    private static readonly Lazy<ContentPackageCatalog> Bundled = new(() =>
+    {
+        using var stream = typeof(ContentPackageCatalog).Assembly.GetManifestResourceStream(
+            "LevelUp.NavTableUpdater.Core.Content.content-package-catalog.json")
+            ?? throw new InvalidDataException("Bundled ownership catalog is unavailable.");
+        using var reader = new StreamReader(stream);
+        return Parse(reader.ReadToEnd());
+    });
+
+    public static ContentPackageCatalog LoadBundled() => Bundled.Value;
 
     public static ContentPackageCatalog Parse(string json, Version? toolkitVersion = null)
     {
@@ -146,9 +167,11 @@ public sealed class ContentPackageCatalog
 
         Validate(document, toolkitVersion);
         return new ContentPackageCatalog(
+            document.SchemaVersion,
             document.CatalogVersion,
             document.MinimumToolkitVersion,
-            document.Packages);
+            document.Packages,
+            document.OwnershipPolicies);
     }
 
     public IReadOnlyList<ContentPackageCatalogEntry> ForProduct(string productId, string? runtimeIdentifier = null) =>
@@ -158,10 +181,22 @@ public sealed class ContentPackageCatalog
     private static void Validate(ContentPackageCatalogDocument document, Version? toolkitVersion)
     {
         document.Packages ??= [];
-        if (document.SchemaVersion != 1
+        document.OwnershipPolicies ??= [];
+        if (document.SchemaVersion is not (1 or 2)
             || !TryParseThreePartVersion(document.CatalogVersion, out _))
         {
             throw new InvalidDataException("Unsupported or incomplete content package catalog identity.");
+        }
+
+        if (document.SchemaVersion == 1 && document.OwnershipPolicies.Count > 0)
+            throw new InvalidDataException("Ownership policies require catalog schema 2.");
+        var ownershipIds = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var policy in document.OwnershipPolicies)
+        {
+            if (policy is null) throw new InvalidDataException("Null catalog ownership policy.");
+            policy.Validate();
+            if (!ownershipIds.Add(policy.PackageId))
+                throw new InvalidDataException("Duplicate catalog ownership policy.");
         }
 
         if (!string.IsNullOrWhiteSpace(document.MinimumToolkitVersion))
@@ -187,6 +222,7 @@ public sealed class ContentPackageCatalog
         var packageIds = new HashSet<string>(StringComparer.Ordinal);
         foreach (var package in document.Packages)
         {
+            if (package is null) throw new InvalidDataException("Null catalog package.");
             package.Members ??= [];
             package.SupportedProducts ??= [];
             package.SupportedChannels ??= [];
@@ -216,6 +252,16 @@ public sealed class ContentPackageCatalog
             ValidateRepository(package);
             ValidateLifecycle(package);
             ValidateDistribution(package);
+            if (document.SchemaVersion == 2
+                && package.Category is (ContentPackageCategory.ManagedContent
+                    or ContentPackageCategory.OptionalPatch or ContentPackageCategory.CompatibilityPackage)
+                && package.Distribution.Kind != ContentPackageDistributionKind.CatalogGroup)
+            {
+                var policy = document.OwnershipPolicies.SingleOrDefault(item => item.PackageId == package.PackageId);
+                if (policy is null || policy.RepositoryUrl.TrimEnd('/') != package.RepositoryUrl.TrimEnd('/')
+                    || !package.SupportedProducts.All(policy.SupportedProducts.Contains))
+                    throw new InvalidDataException($"Missing or inconsistent ownership policy for {package.PackageId}.");
+            }
         }
 
         var groupedProducts = new HashSet<(string Product, string Package)>();
@@ -227,6 +273,7 @@ public sealed class ContentPackageCatalog
             if (group.Members.Count == 0) throw new InvalidDataException("Catalog group is empty.");
             foreach (var member in group.Members)
             {
+                if (member is null) throw new InvalidDataException("Null catalog group member.");
                 foreach (var product in group.SupportedProducts)
                     if (!groupedProducts.Add((product, member.PackageId)))
                         throw new InvalidDataException("A source cannot have multiple catalog group owners for the same product.");
@@ -241,6 +288,10 @@ public sealed class ContentPackageCatalog
                     || string.IsNullOrWhiteSpace(member.AssetNamePattern) || !member.AssetNamePattern.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) || member.AssetNamePattern.Count(ch => ch == '*') > 1
                     || member.AssetNamePattern.Contains('/') || member.AssetNamePattern.Contains('\\'))
                     throw new InvalidDataException($"Invalid source or policy in catalog group {group.PackageId}.");
+                if (document.SchemaVersion == 2
+                    && document.OwnershipPolicies.SingleOrDefault(policy => policy.PackageId == member.PackageId)
+                        ?.ModuleIds.Contains(member.ModuleId, StringComparer.Ordinal) != true)
+                    throw new InvalidDataException($"Group module has no ownership contract: {group.PackageId}/{member.ModuleId}.");
             }
         }
     }
@@ -417,7 +468,7 @@ public sealed class ContentPackageCatalog
         }
     }
 
-    private static bool IsSafePackageId(string value) =>
+    internal static bool IsSafePackageId(string value) =>
         !string.IsNullOrWhiteSpace(value)
         && value.All(ch => char.IsAsciiLetterOrDigit(ch) || ch is '.' or '-' or '_');
 

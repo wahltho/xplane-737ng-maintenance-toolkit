@@ -68,6 +68,7 @@ public sealed class ContentPackageCatalogLoader
             using var remoteCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             remoteCancellation.CancelAfter(RemoteRequestTimeout);
             var remote = await DownloadLatestAsync(remoteCancellation.Token).ConfigureAwait(false);
+            RequireOwnershipSchema(remote.Catalog, bundled);
             WriteCache(remote.Json);
             return new ContentPackageCatalogLoadResult(
                 remote.Catalog,
@@ -87,6 +88,7 @@ public sealed class ContentPackageCatalogLoader
                 var cachedJson = File.ReadAllText(_cachePath, Encoding.UTF8);
                 var cached = ContentPackageCatalog.Parse(cachedJson, _toolkitVersion);
                 ValidatePublishedCatalog(cached, "cached catalog");
+                RequireOwnershipSchema(cached, bundled);
                 return new ContentPackageCatalogLoadResult(
                     cached,
                     ContentPackageCatalogOrigin.LastKnownGoodCache,
@@ -234,6 +236,12 @@ public sealed class ContentPackageCatalogLoader
         {
             throw new InvalidDataException($"The {source} has no minimumToolkitVersion.");
         }
+    }
+
+    private static void RequireOwnershipSchema(ContentPackageCatalog candidate, ContentPackageCatalog bundled)
+    {
+        if (bundled.SchemaVersion >= 2 && candidate.SchemaVersion < 2)
+            throw new InvalidDataException("This catalog has no patch ownership policies; retaining the protected bundled catalog.");
     }
 
     private static string NormalizeRepositoryUrl(string repositoryUrl)

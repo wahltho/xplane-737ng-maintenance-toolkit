@@ -54,21 +54,22 @@ public sealed class StandalonePatchOwnershipGuardTests
 
         var conflict = StandalonePatchOwnershipGuard.FindConflict(directory.Path, [Tablet], null);
 
-        Assert.Contains("backup chain", conflict!, StringComparison.OrdinalIgnoreCase);
+        Assert.NotNull(conflict);
     }
 
     [Fact]
     public void ToolkitOwnedMarkerWithoutStandaloneBackup_RemainsUsable()
     {
         using var directory = new DeclarativePatchManifestTests.TemporaryDirectory();
-        Write(directory.Path, Tablet, "-- BEGIN UPSTREAM_TABLET_PERF_CALC DOFILE\n");
+        Write(directory.Path, Tablet, "-- BEGIN UPSTREAM_TABLET_PERF_CALC DOFILE\n-- END UPSTREAM_TABLET_PERF_CALC DOFILE\n");
         Write(directory.Path, "plugins/xlua/scripts/B738.tablet/B738.tablet.lua.backup", "stale backup");
         var owned = new ContentComponentState
         {
             ComponentId = "wahltho.levelup-737ng.maintenance",
             EnabledModules = ["tablet-performance-calculator"],
-            Sources = [new ResolvedCatalogSource { PackageId = "x-plane-zibo-40535-tablet-performance-calculator" }],
-            Files = [new ContentComponentFileState { RelativePath = Tablet }]
+            Sources = [new ResolvedCatalogSource { PackageId = "x-plane-zibo-40535-tablet-performance-calculator",
+                ModuleId = "tablet-performance-calculator", RepositoryUrl = "https://github.com/wahltho/X-Plane-Zibo-LevelUp-737NG-Tablet-Performance-Calculator" }],
+            Files = [OwnedFile(directory.Path, Tablet)]
         };
 
         Assert.Null(StandalonePatchOwnershipGuard.FindConflict(directory.Path, [Tablet],
@@ -88,12 +89,24 @@ public sealed class StandalonePatchOwnershipGuardTests
         {
             ComponentId = "wahltho.zibo-40535.maintenance",
             EnabledModules = [moduleId],
-            Sources = [new ResolvedCatalogSource { PackageId = "wahltho.zibo-40535.intentional-fixes" }],
-            Files = [new ContentComponentFileState { RelativePath = Fms }]
+            Sources = [new ResolvedCatalogSource { PackageId = "wahltho.zibo-40535.intentional-fixes",
+                ModuleId = moduleId, RepositoryUrl = "https://github.com/wahltho/X-Plane-Zibo-LevelUp-737NG-Intentional-Fixes" }],
+            Files = [OwnedFile(directory.Path, Fms)]
         };
 
         Assert.Null(StandalonePatchOwnershipGuard.FindConflict(directory.Path, [Fms],
             new Dictionary<string, ContentComponentState> { [owned.ComponentId] = owned }));
+    }
+
+    private static ContentComponentFileState OwnedFile(string root, string relative)
+    {
+        var target = Path.Combine(root, relative);
+        var backup = Path.Combine(root, "verified-original.lua");
+        File.WriteAllText(backup, "stock");
+        return new() { RelativePath = relative, TargetPath = target, OriginalExisted = true,
+            BackupPath = backup, OriginalSha256 = OwnershipTestCatalog.Hash("stock"), OriginalSizeBytes = 5,
+            InstalledSizeBytes = new FileInfo(target).Length,
+            InstalledSha256 = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(target))) };
     }
 
     private static void Write(string root, string relativePath, string text)

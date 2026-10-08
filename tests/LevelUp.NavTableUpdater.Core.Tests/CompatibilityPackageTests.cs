@@ -28,7 +28,7 @@ public sealed class CompatibilityPackageTests
             .Replace("plugins/xlua/scripts/shared.lua", fms, StringComparison.Ordinal));
         Directory.CreateDirectory(Path.Combine(root, ".zibo-auto-jetway-patch"));
         File.WriteAllText(Path.Combine(root, ".zibo-auto-jetway-patch", "state.json"), "{}");
-        var operation = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false);
+        var operation = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false, catalogProvider: () => OwnershipTestCatalog.Compatibility);
 
         var plan = await operation.PlanAsync(ContentPatchAction.Install, fixture.Variant,
             fixture.PackageDirectory, ["core", "standard"]);
@@ -91,7 +91,7 @@ public sealed class CompatibilityPackageTests
     {
         using var fixture = Fixture.Create();
         fixture.AddConditionalHardeningModule();
-        var operation = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false);
+        var operation = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false, catalogProvider: () => OwnershipTestCatalog.Compatibility);
 
         var withoutOptional = await operation.PlanAsync(
             ContentPatchAction.Install,
@@ -116,7 +116,7 @@ public sealed class CompatibilityPackageTests
     {
         using var fixture = Fixture.Create();
         fixture.AddConditionalHardeningModule();
-        var operation = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false);
+        var operation = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false, catalogProvider: () => OwnershipTestCatalog.Compatibility);
 
         var installed = await operation.RunAsync(ContentPatchAction.Install, fixture.Variant,
             fixture.PackageDirectory, ["core", "standard", "optional", "hardening"]);
@@ -181,7 +181,7 @@ public sealed class CompatibilityPackageTests
     public async Task InstallUpdateAndRestore_RebuildsSharedTargetAsOneModulePipeline()
     {
         using var fixture = Fixture.Create();
-        var operation = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false);
+        var operation = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false, catalogProvider: () => OwnershipTestCatalog.Compatibility);
 
         var installed = await operation.RunAsync(
             ContentPatchAction.Install,
@@ -189,7 +189,7 @@ public sealed class CompatibilityPackageTests
             fixture.PackageDirectory,
             ["core", "standard"]);
 
-        Assert.True(installed.Succeeded);
+        Assert.True(installed.Succeeded, installed.Message);
         Assert.Equal("standard\r\n", File.ReadAllText(fixture.TargetPath));
         var state = Assert.Single(fixture.Store.Load().ContentInstallations.Values).ContentComponents["levelup.compatibility"];
         Assert.Equal(["core", "standard"], state.EnabledModules);
@@ -202,7 +202,7 @@ public sealed class CompatibilityPackageTests
             fixture.PackageDirectory,
             ["core", "standard", "optional"]);
 
-        Assert.True(updated.Succeeded);
+        Assert.True(updated.Succeeded, updated.Message);
         Assert.Equal("optional\r\n", File.ReadAllText(fixture.TargetPath));
         state = Assert.Single(fixture.Store.Load().ContentInstallations.Values).ContentComponents["levelup.compatibility"];
         Assert.Equal(["core", "standard", "optional"], state.EnabledModules);
@@ -214,14 +214,14 @@ public sealed class CompatibilityPackageTests
             fixture.PackageDirectory,
             ["core"]);
 
-        Assert.True(reduced.Succeeded);
+        Assert.True(reduced.Succeeded, reduced.Message);
         Assert.Equal("core\r\n", File.ReadAllText(fixture.TargetPath));
         state = Assert.Single(fixture.Store.Load().ContentInstallations.Values).ContentComponents["levelup.compatibility"];
         Assert.Equal(["core"], state.EnabledModules);
 
         var restored = operation.Restore(fixture.Variant, fixture.PackageDirectory);
 
-        Assert.True(restored.Succeeded);
+        Assert.True(restored.Succeeded, restored.Message);
         Assert.Equal("before\r\n", File.ReadAllText(fixture.TargetPath));
         Assert.Empty(Assert.Single(fixture.Store.Load().ContentInstallations.Values).ContentComponents);
     }
@@ -230,7 +230,7 @@ public sealed class CompatibilityPackageTests
     public async Task Plan_EnforcesRequiredModulesAndDependencies()
     {
         using var fixture = Fixture.Create(optionalRequiresStandard: true);
-        var operation = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false);
+        var operation = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false, catalogProvider: () => OwnershipTestCatalog.Compatibility);
 
         var plan = await operation.PlanAsync(
             ContentPatchAction.Update,
@@ -238,7 +238,7 @@ public sealed class CompatibilityPackageTests
             fixture.PackageDirectory,
             ["optional"]);
 
-        Assert.True(plan.IsSafe);
+        Assert.True(plan.IsSafe, plan.StatusMessage);
         Assert.Equal(["core", "standard", "optional"], plan.EnabledModules);
         Assert.Equal("optional\r\n", Encoding.UTF8.GetString(Assert.Single(plan.Mutations).DesiredBytes!));
         Assert.Equal("before\r\n", File.ReadAllText(fixture.TargetPath));
@@ -248,7 +248,7 @@ public sealed class CompatibilityPackageTests
     public async Task Plan_WhenAircraftReleaseIsUnsupported_BlocksWithoutChanges()
     {
         using var fixture = Fixture.Create();
-        var operation = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false);
+        var operation = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false, catalogProvider: () => OwnershipTestCatalog.Compatibility);
         var unsupported = fixture.Variant with
         {
             LocalVersion = "V2.S2.00",
@@ -272,7 +272,7 @@ public sealed class CompatibilityPackageTests
     {
         using var fixture = Fixture.Create(omitStructuralResultHashes: true);
         File.WriteAllText(fixture.TargetPath, "foreign\r\nbefore\r\n", new UTF8Encoding(false));
-        var operation = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false);
+        var operation = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false, catalogProvider: () => OwnershipTestCatalog.Compatibility);
 
         var plan = await operation.PlanAsync(
             ContentPatchAction.Update,
@@ -280,7 +280,7 @@ public sealed class CompatibilityPackageTests
             fixture.PackageDirectory,
             ["core", "standard"]);
 
-        Assert.True(plan.IsSafe);
+        Assert.True(plan.IsSafe, plan.StatusMessage);
         Assert.Equal("foreign\r\nstandard\r\n", Encoding.UTF8.GetString(Assert.Single(plan.Mutations).DesiredBytes!));
         Assert.Equal("foreign\r\nbefore\r\n", File.ReadAllText(fixture.TargetPath));
     }
@@ -289,7 +289,7 @@ public sealed class CompatibilityPackageTests
     public async Task Update_WhenAnotherCompatibilityPackageChangedSharedTarget_PreservesBothPackages()
     {
         using var fixture = Fixture.Create(singleComposableModule: true, omitStructuralResultHashes: true);
-        var operation = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false);
+        var operation = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false, catalogProvider: () => OwnershipTestCatalog.Compatibility);
 
         var firstInstall = await operation.RunAsync(
             ContentPatchAction.Install,
@@ -303,8 +303,8 @@ public sealed class CompatibilityPackageTests
             independentPackage,
             ["independent"]);
 
-        Assert.True(firstInstall.Succeeded);
-        Assert.True(secondInstall.Succeeded);
+        Assert.True(firstInstall.Succeeded, firstInstall.Message);
+        Assert.True(secondInstall.Succeeded, secondInstall.Message);
         var composed = "core\r\n-- BEGIN INDEPENDENT\r\nindependent\r\n-- END INDEPENDENT\r\n";
         Assert.Equal(composed, File.ReadAllText(fixture.TargetPath));
 
@@ -318,7 +318,7 @@ public sealed class CompatibilityPackageTests
 
         Assert.Equal(beforeRefresh, fixture.Store.TryGetContentInstallation(Path.GetDirectoryName(fixture.Variant.AcfPath)!)!
             .ContentComponents["levelup.compatibility"].Files.Single().InstalledSha256);
-        Assert.True(updated.Succeeded);
+        Assert.True(updated.Succeeded, updated.Message);
         Assert.False(updated.Changed);
         Assert.Equal(composed, File.ReadAllText(fixture.TargetPath));
         Assert.Contains(updated.Log, line => line.StartsWith("[COMPOSE]", StringComparison.Ordinal));
@@ -337,7 +337,7 @@ public sealed class CompatibilityPackageTests
     public async Task MarkedBlockMigration_UpgradesKnownLegacyAndRestoresOriginal()
     {
         using var fixture = Fixture.Create(singleComposableModule: true, omitStructuralResultHashes: true);
-        var operation = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false);
+        var operation = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false, catalogProvider: () => OwnershipTestCatalog.Compatibility);
         Assert.True((await operation.RunAsync(ContentPatchAction.Install, fixture.Variant,
             fixture.PackageDirectory, ["core"])).Succeeded);
         var independentPackage = fixture.CreateIndependentMarkedBlockPackage();
@@ -359,7 +359,7 @@ public sealed class CompatibilityPackageTests
     public async Task MarkedBlockMigration_WithIndependentEdit_BlocksBeforeChangingFileOrState()
     {
         using var fixture = Fixture.Create(singleComposableModule: true, omitStructuralResultHashes: true);
-        var operation = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false);
+        var operation = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false, catalogProvider: () => OwnershipTestCatalog.Compatibility);
         Assert.True((await operation.RunAsync(ContentPatchAction.Install, fixture.Variant,
             fixture.PackageDirectory, ["core"])).Succeeded);
         var independentPackage = fixture.CreateIndependentMarkedBlockPackage();
@@ -375,7 +375,7 @@ public sealed class CompatibilityPackageTests
             independentPackage, ["independent"]);
 
         Assert.False(updated.Succeeded);
-        Assert.Contains("independent changes", updated.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("backup chain", updated.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(edited, File.ReadAllText(fixture.TargetPath));
         Assert.Equal(previous, fixture.Store.TryGetContentInstallation(Path.GetDirectoryName(fixture.Variant.AcfPath)!)!
             .ContentComponents["independent.compatibility"].PackageVersion);
@@ -413,7 +413,7 @@ public sealed class CompatibilityPackageTests
     public async Task Update_WhenOwnedBlockWasModified_BlocksWithoutChangingIndependentPackage()
     {
         using var fixture = Fixture.Create(singleComposableModule: true, omitStructuralResultHashes: true);
-        var operation = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false);
+        var operation = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false, catalogProvider: () => OwnershipTestCatalog.Compatibility);
         await operation.RunAsync(ContentPatchAction.Install, fixture.Variant, fixture.PackageDirectory, ["core"]);
         await operation.RunAsync(
             ContentPatchAction.Install,
@@ -430,7 +430,7 @@ public sealed class CompatibilityPackageTests
             ["core"]);
 
         Assert.False(updated.Succeeded);
-        Assert.Contains("structurally incompatible", updated.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("backup chain", updated.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(modified, File.ReadAllText(fixture.TargetPath));
     }
 
@@ -440,7 +440,7 @@ public sealed class CompatibilityPackageTests
     public async Task Update_AfterCleanReinstallAtManagedPath_ReappliesAndRestores(bool originalExisted)
     {
         using var fixture = Fixture.Create(singleComposableModule: true, includeCopyModule: true);
-        var operation = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false);
+        var operation = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false, catalogProvider: () => OwnershipTestCatalog.Compatibility);
         var copiedPath = Path.Combine(Path.GetDirectoryName(fixture.TargetPath)!, "table.lua");
         var original = new byte[] { 0, 255, 23, 42 };
         if (originalExisted) File.WriteAllBytes(copiedPath, original);
@@ -473,7 +473,7 @@ public sealed class CompatibilityPackageTests
     public async Task FullReplacement_WithDifferentRecordedOriginal_ReinstallsAndRestoresBothGenerations(bool oldOriginalExisted)
     {
         using var fixture = Fixture.Create(singleComposableModule: true, includeCopyModule: true);
-        var patches = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false);
+        var patches = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false, catalogProvider: () => OwnershipTestCatalog.Compatibility);
         var copyPath = Path.Combine(Path.GetDirectoryName(fixture.TargetPath)!, "table.lua");
         if (oldOriginalExisted) File.WriteAllText(copyPath, "historical original");
         Assert.True((await patches.RunAsync(ContentPatchAction.Install, fixture.Variant,
@@ -491,7 +491,7 @@ public sealed class CompatibilityPackageTests
         };
         fixture.Store.Save(document);
         var (check, entry) = CreateFullBaseline(fixture);
-        var aircraft = new AircraftUpdateOperation(fixture.Store, isXPlaneRunning: () => false);
+        var aircraft = new AircraftUpdateOperation(fixture.Store, isXPlaneRunning: () => false, catalogProvider: () => OwnershipTestCatalog.Compatibility);
         var full = aircraft.Apply(fixture.Variant, check, [entry]);
         Assert.True(full.Succeeded, full.Message);
         Assert.Equal("official new baseline", File.ReadAllText(copyPath));
@@ -512,7 +512,8 @@ public sealed class CompatibilityPackageTests
         var repeated = await patches.RunAsync(ContentPatchAction.Update, fixture.Variant, fixture.PackageDirectory, selection);
         Assert.True(repeated.Succeeded, repeated.Message);
         Assert.False(repeated.Changed);
-        Assert.True(patches.Restore(fixture.Variant, fixture.PackageDirectory).Succeeded);
+        var restoredPatch = patches.Restore(fixture.Variant, fixture.PackageDirectory);
+        Assert.True(restoredPatch.Succeeded, restoredPatch.Message);
         Assert.Equal("official new baseline", File.ReadAllText(copyPath));
         Assert.Empty(fixture.Store.TryGetContentInstallation(Path.GetDirectoryName(fixture.Variant.AcfPath)!)!.ContentComponents);
 
@@ -522,7 +523,8 @@ public sealed class CompatibilityPackageTests
         Assert.Equal(patchedBytes, File.ReadAllBytes(copyPath));
         var restored = fixture.Store.TryGetContentInstallation(Path.GetDirectoryName(fixture.Variant.AcfPath)!)!;
         Assert.Equal(JsonSerializer.Serialize(oldComponent), JsonSerializer.Serialize(restored.ContentComponents["levelup.compatibility"]));
-        Assert.True(patches.Restore(fixture.Variant, fixture.PackageDirectory).Succeeded);
+        var restoredOldPatch = patches.Restore(fixture.Variant, fixture.PackageDirectory);
+        Assert.True(restoredOldPatch.Succeeded, restoredPatch.Message);
         if (oldOriginalExisted) Assert.Equal("historical original", File.ReadAllText(copyPath));
         else Assert.False(File.Exists(copyPath));
     }
@@ -531,23 +533,24 @@ public sealed class CompatibilityPackageTests
     public async Task FullReplacement_ActivationFailurePreservesPatchStateAndFiles()
     {
         using var fixture = Fixture.Create(singleComposableModule: true, includeCopyModule: true);
-        var patches = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false);
+        var patches = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false, catalogProvider: () => OwnershipTestCatalog.Compatibility);
         Assert.True((await patches.RunAsync(ContentPatchAction.Install, fixture.Variant,
             fixture.PackageDirectory, ["core", "table-payload"])).Succeeded);
         var before = File.ReadAllText(fixture.Store.StatePath);
         var (check, entry) = CreateFullBaseline(fixture);
-        var full = new AircraftFullBaselineReplacement(fixture.Store, afterTargetMoved: () => throw new IOException("injected"));
+        var full = new AircraftFullBaselineReplacement(fixture.Store, afterTargetMoved: () => throw new IOException("injected"), catalogProvider: () => OwnershipTestCatalog.Compatibility);
         Assert.Throws<IOException>(() => full.Apply(fixture.Variant, check, [entry], CancellationToken.None, null, [], new List<string>()));
         Assert.Equal(before, File.ReadAllText(fixture.Store.StatePath));
         Assert.Equal("core\r\n", File.ReadAllText(fixture.TargetPath));
-        Assert.True(patches.Restore(fixture.Variant, fixture.PackageDirectory).Succeeded);
+        var restoredPatch = patches.Restore(fixture.Variant, fixture.PackageDirectory);
+        Assert.True(restoredPatch.Succeeded, restoredPatch.Message);
     }
 
     [Fact]
     public async Task FullReplacement_StandaloneSourceSelectionSurvivesWithoutMigratingOldFileOwnership()
     {
         using var fixture = Fixture.Create(singleComposableModule: true, includeCopyModule: true);
-        var patches = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false);
+        var patches = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false, catalogProvider: () => OwnershipTestCatalog.Compatibility);
         Assert.True((await patches.RunAsync(ContentPatchAction.Install, fixture.Variant,
             fixture.PackageDirectory, ["core", "table-payload"])).Succeeded);
         fixture.Store.UpdateContentAndProduct(fixture.Variant, (installation, product) =>
@@ -558,7 +561,7 @@ public sealed class CompatibilityPackageTests
             product.InstalledContentPackageId = "standalone-copy";
         });
         var (check, entry) = CreateFullBaseline(fixture);
-        var full = new AircraftUpdateOperation(fixture.Store, isXPlaneRunning: () => false).Apply(fixture.Variant, check, [entry]);
+        var full = new AircraftUpdateOperation(fixture.Store, isXPlaneRunning: () => false, catalogProvider: () => OwnershipTestCatalog.Compatibility).Apply(fixture.Variant, check, [entry]);
         Assert.True(full.Succeeded, full.Message);
         var manifestPath = Path.Combine(fixture.PackageDirectory, "package-manifest.json");
         var json = JsonNode.Parse(File.ReadAllText(manifestPath))!;
@@ -574,7 +577,8 @@ public sealed class CompatibilityPackageTests
         var state = fixture.Store.TryGetContentInstallation(Path.GetDirectoryName(fixture.Variant.AcfPath)!)!;
         Assert.Empty(state.PendingContentModules);
         Assert.Equal("levelup.compatibility", Assert.Single(state.ContentComponents).Key);
-        Assert.True(patches.Restore(fixture.Variant, fixture.PackageDirectory).Succeeded);
+        var restoredPatch = patches.Restore(fixture.Variant, fixture.PackageDirectory);
+        Assert.True(restoredPatch.Succeeded, restoredPatch.Message);
         Assert.Equal("official new baseline", File.ReadAllText(Path.Combine(Path.GetDirectoryName(fixture.TargetPath)!, "table.lua")));
     }
 
@@ -584,18 +588,18 @@ public sealed class CompatibilityPackageTests
     public async Task FullRestore_InvalidBackupOrMissingSnapshotLeavesFilesAndStateUntouched(bool legacyBackup)
     {
         using var fixture = Fixture.Create(singleComposableModule: true, includeCopyModule: true);
-        var patches = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false);
+        var patches = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false, catalogProvider: () => OwnershipTestCatalog.Compatibility);
         Assert.True((await patches.RunAsync(ContentPatchAction.Install, fixture.Variant,
             fixture.PackageDirectory, ["core", "table-payload"])).Succeeded);
         var (check, entry) = CreateFullBaseline(fixture);
-        var aircraft = new AircraftUpdateOperation(fixture.Store, isXPlaneRunning: () => false);
+        var aircraft = new AircraftUpdateOperation(fixture.Store, isXPlaneRunning: () => false, catalogProvider: () => OwnershipTestCatalog.Compatibility);
         Assert.True(aircraft.Apply(fixture.Variant, check, [entry]).Succeeded);
         var generation = Assert.Single(fixture.Store.TryGetProductTarget(fixture.Variant)!.Backups,
             b => b.Operation == "AircraftUpdateFullDirectory");
         if (legacyBackup) generation.AircraftContentGeneration = null;
         else File.Delete(Path.Combine(generation.BackupPath, Path.GetFileName(fixture.Variant.AcfPath)));
         var before = File.ReadAllText(fixture.Store.StatePath);
-        Assert.Throws<InvalidDataException>(() => new AircraftFullBaselineReplacement(fixture.Store)
+        Assert.Throws<InvalidDataException>(() => new AircraftFullBaselineReplacement(fixture.Store, catalogProvider: () => OwnershipTestCatalog.Compatibility)
             .Restore(fixture.Variant, generation, new List<string>()));
         Assert.Equal(before, File.ReadAllText(fixture.Store.StatePath));
         Assert.Equal("before\r\n", File.ReadAllText(fixture.TargetPath));
@@ -632,7 +636,7 @@ public sealed class CompatibilityPackageTests
     public async Task Update_RecoversBackupOnlyWhenCurrentBytesProveOriginal(string damage)
     {
         using var fixture = Fixture.Create(singleComposableModule: true, includeCopyModule: true);
-        var operation = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false);
+        var operation = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false, catalogProvider: () => OwnershipTestCatalog.Compatibility);
         var path = Path.Combine(Path.GetDirectoryName(fixture.TargetPath)!, "table.lua");
         File.WriteAllText(path, "original");
         Assert.True((await operation.RunAsync(ContentPatchAction.Install, fixture.Variant,
@@ -666,7 +670,7 @@ public sealed class CompatibilityPackageTests
     public async Task Update_WhenManagedCopyFileChanged_KeepsStrictHashBlock()
     {
         using var fixture = Fixture.Create(singleComposableModule: true, includeCopyModule: true);
-        var operation = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false);
+        var operation = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false, catalogProvider: () => OwnershipTestCatalog.Compatibility);
         await operation.RunAsync(
             ContentPatchAction.Install,
             fixture.Variant,
@@ -687,7 +691,7 @@ public sealed class CompatibilityPackageTests
             ["core", "table-payload"]);
 
         Assert.False(updated.Succeeded);
-        Assert.Contains("Managed target changed after installation", updated.Message, StringComparison.Ordinal);
+        Assert.Contains("backup chain", updated.Message, StringComparison.Ordinal);
         Assert.Equal("user change\n", File.ReadAllText(copiedPath));
     }
 
@@ -695,7 +699,7 @@ public sealed class CompatibilityPackageTests
     public async Task InstallAndRestore_CopyFileModule_CreatesAndRemovesVerifiedPayload()
     {
         using var fixture = Fixture.Create(includeCopyModule: true);
-        var operation = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false);
+        var operation = new CompatibilityPackageOperation(fixture.Store, isXPlaneRunning: () => false, catalogProvider: () => OwnershipTestCatalog.Compatibility);
         var createdPath = Path.Combine(Path.GetDirectoryName(fixture.Variant.AcfPath)!, "plugins", "xlua", "scripts", "table.lua");
 
         var installed = await operation.RunAsync(
@@ -704,14 +708,14 @@ public sealed class CompatibilityPackageTests
             fixture.PackageDirectory,
             ["core", "standard", "table-payload"]);
 
-        Assert.True(installed.Succeeded);
+        Assert.True(installed.Succeeded, installed.Message);
         Assert.Equal("return { value = 42 }\n", File.ReadAllText(createdPath));
         var state = Assert.Single(fixture.Store.Load().ContentInstallations.Values).ContentComponents["levelup.compatibility"];
         Assert.Contains(state.Files, file => file.RelativePath == "plugins/xlua/scripts/table.lua" && !file.OriginalExisted);
 
         var restored = operation.Restore(fixture.Variant, fixture.PackageDirectory);
 
-        Assert.True(restored.Succeeded);
+        Assert.True(restored.Succeeded, restored.Message);
         Assert.False(File.Exists(createdPath));
         Assert.Equal("before\r\n", File.ReadAllText(fixture.TargetPath));
     }
@@ -727,7 +731,7 @@ public sealed class CompatibilityPackageTests
         var document = JsonNode.Parse(File.ReadAllText(manifestPath))!;
         document["sources"] = JsonSerializer.SerializeToNode(new[] { new { packageId = "source.core", moduleId = "core", releaseTag = "v1.0.0", assetSha256 = new string('a', 64), repositoryUrl = "https://github.com/example/core" } });
         File.WriteAllText(manifestPath, document.ToJsonString());
-        var operation = new CompatibilityPackageOperation(fixture.Store, () => false);
+        var operation = new CompatibilityPackageOperation(fixture.Store, () => false, () => OwnershipTestCatalog.Compatibility);
         Assert.True((await operation.RunAsync(ContentPatchAction.Install, fixture.Variant, fixture.PackageDirectory, [])).Succeeded);
         Assert.Equal("core\r\n", File.ReadAllText(fixture.TargetPath));
         var payload = document["modules"]![0]!["payloads"]![0]!;
@@ -795,7 +799,7 @@ public sealed class CompatibilityPackageTests
             installation.ContentComponents[legacy.ComponentId] = legacy;
             product.ContentComponents[legacy.ComponentId] = legacy;
         });
-        var operation = new CompatibilityPackageOperation(fixture.Store, () => false);
+        var operation = new CompatibilityPackageOperation(fixture.Store, () => false, () => OwnershipTestCatalog.Compatibility);
 
         var applied = await operation.RunAsync(
             ContentPatchAction.Update,
@@ -824,7 +828,7 @@ public sealed class CompatibilityPackageTests
         bool migrateStandalone, string backupCondition, bool failWrite)
     {
         using var fixture = Fixture.Create(omitStructuralResultHashes: true);
-        var operation = new CompatibilityPackageOperation(fixture.Store, () => false);
+        var operation = new CompatibilityPackageOperation(fixture.Store, () => false, () => OwnershipTestCatalog.Compatibility);
         Assert.True((await operation.RunAsync(ContentPatchAction.Install, fixture.Variant,
             fixture.PackageDirectory, ["core", "standard"])).Succeeded);
         var root = Path.GetDirectoryName(fixture.Variant.AcfPath)!;
@@ -840,18 +844,18 @@ public sealed class CompatibilityPackageTests
             document["packageId"] = "new.group";
             document["sources"] = JsonSerializer.SerializeToNode(new[] { new {
                 packageId = "levelup.compatibility", moduleId = "core", releaseTag = "v1.0.0",
-                assetSha256 = new string('a', 64), repositoryUrl = "https://github.com/example/core" } });
+                assetSha256 = new string('a', 64), repositoryUrl = "https://github.com/example/levelup-compatibility" } });
             File.WriteAllText(manifestPath, document.ToJsonString());
         }
         var baseline = Encoding.UTF8.GetBytes("official release change\r\nbefore\r\n");
         File.WriteAllBytes(fixture.TargetPath, baseline);
         var catalog = new KnownAircraftBaselines([new("levelup-737ng", "test-release",
             "plugins/xlua/scripts/shared.lua", baseline.Length, Sha256(baseline), "https://example.org/release-manifest", new string('a', 64))]);
-        var builder = new CompatibilityPackagePlanBuilder(fixture.Store, null, catalog);
+        var builder = new CompatibilityPackagePlanBuilder(fixture.Store, null, catalog, () => OwnershipTestCatalog.Compatibility);
         var package = CompatibilityPackageLoader.LoadDirectory(fixture.PackageDirectory);
         var stateBefore = File.ReadAllBytes(fixture.Store.StatePath);
         // Without independent evidence this is the reporter's disconnected-history failure.
-        var rejected = await new CompatibilityPackagePlanBuilder(fixture.Store).BuildAsync(
+        var rejected = await new CompatibilityPackagePlanBuilder(fixture.Store, catalogProvider: () => OwnershipTestCatalog.Compatibility).BuildAsync(
             ContentPatchAction.Install, fixture.Variant, package, ["core", "standard"]);
         if (migrateStandalone) Assert.False(rejected.IsSafe);
         var plan = await builder.BuildAsync(ContentPatchAction.Install, fixture.Variant, package, ["core", "standard"]);
@@ -859,12 +863,12 @@ public sealed class CompatibilityPackageTests
         Assert.Contains(plan.Log, line => line.StartsWith("[RECOVER]"));
         Assert.Equal(stateBefore, File.ReadAllBytes(fixture.Store.StatePath));
         Assert.Equal(baseline, File.ReadAllBytes(fixture.TargetPath));
-        var engine = new ContentPatchEngine(fixture.Store, () => false);
+        var engine = new ContentPatchEngine(fixture.Store, () => false, () => OwnershipTestCatalog.Compatibility, catalog);
         if (failWrite)
         {
             Directory.CreateDirectory(Path.Combine(root, "write-failure"));
             plan = plan with { Mutations = [.. plan.Mutations, ContentPatchMutation.Write("write-failure", [1], "fault injection")] };
-            Assert.NotNull(Record.Exception(() => engine.Execute(plan, fixture.Variant)));
+            Assert.False(engine.Execute(plan, fixture.Variant).Succeeded);
             Assert.Equal(baseline, File.ReadAllBytes(fixture.TargetPath));
             Assert.Equal(stateBefore, File.ReadAllBytes(fixture.Store.StatePath));
         }
@@ -877,7 +881,7 @@ public sealed class CompatibilityPackageTests
             var repeat = await builder.BuildAsync(ContentPatchAction.Update, fixture.Variant, package, ["core", "standard"]);
             Assert.True(repeat.IsSafe, repeat.StatusMessage);
             var repeated = engine.Execute(repeat, fixture.Variant);
-            Assert.True(repeated.Succeeded);
+            Assert.True(repeated.Succeeded, repeated.Message);
             Assert.False(repeated.Changed);
             var optional = await builder.BuildAsync(ContentPatchAction.Update, fixture.Variant, package, ["core", "standard", "optional"]);
             Assert.True(optional.IsSafe, optional.StatusMessage);

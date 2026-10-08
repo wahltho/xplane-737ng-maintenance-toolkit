@@ -17,13 +17,15 @@ public sealed class AircraftUpdateOperation
     private readonly ToolStateStore _stateStore;
     private readonly AircraftUpdateDryRunAnalyzer _dryRunAnalyzer;
     private readonly Func<bool> _isXPlaneRunning;
+    private readonly Func<ContentPackageCatalog> _catalogProvider;
 
     public AircraftUpdateOperation(
         ToolStateStore stateStore,
         AircraftUpdateDryRunAnalyzer? dryRunAnalyzer = null,
-        Func<bool>? isXPlaneRunning = null)
+        Func<bool>? isXPlaneRunning = null, Func<ContentPackageCatalog>? catalogProvider = null)
     {
         _stateStore = stateStore;
+        _catalogProvider = catalogProvider ?? ContentPackageCatalog.LoadBundled;
         _dryRunAnalyzer = dryRunAnalyzer ?? new AircraftUpdateDryRunAnalyzer();
         _isXPlaneRunning = isXPlaneRunning ?? XPlaneProcessDetector.IsXPlaneRunning;
     }
@@ -69,18 +71,19 @@ public sealed class AircraftUpdateOperation
             return MaintenanceOperationResult.Blocked("Custom distributions are review-only for official upstream package updates.", log);
         }
 
-        if (updateCheck.RequiredPackages.Count == 0)
-        {
-            log.Add("[NO-CHANGE] Current upstream plan does not require package changes.");
-            return MaintenanceOperationResult.NoChange("No upstream aircraft package changes are required.", log);
-        }
-
         var standaloneConflict = StandalonePatchOwnershipGuard.FindAircraftUpdateConflict(
-            aircraftFolder, _stateStore.TryGetContentInstallation(aircraftFolder)?.ContentComponents);
+            aircraftFolder, _stateStore.TryGetContentInstallation(aircraftFolder), _catalogProvider(),
+            AircraftProductIds.Normalize(variant.Family));
         if (standaloneConflict is not null)
         {
             log.Add($"[BLOCKED] {standaloneConflict}");
             return MaintenanceOperationResult.Blocked(standaloneConflict, log);
+        }
+
+        if (updateCheck.RequiredPackages.Count == 0)
+        {
+            log.Add("[NO-CHANGE] Current upstream plan does not require package changes.");
+            return MaintenanceOperationResult.NoChange("No upstream aircraft package changes are required.", log);
         }
 
         var cacheValidation = ValidateCachedPackages(updateCheck.RequiredPackages, cachedPackages);
@@ -131,7 +134,7 @@ public sealed class AircraftUpdateOperation
         {
             try
             {
-                return new AircraftFullBaselineReplacement(_stateStore, isXPlaneRunning: _isXPlaneRunning).Apply(
+                return new AircraftFullBaselineReplacement(_stateStore, isXPlaneRunning: _isXPlaneRunning, catalogProvider: _catalogProvider).Apply(
                     variant,
                     updateCheck,
                     orderedCacheEntries,
@@ -173,7 +176,8 @@ public sealed class AircraftUpdateOperation
 
         writePhaseStarting?.Invoke();
         standaloneConflict = StandalonePatchOwnershipGuard.FindAircraftUpdateConflict(
-            aircraftFolder, _stateStore.TryGetContentInstallation(aircraftFolder)?.ContentComponents);
+            aircraftFolder, _stateStore.TryGetContentInstallation(aircraftFolder), _catalogProvider(),
+            AircraftProductIds.Normalize(variant.Family));
         if (standaloneConflict is not null)
         {
             log.Add($"[BLOCKED] {standaloneConflict}");
@@ -267,7 +271,7 @@ public sealed class AircraftUpdateOperation
         {
             try
             {
-                return new AircraftFullBaselineReplacement(_stateStore).Restore(variant, directoryGeneration, log);
+                return new AircraftFullBaselineReplacement(_stateStore, catalogProvider: _catalogProvider).Restore(variant, directoryGeneration, log);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or InvalidDataException)
             {
@@ -284,6 +288,10 @@ public sealed class AircraftUpdateOperation
             return MaintenanceOperationResult.Blocked("No aircraft update backup generation is recorded for this aircraft product.", log);
         }
 
+        var restoreConflict = StandalonePatchOwnershipGuard.FindAircraftUpdateConflict(aircraftFolder,
+            _stateStore.TryGetContentInstallation(aircraftFolder), _catalogProvider(), AircraftProductIds.Normalize(variant.Family));
+        if (restoreConflict is not null) return MaintenanceOperationResult.Blocked(restoreConflict, log);
+
         var createdUtc = DateTimeOffset.UtcNow;
         var preRestoreBackups = new List<BackupRecord>();
 
@@ -298,6 +306,8 @@ public sealed class AircraftUpdateOperation
                     || !string.Equals(ComputeSha256(record.BackupPath), record.SourceSha256, StringComparison.OrdinalIgnoreCase))
                     throw new InvalidOperationException($"Aircraft update backup failed verification: {record.SourcePath}.");
             }
+            ContentPatchOwnershipVerifier.CheckAircraft(aircraftFolder,
+                _stateStore.TryGetContentInstallation(aircraftFolder), _catalogProvider(), AircraftProductIds.Normalize(variant.Family));
             foreach (var record in restoreRecords.Reverse())
             {
                 var preRestore = CapturePreRestoreImage(variant, record, createdUtc, log);

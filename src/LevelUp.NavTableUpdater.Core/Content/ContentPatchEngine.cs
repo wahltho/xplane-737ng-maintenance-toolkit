@@ -10,10 +10,18 @@ public sealed class ContentPatchEngine
 {
     private readonly ToolStateStore _stateStore;
     private readonly Func<bool> _isXPlaneRunning;
+    private readonly Func<ContentPackageCatalog> _catalogProvider;
+    private readonly KnownAircraftBaselines _baselines;
 
-    public ContentPatchEngine(ToolStateStore stateStore, Func<bool>? isXPlaneRunning = null)
+    public ContentPatchEngine(ToolStateStore stateStore, Func<bool>? isXPlaneRunning = null, Func<ContentPackageCatalog>? catalogProvider = null)
+        : this(stateStore, isXPlaneRunning, catalogProvider, KnownAircraftBaselines.BuiltIn) { }
+
+    internal ContentPatchEngine(ToolStateStore stateStore, Func<bool>? isXPlaneRunning,
+        Func<ContentPackageCatalog>? catalogProvider, KnownAircraftBaselines baselines)
     {
+        _baselines = baselines;
         _stateStore = stateStore;
+        _catalogProvider = catalogProvider ?? ContentPackageCatalog.LoadBundled;
         _isXPlaneRunning = isXPlaneRunning ?? XPlaneProcessDetector.IsXPlaneRunning;
     }
 
@@ -35,16 +43,11 @@ public sealed class ContentPatchEngine
 
         var aircraftRoot = Path.GetFullPath(plan.AircraftRoot);
         var installation = _stateStore.TryGetContentInstallation(aircraftRoot);
-        var standaloneTargets = plan.Mutations.Select(mutation => mutation.RelativePath)
-            .Concat(plan.ExpectedSourceHashes.Keys)
-            .Concat(plan.OwnedRelativePaths ?? Enumerable.Empty<string>());
-        string? standaloneConflict;
-        try { standaloneConflict = StandalonePatchOwnershipGuard.FindConflict(aircraftRoot, standaloneTargets, installation?.ContentComponents); }
-        catch (InvalidOperationException ex) { standaloneConflict = ex.Message; }
-        if (standaloneConflict is not null)
+        try { ContentPatchOwnershipVerifier.Recheck(plan, _stateStore, _catalogProvider(), _baselines); }
+        catch (Exception ex) when (ContentPatchOwnershipVerifier.IsVerificationFailure(ex))
         {
-            log.Add($"[BLOCKED] {standaloneConflict}");
-            return MaintenanceOperationResult.Blocked(standaloneConflict, log);
+            log.Add($"[BLOCKED] {ex.Message}");
+            return MaintenanceOperationResult.Blocked(ex.Message, log);
         }
         var owner = installation?.ContentComponents.Values
             .FirstOrDefault(component => component.ComponentId != plan.Descriptor.ComponentId
@@ -78,8 +81,11 @@ public sealed class ContentPatchEngine
                 != final.DirectoryExisted);
         if (mutations.Count == 0 && !directoryChanges)
         {
-            try { ValidateFinalScopes(plan.FinalScopes, aircraftRoot); }
+            try { ValidateFinalScopes(plan.FinalScopes, aircraftRoot); ContentPatchOwnershipVerifier.CheckFinal(plan); }
             catch (InvalidOperationException ex) { return MaintenanceOperationResult.Blocked(ex.Message, log); }
+            if (installation?.ContentComponents.GetValueOrDefault(plan.Descriptor.ComponentId) is not null)
+                _stateStore.UpdateContentAndProduct(variant, (current, _) =>
+                    current.ContentComponents[plan.Descriptor.ComponentId].OwnershipSnapshot = plan.OwnershipSnapshot);
             log.Add("[NO-CHANGE] The patch plan contains no file changes.");
             return MaintenanceOperationResult.NoChange(plan.StatusMessage, log);
         }
@@ -93,7 +99,7 @@ public sealed class ContentPatchEngine
                     && priorState?.Files.Any(f => f.RelativePath == m.RelativePath) != true))).ToArray();
         if (changedMutations.Length == 0 && needsInitialBackup.Length == 0 && !directoryChanges)
         {
-            try { ValidateFinalScopes(plan.FinalScopes, aircraftRoot); }
+            try { ValidateFinalScopes(plan.FinalScopes, aircraftRoot); ContentPatchOwnershipVerifier.CheckFinal(plan); }
             catch (InvalidOperationException ex) { return MaintenanceOperationResult.Blocked(ex.Message, log); }
             RecordState(plan, variant, mutations, backups: [], changed: false);
             log.Add("[NO-CHANGE] Every planned target already has the requested state.");
@@ -142,6 +148,16 @@ public sealed class ContentPatchEngine
                 }
             }
 
+            try { ContentPatchOwnershipVerifier.Recheck(plan, _stateStore, _catalogProvider(), _baselines); }
+            catch (Exception ex) when (ContentPatchOwnershipVerifier.IsVerificationFailure(ex))
+            {
+                // No aircraft file has been written yet. Do not copy backups
+                // over an external edit that caused this second check to fail.
+                rollback.Clear();
+                log.Add($"[BLOCKED] {ex.Message}");
+                return MaintenanceOperationResult.Blocked(ex.Message, log);
+            }
+
             foreach (var mutation in changedMutations)
             {
                 switch (mutation.Kind)
@@ -167,6 +183,7 @@ public sealed class ContentPatchEngine
 
             ApplyFinalScopeDirectories(plan.FinalScopes, aircraftRoot);
             ValidateFinalScopes(plan.FinalScopes, aircraftRoot);
+            ContentPatchOwnershipVerifier.CheckFinal(plan);
 
             backupRecords.AddRange(BuildBackupRecords(plan, variant, mutations, originalStates, createdUtc));
             RecordState(plan, variant, mutations, backupRecords, changed: true, originalStates);
@@ -224,18 +241,17 @@ public sealed class ContentPatchEngine
                 log);
         }
 
-        string? standaloneConflict;
+        ContentPatchOwnershipCheck restoreCheck;
         try
         {
-            standaloneConflict = StandalonePatchOwnershipGuard.FindConflict(aircraftRoot,
-                component.Files.Select(file => file.RelativePath),
-                _stateStore.TryGetContentInstallation(aircraftRoot)?.ContentComponents);
+            restoreCheck = ContentPatchOwnershipVerifier.PrepareRestore(aircraftRoot, component,
+                _stateStore.TryGetContentInstallation(aircraftRoot), _catalogProvider(),
+                AircraftProductIds.Normalize(variant.Family));
         }
-        catch (InvalidOperationException ex) { standaloneConflict = ex.Message; }
-        if (standaloneConflict is not null)
+        catch (Exception ex) when (ContentPatchOwnershipVerifier.IsVerificationFailure(ex))
         {
-            log.Add($"[BLOCKED] {standaloneConflict}");
-            return MaintenanceOperationResult.Blocked(standaloneConflict, log);
+            log.Add($"[BLOCKED] {ex.Message}");
+            return MaintenanceOperationResult.Blocked(ex.Message, log);
         }
 
         if (!component.RestoreAvailable)
@@ -315,6 +331,16 @@ public sealed class ContentPatchEngine
             files.Add(new RestoreFile(file, targetPath, installed, originalBytes));
         }
 
+        try
+        {
+            ContentPatchOwnershipVerifier.RecheckRestore(aircraftRoot, restoreCheck,
+                _stateStore.TryGetContentInstallation(aircraftRoot), _catalogProvider());
+        }
+        catch (Exception ex) when (ContentPatchOwnershipVerifier.IsVerificationFailure(ex))
+        {
+            return MaintenanceOperationResult.Blocked(ex.Message, log);
+        }
+
         var createdUtc = DateTimeOffset.UtcNow;
         var preRestoreBackups = new List<BackupRecord>();
         var rollback = new Stack<Action>();
@@ -367,6 +393,18 @@ public sealed class ContentPatchEngine
                 }
             }
 
+            try
+            {
+                ContentPatchOwnershipVerifier.RecheckRestore(aircraftRoot, restoreCheck,
+                    _stateStore.TryGetContentInstallation(aircraftRoot), _catalogProvider());
+            }
+            catch (Exception ex) when (ContentPatchOwnershipVerifier.IsVerificationFailure(ex))
+            {
+                rollback.Clear();
+                log.Add($"[BLOCKED] {ex.Message}");
+                return MaintenanceOperationResult.Blocked(ex.Message, log);
+            }
+
             foreach (var file in files)
             {
                 if (file.OriginalBytes is null)
@@ -402,6 +440,7 @@ public sealed class ContentPatchEngine
                         file => file.OriginalSha256!, StringComparer.Ordinal))).ToArray();
             ApplyFinalScopeDirectories(finalScopes, aircraftRoot);
             ValidateFinalScopes(finalScopes, aircraftRoot);
+            ContentPatchOwnershipVerifier.CheckRestoreFinal(aircraftRoot, restoreCheck, component);
 
             _stateStore.UpdateContentAndProduct(variant, (installation, target) =>
             {
@@ -481,7 +520,8 @@ public sealed class ContentPatchEngine
                     EnabledModules = [.. plan.EnabledModules],
                     Sources = [.. plan.Sources],
                     Files = fileStates,
-                    Scopes = [.. plan.OwnedScopes]
+                    Scopes = [.. plan.OwnedScopes],
+                    OwnershipSnapshot = plan.OwnershipSnapshot
                 };
             }
 

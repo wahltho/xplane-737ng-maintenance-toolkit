@@ -29,7 +29,10 @@ internal static class Program
                 ? new ToolStateStore(Path.GetFullPath(stateRoot), options.Optional("backup-root"))
                 : ToolStateStore.CreateDefault(options.Optional("backup-root"));
             var selectedModules = ResolveModules(options, stateStore, aircraftRoot, package);
-            var operation = new CompatibilityPackageOperation(stateStore);
+            var catalog = options.Optional("catalog") is { } catalogPath
+                ? ContentPackageCatalog.Parse(File.ReadAllText(Path.GetFullPath(catalogPath)))
+                : ContentPackageCatalog.LoadBundled();
+            var operation = new CompatibilityPackageOperation(stateStore, catalogProvider: () => catalog);
 
             return options.Command.ToLowerInvariant() switch
             {
@@ -190,7 +193,7 @@ internal static class Program
         if (args.Length == 0 || !Commands.Contains(args[0]))
         {
             throw new ArgumentException(
-                "Usage: XPlane737NGPatchCli <inspect|apply|uninstall|restore> --aircraft-root <path> --package <path> [--product <id>] [--modules <id,id>] [--state-root <path>] [--backup-root <path>] [--yes]");
+                "Usage: XPlane737NGPatchCli <inspect|apply|uninstall|restore> --aircraft-root <path> --package <path> [--product <id>] [--modules <id,id>] [--state-root <path>] [--backup-root <path>] [--catalog <path>] [--yes]");
         }
 
         var values = new Dictionary<string, string>(StringComparer.Ordinal);

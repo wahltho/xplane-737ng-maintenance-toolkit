@@ -10,16 +10,28 @@ public sealed class DeclarativePatchPlanBuilder : IContentPatchPlanBuilder<Decla
 {
     private readonly ToolStateStore _stateStore;
     private readonly ContentPatchHandlerRegistry _handlers;
+    private readonly Func<ContentPackageCatalog> _catalogProvider;
 
     public DeclarativePatchPlanBuilder(
         ToolStateStore stateStore,
-        ContentPatchHandlerRegistry? handlers = null)
+        ContentPatchHandlerRegistry? handlers = null, Func<ContentPackageCatalog>? catalogProvider = null)
     {
         _stateStore = stateStore;
+        _catalogProvider = catalogProvider ?? ContentPackageCatalog.LoadBundled;
         _handlers = handlers ?? ContentPatchHandlerRegistry.CreateBuiltIn();
     }
 
-    public Task<ContentPatchPlan> BuildAsync(
+    public Task<ContentPatchPlan> BuildAsync(ContentPatchAction action,
+        AircraftVariantViewAnalysis variant, DeclarativePatchPackage package,
+        CancellationToken cancellationToken = default)
+    {
+        return ContentPatchOwnershipVerifier.BuildPlanAsync(action, variant, DescriptorFor(package.Manifest),
+            package.Manifest.PackageVersion, _stateStore, _catalogProvider,
+            package.Manifest.Targets.Select(target => target.RelativePath),
+            () => BuildCoreAsync(action, variant, package, cancellationToken));
+    }
+
+    private Task<ContentPatchPlan> BuildCoreAsync(
         ContentPatchAction action,
         AircraftVariantViewAnalysis variant,
         DeclarativePatchPackage package,
@@ -57,7 +69,8 @@ public sealed class DeclarativePatchPlanBuilder : IContentPatchPlanBuilder<Decla
         var standaloneTargets = manifest.Targets.Select(target => target.RelativePath)
             .Concat(componentState?.Files.Select(file => file.RelativePath) ?? []);
         string? standaloneConflict;
-        try { standaloneConflict = StandalonePatchOwnershipGuard.FindConflict(aircraftRoot, standaloneTargets, installation?.ContentComponents); }
+        try { standaloneConflict = StandalonePatchOwnershipGuard.FindConflict(aircraftRoot, standaloneTargets, installation?.ContentComponents,
+            _catalogProvider(), installation?.Backups, AircraftProductIds.Normalize(variant.Family)); }
         catch (InvalidOperationException ex) { standaloneConflict = ex.Message; }
         if (standaloneConflict is not null)
             return Task.FromResult(ContentPatchPlan.Blocked(descriptor, manifest.PackageVersion, action,
@@ -170,10 +183,10 @@ public sealed class DeclarativePatchPlanBuilder : IContentPatchPlanBuilder<Decla
 
         if (targetStates.All(state => state.IsInstalled))
         {
-            var adoptedExistingInstallation = componentState is null;
-            log.Add(adoptedExistingInstallation
-                ? "[ADOPT] Every declarative patch target is already installed; recording the detected installation without an original restore backup."
-                : "[NO-CHANGE] Every declarative patch target is already installed.");
+            if (componentState is null)
+                return Task.FromResult(ContentPatchPlan.Blocked(descriptor, manifest.PackageVersion, action,
+                    aircraftRoot, "Patch output is present without verified MTK ownership and an original restore backup.", log));
+            log.Add("[NO-CHANGE] Every declarative patch target is already installed.");
             ContentPatchMutation[] stateRefreshMutations = targetStates.Select(state => ContentPatchMutation.Write(
                 state.Target.RelativePath,
                 state.Bytes,
@@ -186,12 +199,7 @@ public sealed class DeclarativePatchPlanBuilder : IContentPatchPlanBuilder<Decla
                 stateRefreshMutations,
                 log,
                 IsSafe: true,
-                adoptedExistingInstallation
-                    ? $"{descriptor.DisplayName} {manifest.PackageVersion} was already present and is now tracked; restore is unavailable because no original backup exists."
-                    : $"{descriptor.DisplayName} {manifest.PackageVersion} is already installed.")
-            {
-                RestoreAvailable = !adoptedExistingInstallation
-            });
+                $"{descriptor.DisplayName} {manifest.PackageVersion} is already installed."));
         }
 
         if (componentState is null && targetStates.Any(state => state.IsInstalled))
@@ -344,14 +352,10 @@ public sealed class DeclarativePatchPlanBuilder : IContentPatchPlanBuilder<Decla
 
     internal static ContentPatchDescriptor DescriptorFor(DeclarativePatchManifest manifest)
     {
-        if (manifest.PackageId.Equals(ContentPatchCatalog.FansCdu.ComponentId, StringComparison.Ordinal))
-        {
-            return ContentPatchCatalog.FansCdu with
-            {
-                RepositoryUrl = manifest.RepositoryUrl,
-                RestartRequired = manifest.RestartRequired
-            };
-        }
+        var entry = ContentPackageCatalog.LoadBundled().Packages.SingleOrDefault(package => package.PackageId == manifest.PackageId);
+        if (entry?.Category == ContentPackageCategory.OptionalPatch)
+            return ContentPatchCatalog.OptionalPatch(entry) with
+            { RepositoryUrl = manifest.RepositoryUrl, RestartRequired = manifest.RestartRequired };
 
         return new ContentPatchDescriptor(
             manifest.PackageId,

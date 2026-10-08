@@ -15,7 +15,7 @@ public sealed class DeclarativeContentPatchOperationTests
 
         var plan = await operation.PlanAsync(ContentPatchAction.Update, fixture.Variant, fixture.PackageDirectory);
 
-        Assert.True(plan.IsSafe);
+        Assert.True(plan.IsSafe, plan.StatusMessage);
         Assert.Single(plan.Mutations);
         Assert.Equal("before\r\n", File.ReadAllText(fixture.TargetPath));
         Assert.Empty(fixture.Store.Load().ContentInstallations);
@@ -33,7 +33,7 @@ public sealed class DeclarativeContentPatchOperationTests
             fixture.PackageDirectory);
 
         Assert.False(plan.IsSafe);
-        Assert.Contains("selected variant", plan.StatusMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("does not support this aircraft", plan.StatusMessage, StringComparison.OrdinalIgnoreCase);
         Assert.Equal("before\r\n", File.ReadAllText(fixture.TargetPath));
     }
 
@@ -47,19 +47,19 @@ public sealed class DeclarativeContentPatchOperationTests
 
         var installed = await operation.RunAsync(ContentPatchAction.Install, fixture.Variant, fixture.PackageDirectory);
 
-        Assert.True(installed.Succeeded);
+        Assert.True(installed.Succeeded, installed.Message);
         Assert.Equal(
             "unrelated header\r\ninstalled\r\nafter\r\nunrelated footer\r\n",
             File.ReadAllText(fixture.TargetPath));
 
         var uninstalled = await operation.RunAsync(ContentPatchAction.Uninstall, fixture.Variant, fixture.PackageDirectory);
 
-        Assert.True(uninstalled.Succeeded);
+        Assert.True(uninstalled.Succeeded, uninstalled.Message);
         Assert.Equal(original, File.ReadAllBytes(fixture.TargetPath));
     }
 
     [Fact]
-    public async Task PlanAsync_WhenHashlessExactTextPatchIsAlreadyPresent_ReportsNoChanges()
+    public async Task PlanAsync_WhenHashlessExactTextPatchIsAlreadyPresent_BlocksUnownedResult()
     {
         using var fixture = Fixture.Create(includeSourceHash: false);
         File.WriteAllText(fixture.TargetPath, "installed\r\nafter\r\n");
@@ -67,14 +67,13 @@ public sealed class DeclarativeContentPatchOperationTests
 
         var plan = await operation.PlanAsync(ContentPatchAction.Update, fixture.Variant, fixture.PackageDirectory);
 
-        Assert.True(plan.IsSafe);
-        Assert.Single(plan.Mutations);
-        Assert.False(plan.RestoreAvailable);
-        Assert.Contains("already present", plan.StatusMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.False(plan.IsSafe);
+        Assert.Equal("installed\r\nafter\r\n", File.ReadAllText(fixture.TargetPath));
+        Assert.Empty(fixture.Store.Load().ContentInstallations);
     }
 
     [Fact]
-    public async Task Install_WhenPngResultPixelsExistWithoutState_AdoptsWithoutInventingRestore()
+    public async Task Install_WhenPngResultPixelsExistWithoutState_BlocksUnownedResult()
     {
         using var directory = new DeclarativePatchManifestTests.TemporaryDirectory();
         var aircraftRoot = Path.Combine(directory.Path, "aircraft");
@@ -108,17 +107,10 @@ public sealed class DeclarativeContentPatchOperationTests
 
         var result = await operation.RunAsync(ContentPatchAction.Install, variant, packageRoot);
 
-        Assert.True(result.Succeeded);
+        Assert.False(result.Succeeded);
         Assert.False(result.Changed);
         Assert.Equal(installed, File.ReadAllBytes(targetPath));
-        var component = Assert.Single(Assert.Single(store.Load().ContentInstallations.Values).ContentComponents.Values);
-        Assert.False(component.RestoreAvailable);
-        Assert.Single(component.Files);
-
-        var restore = operation.Restore(variant, packageRoot);
-        Assert.False(restore.Succeeded);
-        Assert.Contains("No original restore backup", restore.Message, StringComparison.Ordinal);
-        Assert.Equal(installed, File.ReadAllBytes(targetPath));
+        Assert.Empty(store.Load().ContentInstallations);
     }
 
     [Theory]
@@ -160,7 +152,7 @@ public sealed class DeclarativeContentPatchOperationTests
 
         var installed = await operation.RunAsync(ContentPatchAction.Install, fixture.Variant, fixture.PackageDirectory);
 
-        Assert.True(installed.Succeeded);
+        Assert.True(installed.Succeeded, installed.Message);
         Assert.True(installed.Changed);
         Assert.Equal("installed\r\nafter\r\n", File.ReadAllText(fixture.TargetPath));
         var document = fixture.Store.Load();
@@ -172,7 +164,7 @@ public sealed class DeclarativeContentPatchOperationTests
 
         var uninstalled = await operation.RunAsync(ContentPatchAction.Uninstall, fixture.Variant, fixture.PackageDirectory);
 
-        Assert.True(uninstalled.Succeeded);
+        Assert.True(uninstalled.Succeeded, uninstalled.Message);
         Assert.True(uninstalled.Changed);
         Assert.Equal("before\r\n", File.ReadAllText(fixture.TargetPath));
         Assert.Empty(Assert.Single(fixture.Store.Load().ContentInstallations.Values).ContentComponents);
@@ -188,8 +180,8 @@ public sealed class DeclarativeContentPatchOperationTests
 
         var restored = operation.Restore(fixture.Variant, fixture.PackageDirectory);
 
-        Assert.True(installed.Succeeded);
-        Assert.True(restored.Succeeded);
+        Assert.True(installed.Succeeded, installed.Message);
+        Assert.True(restored.Succeeded, restored.Message);
         Assert.True(restored.Changed);
         Assert.Equal(original, File.ReadAllBytes(fixture.TargetPath));
         Assert.Empty(Assert.Single(fixture.Store.Load().ContentInstallations.Values).ContentComponents);

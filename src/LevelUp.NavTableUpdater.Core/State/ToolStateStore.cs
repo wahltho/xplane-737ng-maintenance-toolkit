@@ -611,6 +611,6 @@ public sealed class ToolStateStore
             livery.InstalledFiles ??= [];
         }
 
-        document.SchemaVersion = Math.Max(document.SchemaVersion, 9);
+        document.SchemaVersion = Math.Max(document.SchemaVersion, 10);
     }
 }

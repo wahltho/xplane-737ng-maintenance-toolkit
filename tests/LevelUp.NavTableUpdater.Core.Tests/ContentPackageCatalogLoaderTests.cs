@@ -156,6 +156,41 @@ public sealed class ContentPackageCatalogLoaderTests
         return responses;
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task OwnershipCatalog_LoadAndOfflineCachePreserveAllRules(bool offline)
+    {
+        using var directory = new TemporaryDirectory();
+        var json = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Content", "content-package-catalog.json"));
+        var version = ContentPackageCatalog.Parse(json).CatalogVersion;
+        if (offline) File.WriteAllText(Path.Combine(directory.Path, ContentPackageCatalogLoader.CatalogAssetName), json);
+        using var client = offline ? new HttpClient(new StubHandler(new Dictionary<string, HttpResponseMessage>()))
+            : CreateClient(BuildReleaseResponse(Release("catalog-v" + version, json)));
+        var loader = new ContentPackageCatalogLoader(client, directory.Path, new Version(0, 28, 0), RepositoryUrl, ApiUrl);
+        var result = await loader.LoadAsync(json);
+        Assert.Equal(offline ? ContentPackageCatalogOrigin.LastKnownGoodCache : ContentPackageCatalogOrigin.RemoteRelease, result.Origin);
+        Assert.Equal(2, result.Catalog.SchemaVersion);
+        Assert.Equal(JsonSerializer.Serialize(ContentPackageCatalog.Parse(json).OwnershipPolicies),
+            JsonSerializer.Serialize(result.Catalog.OwnershipPolicies));
+        Assert.Equal(json, File.ReadAllText(loader.CachePath));
+    }
+
+    [Fact]
+    public async Task OwnershipCatalog_RejectsRemoteAndCachedSchema1InsteadOfDowngrading()
+    {
+        using var directory = new TemporaryDirectory();
+        var old = BuildCatalog("99.0.0", "0.21.2", "old.package");
+        File.WriteAllText(Path.Combine(directory.Path, ContentPackageCatalogLoader.CatalogAssetName), old);
+        using var client = CreateClient(BuildReleaseResponse(Release("catalog-v99.0.0", old)));
+        var bundled = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Content", "content-package-catalog.json"));
+        var loader = new ContentPackageCatalogLoader(client, directory.Path, new Version(0, 28, 0), RepositoryUrl, ApiUrl);
+        var result = await loader.LoadAsync(bundled);
+        Assert.Equal(ContentPackageCatalogOrigin.BundledFallback, result.Origin);
+        Assert.Equal(2, result.Catalog.SchemaVersion);
+        Assert.Equal(11, result.Catalog.OwnershipPolicies.Count);
+    }
+
     private static ReleaseFixture Release(string tag, string json, bool prerelease = false)
     {
         var bytes = Encoding.UTF8.GetBytes(json);

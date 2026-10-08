@@ -7,10 +7,54 @@ remain in their owning repositories and GitHub Releases.
 The catalog is deliberately independent from Toolkit application releases:
 
 - `content-package-catalog.json` contains the current package entries.
-- `content-package-catalog.schema.json` documents schema version 1.
+- `content-package-catalog.schema.json` documents schema versions 1 and 2.
 - immutable `catalog-v<catalogVersion>` GitHub Releases publish both files.
 - the Toolkit validates a remote catalog before caching or using it.
 - the last valid cached catalog and the bundled catalog are fallbacks.
+
+Schema 2 adds `ownershipPolicies` for aircraft patches. Package IDs, reserved
+markers, standalone receipts and payload paths are catalog data. The Core has
+no patch-specific ownership registry. Each patch source needs a matching policy;
+group members refer to that source's package and module IDs. Non-patch entries
+do not need a policy.
+
+A policy can exist without a download entry. The 27K/SFP policy currently serves
+this purpose: it permits checking local development packages and detecting
+foreign installations, but does not offer 27K/SFP for download or select it in a
+group. Adding a policy does not publish a patch.
+
+New clients retain the schema-2 bundled catalog when a remote or cached catalog
+uses schema 1. They must not lose ownership checks during fallback. Older clients
+reject schema 2 and may fall back to their own bundled catalog; updating the
+catalog alone cannot retrofit protection into an old application.
+
+Catalog 1.16.0 introduces these rules and requires Toolkit 0.28.0. Publish the
+application before the new catalog. Do not replace an existing immutable catalog
+release. Patch versions and release tags are unchanged by this update.
+
+## Maintaining ownership policies
+
+For a new patch, record its package/repository identity, products, module IDs and
+all target paths. Then declare the filenames or marker namespace that distinguish
+its output, including its independent installer's state files. Restrict known
+original and result hashes to the exact files they describe. Identical output
+hashes help recognize a patch; they do not authorize adoption.
+
+Use an exact path, one wildcard in a filename, or `directory/**` for a flat
+exclusive directory. A flat scope must have no subdirectories, symlinks or case
+collisions. Reserve the full filename family for companion payloads, including
+unexpected extensions. Namespace declarations list exact begin/end pairs and
+any permitted non-marker comments; unknown, duplicate and broken blocks stop
+the operation.
+
+`originalFiles` describes recognized original files, including explicitly retired
+inputs in a managed scope. `resultFiles` recognizes whole-file patch outputs.
+Neither grants ownership. Keep recovery instructions short and specific, and
+link the patch's own documentation. Standalone installation remains supported;
+automatic transfer of its backups into MTK is a separate feature.
+
+For the lifecycle and review matrix, see
+[PATCH_INTEROPERABILITY.md](../docs/PATCH_INTEROPERABILITY.md).
 
 Adding a package repository does not publish it in the Toolkit. A package is
 visible only after an explicit catalog change, review, version increment and

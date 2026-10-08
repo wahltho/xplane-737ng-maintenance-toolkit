@@ -74,7 +74,7 @@ public sealed class CompatibilityManagedScopeTests
         Assert.True(deselected.Succeeded, deselected.Message);
         Assert.False(Directory.Exists(fixture.ScopePath));
         Assert.False(fixture.Store.TryGetContentInstallation(fixture.AircraftPath)!
-            .ContentComponents.ContainsKey("test.gse"));
+            .ContentComponents.ContainsKey("jt8d17.levelup-737ng.gse"));
     }
 
     [Fact]
@@ -133,7 +133,7 @@ public sealed class CompatibilityManagedScopeTests
             fixture.PackagePath, ["gse"]);
         Directory.CreateDirectory(fixture.ScopePath);
         File.WriteAllText(Path.Combine(fixture.ScopePath, "foreign.obj"), "foreign");
-        var engine = new ContentPatchEngine(fixture.Store, () => false);
+        var engine = new ContentPatchEngine(fixture.Store, () => false, () => fixture.Catalog);
         var result = engine.Execute(plan, fixture.Variant);
         Assert.False(result.Succeeded);
         Assert.False(File.Exists(fixture.NewPath));
@@ -157,7 +157,7 @@ public sealed class CompatibilityManagedScopeTests
         {
             FileHashes = new Dictionary<string, string> { ["new.obj"] = new string('0', 64) }
         }).ToArray();
-        var engine = new ContentPatchEngine(fixture.Store, () => false);
+        var engine = new ContentPatchEngine(fixture.Store, () => false, () => fixture.Catalog);
 
         Assert.Throws<InvalidOperationException>(() => engine.Execute(plan with { FinalScopes = badFinal }, fixture.Variant));
         Assert.False(Directory.Exists(fixture.ScopePath));
@@ -165,19 +165,16 @@ public sealed class CompatibilityManagedScopeTests
     }
 
     [Fact]
-    public async Task ExistingIdenticalCopy_IsBackedUpAndRestorable()
+    public async Task ExistingIdenticalCopy_WithoutOwnership_BlocksWithoutInventingOriginal()
     {
         using var fixture = new Fixture();
         Directory.CreateDirectory(fixture.ScopePath);
         File.WriteAllText(fixture.NewPath, "new object");
         var result = await fixture.Operation.RunAsync(ContentPatchAction.Install, fixture.Variant,
             fixture.PackagePath, ["gse"]);
-        Assert.True(result.Succeeded, result.Message);
-        var file = fixture.Component.Files.Single(state => state.RelativePath.EndsWith("new.obj", StringComparison.Ordinal));
-        Assert.True(file.OriginalExisted);
-        Assert.True(File.Exists(file.BackupPath));
-        Assert.True(fixture.Operation.Restore(fixture.Variant, fixture.PackagePath).Succeeded);
+        Assert.False(result.Succeeded);
         Assert.Equal("new object", File.ReadAllText(fixture.NewPath));
+        Assert.Empty(fixture.Store.Load().ContentInstallations);
     }
 
     [Fact]
@@ -234,7 +231,11 @@ public sealed class CompatibilityManagedScopeTests
                 "V2.S1.50", "V2.S1.50", null, null, null, null, 0, 0,
                 null, null, null, null, "test", "test", "test", "test");
             Store = TestToolStateStore.Create(Path.Combine(_directory.Path, "state"));
-            Operation = new CompatibilityPackageOperation(Store, () => false);
+            var policy = OwnershipTestCatalog.Policy("jt8d17.levelup-737ng.gse", "https://github.com/wahltho/X-Plane-LevelUp-GSE", ["objects/GSE/**"], ["gse"]);
+            policy.PayloadPaths = ["objects/GSE/new.obj"];
+            policy.OriginalFiles = [new() { RelativePath = "objects/GSE/old.obj", Sha256 = [OldHash] }];
+            Catalog = OwnershipTestCatalog.Create(policy);
+            Operation = new CompatibilityPackageOperation(Store, () => false, () => Catalog);
             WriteManifest("1.0.0", "new object", []);
         }
 
@@ -248,9 +249,10 @@ public sealed class CompatibilityManagedScopeTests
         public string NewHash => Hash("new object");
         public AircraftVariantViewAnalysis Variant { get; }
         public ToolStateStore Store { get; }
+        public ContentPackageCatalog Catalog { get; }
         public CompatibilityPackageOperation Operation { get; }
         public ContentComponentState Component => Store.TryGetContentInstallation(AircraftPath)!
-            .ContentComponents["test.gse"];
+            .ContentComponents["jt8d17.levelup-737ng.gse"];
 
         public void WriteManifest(string version, string content, string[] allowedCopySources,
             bool includeRetirement = true)
@@ -263,9 +265,9 @@ public sealed class CompatibilityManagedScopeTests
             {
                 schemaVersion = 4,
                 packageType = "compatibilityPackage",
-                packageId = "test.gse",
+                packageId = "jt8d17.levelup-737ng.gse",
                 packageVersion = version,
-                repositoryUrl = "https://github.com/example/gse",
+                repositoryUrl = "https://github.com/wahltho/X-Plane-LevelUp-GSE",
                 aircraftFamily = "LevelUp 737NG Series",
                 supportedProducts = new[] { "levelup-737ng" },
                 restartRequired = true,

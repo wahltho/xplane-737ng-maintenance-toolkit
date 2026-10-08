@@ -10,11 +10,11 @@ public sealed class CompatibilityPackageOperation
     private readonly ContentPatchEngine _engine;
     private readonly Func<bool> _isXPlaneRunning;
 
-    public CompatibilityPackageOperation(ToolStateStore stateStore, Func<bool>? isXPlaneRunning = null)
+    public CompatibilityPackageOperation(ToolStateStore stateStore, Func<bool>? isXPlaneRunning = null, Func<ContentPackageCatalog>? catalogProvider = null)
     {
         _isXPlaneRunning = isXPlaneRunning ?? XPlaneProcessDetector.IsXPlaneRunning;
-        _planBuilder = new CompatibilityPackagePlanBuilder(stateStore);
-        _engine = new ContentPatchEngine(stateStore, _isXPlaneRunning);
+        _planBuilder = new CompatibilityPackagePlanBuilder(stateStore, catalogProvider: catalogProvider);
+        _engine = new ContentPatchEngine(stateStore, _isXPlaneRunning, catalogProvider);
     }
 
     public async Task<ContentPatchPlan> PlanAsync(

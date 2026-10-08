@@ -3,6 +3,7 @@ using LevelUp.NavTableUpdater.Core.Aircraft;
 using LevelUp.NavTableUpdater.Core.Analysis;
 using LevelUp.NavTableUpdater.Core.Manifest;
 using LevelUp.NavTableUpdater.Core.Transactions;
+using LevelUp.NavTableUpdater.Core.State;
 
 namespace LevelUp.NavTableUpdater.Core.Content;
 
@@ -13,8 +14,28 @@ public sealed record VnavContentPackage(
 public sealed class VnavContentPlanBuilder : IContentPatchPlanBuilder<VnavContentPackage>
 {
     private readonly AircraftInstallAnalyzer _analyzer = new();
+    private readonly ToolStateStore _stateStore;
+    private readonly Func<ContentPackageCatalog> _catalogProvider;
 
-    public Task<ContentPatchPlan> BuildAsync(
+    public VnavContentPlanBuilder(ToolStateStore? stateStore = null, Func<ContentPackageCatalog>? catalogProvider = null)
+    {
+        _stateStore = stateStore ?? ToolStateStore.CreateDefault();
+        _catalogProvider = catalogProvider ?? ContentPackageCatalog.LoadBundled;
+    }
+
+    public Task<ContentPatchPlan> BuildAsync(ContentPatchAction action, AircraftVariantViewAnalysis variant,
+        VnavContentPackage package, CancellationToken cancellationToken = default)
+    {
+        var folder = Path.GetDirectoryName(package.Manifest.TargetRelativePath)?.Replace('\\', '/') ?? "";
+        return ContentPatchOwnershipVerifier.BuildPlanAsync(action, variant,
+            ContentPatchCatalog.Vnav(package.Manifest.PackageId, package.Manifest.RepositoryUrl),
+            package.Manifest.PackageVersion, _stateStore, _catalogProvider,
+            new[] { package.Manifest.TargetRelativePath }.Concat(package.Manifest.Payloads.Select(payload =>
+                CombineRelative(folder, payload.FileName))),
+            () => BuildCoreAsync(action, variant, package, cancellationToken));
+    }
+
+    private Task<ContentPatchPlan> BuildCoreAsync(
         ContentPatchAction action,
         AircraftVariantViewAnalysis variant,
         VnavContentPackage package,
