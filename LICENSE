@@ -1,0 +1,58 @@
+MTK SOURCE-AVAILABLE LICENSE 1.0
+
+Copyright (c) 2026 Thomas Wahl (wahltho)
+All rights reserved.
+
+1. Scope
+
+This license applies to X-Plane 737NG Maintenance Toolkit (MTK), including its
+source code, scripts, documentation, and packaged releases, except for
+third-party components that carry their own license notices.
+
+2. Permission
+
+You may download, install, and use an official, unmodified MTK release for
+personal, non-commercial flight simulation.
+
+You may inspect the MTK source code and create modifications solely for your
+own private, non-commercial use, provided that those modifications and any
+resulting packages are not published, shared, or distributed.
+
+3. Restrictions
+
+Without prior written permission from the copyright holder, you may not:
+
+- publish, redistribute, sublicense, sell, rent, host, or otherwise make
+  available MTK, in source or binary form, whether modified or unmodified;
+- publish releases, downloadable packages, or derivative versions from a
+  repository fork or other copy of MTK;
+- use MTK or any derivative work for commercial purposes; or
+- remove or alter copyright, license, or attribution notices.
+
+Modified versions may not be presented as MTK, as an official MTK release, or
+as being endorsed or supported by the copyright holder.
+
+4. Official Releases
+
+Only releases published by the copyright holder through the official MTK
+GitHub repository or the official MTK update channels are official and
+supported MTK releases.
+
+5. Third-Party Components
+
+Third-party components included with MTK remain subject to their respective
+licenses. This license does not replace, restrict, or extend those licenses.
+
+6. Termination
+
+Any permission granted by this license terminates automatically if you fail to
+comply with its terms.
+
+7. Disclaimer
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF, OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.

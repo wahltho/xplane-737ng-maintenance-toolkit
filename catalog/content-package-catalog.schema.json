@@ -1,0 +1,797 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/wahltho/xplane-737ng-maintenance-toolkit/catalog/content-package-catalog.schema.json",
+  "title": "X-Plane 737NG Maintenance Toolkit content package catalog",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "catalogVersion",
+    "minimumToolkitVersion",
+    "packages"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "enum": [
+        1,
+        2,
+        3
+      ]
+    },
+    "catalogVersion": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "minimumToolkitVersion": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "packages": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/package"
+      }
+    },
+    "ownershipPolicies": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ownershipPolicy"
+      }
+    },
+    "aircraftCompatibility": {
+      "$ref": "#/$defs/aircraftCompatibility"
+    }
+  },
+  "$defs": {
+    "package": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "packageId",
+        "displayName",
+        "description",
+        "category",
+        "activation",
+        "supportedProducts",
+        "repositoryUrl",
+        "restartRequired",
+        "distribution"
+      ],
+      "properties": {
+        "packageId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "category": {
+          "enum": [
+            "managedContent",
+            "compatibilityPackage",
+            "optionalPatch",
+            "aircraftComponent",
+            "tool",
+            "resource",
+            "livery"
+          ]
+        },
+        "activation": {
+          "enum": [
+            "managed",
+            "explicitOptIn"
+          ]
+        },
+        "supportedProducts": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "zibo-737ng",
+              "levelup-737ng"
+            ]
+          }
+        },
+        "repositoryUrl": {
+          "type": "string",
+          "pattern": "^https://github\\.com/[^/]+/[^/]+$"
+        },
+        "restartRequired": {
+          "type": "boolean"
+        },
+        "installScope": {
+          "type": "string"
+        },
+        "targetPath": {
+          "type": "string"
+        },
+        "versionMarkerPath": {
+          "type": "string"
+        },
+        "supportedChannels": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "stable",
+              "beta"
+            ]
+          }
+        },
+        "distribution": {
+          "$ref": "#/$defs/distribution"
+        },
+        "members": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/member"
+          }
+        },
+        "supportedPlatforms": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "win-x64",
+              "win-arm64",
+              "osx-x64",
+              "osx-arm64",
+              "linux-x64",
+              "linux-arm64"
+            ]
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "supportedPlatforms"
+            ],
+            "properties": {
+              "supportedPlatforms": {
+                "minItems": 1
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "category": {
+                "enum": [
+                  "tool",
+                  "aircraftComponent"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "distribution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "existingVnav",
+            "gitHubReleaseArchive",
+            "gitHubToolRelease",
+            "gitHubXPlaneOverlayRelease",
+            "gitHubResourceRelease",
+            "gitHubLiveryRelease",
+            "catalogGroup",
+            "gitHubModuleSource"
+          ]
+        },
+        "assetNamePattern": {
+          "type": "string"
+        },
+        "manifestAssetNamePattern": {
+          "type": "string"
+        },
+        "manifestSchemaVersion": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "manifestSchemaVersions": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "stable": {
+              "type": "integer",
+              "enum": [
+                1,
+                3
+              ]
+            },
+            "beta": {
+              "type": "integer",
+              "enum": [
+                1,
+                3
+              ]
+            }
+          }
+        }
+      }
+    },
+    "member": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "packageId",
+        "moduleId",
+        "policy",
+        "installationOrder",
+        "sourceFormat",
+        "manifestPath",
+        "assetNamePattern"
+      ],
+      "properties": {
+        "packageId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "moduleId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "manifestPath": {
+          "type": "string",
+          "minLength": 1
+        },
+        "assetNamePattern": {
+          "type": "string",
+          "minLength": 1
+        },
+        "policy": {
+          "enum": [
+            "required",
+            "optional"
+          ]
+        },
+        "installationOrder": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sourceFormat": {
+          "enum": [
+            "vnav",
+            "declarative",
+            "moduleSource",
+            "compatibility"
+          ]
+        }
+      }
+    },
+    "ownershipFileHash": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "relativePath",
+        "sha256"
+      ],
+      "properties": {
+        "relativePath": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!/)(?!.*\\\\)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+        },
+        "sha256": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Fa-f0-9]{64}$"
+          },
+          "minItems": 1
+        }
+      }
+    },
+    "markerPair": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "beginMarker",
+        "endMarker"
+      ],
+      "properties": {
+        "beginMarker": {
+          "type": "string",
+          "minLength": 1
+        },
+        "endMarker": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "markerNamespace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "relativePath",
+        "namespace",
+        "blocks",
+        "allowedCommentLines"
+      ],
+      "properties": {
+        "relativePath": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!/)(?!.*\\\\)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+        },
+        "namespace": {
+          "type": "string",
+          "minLength": 1
+        },
+        "blocks": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/markerPair"
+          }
+        },
+        "allowedCommentLines": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "informationalCommentLines": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^--[^\\r\\n]*$"
+          }
+        }
+      }
+    },
+    "ownershipSignature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "relativePath",
+        "text"
+      ],
+      "properties": {
+        "relativePath": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!/)(?!.*\\\\)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "ownershipPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "packageId",
+        "displayName",
+        "repositoryUrl",
+        "supportedProducts",
+        "moduleIds",
+        "targetPaths",
+        "recoveryInstruction"
+      ],
+      "properties": {
+        "packageId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "repositoryUrl": {
+          "type": "string",
+          "pattern": "^https://github\\.com/[^/]+/[^/]+$"
+        },
+        "supportedProducts": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "zibo-737ng",
+              "levelup-737ng"
+            ]
+          }
+        },
+        "moduleIds": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-]+$"
+          }
+        },
+        "targetPaths": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?!/)(?!.*\\\\)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+          },
+          "minItems": 1
+        },
+        "standaloneEvidencePaths": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?!/)(?!.*\\\\)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+          }
+        },
+        "payloadPaths": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?!/)(?!.*\\\\)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+          }
+        },
+        "markerNamespaces": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/markerNamespace"
+          }
+        },
+        "signatures": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/ownershipSignature"
+          }
+        },
+        "resultFiles": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/ownershipFileHash"
+          }
+        },
+        "originalFiles": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/ownershipFileHash"
+          }
+        },
+        "recoveryInstruction": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "compatibilityFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "size",
+        "sha256"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[A-Fa-f0-9]{64}$"
+        }
+      }
+    },
+    "compatibilityBaseline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "productId",
+        "aircraftVersion",
+        "zibomodVersion",
+        "upstreamPackages",
+        "files"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "productId": {
+          "enum": [
+            "zibo-737ng",
+            "levelup-737ng"
+          ]
+        },
+        "aircraftVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "zibomodVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "upstreamPackages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/compatibilityFile"
+          }
+        },
+        "alternativeUpstreamPackages": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "$ref": "#/$defs/compatibilityFile" }
+          }
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/compatibilityFile"
+          },
+          "minItems": 1
+        }
+      }
+    },
+    "compatibilityArtifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "packageId",
+        "packageVersion",
+        "releaseTag",
+        "channel",
+        "archive"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "packageId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "packageVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "releaseTag": {
+          "type": "string",
+          "minLength": 1
+        },
+        "channel": {
+          "enum": [
+            "stable",
+            "beta"
+          ]
+        },
+        "archive": {
+          "$ref": "#/$defs/compatibilityFile"
+        },
+        "manifestSha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[A-Fa-f0-9]{64}$"
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/compatibilityFile"
+          }
+        }
+      }
+    },
+    "compatibilityModule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "moduleId",
+        "artifactId"
+      ],
+      "properties": {
+        "moduleId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "artifactId": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "compatibilityApproval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "baselineId",
+        "modules",
+        "runtime",
+        "platforms",
+        "decision",
+        "validationLevel"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "baselineId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "modules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/compatibilityModule"
+          }
+        },
+        "runtime": {
+          "type": "string",
+          "minLength": 1
+        },
+        "platforms": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "win-x64",
+              "win-arm64",
+              "osx-x64",
+              "osx-arm64",
+              "linux-x64",
+              "linux-arm64"
+            ]
+          }
+        },
+        "decision": {
+          "enum": [
+            "approved",
+            "unverified",
+            "blocked"
+          ]
+        },
+        "validationLevel": {
+          "enum": [
+            "regular",
+            "beta"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "reviewEvidence": {
+          "type": "string"
+        },
+        "lifecycleEvidence": {
+          "type": "string"
+        },
+        "simulatorEvidence": {
+          "type": "string"
+        },
+        "selectionPriority": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "aircraftCompatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "defaultDecision",
+        "baselines",
+        "artifacts",
+        "approvals"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": 1
+        },
+        "defaultDecision": {
+          "const": "unverified"
+        },
+        "baselines": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/compatibilityBaseline"
+          }
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/compatibilityArtifact"
+          }
+        },
+        "approvals": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/compatibilityApproval"
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "schemaVersion": {
+            "enum": [
+              2,
+              3
+            ]
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "ownershipPolicies"
+        ]
+      },
+      "else": {
+        "properties": {
+          "ownershipPolicies": {
+            "maxItems": 0
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "schemaVersion": {
+            "const": 3
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "aircraftCompatibility"
+        ]
+      },
+      "else": {
+        "not": {
+          "required": [
+            "aircraftCompatibility"
+          ]
+        }
+      }
+    }
+  ]
+}

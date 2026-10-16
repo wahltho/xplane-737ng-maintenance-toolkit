@@ -1,0 +1,930 @@
+# X-Plane 737NG Maintenance Toolkit User Manual
+
+This manual describes the X-Plane 737NG Maintenance Toolkit. Download the current
+release from the link below; the version is shown in the app.
+
+The toolkit is a desktop app for selected Zibo and LevelUp 737NG maintenance
+tasks:
+
+- VNAV descent table package install, update, repair, restore and uninstall.
+- Quick View and default-view maintenance after aircraft CG changes, including
+  a CG-corrected transfer across a detected LevelUp fleet.
+- Config backup and config restore for supported aircraft preference files.
+- Zibo and LevelUp aircraft package check, cache, review, apply and restore.
+- Optional X-Plane-wide tool install, update, repair and restore for supported
+  Zibo and LevelUp installations.
+- Explicit optional aircraft patches for compatible products.
+- Verified product resources extracted into a user-selected directory.
+- Verified optional liveries installed into the selected aircraft folder.
+
+The app does not replace X-Plane, Zibo, LevelUp or their official installers.
+It works on a selected local aircraft folder and writes only after validation,
+backup and an explicit user action.
+
+## Disclaimer
+
+This toolkit is provided as-is, without warranty of any kind. It is an
+independent community tool and is not an official X-Plane, Zibo or LevelUp
+product unless explicitly stated otherwise.
+
+The toolkit can modify aircraft installation files after validation and backup.
+Keep your own backups and use the tool at your own risk.
+
+## Compatibility And Installation
+
+Supported platforms and aircraft:
+
+- X-Plane 12. X-Plane 11 is not supported.
+- Zibo 737-800X 2K and 4K variants.
+- LevelUp 737-600, 737-700, 737-800, 737-900 and 737-900ER.
+- Windows x64.
+- macOS arm64 (Apple silicon).
+- macOS x64 (Intel 64-bit).
+- Linux x64.
+
+Download the current stable release from:
+
+https://github.com/wahltho/xplane-737ng-maintenance-toolkit/releases/latest
+
+Choose one normal-use artifact for the target platform:
+
+| Platform | Recommended artifact | Portable alternative |
+| --- | --- | --- |
+| Windows x64 | `XPlane737NGMaintenanceToolkit-stable-win-x64-Setup.exe` | `XPlane737NGMaintenanceToolkit-stable-win-x64-Portable.zip` |
+| macOS arm64 | `XPlane737NGMaintenanceToolkit-stable-osx-arm64-Setup.pkg` | `XPlane737NGMaintenanceToolkit-stable-osx-arm64-Portable.zip` |
+| macOS Intel x64 | `XPlane737NGMaintenanceToolkit-stable-osx-x64-Setup.pkg` | `XPlane737NGMaintenanceToolkit-stable-osx-x64-Portable.zip` |
+| Linux x64 | `XPlane737NGMaintenanceToolkit-stable-linux-x64.AppImage` | None |
+
+On Windows or macOS, run the setup package or extract the portable ZIP and start
+the app from the extracted folder. On Linux, make the AppImage executable before
+starting it:
+
+```bash
+chmod +x XPlane737NGMaintenanceToolkit-stable-linux-x64.AppImage
+./XPlane737NGMaintenanceToolkit-stable-linux-x64.AppImage
+```
+
+Current release builds are unsigned:
+
+- Windows may show a SmartScreen warning.
+- macOS builds are unsigned and not notarized, so macOS may block the first
+  launch.
+- Linux AppImage builds are not separately signed.
+
+Verify downloaded artifacts against `SHA256SUMS.txt` on the release page. If a
+verified macOS download is blocked, try to open it once, then follow Apple's
+documented [Privacy & Security "Open Anyway" process](https://support.apple.com/guide/mac-help/open-a-mac-app-from-an-unknown-developer-mh40616/mac).
+
+VeloPack-managed installations check for stable Toolkit updates in the
+background. At startup, an available update opens a dialog showing the current
+and available versions. `Update` downloads and verifies the application package
+with visible progress and cancellation, then offers the existing restart
+confirmation. `OK` closes the dialog; it appears again at the next startup while
+the update remains available. The banner remains available for a later update.
+In Settings, disable `Check for Toolkit updates at startup` to skip the automatic
+check and popup. This preference is saved across launches and is enabled by
+default. `Check for Toolkit updates now` remains available for manual checks. Failures do
+not block normal maintenance functions. This application update is separate
+from aircraft, VNAV, patch, tool and resource updates.
+
+## Before You Start
+
+Close X-Plane before using any action that changes files. The app detects a
+running X-Plane process and blocks write actions when X-Plane is open.
+
+After every real install, update, repair, restore or uninstall, restart
+X-Plane fully. Reloading Lua, reloading the aircraft or reloading plugins is
+not treated as enough.
+
+## Selecting An Aircraft
+
+Use the `Start` tab first.
+
+1. On startup, the app searches common X-Plane aircraft locations in the
+   background and keeps a valid previously selected folder.
+2. Select another auto-detected installation folder when required. Use
+   `Auto-detect` to refresh the discovered choices.
+3. If the aircraft is not found, click `Browse` and select an X-Plane folder,
+   the `Aircraft` folder, or a direct Zibo/LevelUp aircraft folder manually.
+4. Click `Scan selected folder`.
+
+The selected folder can be an X-Plane root, an `Aircraft` folder, or a direct
+supported aircraft folder. Do not select a component subfolder such as
+`plugins` or `fmod`.
+
+Detection is structural. Folder names are not trusted by themselves. The app
+looks for expected aircraft files and target scripts before enabling write
+actions.
+
+The `Installation Folder` panel is the scan input. It contains exactly one
+selected folder at a time, but that folder may contain more than one supported
+product. The app then derives product targets from the folder contents.
+Supported products are `Zibo` and `LevelUp`; detected variants belong to the
+selected product and are used for variant-specific view maintenance.
+
+The status areas on the `Start` tab show:
+
+- selected product state
+- installed and available VNAV package versions
+- aircraft package update state where an update source is available
+
+### Moving or renaming an aircraft
+
+Close X-Plane, select the aircraft on **Start**, and open **Move or rename
+aircraft** below the folder selector. Choose an existing destination parent
+folder and enter an unused folder name. Review the source, destination and copy
+size, then confirm **Move aircraft**.
+
+The Toolkit copies the complete aircraft folder and checks every file before
+activating the new location. Liveries, scripts, preferences and empty folders
+stay with the aircraft. Recorded patch versions, file hashes and restore
+history follow the new path. Moving a folder does not repair modified files or
+make an unmanaged patch a managed installation. Backups outside the aircraft
+folder remain in their existing backup location.
+
+Enough free space for a second complete copy is required, even when renaming
+on the same disk. The old copy is removed only after the new folder and Toolkit
+history have been saved. The new folder is then selected automatically. Do not
+edit either copy or run another Toolkit operation during the move.
+
+Use **Cancel aircraft move** to stop before completion. If the Toolkit closes
+or the move fails, it keeps a recovery journal and the retained files. On the
+next launch it rolls back an incomplete move or finishes cleanup of a completed
+one. If recovery is blocked, normal actions remain disabled. Close X-Plane and
+use **Retry move recovery**. If that still fails, use **Export move support log**
+and ask for help through the support links above. Do not delete the journal or
+folders whose names begin with `.mtk-aircraft-move-`.
+
+Existing destinations, nested source/destination folders, symbolic links,
+junctions and case-only renames are rejected. On Unix, the aircraft root folder
+must grant its owner write permission so that cleanup can complete.
+Moving to another X-Plane
+installation is blocked when an installed component has a dependency outside
+the aircraft folder, or another installed tool depends on that aircraft.
+Windows file access permissions and Unix permission bits are copied; Unix
+extended ACLs and extended attributes are not part of this move contract.
+External updater settings and paths stored inside third-party configuration
+files are not rewritten.
+
+## Main Tabs
+
+### Start
+
+This is the normal user workflow. It contains product selection and the
+following maintenance cards for the selected product:
+
+- `Updates`
+- `Components & Aircraft Patches` when a compatible optional patch is listed
+- `Components & Tools`
+- `Resources` when a compatible resource package is listed
+- `Liveries` when a compatible livery package is listed
+- `Views After CG Change`
+
+The installation pane on the left and maintenance pane on the right scroll
+independently. The detected aircraft and its full folder path remain visible
+when you scroll the maintenance functions. While an operation is shown, its
+compact progress panel stays at the top right, including status, elapsed time
+and Cancel when cancellation is available. Expand `Operation log` below that
+panel to inspect the detailed output.
+
+The header on every tab identifies the Toolkit as an independent project, not
+an official Zibo Mod product. Community patches and components are labelled in
+the Start and Advanced tabs. Before an independent package changes a Zibo
+aircraft, the confirmation dialog requires a separate acknowledgement that is
+unchecked by default. The dialog links to the Toolkit project page or, for
+Optimized XLua, its own project page for feedback. Official Zibo support does
+not cover independent package changes.
+
+Zibo and LevelUp aircraft are treated as equal 737NG targets. The app enables
+only the actions that apply to the detected aircraft and available package
+sources.
+
+#### Install New Aircraft
+
+When the selected path resolves to a structurally valid X-Plane 12
+installation, `Install New Aircraft` can create a complete Zibo 737-800X or
+LevelUp 737NG Series installation without requiring an existing aircraft copy.
+
+1. Select or auto-detect the intended X-Plane 12 installation.
+2. Choose `Zibo Boeing 737-800X` or `LevelUp 737NG Series`.
+3. Keep the proposed destination under `X-Plane 12/Aircraft`, or enter another
+   unused folder below it, for example `X-Plane 12/Aircraft/Boeing/737NG Series`.
+   Create grouping folders such as `Boeing` first; MTK creates the final aircraft
+   folder. Grouping folders cannot be symlinks or junctions, and the new aircraft
+   cannot be placed inside another aircraft's folder.
+4. Use `Check package` to resolve the latest complete release plan.
+5. Use `Import package` for any required archive that cannot be downloaded
+   directly.
+6. Select `Install`, review the complete file plan and confirm the destination.
+
+For LevelUp, the app reads the authorized public release index and downloads
+the exact verified full package when available. For Zibo, a fresh installation
+requires the current full baseline followed by the latest cumulative patch.
+The Zibo feed exposes torrent package links. The Toolkit tries the corresponding
+direct ZIP URL first and automatically uses the feed's official `.torrent`
+metadata when no direct archive is available. Before peer-to-peer transfer
+starts, the app explains that peers can see the user's public IP address and
+that the client may upload package pieces while it is running. The transfer is
+cancellable and reports percentage, peer count and download rate. Torrent piece
+hashes and the completed archive are validated before the package enters the
+cache. If the torrent has no reachable peers, obtain the exact archive through
+the official Zibo distribution and use `Import package`. File names must match
+the current plan.
+
+The destination must not already exist. The app extracts packages into a
+sibling staging folder, rejects unsafe archive paths, validates package hashes
+where the source publishes them, and checks the expected Zibo or LevelUp ACF
+identity plus required plugin structure. Only a valid staged image is moved
+into the final destination. Cancellation before activation removes staging;
+an activation failure removes the incomplete new destination. No backup is
+created because no previous destination is allowed to exist.
+
+After installation, the app selects and scans the new aircraft. Use the normal
+`Update` action to install or repair the separate VNAV content layer. To update
+an existing aircraft, select that aircraft instead of using this card.
+
+The `Updates` card shows aircraft-package and VNAV-table status together. Its
+main `Update` button checks both layers and performs the safe sequence where
+possible: check the product release source, download the required aircraft
+package into the cache, review its contents, ask for confirmation, then apply
+it with backup and rollback. For LevelUp, required maintenance patches are then
+checked and applied automatically without another confirmation. Previously
+selected optional modules are retained. Completion is reported only after both
+stages succeed. If the aircraft package is already current, the same button
+checks and applies the required patches directly. Zibo retains its VNAV prompt. If a source is unavailable,
+import the exact required aircraft package manually and retry.
+
+Zibo uses its public feed and the baseline/cumulative package model described
+below. LevelUp uses the authorized public `737NG-Updates` GitHub Release index.
+For LevelUp, an installation matching the declared baseline receives only the
+cumulative patch. For an older, different baseline, the Toolkit can stage the
+published full baseline followed by the latest cumulative patch, then replace
+the aircraft after confirmation. Preferences and local liveries are preserved,
+and Restore retains the complete previous aircraft. An unknown local version
+requires explicit confirmation of the full replacement; a newer local release
+is not downgraded automatically. The release index, package manifests, archive sizes and SHA-256 hashes
+must all agree before download or review is enabled. The app also enforces the
+release's declared minimum toolkit version.
+
+The VNAV area of the `Updates` card handles manifest-owned descent table
+content and Lua hooks. The operation modifies only manifest-owned VNAV blocks
+and payload files after validation and backup. Aircraft-package and VNAV writes
+remain separate transactions with separate backup and restore state. For LevelUp,
+the aircraft confirmation covers the automatic required-patch follow-up.
+
+VNAV content writes are limited to the manifest-owned Lua blocks and payload
+files. The app never distributes or writes a complete modified
+`B738.a_fms.lua`.
+
+When an optional package is explicitly listed in the trusted catalog, an
+additional `Components & Aircraft Patches` card appears for compatible
+products. `Check releases` queries its latest stable GitHub Release. `Review`
+downloads and validates the selected release into the configured package cache,
+then calculates its file plan without changing the aircraft. `Install`,
+`Update` or `Repair` prepares the same verified package and still asks for an
+explicit confirmation before writing files. The LevelUp group includes three
+required patches; its other patches are optional. All Zibo patches are optional.
+The individual versions are listed under **Patch versions** on Start. Optional
+module selection remains under Advanced.
+
+At startup, the Toolkit checks immutable `catalog-v*` releases in the Toolkit
+repository for updated package discovery metadata. A downloaded catalog becomes
+active only after schema, version, repository URL and minimum Toolkit version
+validation. If the check fails, the app uses its last valid saved online catalog.
+There is no catalog built into the app. Without a valid online or saved catalog,
+aircraft updates and patch actions are blocked; detection and diagnostics still
+work. Use `Check releases` to retry after connecting. Existing installs and
+package state remain valid. A
+new package repository is not enough to expose a package; the package must be
+added explicitly to a reviewed catalog release.
+
+The `Components & Tools` card filters packages by the selected product and the
+current operating system and architecture. The selected package
+determines whether its target is the aircraft or the containing X-Plane
+installation:
+
+- `Optimized XLua` supports Zibo and LevelUp and is managed separately inside
+  each selected aircraft at `plugins/xlua`. Only `init.lua` and the three
+  platform runtime binaries are package-owned; `plugins/xlua/scripts` remains
+  aircraft-owned and is never replaced by this component package.
+
+- `Yet Another Linda` (YAL) supports Zibo and LevelUp and is managed at
+  `Resources/plugins/YAL`.
+- `YAL HoppieHelper` supports Zibo and LevelUp, as declared by its published
+  release manifest, and is managed at `Resources/plugins/YAL_HoppieHelper`.
+- `XLinSpeak` supports Zibo and LevelUp on **Linux x64 only**, at
+  `Resources/plugins/XLinSpeak`. It is optional and appears only on that platform.
+  Install and configure Piper, a voice model and audio output separately, following
+  the [XLinSpeak README](https://github.com/wahltho/XLinSpeak#readme).
+  The Toolkit installs the plugin; it does not configure the speech backend.
+- `YANSH` supports Zibo and LevelUp and is managed at
+  `Resources/plugins/YANSH`. Its SimBrief username preferences and generated
+  output are preserved across managed updates.
+- `737NG Realbench Logger` supports Zibo and LevelUp. It installs the declared
+  DataRefMonitor runtime, Realbench profile and required preference file across
+  the selected X-Plane installation. Generated logs remain local until the user
+  shares them manually.
+
+If compatible products share the same X-Plane root, the app manages one copy of
+each selected X-Plane-wide tool for that installation. Aircraft components are
+managed separately for each selected aircraft folder.
+
+Tool and aircraft-component release manifests may declare required Toolkit
+packages and an optional minimum version. Before any archive is downloaded or
+file is changed, the app resolves the complete requirement chain and presents
+all required install or update actions in one confirmation dialog. Required
+packages are applied first as separate validated and backed-up transactions.
+Restore or replacement is blocked when it would leave an installed dependent
+package without a compatible requirement. Existing packages without dependency
+metadata retain their previous behavior.
+
+After a user explicitly installs Optimized XLua, the Toolkit maintains it
+across later Zibo or LevelUp aircraft updates. A correctly recorded and
+hash-verified runtime is retained as part of the aircraft update transaction,
+including a clean full-baseline replacement. If a managed XLua file is missing
+or changed, aircraft update review is blocked until XLua is repaired; the
+Toolkit does not silently preserve an unknown binary.
+
+Choose `stable` for normal use or `beta` for an explicitly published tool
+prerelease, then click `Check release`. The selection is stored separately for
+each tool. The app reads the matching GitHub
+Release and verifies the manifest asset, archive size/SHA-256, exact archive
+file set and every payload hash. No `main` branch archive or GitHub source ZIP
+is used. Depending on local state, the primary action becomes `Install`,
+`Update` or `Repair` and always asks for confirmation before changing files.
+If the installed version is newer than the selected channel release, the app
+labels the action as an explicit channel switch rather than an update.
+
+Before replacement, the complete existing tool directory is backed up. Any
+manifest-protected paths and local files not owned by the release manifest are
+preserved. For YAL this includes `configuration.ini`, `wprefs.ini` and the
+`data/output` tree. For YANSH this includes `wprefs.ini` and `data/output`.
+Schema-3 directory packages can authorize a verified legacy file for
+replacement at the same path while separately retiring obsolete files. The
+Toolkit accepts the legacy file only when its hash is declared by the release
+or the recorded state proves that the same package owns its exact bytes. The
+replacement and all expected removals are verified in staging before the
+directory is activated; protected aircraft scripts remain unchanged.
+`Restore`
+requires a recorded generation and stops if package-owned files changed after
+the last managed operation. Close X-Plane before all write and restore actions;
+restart it fully afterward.
+
+The Realbench Logger uses a file-wise X-Plane overlay rather than owning one
+complete plugin directory. Its manifest declares every managed runtime file by
+path, size and SHA-256. Install, update and repair back up only those files;
+unrelated DataRefMonitor profiles and generated files under
+`Output/DataRefMonitor` are preserved. Restore stops if a managed file changed
+after the Toolkit operation, then restores the exact previous state of each
+owned file.
+
+The `Resources` card manages large optional product assets independently from
+aircraft, VNAV and tool transactions. The official
+LevelUp 737NG Paintkit is offered for detected LevelUp installations. Choose the
+parent extraction directory, click `Check release`, then use `Download` after
+reviewing the destination and required disk space. The Toolkit verifies the
+GitHub asset digest, manifest, archive size and SHA-256, safely extracts into a
+staging directory and validates all declared files before publishing the final
+`737NG V2_Paintkit` directory. It never extracts the Paintkit into the aircraft
+or X-Plane folder unless that location is explicitly selected.
+
+`Verify` checks the recorded installation, `Open folder` opens it in the file
+manager, and `Remove resource` is enabled only for an unchanged Toolkit-managed
+installation. Unknown, changed or additional files block automatic replacement
+or removal. The Paintkit is currently offered on the Stable channel only.
+
+The `Liveries` card manages catalog-listed liveries for the currently selected
+aircraft installation. Click `Check release`, then `Install` after reviewing
+the exact target under `<aircraft>/liveries`. Installed and available versions
+are shown separately. The Toolkit verifies the GitHub release metadata, ZIP,
+manifest and every declared file before publishing the livery directory.
+
+Livery records belong to one aircraft folder, so installations in multiple
+LevelUp or Zibo folders are tracked independently. A normal install or update
+does not overwrite an unmanaged directory or a managed livery that has been
+changed locally. Use `Verify` to check all declared files. If a managed livery
+was changed, `Repair` is enabled and asks for explicit confirmation before
+replacing that directory. `Remove` succeeds only while the managed directory
+still exactly matches its recorded files; unknown or changed files block
+automatic removal.
+
+The `Views After CG Change` card contains view and configuration maintenance for
+the selected aircraft variant.
+
+`Fix` adjusts X-Plane quick-view positions after an aircraft CG change when the
+Toolkit has a reliable previous and current CG baseline. The app reads the ACF
+CG values in feet and the quick-view positions in meters, then applies the
+required conversion internally. A matching `X-Camera_<acf-stem>.csv` file is
+adjusted as well when one is present.
+
+`Adopt Current CG as Baseline` records the current ACF CG as the local baseline
+without moving any view. Use it only when the current views are already correct
+and the Toolkit cannot identify their previous CG baseline reliably.
+
+`Use Quick View 0 as Default Viewpoint` writes the aircraft ACF default view
+from Quick View 0. The app calculates the ACF default-view coordinates in feet
+from Quick View 0 and the current ACF CG.
+
+For a detected LevelUp installation with more than one variant,
+`Copy Views to Other LevelUp Variants` uses the selected variant as the source.
+After confirmation, the Toolkit copies all `_iql_*` Quick View entries to every
+other LevelUp variant in the same aircraft folder. It converts the ACF CG
+difference from feet to meters for each target, then asks separately whether
+the transferred Quick View 0 should also become each target Default Viewpoint.
+Choosing `Keep current defaults` leaves every target ACF Default Viewpoint
+unchanged. The source files are not changed. All targets are validated before
+the first write; changed prefs and, when selected, ACF files receive separate
+backups and the complete fleet operation rolls back if a later target fails.
+X-Camera files are not copied by this operation.
+
+`Create Config Backup` backs up supported root-level aircraft configuration
+files without changing aircraft files.
+
+`Restore Config Backup` restores the latest config-only backup generation. It
+creates a pre-restore image before replacing current config files.
+
+`Restore Latest Backup` restores the latest recorded toolkit backup generation
+for the selected variant. Use this when a previous toolkit operation should be
+reverted.
+
+Supported config backup files include:
+
+- `*_prefs.txt`
+- `*_vrconfig.txt`
+- `X-Camera_*.csv`
+- `*.cfg`
+- `b738_config.txt`
+- `version.txt`
+- `xplane-737ng-maintenance.json`
+
+### Advanced
+
+The `Advanced` tab contains technical details, review output and recovery actions
+that normal users should not need for routine operation.
+
+`Review VNAV changes` calculates planned changes without writing files.
+Advanced VNAV actions such as `Install`, `Repair` and `Uninstall` are kept here
+instead of on the main `Start` page.
+
+The `Optional Patches` card is the Advanced manual/offline fallback. It accepts
+a folder containing a schema-v2 `package-manifest.json`. Selecting a package
+validates the manifest and all payload hashes. `Review` generates the complete
+file plan without writing files. `Install / update`, `Repair` and `Uninstall`
+always require a separate confirmation and use their own multi-file backup and
+rollback transaction.
+
+The LevelUp maintenance group installs VNAV, FANS CDU and Weight & Balance as
+required modules. Existing optional selections are retained during updates;
+unselected optional modules are not automatically enabled. Separate manual
+package actions retain their own confirmation.
+The Zibo group has no required modules. VNAV, Tablet Performance Calculator,
+AUTO JETWAY, CPDLC FANS PAGES and Intentional Fixes are selected individually.
+In both groups Intentional Fixes runs last; its CPDLC and LevelUp W&B targets
+run only when those functional modules are selected.
+
+Use `Dump to file` to export the visible install and operation logs into the
+configured diagnostics export folder. A dialog shows the saved path with
+`Open folder` and `OK` buttons. Export failures are also shown in a dialog.
+The exported log includes the Toolkit assembly version. Attach the file when
+requesting support.
+
+For normal online use, the app tries to refresh `package-manifest.txt` and
+payload files from explicit GitHub Release assets. Fallback sources are:
+
+- the folder set in `XPLANE_737NG_PACKAGE_DIR`
+- the Offline VNAV package folder configured in Settings
+- bundled preview content shipped with the app
+- the source-tree content folder during development
+
+Every VNAV payload is checked against size and SHA-256 from the manifest before
+it is installed.
+
+The aircraft package details section shows:
+
+- installed version
+- available version
+- update mode
+- required package list
+- source links
+- package cache status
+
+Zibo packages are modeled as baseline plus cumulative patch:
+
+- `Full` means the plan includes a full baseline ZIP. If a cumulative patch is
+  available for the same baseline, both packages are required. The Toolkit
+  builds a fresh aircraft image in a staging directory, applies the cumulative
+  patch there, validates the result and then exchanges the complete aircraft
+  directory. It does not overlay a new baseline onto files from an older one.
+- `Incremental` means the local aircraft is already on the current baseline
+  and only the latest cumulative patch ZIP is required.
+
+The app does not apply a chain of incremental patches. It plans either the
+current full baseline plus latest cumulative patch, or only the latest
+cumulative patch for the already installed baseline.
+
+Use `Download required packages` to let the app download required packages into
+the aircraft update cache. For Zibo, it tries the matching direct `.zip` URL
+first. If that archive is unavailable, the embedded BitTorrent client uses the
+official `.zip.torrent` metadata with DHT, peer exchange and current fallback
+trackers. The operation remains cancellable and shows percentage, peer count
+and transfer rate. The Toolkit rejects torrents that do not describe exactly
+the expected single ZIP, verifies torrent pieces during transfer and validates
+the completed archive before caching it. A transfer with no useful peer
+activity times out instead of waiting indefinitely. `Import package` remains
+available as a manual fallback.
+
+Use `Import package` to select a local package. The selected
+file name must match a required package in the current plan exactly. For an
+offline LevelUp test, the app also accepts the published `.manifest.json` or
+its adjacent `.7z` archive and builds the plan from that authoritative
+manifest. Both selections produce the same plan. Keep the manifest and archive
+together in the same folder. After a successful import, the main `Update`
+button uses that verified offline plan directly instead of replacing it with
+another online release check. If the file dialog closes and nothing obvious
+happens, check the aircraft update status, cache status and Advanced tab for the
+import result.
+Package copying and integrity checks run in the background. They can be
+canceled before the verified package is committed to the toolkit cache;
+aircraft files are never changed by import.
+
+VR configuration files (`*_vrconfig.txt`) supplied by an aircraft package are
+aircraft content and are updated with that package. Any existing version,
+including personal edits, is backed up before replacement and can be recovered
+with aircraft restore. Personal `*_prefs.txt` and X-Camera files remain protected.
+
+Use `Review aircraft changes` before applying. Review opens the cached packages
+and reports which files would be added, replaced, removed or protected. For a
+full baseline replacement, files that belong only to the old baseline are
+reported as removed, while protected preferences and local liveries are
+reported as migrated. No aircraft files are changed during review. The review
+runs in the background and can be canceled. Very large plans show only the
+first 500 detail rows in the UI; the totals cover the complete plan.
+
+Use `Apply cached update` only after the cache contains every required
+package and review is clean. A confirmation dialog summarizes the reviewed
+target, version transition and file counts before any write is allowed. The
+internal validation can still be canceled. When the write phase starts, Cancel
+is disabled and the transaction must either complete or roll back. The apply
+operation:
+
+- blocks when X-Plane is running
+- verifies cached ZIP size and SHA-256 against the recorded cache snapshot
+- performs an internal review pass before writing
+- uses per-file backups for incremental updates
+- retains the exact complete previous aircraft directory for a full baseline
+  replacement
+- preserves protected local config and preference files
+- preserves local liveries that are not included in the new package
+- writes toolkit metadata after a successful update
+- rolls back changed files or the complete directory exchange if the
+  transaction fails
+
+After a successful aircraft update, the app rescans the selected target.
+For LevelUp, the complete required maintenance group is offered independently
+of the VNAV state, even when no aircraft package files need changing. Confirm
+`Update patches` to resolve the latest stable release of every group source,
+validate it and apply all required modules with previously selected optional
+modules retained. Aircraft and group changes remain separate backed-up transactions.
+
+Deferring the group, a missing group, failed validation or a failed download
+leaves `Required patches pending` visible. An aircraft update that succeeded
+before such a failure is reported as partially completed; the Toolkit does not
+report the overall operation as complete or ready to fly. Run `Update` again
+to finish maintenance. The LevelUp `Update` button remains available even when
+the aircraft and VNAV versions appear current.
+
+Zibo keeps its existing VNAV-state-driven follow-up. Aircraft folders are
+user-owned installation paths and are not renamed during updates.
+
+Use `Restore aircraft` on the Start tab to restore the latest aircraft-update
+backup generation. Incremental restore replaces backed-up files and removes
+files added by the update. Full-baseline restore transactionally exchanges the
+complete aircraft directory with its exact retained predecessor and keeps a
+pre-restore directory so later legitimate changes are not discarded.
+`Restore VNAV` restores the latest separate VNAV backup generation.
+
+Official Zibo package hashes are not available from the feed. The app verifies
+that the cached ZIP has not changed since import or download; it cannot verify
+the ZIP against an official upstream manifest hash unless such a manifest is
+provided later.
+
+Custom distributions and no-Lua ports can declare their own state in
+`xplane-737ng-maintenance.json`. For those targets, official upstream Zibo
+package information is review-only unless a dedicated custom-port update
+source is implemented.
+
+### Settings
+
+The `Settings` tab stores directory settings in `settings.json` under the
+toolkit data folder shown in the settings panel. Directory settings are
+normalized and tested for write access before saving.
+
+The selected aircraft folder is also stored in `settings.json` and is restored
+when the app starts. On Linux, the toolkit data folder follows
+`$XDG_CONFIG_HOME` or `~/.config`; the downloaded package cache follows
+`$XDG_CACHE_HOME` or `~/.cache`.
+
+Available settings:
+
+- `Backup folder`: stores real backup data and restore records. Do not delete
+  this folder casually.
+- `Downloaded package cache folder`: stores downloaded or imported upstream
+  aircraft update packages, verified optional content-package archives and
+  verified tool releases in separate subdirectories. This can be cleared and
+  recreated.
+- `Offline VNAV package folder`: optional local source for VNAV manifest
+  payload files.
+- `Diagnostics export folder`: target folder reserved for diagnostic exports.
+
+Changing the backup folder affects future backups. Existing restore records
+keep their original absolute backup paths.
+
+Full aircraft-baseline replacements are the exception: their complete and
+exact directory backups are retained beside the aircraft directory so the
+final activation and restore can use same-filesystem directory moves. These
+backup directory paths are recorded in Toolkit state and must not be renamed or
+deleted while restore is required.
+
+`Clear Cache` removes the current aircraft, optional-package and tool-package
+cache contents. It does not delete installed files or backups.
+
+The log can be cleared from the `Advanced` tab. Clearing the visible log does not
+delete backup files or state records.
+
+## Safety Rules
+
+The app follows these safety rules for modifying operations:
+
+- X-Plane must be closed.
+- The selected aircraft must be structurally recognized.
+- VNAV hooks are applied only when manifest markers and anchors are safe.
+- Required VNAV payload files must match manifest size and SHA-256.
+- Optional patch manifests and payloads must match schema, size and SHA-256.
+- Trusted optional package releases must match the active validated product catalog,
+  GitHub asset name pattern, published asset size and SHA-256 digest.
+- Optional ZIP extraction rejects traversal, symbolic links, case collisions,
+  duplicate manifests and oversized archives, and keeps only manifest-declared
+  payload files.
+- Optional packages can invoke only the toolkit's allowlisted declarative
+  operation handlers; package-provided scripts are never executed.
+- Optional targets require a supported source SHA-256 unless an allowlisted
+  handler explicitly performs structural source validation. Hashless exact-text
+  patches require every declared old or installed block exactly once.
+- Patch target paths cannot escape the aircraft root or traverse nested
+  symbolic links.
+- Aircraft update ZIP paths must stay inside the selected aircraft folder.
+- Protected local preference/config files are not overwritten by aircraft
+  update ZIPs.
+- Full baseline updates reject unsafe protected-content or local-livery links
+  instead of following them during migration.
+- A backup or restore record is created before replacing existing files.
+- Failed write transactions attempt rollback.
+- A full X-Plane restart is required after changes.
+
+Stop and inspect the findings/log if the app reports an unsafe state, unknown
+modification, duplicate anchor, missing anchor, invalid ZIP, missing payload or
+read-only target.
+
+## Common Problems
+
+`No supported aircraft found`
+
+Select the aircraft root folder manually and scan again. The aircraft root is
+the folder that contains the ACF file and aircraft subfolders.
+
+`X-Plane is running`
+
+Close X-Plane fully, then retry the operation.
+
+`Import blocked`
+
+For Zibo, check for updates first and select the exact package required by the
+current plan. For an offline LevelUp package, keep the manifest and `.7z`
+together and select either file. Review the Advanced findings if validation
+rejects the pair.
+
+`Online source unavailable`
+
+The public LevelUp release index or Zibo package source could not be reached.
+Check the network connection and retry. For LevelUp, an authorized manifest and
+its adjacent `.7z` archive can be imported as an offline fallback. For Zibo,
+retry the official BitTorrent transfer later or download the exact package
+required by the current plan and use `Import package`. Technical transport
+details remain in Advanced and the log.
+
+`Download failed`
+
+Neither the direct archive nor the official BitTorrent transfer supplied the
+required package. Retry after checking that the network permits BitTorrent
+traffic, or download the exact ZIP manually and use `Import package...`.
+
+`Review blocked`
+
+Check the review findings. Common causes are missing cache entries, an invalid
+ZIP file or an unsafe ZIP path.
+
+`Target state is not safe to patch`
+
+The current aircraft files do not match a state the app can modify safely.
+Review the Findings and Advanced tab before changing anything manually.
+
+`Custom distribution detected`
+
+Official upstream aircraft packages are shown as review-only for custom/no-Lua
+distributions unless a dedicated update source is defined.
+
+## Support And Diagnostics
+
+The **Update status** card at the top of **Start** shows the selected aircraft
+version, its required patches, optional patches recorded as installed, and the
+last aircraft and patch release checks. Zibo has no required patches. For
+LevelUp, missing required patches remain visible even when the aircraft version
+is current. Selected options are not shown as installed until installation is
+recorded. Failed or incomplete checks do not report that all versions are current.
+Expand **Patch versions** to see one row per patch with its installed version,
+available version, required/optional label and version status. An optional patch
+you selected is not shown as installed until the Toolkit records installation.
+“No Toolkit install record” does not rule out a manual installation. A failed
+release check keeps the installed version visible but does not claim it is current.
+Beta and preview patches are labelled even if GitHub publishes them as regular
+releases. Version matching is separate from file validation.
+
+### Quick guide
+
+Open **Quick guide** on Start for help with installation, updates, optional
+patches, file checks and restore. The instructions match the selected aircraft:
+LevelUp requires VNAV, FANS CDU and Weight & Balance; all Zibo patches are optional.
+You can also open the guide before selecting an aircraft. **Full manual** opens
+this document. The two support buttons take you to Discord or the Toolkit download
+page. Close X-Plane before changing files and restart it afterwards.
+
+### Installation history and backup overview
+
+Open **Installation history & backups** in Update status to see the history MTK
+has saved for your aircraft. The latest entries appear first, with local dates
+and times. Entries with no saved date say so. Shared X-Plane tools are labelled
+separately. This is not a complete log: manual changes and some older actions may
+not appear. **Refresh history** loads the list again. It does not change files,
+download packages or create an export.
+
+**Backup locations** shows where each backup was saved and whether it is still
+there. Older backups may still point to a previous backup folder. If a file did
+not exist before the change, no backup was needed. If MTK took over an existing
+installation without an original backup, that installation cannot be restored
+from its MTK record. A missing entry does not mean a patch was never installed
+manually. Hardware configuration copies and downloaded resources have their own
+sections and are not included here.
+
+Finding a backup does not mean it can be restored. This view does not open backups
+or check their hashes. Use **Check installation** to check files and backups
+against MTK's records. To restore a package, use its **Restore** button; MTK will
+check whether the backup can be used. The history list has no restore or delete
+buttons. Keep MTK's state files and backups while investigating a problem.
+Selecting another aircraft or starting a file operation clears the list. Refresh
+it after making changes.
+
+### Check installation without making changes
+
+On Start, click **Check installation** in the Update status card. The Toolkit
+reads its installation records, compares recorded file sizes and SHA-256 hashes,
+checks expected absent files and checks referenced backups. It uses the same
+collector as the diagnostic export. It does not download packages, check online
+releases, write an export or change aircraft, settings or backup files.
+
+The result appears on Start with a timestamp and the checked aircraft folder.
+Expand **File and backup results** to see which file or backup needs attention.
+“Recorded file checks passed” applies only to the recorded checks. Missing or
+unreadable state, skipped hashes and directory checks without content verification
+leave the result incomplete. Another patch may have changed a file since an older
+snapshot; a difference does not identify who changed it or authorize repair.
+
+This is not a complete aircraft check, a verified restore chain or a simulator
+test. Close X-Plane for a consistent snapshot. **Cancel check** stops without
+changing files. A new file operation or aircraft selection clears the previous
+result. For a support request, use **Export diagnostics for support** and review
+the ZIP before sharing it. Review/Install/Repair still perform their normal checks.
+
+### Result help and diagnostic export
+
+After a blocked or failed operation, the result panel on **Start** offers
+**Show result help** and **Export diagnostics**. Result help explains
+recognized safety checks in plain language, identifies the affected file or
+patch record when the engine names it, and gives the next safe step. Unknown
+errors direct you to diagnostics rather than guessing the cause.
+
+Patch evidence without a verified Toolkit history does not prove that you ran
+a standalone installer. A file differing from Toolkit state does not identify
+which application or edit changed it. The help preserves these distinctions;
+it does not bypass validation, remove files or automatically repair or restore.
+Keep aircraft, state and backups intact when the next step is a support review.
+
+On the **Advanced** tab, use **Export diagnostic package** under **Support
+diagnostics**. The ZIP is saved in the configured diagnostics folder. Its path
+is shown when the export finishes. Attach that ZIP when reporting a problem;
+it provides more information than a screenshot of an error message.
+
+The package contains `report.txt`, `diagnostics.json` and `operation-log.txt`:
+Toolkit/catalog versions, operating system and architecture, selected aircraft,
+last displayed installed/available package versions, selected modules, recorded
+component ownership, observed file hashes, referenced backup checks and logs.
+It does not refresh online releases, upload anything, or change the aircraft or
+installation state. No aircraft, backup, settings or raw state files are included.
+
+**Anonymize local paths** is selected by default. It replaces local roots in
+both the report and logs with labels such as `[AIRCRAFT]` and `[BACKUPS]`. Turn
+it off only if exact paths are needed for support. Recognized credential fields
+are redacted in either mode. Review the files before sharing: free-text logs may
+still contain details you entered.
+
+The export works without an aircraft selection and also reports a missing or
+unreadable state file. It checks recorded files and file backups by size and
+SHA-256; directory backups are checked for presence only. Hash differences are
+reported as observations, not automatic repair advice: another patch may have
+changed the same file since an older snapshot. The export does not prove a full
+restore chain or correct operation in X-Plane. Hashing is limited to 512 MiB and
+5,000 checks per report; skipped checks are reported. **Cancel export** stops
+collection without leaving a partial ZIP.
+
+`Dump to file` remains available for exporting only the visible operation log.
+
+Report Toolkit issues on the [MTK Discord server](https://discord.gg/ySS88PMuyC),
+in the comments on the [Toolkit download page](https://forums.x-plane.org/files/file/101018-x-plane-737ng-maintenance-toolkit/),
+or through [GitHub Issues](https://github.com/wahltho/xplane-737ng-maintenance-toolkit/issues).
+
+Include the Toolkit version, operating system, detected product, operation being
+attempted and exported log. Do not upload complete copyrighted aircraft files.
+
+## Current Limitations
+
+- App builds are unsigned releases.
+- macOS builds are not notarized.
+- In-app application updates require a VeloPack-managed installation. An
+  unmanaged development/manual launch continues to use the GitHub Releases
+  page for application updates.
+- Zibo upstream ZIPs are verified against the local cache snapshot, not an
+  official upstream hash manifest.
+- Online LevelUp aircraft update checks require the authorized public
+  `petrolpram/737NG-Updates` endpoint to be reachable and to contain a published
+  compatible release. Draft or offline packages require manual
+  manifest/archive import.
+- Diagnostic packages do not contain aircraft files or verify complete directory
+  backups. They are local support snapshots, not simulator validation.
+
+## LevelUp maintenance group
+
+The catalog groups VNAV Descent Tables, Weight & Balance and FANS CDU as required
+modules. Tablet Performance Calculator, AUTO JETWAY, CPDLC FANS PAGES, GSE,
+VREF (Beta) and Intentional Fixes are optional. Review the
+group to choose optional modules, then apply the common installation plan.
+Each source continues updating from its own GitHub releases. Existing installed
+modules are adopted only with verifiable backup state; an unsafe migration is
+blocked without changing aircraft files. The group owns subsequent updates and
+restores for its member patches. See [Catalog groups](CATALOG_GROUPS.md).
+
+The Zibo group offers VNAV Descent Tables, Tablet Performance Calculator,
+AUTO JETWAY, CPDLC FANS PAGES, VREF (Beta) and Intentional Fixes as optional modules. No
+module is selected by default. Intentional Fixes is applied after the selected
+functional modules.
+
+
+### Startup aircraft and patch checks
+
+After detecting the selected aircraft and refreshing the catalog, the Toolkit
+checks aircraft releases and maintenance patch releases in sequence. This only
+populates availability; it does not install aircraft or patches. Recent patch
+release metadata is reused from the cache, and an active GitHub rate-limit
+cooldown is respected. If the source is unavailable, use the manual check later.
+
+In Settings, clear `Check aircraft and patch releases at startup` to disable
+these requests. This preference is separate from Toolkit application updates.
+When no supported aircraft is selected at startup, select one and check manually.
+
+### Copying hardware configurations
+
+1. Close X-Plane and select an aircraft inside the intended X-Plane installation.
+2. On Start, click `Find hardware configurations`.
+3. Choose an existing source under `Copy from`, then tick the destination variants.
+4. Click `Copy selected` and confirm the listed source and destinations.
+
+This copies the entire Zibo/LevelUp `_hw.cfg` file in `Output/preferences`,
+including axis calibration and other options stored in that file. It does not
+copy X-Plane joystick profiles, Quick Views or general aircraft settings files.
+Only detected Zibo/LevelUp variants in the same X-Plane installation are offered.
+Zibo 2K and 4K share one configuration. Multiple aircraft folders of the same
+variant also share one configuration. Missing destination files can be created;
+the source must already exist.
+
+Before writing, the Toolkit saves the complete previous state under
+`hardware-config` in the configured backup folder. `Restore last hardware copy`
+undoes that copy for the selected X-Plane installation, including removing files
+created by it. Restore blocks if a destination has been edited since copying.
+The operation log includes the backup location. Keep the backup folder intact.
+
+### Maintenance module list at startup
+
+For a detected LevelUp installation, the Advanced tab shows the maintenance
+module selection from the catalog immediately, including when automatic release
+checks are disabled. Required modules stay selected; installed optional module
+selections are retained. Merely displaying the list does not download patch
+archives or change aircraft files. Choosing Review, Install or Update prepares
+and validates the packages while keeping the chosen module selection.
