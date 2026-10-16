@@ -628,6 +628,14 @@ Available settings:
 
 - `Backup folder`: stores real backup data and restore records. Do not delete
   this folder casually.
+- `Old restore points to keep`: keeps the chosen number of recent points per
+  package or operation. `0` (the default) keeps everything. Save the setting;
+  cleanup then runs at startup, or with `Clean up now` while X-Plane is closed.
+  Original backups and data needed by a restore chain are exempt. Complete
+  aircraft-update histories are also kept, including their saved patch and
+  runtime state. The actual number of backups can therefore exceed this limit.
+  Cleanup only removes recorded, obsolete data in the current backup folder;
+  it does not touch aircraft files, old backup locations or unrecognized folders.
 - `Downloaded package cache folder`: stores downloaded or imported upstream
   aircraft update packages, verified optional content-package archives and
   verified tool releases in separate subdirectories. This can be cleared and
