@@ -1,6 +1,6 @@
 {
   "schemaVersion": 3,
-  "catalogVersion": "2.0.0",
+  "catalogVersion": "2.0.1",
   "minimumToolkitVersion": "0.29.0",
   "packages": [
     {
@@ -3184,6 +3184,146 @@
             "path": "win_x64/xlua.xpl",
             "size": 2395136,
             "sha256": "df373fa3e44dd233850109ce4fbc692c7f709957c1e529a84d01a109d6ccce35"
+          }
+        ]
+      },
+      {
+        "id": "xlua-1.3.7r3",
+        "packageId": "wahltho.optimized-xlua",
+        "packageVersion": "1.3.7r3",
+        "releaseTag": "r1.3.7r3",
+        "channel": "stable",
+        "archive": {
+          "path": "Xlua.1.3.7r3-universal.zip",
+          "size": 1838515,
+          "sha256": "45632fbc9f6a43de9e5ce242689041a14ffd27596e463d8e6df31d08c295397a"
+        },
+        "manifestSha256": "0846f790d998f33a5ac3e0d153be35b3b36abd9b046b5671e8583ce8e99a1298",
+        "files": [
+          {
+            "path": "init.lua",
+            "size": 13116,
+            "sha256": "d0119e6a6ba87074c927033f13eabc224db1f41a42ea96f2074dac3d792ff5cb"
+          },
+          {
+            "path": "lin_x64/xlua.xpl",
+            "size": 890320,
+            "sha256": "d94a073bd4997a7463a5a9e1ff85a52f83da4046a2bb74e4e0ddcc4988b97d69"
+          },
+          {
+            "path": "mac_x64/xlua.xpl",
+            "size": 1445656,
+            "sha256": "6097b6521a51cc6581b044d1521b01666317eaa17bef9e5d4876806d842d9575"
+          },
+          {
+            "path": "win_x64/xlua.xpl",
+            "size": 1924608,
+            "sha256": "92c89461278dfdad88294761f4a4aabe0309a7907e24431e86b42ecd4f5d746b"
+          }
+        ]
+      },
+      {
+        "id": "xlua-1.3.7r4",
+        "packageId": "wahltho.optimized-xlua",
+        "packageVersion": "1.3.7r4",
+        "releaseTag": "r1.3.7r4",
+        "channel": "stable",
+        "archive": {
+          "path": "Xlua.1.3.7r4.zip",
+          "size": 1838516,
+          "sha256": "c8e1d4bd0e02f81b649d830dd7c2e43f4c89c4907dd035fbcd2cdcc617acce20"
+        },
+        "manifestSha256": "166c5b0e3ef2b9395ed6df5ef194e5847710538b1940246cd4f7e5bc55b33ee4",
+        "files": [
+          {
+            "path": "init.lua",
+            "size": 13116,
+            "sha256": "d0119e6a6ba87074c927033f13eabc224db1f41a42ea96f2074dac3d792ff5cb"
+          },
+          {
+            "path": "lin_x64/xlua.xpl",
+            "size": 890320,
+            "sha256": "55cf6a922c3de5329831beea55668762a7bca476cfb01c3d9d5ff5f3de806b4c"
+          },
+          {
+            "path": "mac_x64/xlua.xpl",
+            "size": 1445656,
+            "sha256": "4747bd31ea3e127cb58b2d0e77794eb9f4d378f07a4d380d68792ad3f15fdb2e"
+          },
+          {
+            "path": "win_x64/xlua.xpl",
+            "size": 1924608,
+            "sha256": "918d2aa041de8594f08e00fbe476226377211f15288f61c6dd55ac44105d0c21"
+          }
+        ]
+      },
+      {
+        "id": "xlua-2.0.0b1-opt2",
+        "packageId": "wahltho.optimized-xlua",
+        "packageVersion": "2.0.0b1-opt2",
+        "releaseTag": "v2.0.0b1-opt2",
+        "channel": "beta",
+        "archive": {
+          "path": "Xlua.2.0.0b1-opt2.zip",
+          "size": 4429255,
+          "sha256": "d4f48b8b9b02d4cf7eb2588047a6252b8080f8180d2fa6bb80f2dd699f332c5e"
+        },
+        "manifestSha256": "c198b4002ead57f091fe002f550e1f513bb2819d6d96e2c2335872b2f2d86a25",
+        "files": [
+          {
+            "path": "init.lua",
+            "size": 14132,
+            "sha256": "7afd7ec3f21cd217b4119a00b95df5c4c101fb4cdab1cb0c80acfd439087d1e6"
+          },
+          {
+            "path": "lin_x64/xlua2.xpl",
+            "size": 2785944,
+            "sha256": "0f18299ab8e61f7dfcccf6462cc071ce2d770dc51d8622532c4194606e0b5faa"
+          },
+          {
+            "path": "mac_x64/xlua2.xpl",
+            "size": 4647736,
+            "sha256": "04e8c7c2c18656ddc413f85293060ade160296b40f8477455178bb751e491685"
+          },
+          {
+            "path": "win_x64/xlua2.xpl",
+            "size": 2377216,
+            "sha256": "9c89d2d54e506f057f6cc27c9b782ff07123857a1143aeae448729d9fa552b52"
+          }
+        ]
+      },
+      {
+        "id": "xlua-2.0.0b1-opt3",
+        "packageId": "wahltho.optimized-xlua",
+        "packageVersion": "2.0.0b1-opt3",
+        "releaseTag": "v2.0.0b1-opt3",
+        "channel": "beta",
+        "archive": {
+          "path": "Xlua.2.0.0b1-opt3.zip",
+          "size": 4496432,
+          "sha256": "563ae9e444979d3e384e71f6aba5db1f08c0d4a8f32c39250e1bceb0cf5c9524"
+        },
+        "manifestSha256": "78cf90a8d88372663633ff576ca19eeeb187b6a992ee2b6e23037616cd5a4ca2",
+        "files": [
+          {
+            "path": "init.lua",
+            "size": 14132,
+            "sha256": "7afd7ec3f21cd217b4119a00b95df5c4c101fb4cdab1cb0c80acfd439087d1e6"
+          },
+          {
+            "path": "lin_x64/xlua2.xpl",
+            "size": 2834744,
+            "sha256": "d8d85f3b18e0cc6aef37262e511a9073570c885a619ffb464b81d69da3b45382"
+          },
+          {
+            "path": "mac_x64/xlua2.xpl",
+            "size": 4687760,
+            "sha256": "5f556e22788e72efb02ff25bc86dcb5f875b94de0cb2b129ecd392ea121d7dae"
+          },
+          {
+            "path": "win_x64/xlua2.xpl",
+            "size": 2396160,
+            "sha256": "77b5231509c915f1dc744f28e3a0832b651179339df9d14c6d0d714bf19cf90e"
           }
         ]
       }
