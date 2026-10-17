@@ -1,7 +1,7 @@
 {
   "schemaVersion": 3,
-  "catalogVersion": "2.0.1",
-  "minimumToolkitVersion": "0.29.0",
+  "catalogVersion": "2.0.2",
+  "minimumToolkitVersion": "0.29.3",
   "packages": [
     {
       "packageId": "x-plane-zibo-vnav-descent-tables",
@@ -2392,6 +2392,16 @@
             "size": 2802688,
             "sha256": "c743504560dcb0e7c699933f2ddf44b0ba9d4c104c0c8f5bd0d77395246dfaef"
           }
+        ],
+        "identityPaths": [
+          "objects/737_cockpit_ovhd2.obj",
+          "plugins/xlua/init.lua",
+          "plugins/xlua/lin_x64/xlua.xpl",
+          "plugins/xlua/mac_x64/xlua.xpl",
+          "plugins/xlua/win_x64/xlua.xpl",
+          "plugins/zibomod/lin_x64/zibomod.xpl",
+          "plugins/zibomod/mac_x64/zibomod.xpl",
+          "plugins/zibomod/win_x64/zibomod.xpl"
         ]
       },
       {
@@ -2573,6 +2583,16 @@
             "size": 2802688,
             "sha256": "c743504560dcb0e7c699933f2ddf44b0ba9d4c104c0c8f5bd0d77395246dfaef"
           }
+        ],
+        "identityPaths": [
+          "objects/737_cockpit_ovhd2.obj",
+          "plugins/xlua/init.lua",
+          "plugins/xlua/lin_x64/xlua.xpl",
+          "plugins/xlua/mac_x64/xlua.xpl",
+          "plugins/xlua/win_x64/xlua.xpl",
+          "plugins/zibomod/lin_x64/zibomod.xpl",
+          "plugins/zibomod/mac_x64/zibomod.xpl",
+          "plugins/zibomod/win_x64/zibomod.xpl"
         ]
       },
       {
@@ -2722,6 +2742,16 @@
               "sha256": "64d293b8ef609dcebb2ad37af640f9c810c2396585ce1d3efb7e84104e555634"
             }
           ]
+        ],
+        "identityPaths": [
+          "plugins/xlua/init.lua",
+          "plugins/xlua/lin_x64/xlua.xpl",
+          "plugins/xlua/mac_x64/xlua.xpl",
+          "plugins/xlua/win_x64/xlua.xpl",
+          "plugins/zibomod/lin_x64/zibomod.xpl",
+          "plugins/zibomod/mac_x64/zibomod.xpl",
+          "plugins/zibomod/win_x64/zibomod.xpl",
+          "version.txt"
         ]
       },
       {
@@ -2896,6 +2926,19 @@
             "size": 2762240,
             "sha256": "12752872d3b18f0ea0817952db7a0d0a8f78f274e421a7e07468c9c06ad45f35"
           }
+        ],
+        "identityPaths": [
+          "objects/737_cockpit_ovhd2.obj",
+          "plugins/xlua/64/lin.xpl",
+          "plugins/xlua/64/mac.xpl",
+          "plugins/xlua/64/win.xpl",
+          "plugins/xlua/init.lua",
+          "plugins/xlua/lin_x64/xlua.xpl",
+          "plugins/xlua/mac_x64/xlua.xpl",
+          "plugins/xlua/win_x64/xlua.xpl",
+          "plugins/zibomod/lin_x64/zibomod.xpl",
+          "plugins/zibomod/mac_x64/zibomod.xpl",
+          "plugins/zibomod/win_x64/zibomod.xpl"
         ]
       }
     ],

@@ -559,6 +559,15 @@
             "$ref": "#/$defs/compatibilityFile"
           },
           "minItems": 1
+        },
+        "identityPaths": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
         }
       }
     },
@@ -610,6 +619,14 @@
           "type": "array",
           "items": {
             "$ref": "#/$defs/compatibilityFile"
+          }
+        },
+        "requiredBaselinePaths": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
           }
         }
       }
