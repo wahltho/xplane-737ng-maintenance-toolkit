@@ -28,6 +28,60 @@ qualify. There is still only one baseline identity for the resulting files.
 Include the native runtime binaries, XLua init file and every affected original
 script in the baseline evidence. A version label is not sufficient evidence.
 
+### File scope
+
+The next catalog adds optional `identityPaths` to a baseline. These are exact
+paths into its `files` list, with the same original sizes and hashes. They
+identify the aircraft release independently of the selected patches. Omission
+keeps the previous whole-baseline check; an empty list is invalid.
+
+For an operation, the Toolkit also checks the baseline entries for the actual
+manifest targets and the files already owned by installed patches. This includes
+files being removed by an update or module deselection. It does not require
+unrelated scripts to match their original hashes. A user's HUD changes, for
+example, can remain in place when no selected patch uses those files.
+An aircraft update also checks the actual add, replace and delete paths from
+its dry-run. If the aircraft archive would replace a modified HUD file (or a
+full replacement would delete it), the update stops and names that path.
+
+An artifact may add `requiredBaselinePaths` for files it depends on without
+writing them. These must be exact paths with original file evidence in every
+approved baseline using that artifact. They are checked at planning and again
+before execution, including for runtime changes. This field is not a replacement
+for the manifest target list. New payload files and retired files keep the
+existing ownership, allowed-source-hash and backup checks.
+
+The catalog uses native Zibomod and XLua identities plus Zibo's version
+file. LevelUp also uses the cockpit object that distinguishes the retained
+S1.50 and S1.51C releases. That file is already a target of its required FANS CDU
+module. No HUD file is part of the release identity.
+
+Receipts retain the checked original files, `scopedBaselinePaths`,
+`baselineIdentityPaths` and each artifact's `artifactBaselinePaths`. They can
+therefore support offline Restore without looking up unrelated files in a newer
+catalog. Restore uses the current owners and their dependencies; files from a
+removed owner do not remain in another patch's or XLua's restore scope. Matching
+saved baseline evidence can be combined, but conflicting original hashes or
+different aircraft generations block the operation.
+A pre-scope receipt can be narrowed using a current catalog only if
+every required original size and hash is also present in that saved receipt.
+Otherwise its original full check remains in force. Removing a patch does not
+require a fresh compatibility approval, but still verifies the retained aircraft
+identity, affected files and original backups.
+The operation checks both old and new module inputs. Its saved receipt covers
+the resulting selection, so a deselected module does not keep unrelated files
+in future restore checks. Runtime Restore validates the dependencies of the
+runtime being restored and repeats the check before activation.
+Repair likewise uses the exact releases still recorded as installed, rather
+than the former global selection in an older receipt. This permits an offline
+repair after another owner was removed, without selecting a newer patch or
+runtime release. The unchanged catalog and retained owners must still prove
+that selection.
+
+Catalog 2.0.2 requires Toolkit 0.29.3 or newer. Older clients reject the new
+fields rather than ignoring them. Publish a client that supports new catalog
+fields before publishing the catalog that uses them.
+
 `artifacts` identify exact patch and runtime releases. Each has an `id`,
 `packageId`, `packageVersion`, `releaseTag`, `channel` and `archive`. The archive
 uses the same filename/size/hash fields as an upstream archive. An optional
@@ -38,6 +92,13 @@ without adopting an unowned copy. The recorded file list must match exactly,
 and its previous runtime backup must also be recognized. Channels are `stable`
 and `beta`. If an asset is replaced under the same release tag, its approval no
 longer matches.
+
+Historical runtime artifacts may be listed without any approvals. They identify
+complete backups from older managed installations; they do not offer those
+releases for installation. If an old backup has no recorded version, its init
+file and every runtime binary must match one known release exactly. Missing,
+changed or additional binaries block that qualification. The newest recorded
+backup must pass; an older good backup does not replace a damaged newer one.
 
 `approvals` qualify a complete selection, not individual patches in isolation:
 
@@ -125,6 +186,10 @@ Restore restores the previous aircraft, patches and tool state together. Later
 file or ownership changes block this Restore instead of discarding those changes.
 Runtime Restore preserves the currently protected aircraft scripts. A runtime
 Restore that would invalidate installed qualified patches is blocked.
+Older runtime backups without a compatibility receipt are identified from their
+complete files before Restore. The destination still needs an approval for the
+current aircraft and patch selection. Restore records the verified release
+identity, even when the old state did not contain its version.
 
 Standalone installations remain supported outside the Toolkit. This contract
 does not adopt them or turn equal hashes into ownership evidence. Their verified
