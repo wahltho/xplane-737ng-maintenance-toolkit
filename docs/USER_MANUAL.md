@@ -98,6 +98,13 @@ not treated as enough.
 
 ## Selecting An Aircraft
 
+Aircraft folders reached through a directory symlink or Windows junction are
+supported, including links in a parent folder. Updates and restore operate on
+the physical aircraft directory and leave the link in place. Links inside the
+aircraft remain restricted. If the link target changes, rescan before continuing.
+Older history recorded through a link may need support to reconnect it safely;
+keep its state and backups. See [linked aircraft folders](LINKED_AIRCRAFT_FOLDERS.md).
+
 Use the `Start` tab first.
 
 1. On startup, the app searches common X-Plane aircraft locations in the
