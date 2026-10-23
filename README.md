@@ -25,7 +25,7 @@ new Toolkit application release.
 
 ## Independence and support
 
-MTK is an independent project by Thomas Wahl (wahltho). It is not an official
+MTK is an independent project by wahltho. It is not an official
 Laminar Research, Zibo or LevelUp product. Please direct Toolkit and independent
 patch questions to the support links above, rather than official aircraft
 support channels.
