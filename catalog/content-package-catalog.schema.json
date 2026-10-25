@@ -615,6 +615,11 @@
           ],
           "pattern": "^[A-Fa-f0-9]{64}$"
         },
+        "manualAdoptionAllowed": {
+          "type": "boolean",
+          "default": false,
+          "description": "Allow an explicitly confirmed takeover of this exact manual aircraft runtime, with a verified restore point and a current compatibility approval."
+        },
         "files": {
           "type": "array",
           "items": {
