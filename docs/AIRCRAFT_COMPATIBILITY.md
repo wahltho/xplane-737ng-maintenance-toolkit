@@ -202,6 +202,46 @@ aircraft update also blocks owners that no longer map to the catalog group;
 the user must restore or remove those components separately. Known members can
 still be deselected explicitly.
 
+## Catalog downloads
+
+Catalog downloads allow 90 seconds per request, including the response body.
+MTK retries timeouts, connection failures, HTTP 408/429 and temporary server
+errors up to three attempts per request. It waits 2 and 5 seconds between
+attempts; a server's longer `Retry-After` is respected up to 30 seconds.
+Cancelling stops the operation. Invalid hashes, unsupported catalogs and
+permanent HTTP errors are not retried. A failed download does not replace the
+last verified cache or make a cached catalog count as a fresh online approval.
+
+## Taking over a manual XLua installation
+
+MTK can take over an exact known runtime after the user confirms **Take over**.
+The runtime artifact must have `manualAdoptionAllowed: true` in the catalog;
+the default is false. Both the manual runtime and the selected replacement need
+an approval for the aircraft, platform and installed patch selection. This is
+not a general import of standalone aircraft patches.
+
+The review does not create ownership. MTK checks all runtime files, rejects
+unknown or mixed binaries, and binds the confirmation to the reviewed folder,
+installation history and catalog. Before activation it repeats these checks.
+X-Plane must be closed. An existing MTK runtime record uses the normal Update,
+Repair and Restore paths instead; takeover cannot replace or reset that history.
+
+Every takeover creates a full backup of `plugins/xlua`, even when the selected
+runtime is already installed. MTK verifies the saved files, directory entries
+and permissions before recording the new installation. The backup generation
+records that it came from a manual installation and retains its snapshot proof.
+Restore verifies that proof again before changing the aircraft.
+
+Restore returns to the runtime present immediately before takeover. It preserves
+the **current** protected aircraft scripts, including patches installed after
+takeover, and keeps their protection for later updates and restores. It does not
+claim to recover the stock runtime that preceded the user's manual installation.
+That older history is unknown unless the user retained a separate original backup.
+
+The optional catalog field is safe for older clients: they do not implement the
+takeover action and continue to block unowned runtime changes. Publishing the
+field alone does not add this feature to an older executable.
+
 ## Rollout
 
 MTK 0.29.0 supplies schema-3 support. Catalog 2.0.0 promotes the reviewed
@@ -232,3 +272,42 @@ Separate LevelUp Zibomod-only updates and dynamic version-file updates are a lat
 feature. Their proposed scope and transaction are documented in
 [LevelUp Zibomod updates](LEVELUP_ZIBOMOD_UPDATE.md). They are not enabled by the
 current catalog.
+
+## Windows aircraft permissions
+
+Aircraft updates and repairs copy access rules (the DACL) to their prepared
+working copy. They do not assign the original files' owner or group to new
+files: doing that can require Windows privileges unrelated to updating an
+aircraft. Access rules are applied after the files are prepared, so a readable
+directory without permission to create children does not prevent staging.
+
+Existing access rules are copied as snapshots, including inherited entries and
+inheritance protection. The copy does not recalculate them from the temporary
+working folder or propagate a directory change over already copied children.
+Only new package files and directories inherit from their final prepared parent,
+after all existing snapshots are in place. The complete surviving tree is then
+checked against the original before activation. Identical access rules are not
+rewritten. Windows clears the `DACL_AUTO_INHERITED` bookkeeping bit when copying
+a snapshot; copy comparisons ignore only that bit. Every ACE, its order and
+inheritance flags, and inheritance protection must still match. Original and
+backup guards continue comparing the complete security descriptor.
+A failed comparison reports both paths and descriptor hashes without
+including account identifiers from the raw descriptors.
+
+The Windows implementation uses `SetFileSecurityW` for this snapshot operation.
+Although Microsoft recommends the newer `SetSecurityInfo` APIs for ordinary ACL
+edits, those APIs propagate inheritance and are unsuitable for preserving an
+existing snapshot under a different temporary parent. No owner, group, SACL or
+privilege changes are requested. See Microsoft's
+[SetFileSecurityW reference](https://learn.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-setfilesecurityw).
+
+The original aircraft is retained as a separate generation, with its original
+owner, group and access rules. These are checked before recovery or Restore.
+Restore copies the saved contents and access rules; new copies belong to the
+account performing the operation. Old generations without saved permission
+metadata remain readable. Generations containing full permission metadata
+continue to be checked; their saved owner and group are not silently discarded.
+
+If Windows refuses the access-rule copy, MTK stops before activation and names
+the source and working-copy paths. It does not broaden permissions or ask for
+administrator rights as a routine workaround.
