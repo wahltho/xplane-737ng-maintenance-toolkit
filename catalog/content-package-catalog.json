@@ -1,7 +1,7 @@
 {
   "schemaVersion": 3,
-  "catalogVersion": "2.0.6",
-  "minimumToolkitVersion": "0.29.3",
+  "catalogVersion": "2.0.7",
+  "minimumToolkitVersion": "0.31.5",
   "packages": [
     {
       "packageId": "x-plane-zibo-vnav-descent-tables",
@@ -3436,6 +3436,38 @@
         },
         "manifestSha256": "73d5ca276d292d13475637496f9c36009962e08fa2b6201e3160710f034fbe00",
         "files": []
+      }
+    ],
+    "copiedPatchRecoveryRecipes": [
+      {
+        "contractVersion": 1,
+        "id": "copied-zibo-vnav-jetway-cpdlc-upstream",
+        "groupId": "wahltho.zibo-40535.maintenance",
+        "approvalId": "zibo-4.05.35-10110000-upstream"
+      },
+      {
+        "contractVersion": 1,
+        "id": "copied-zibo-vnav-jetway-cpdlc-xlua-1.3.7r5",
+        "groupId": "wahltho.zibo-40535.maintenance",
+        "approvalId": "zibo-4.05.35-10110000-xlua-1.3.7r5"
+      },
+      {
+        "contractVersion": 1,
+        "id": "copied-zibo-vnav-jetway-cpdlc-xlua-2.0.0b1-opt4",
+        "groupId": "wahltho.zibo-40535.maintenance",
+        "approvalId": "zibo-4.05.35-10110000-xlua-2.0.0b1-opt4"
+      },
+      {
+        "contractVersion": 1,
+        "id": "copied-zibo-vnav-jetway-cpdlc-xlua-2.0.0b3-opt5",
+        "groupId": "wahltho.zibo-40535.maintenance",
+        "approvalId": "zibo-4.05.35-10110000-xlua-2.0.0b3-opt5"
+      },
+      {
+        "contractVersion": 1,
+        "id": "copied-zibo-vnav-jetway-cpdlc-xlua-1.3.8b1",
+        "groupId": "wahltho.zibo-40535.maintenance",
+        "approvalId": "zibo-4.05.35-10110000-xlua-1.3.8b1"
       }
     ],
     "approvals": [

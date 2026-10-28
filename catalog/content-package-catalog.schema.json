@@ -765,6 +765,37 @@
           "items": {
             "$ref": "#/$defs/compatibilityApproval"
           }
+        },
+        "copiedPatchRecoveryRecipes": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "contractVersion",
+              "id",
+              "groupId",
+              "approvalId"
+            ],
+            "properties": {
+              "contractVersion": {
+                "const": 1
+              },
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "groupId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "approvalId": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
         }
       }
     }
