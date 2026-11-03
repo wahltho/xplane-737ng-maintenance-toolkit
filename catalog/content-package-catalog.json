@@ -1,7 +1,7 @@
 {
   "schemaVersion": 3,
-  "catalogVersion": "2.0.7",
-  "minimumToolkitVersion": "0.31.5",
+  "catalogVersion": "2.0.8",
+  "minimumToolkitVersion": "0.31.6",
   "packages": [
     {
       "packageId": "x-plane-zibo-vnav-descent-tables",
@@ -3439,6 +3439,12 @@
       }
     ],
     "copiedPatchRecoveryRecipes": [
+      {
+        "contractVersion": 1,
+        "id": "levelup-51c-managed-vnav-fans-wb-xlua-1.3.7r5",
+        "groupId": "wahltho.levelup-737ng.maintenance",
+        "approvalId": "levelup-2.S1.51C-zibo-4.05.35-00000000-xlua-1.3.7r5"
+      },
       {
         "contractVersion": 1,
         "id": "copied-zibo-vnav-jetway-cpdlc-upstream",
